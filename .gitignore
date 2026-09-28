@@ -54,8 +54,9 @@ venv/
 /quest-app/*.pidb
 /quest-app/sysinfo.txt
 /quest-app/crashlytics-build.properties
-/quest-app/Second Eyes_BurstDebugInformation_DoNotShip
-/quest-app/SecondEyes_BackUpThisFolder_ButDontShipItWithYourGame
+# Unity build side-products, created next to the APK
+*_BurstDebugInformation_DoNotShip/
+*_BackUpThisFolder_ButDontShipItWithYourGame/
 
 # Run data stays out of Git until raw-data storage is decided (open item O9)
 /runs/*/raw/
