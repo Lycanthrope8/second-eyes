@@ -54,6 +54,10 @@ venv/
 /quest-app/*.pidb
 /quest-app/sysinfo.txt
 /quest-app/crashlytics-build.properties
+# Unity's temporary folder for Android native build caches
+/quest-app/.utmp/
+# Written by the build and removed again when it finishes (seen in A1.4a)
+/quest-app/Assets/Resources/PerformanceTestRun*
 # Unity build side-products, created next to the APK
 *_BurstDebugInformation_DoNotShip/
 *_BackUpThisFolder_ButDontShipItWithYourGame/

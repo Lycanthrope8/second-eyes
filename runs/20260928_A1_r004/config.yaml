@@ -26,4 +26,4 @@ layout_id: null  # which prop layout
 headset_os_build: "oculus/eureka/eureka:14/UP1A.231005.007.A1/52433670048800520:user/abl_signing_keys:release,amss_signing_keys:release,release-keys"  # ro.build.fingerprint (--headset fills it)
 drone_firmware: null
 lighting: null  # lighting conditions
-notes: "3 marks, check OK. requested_hz:[72], available_hz: [72,80,90,120]"
+notes: "6 marks (A pressed 6 times), check OK. available_hz: [72, 80, 90, 120]. Dirty: created while the build was still finishing; the flagged files were build temporaries, gone afterwards. App code: commit e8077d0"
