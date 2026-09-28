@@ -1,0 +1,29 @@
+# Run config, format v1 (defined in schemas/run-config.v1.json).
+# Made by:   python tools/runs.py new <phase> --purpose "..." --operator "..."
+# Check it:  python tools/runs.py check <run ID>
+# Fill the optional fields that apply to this run and leave the rest null.
+
+# Identity (filled by the tool)
+config_version: 1
+run_id: __RUN_ID__
+phase: __PHASE__
+created: __CREATED__  # local time with UTC offset
+
+# Required (given to the tool)
+purpose: __PURPOSE__  # one line: why this run exists
+operator: __OPERATOR__  # who ran it
+
+# Code (filled by the tool)
+git_commit: __GIT_COMMIT__
+git_dirty: __GIT_DIRTY__  # true if the repository had uncommitted changes (files in .gitignore don't count)
+
+# Optional: leave null when a field doesn't apply
+model_checkpoint: __MODEL_CHECKPOINT__  # model file name (--checkpoint fills it)
+model_sha256: __MODEL_SHA256__  # SHA-256 of that file (--checkpoint fills it)
+prompt_version: null  # version of the prompt template
+schema_version: null  # version of the model's output/scene schema (proposal section 6.2)
+layout_id: null  # which prop layout
+headset_os_build: __HEADSET_OS_BUILD__  # ro.build.fingerprint (--headset fills it)
+drone_firmware: null
+lighting: null  # lighting conditions
+notes: ""  # anything else

@@ -1,0 +1,51 @@
+# Operating systems
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Python (used from S0.2)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# Large files never go into Git (docs/conventions.md, rule 4)
+# video and audio
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.h264
+*.wav
+*.flac
+# model weights
+*.onnx
+*.gguf
+*.safetensors
+*.pt
+*.pth
+*.ckpt
+# point clouds and motion capture
+*.ply
+*.c3d
+# builds and archives
+*.apk
+*.aab
+*.zip
+
+# Unity project in quest-app/ (created in A1)
+/quest-app/[Ll]ibrary/
+/quest-app/[Tt]emp/
+/quest-app/[Oo]bj/
+/quest-app/[Bb]uild/
+/quest-app/[Bb]uilds/
+/quest-app/[Ll]ogs/
+/quest-app/[Uu]ser[Ss]ettings/
+/quest-app/[Mm]emoryCaptures/
+/quest-app/[Rr]ecordings/
+/quest-app/*.csproj
+/quest-app/*.sln
+
+# Run data stays out of Git until raw-data storage is decided (open item O9)
+/runs/*/raw/

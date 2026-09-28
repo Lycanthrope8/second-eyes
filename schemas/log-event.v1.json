@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "log-event.v1.json",
+  "title": "Second Eyes event log line, format v1",
+  "description": "One line of a session log (JSON Lines). The top level checks every line; each entry in $defs is the data schema of the event type with that name, and analysis/eventlog.py applies it to lines whose ev matches. Explained in docs/logging.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["seq", "mono_us", "utc_us", "ev", "data"],
+  "properties": {
+    "seq": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Line counter from 0 within one session file."
+    },
+    "mono_us": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Device monotonic clock in integer microseconds; never jumps."
+    },
+    "utc_us": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Wall clock as Unix time in integer microseconds; can jump when the clock is corrected."
+    },
+    "ev": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
+      "description": "Event type in lower case, prefixed by its component, e.g. asr.text."
+    },
+    "data": {
+      "type": "object",
+      "description": "The event's own fields; a field with a unit carries it in its name, e.g. latency_ms."
+    }
+  },
+  "$defs": {
+    "session.start": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["format", "session_id", "app_version", "os_build"],
+      "properties": {
+        "format": {"const": 1, "description": "Log format version (1)."},
+        "session_id": {"type": "string", "minLength": 1, "description": "Unique ID of this session."},
+        "app_version": {"type": "string", "minLength": 1, "description": "Version of the app that wrote the log."},
+        "os_build": {"type": ["string", "null"], "description": "Headset ro.build.fingerprint, or null on a device without one."}
+      }
+    },
+    "session.end": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "mark": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text"],
+      "properties": {
+        "text": {"type": "string", "minLength": 1, "description": "The note."}
+      }
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["where", "message"],
+      "properties": {
+        "where": {"type": "string", "minLength": 1, "description": "Component or function where it happened."},
+        "message": {"type": "string", "minLength": 1, "description": "What went wrong."}
+      }
+    }
+  }
+}

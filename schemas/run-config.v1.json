@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "run-config.v1.json",
+  "title": "Second Eyes run config, format v1",
+  "description": "One per run, in runs/<run ID>/config.yaml. Created by 'python tools/runs.py new', checked by 'python tools/runs.py check'. Rules: runs/README.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["config_version", "run_id", "phase", "created", "purpose", "operator", "git_commit", "git_dirty"],
+  "properties": {
+    "config_version": {
+      "const": 1,
+      "description": "Format version of this file."
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^[0-9]{8}_[0-9A-Za-z.]+_r[0-9]{3,}$",
+      "description": "YYYYMMDD_<phase>_r<NNN>; the run folder has the same name."
+    },
+    "phase": {
+      "enum": ["S0", "A0", "A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "A10",
+               "B1", "B2", "B3",
+               "2A.1", "2A.2", "2A.3", "2A.4", "2A.5",
+               "2B.1", "2B.2", "2B.3", "2B.4", "2B.5"],
+      "description": "A phase ID from the research proposal."
+    },
+    "created": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[+-][0-9]{2}:[0-9]{2}$",
+      "description": "Local time with UTC offset, in quotes, e.g. \"2026-10-01T14:03:22+02:00\"."
+    },
+    "purpose": {
+      "type": "string",
+      "pattern": "^[^\\n]*\\S[^\\n]*$",
+      "description": "One non-empty line: why this run exists."
+    },
+    "operator": {
+      "type": "string",
+      "pattern": "^[^\\n]*\\S[^\\n]*$",
+      "description": "One non-empty line: who ran it."
+    },
+    "git_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$",
+      "description": "Full commit hash of the repository when the run was created."
+    },
+    "git_dirty": {
+      "type": "boolean",
+      "description": "true if the repository had uncommitted changes, including new files, when the run was created. Files ignored by .gitignore don't count."
+    },
+    "model_checkpoint": {
+      "type": ["string", "null"],
+      "description": "Model file name, or null."
+    },
+    "model_sha256": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 of the model file (64 lowercase hex characters), or null."
+    },
+    "prompt_version": {
+      "type": ["string", "number", "null"],
+      "description": "Version of the prompt template, or null."
+    },
+    "schema_version": {
+      "type": ["string", "number", "null"],
+      "description": "Version of the model's output/scene schema (proposal section 6.2), or null."
+    },
+    "layout_id": {
+      "type": ["string", "number", "null"],
+      "description": "Which prop layout, or null."
+    },
+    "headset_os_build": {
+      "type": ["string", "null"],
+      "description": "The headset's ro.build.fingerprint, or null."
+    },
+    "drone_firmware": {
+      "type": ["string", "number", "null"],
+      "description": "Drone firmware version, or null."
+    },
+    "lighting": {
+      "type": ["string", "null"],
+      "description": "Lighting conditions, or null."
+    },
+    "notes": {
+      "type": ["string", "null"],
+      "description": "Anything else."
+    }
+  }
+}
