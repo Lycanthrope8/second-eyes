@@ -18,6 +18,8 @@ python tools/runs.py new A1 --purpose "idle baseline" --operator AB
 
 This makes `runs/<run ID>/config.yaml` from `_template.yaml` and fills in the ID, the creation time and the Git commit. It refuses to run outside a Git repository with at least one commit. If the repository has any uncommitted change, including new files and the config of an earlier run, it warns you and marks the run `git_dirty: true`. Files ignored by `.gitignore` don't count. So commit before you create a run.
 
+After a Unity build, wait until it has completely finished before creating a run: while it runs, the build temporarily changes files in `quest-app/`. If `new` warns about uncommitted changes anyway, delete the new run folder, fix the cause (commit, or wait for the build), and create the run again. The number is free again because the folder was never committed.
+
 Optional:
 
 - `--checkpoint FILE` records the model file's name and SHA-256.
