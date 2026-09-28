@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "name": "qwen2.5-0.5b-instruct",
+  "hf_repo": "Qwen/Qwen2.5-0.5B-Instruct",
+  "hf_revision": "main",
+  "onnx_opset": 15,
+  "architecture": {
+    "max_layers": 24,
+    "num_key_value_heads": 2,
+    "head_dim": 64,
+    "eos_token_id": 151645,
+    "vocab_size": 151936
+  },
+  "chat_template": "<|im_start|>system\n{1}<|im_end|>\n<|im_start|>user\n{0}<|im_end|>\n<|im_start|>assistant\n",
+  "max_new_tokens": 100,
+  "max_prompt_length": 512
+}

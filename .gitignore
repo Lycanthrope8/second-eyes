@@ -34,6 +34,10 @@ venv/
 *.aab
 *.zip
 
+# Downloaded and exported models: grounding/models/<name>.json is tracked, grounding/models/<name>/ is not
+/grounding/models/*/
+*.onnx_data
+
 # Unity project in quest-app/ (created in A1)
 /quest-app/[Ll]ibrary/
 /quest-app/[Tt]emp/
