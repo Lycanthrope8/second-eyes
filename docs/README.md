@@ -4,4 +4,6 @@ How things work now. Edited in place when something changes; log the change and 
 
 - `conventions.md`: where things go and the rules
 - `logging.md`: the event log format
+- `meta-ai.md`: facts from Meta's on-device AI docs that the project relies on
+- `profiling.md`: how the cost of a build is measured on the headset
 - `setup/quest3.md`: the headset's exact state and how to undo every change

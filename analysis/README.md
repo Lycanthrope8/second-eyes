@@ -5,6 +5,7 @@ Offline analysis of logged runs: reading event logs, aligning the Quest, drone a
 | Script | What it does | Since |
 |---|---|---|
 | `eventlog.py` | reads, checks and summarizes event logs (see `docs/logging.md`) | S0.3 |
+| `profile.py` | summarizes and compares recordings from `tools/profile.py` (see `docs/profiling.md`) | A1.6a |
 
 ## Setup
 

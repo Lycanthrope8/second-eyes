@@ -23,7 +23,7 @@ Run `20260927_A1_r001`, 2026-09-27: 8.7 minutes after a reboot, idle in Home wit
 
 ## Changes
 
-One row per change, in the order the changes were made. None so far: cleanup is decided in A1.6, with our app running (D11).
+One row per change, in the order the changes were made. None: O5 was closed with no changes (D26), because the processes busy while our app runs are the XR system itself (run `20260928_A1_r007`).
 
 | # | Date | What changed | Command or setting used | How to undo | Measured effect | Approved |
 |---|---|---|---|---|---|---|

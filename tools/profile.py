@@ -25,7 +25,7 @@ ROOT = Path(__file__).resolve().parent.parent
 RUNS = ROOT / "runs"
 PACKAGE = "com.secondeyes.quest"                          # the app's package name (D14)
 METRICS_DIR = "/sdcard/Android/data/com.oculus.ovrmonitormetricsservice/files/CapturedMetrics"
-METRICS_PREFIX = PACKAGE.replace(".", "_")               # OVR Metrics names its CSVs after the app
+METRICS_PREFIX = PACKAGE   # OVR Metrics names its CSVs "<package>#<activity>-<start>.csv", e.g. com.secondeyes.quest#...
 METRICS_SERVICE = "com.oculus.ovrmonitormetricsservice"  # runs only while OVR Metrics is active
 CSV_CHECK_SAMPLE = 2                                     # by the 2nd sample (30 s in), a CSV must be growing
 

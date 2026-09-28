@@ -8,19 +8,21 @@ Open questions first, then decisions taken, newest first. A decision records wha
 |---|---|---|---|
 | O3 | Coordinate frames (and preferred units) for poses in logs | the first logged pose | to be proposed; Unity is left-handed with Y up, while the memory example in proposal §4.3 has Z up |
 | O4 | How Vicon data are recorded for clock alignment | first use of Vicon (D10) | exported files · live stream (Vicon DataStream SDK) |
-| O5 | What to disable on the Quest 3 | A1.6 (D11) | decided with our app running, from its profile |
 | O6 | Where each component's headset (C#) code lives | the first component with C# code (D14) | inside `quest-app/` · in its own component folder as a Unity local package |
 | O7 | Where Track B (SpatialLM) work lives | B1 | to be proposed |
 | O8 | Git tag names for gates | Gate A | to be proposed |
 | O9 | Raw-data storage (S0 item 5) | after Gate A | deferred, see D1 |
 | O10 | Experiment tracking and figure scripts (S0 item 6) | after Gate A | deferred, see D1 |
 | O13 | Draw hand and controller models? | once the GPU headroom is known (after A1.11) | none (D21) · Meta's models, if the GPU has room |
-| O14 | App graphics memory grows about 1.6 GB each time the headset comes off and on while the app runs | suggested: before A1.7, since with the model loaded one off-on may exhaust memory | to be investigated |
+| O14 | App graphics memory grows about 1.6 GB each time the headset comes off and on while the app runs | suggested: before the 30-minute soak (A1.11); until then, runs keep the headset on (`docs/profiling.md`), since with the model loaded one off-on may exhaust memory | to be investigated |
 
 ## Decided
 
 | ID | Date | Decision | Alternatives considered | Reason / evidence | By |
 |---|---|---|---|---|---|
+| D27 | 2026-09-28 | A1.7 as proposed, in four parts: A1.7a finds the starting point in Meta's docs (or we export Qwen2.5-0.5B-Instruct ourselves); A1.7b a PC reference answer to one fixed prompt; A1.7c the model on the headset, copied there once with adb and logged as `model.load` and `model.generate`; A1.7d model off versus on. The model must stay easy to change (project lead's requirement; how, proposed with A1.7b) | none recorded | A1.7 proposal approved, with the requirement added | project lead |
+| D26 | 2026-09-28 | O5 closed with no changes to the headset | Disable background system apps | Run `20260928_A1_r007`: besides our app, the busy processes are the XR system itself (tracking, sensors, runtime, passthrough), so there is nothing to remove. As recommended | project lead |
+| D25 | 2026-09-28 | A1.6's trial and reference measurements are skipped; costs are measured with the model in A1.7 (A1.7d, model off versus on) | Finish A1.6a's trial and A1.6b first | Project lead's choice | project lead |
 | D24 | 2026-09-28 | A1.6 as proposed, with the sampler on the PC: `tools/profile.py record` samples thermal state, battery and processes every 30 s; OVR Metrics' CSV gives frames, load and memory; `analysis/profile.py` summarizes and compares. Agreement limits: 0.5 fps, 5% peak memory, 3 points of CPU and GPU load. Two repeats on a freshly rebooted headset with a fixed routine | Sampler on the headset, started and stopped around the run (as first proposed) | A1.6 proposal approved; the sampler moved to the PC because the cable stays in (D22) | project lead |
 | D23 | 2026-09-28 | Each reference measurement lasts 10 minutes, repeated twice | 2 × 30 minutes | As recommended: 10 minutes shows the empty app's frame rate and memory; the 30-minute heat test belongs to A1.11 | project lead |
 | D22 | 2026-09-28 | Measurements run with the headset plugged in | Unplugged | Project lead's choice. Consequence: battery drain can't be measured and heat readings include charging; runs note "plugged in" | project lead |
