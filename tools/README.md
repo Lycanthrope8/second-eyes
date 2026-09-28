@@ -5,6 +5,7 @@ Command-line helpers for the operator. They run on a PC, never on the headset.
 | Tool | What it does | Since |
 |---|---|---|
 | `runs.py` | creates and checks run folders (see `runs/README.md`) | S0.2 |
+| `logs.py` | pulls session logs from the headset into a run (see `docs/logging.md`) | A1.4b |
 
 ## Setup
 
@@ -14,4 +15,4 @@ Python 3.9 or newer, plus two packages, installed into whichever Python environm
 pip install -r tools/requirements.txt
 ```
 
-Run the tools from the repository root, for example `python tools/runs.py check --all`.
+Run the tools from the repository root, for example `python tools/runs.py check --all`. `logs.py` also needs `adb` on your PATH; it uses only Python's standard library.

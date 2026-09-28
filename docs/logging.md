@@ -9,7 +9,7 @@ How every session log is written, so it can be read, checked and aligned later. 
 - On the PC, a run's logs live in `runs/<run ID>/raw/`, which Git ignores until raw-data storage is decided (open item O9).
 - On the headset, the app writes `Android/data/com.secondeyes.quest/files/logs/<UTC start>_<session ID>.jsonl`, for example `20260928T051200Z_a3f9c2e1.jsonl`, in UTF-8 without a byte-order mark.
 - Events are timestamped when they happen and queued; a background thread writes them once per second, and right away when the app pauses or quits. A crash loses at most the last second (D17). The writer is `quest-app/Assets/SecondEyes/Logging/EventLog.cs`.
-- A log is tied to its run when it is pulled into `runs/<run ID>/raw/` (D16); the pull command comes in A1.4b.
+- A log is tied to its run when it is pulled into `runs/<run ID>/raw/` (D16): quit the app, then run `python tools/logs.py pull <run ID>`. It copies every new session log into the run, checks each copy's size, and moves the original into `logs/pulled/` on the headset, so nothing is copied twice and nothing is deleted. It refuses while the app is still running, because that session's log isn't finished.
 
 ## Every line
 
