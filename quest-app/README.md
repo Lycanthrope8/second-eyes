@@ -2,10 +2,25 @@
 
 The Unity app that runs on the Meta Quest 3. At deployment, all AI inference happens here.
 
-Starts to fill in A1 (headset feasibility). Empty until then.
+## Setup record
 
-When A1 starts:
+| Item | Value |
+|---|---|
+| Unity | fill in (A1.3a) |
+| Meta XR Core SDK | fill in (A1.3a) |
+| XR plug-in provider | fill in (A1.3a) |
+| Render pipeline | URP (D14) |
+| Package name | `com.secondeyes.quest` (D14) |
+| Target frame rate | 72 Hz (D13) |
 
-- Decide open item O6 first: whether each component's C# code lives here or in its own component folder.
-- The Unity project's root goes in this folder, so `Assets/`, `Packages/` and `ProjectSettings/` sit next to this README. If Unity Hub refuses a folder that isn't empty, create the project elsewhere and move its contents here.
-- Unity's generated folders (`Library/`, `Temp/`, `Builds/` and similar) are already ignored by the root `.gitignore`.
+Update this table whenever a version changes, and log the change in `notes/decisions.md`.
+
+## Where code goes
+
+- Our app-level code goes in `Assets/SecondEyes/` (D14).
+- Where each component's C# code lives (O6) is decided when the first component has C# code.
+- Commit `Assets/`, `Packages/` and `ProjectSettings/`. Unity's generated folders (`Library/`, `Temp/`, `Logs/`, `Builds/` and similar) are ignored by the root `.gitignore`.
+
+## Build and install
+
+With the headset connected: File → Build Profiles → Android → Build And Run. APKs go in `Builds/`, which Git ignores.

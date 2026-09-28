@@ -42,10 +42,10 @@ The phase in parentheses is when a folder starts to fill; until then it holds on
 
 | | |
 |---|---|
-| Phase | S0 closed on 2026-09-27 (`notes/phases/S0_infrastructure.md`); next phase not started |
-| Done | S0 items 1–3: repository, run registry, event log format |
-| Deferred | S0 item 4 (time sync) until Vicon is used; items 5–6 (storage, experiment tracking) until after Gate A |
-| Next | not decided yet: headset prep step 2, A0 or A1 |
+| Phase | A1 · headset feasibility (started 2026-09-27) |
+| Done | S0 (closed 2026-09-27, `notes/phases/S0_infrastructure.md`); A1.1 headset baseline (`20260927_A1_r001`) |
+| Deferred | A1.2 headset cleanup until A1.6 (D11); S0 item 4 (time sync) until Vicon is used; S0 items 5–6 (storage, experiment tracking) until after Gate A |
+| Next | A1.3a: Unity, Meta XR SDK and an empty passthrough app |
 | Gates passed | none yet |
 
 Update this table whenever a step finishes.

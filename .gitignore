@@ -46,6 +46,14 @@ venv/
 /quest-app/[Rr]ecordings/
 /quest-app/*.csproj
 /quest-app/*.sln
+/quest-app/.vs/
+/quest-app/.idea/
+/quest-app/.vscode/
+/quest-app/*.user
+/quest-app/*.userprefs
+/quest-app/*.pidb
+/quest-app/sysinfo.txt
+/quest-app/crashlytics-build.properties
 
 # Run data stays out of Git until raw-data storage is decided (open item O9)
 /runs/*/raw/
