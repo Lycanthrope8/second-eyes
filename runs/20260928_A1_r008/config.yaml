@@ -26,4 +26,4 @@ layout_id: null  # which prop layout
 headset_os_build: null  # ro.build.fingerprint (--headset fills it)
 drone_firmware: null
 lighting: null  # lighting conditions
-notes: "fp32: {\"action\": \"INSPECT\", \"target\": \"box_1\"}; PyTorch match yes; fp16w: same as fp32"  
+notes: "fp32 and fp16w both answer {\"action\": \"INSPECT\", \"target\": \"box_1\"} (15 tokens, end token); PyTorch match yes; model has duplicate weights (2.52 GB)"

@@ -9,3 +9,5 @@ optimum~=2.1.0
 optimum-onnx==0.1.0
 onnx>=1.16
 onnxruntime>=1.18
+# needed by the exporter to remove Qwen's duplicate (tied) embedding weights
+accelerate>=0.26

@@ -81,8 +81,9 @@ def check_architecture(desc: dict, hf_dir: Path) -> None:
 def export(desc: dict, hf_dir: Path, onnx_dir: Path) -> None:
     try:
         from optimum.exporters.onnx import main_export
-    except ImportError:
-        raise ToolError("The ONNX exporter isn't installed. Run: python -m pip install -r grounding/requirements.txt")
+        import accelerate  # noqa: F401  (without it the exporter silently keeps duplicate weights)
+    except ImportError as err:
+        raise ToolError(f"A model tool is missing ({err.name}). Run: python -m pip install -r grounding/requirements.txt")
     print(f"Exporting to ONNX (opset {desc['onnx_opset']}); this takes a few minutes ...")
     main_export(str(hf_dir), output=str(onnx_dir), task="text-generation-with-past",
                 opset=desc["onnx_opset"], device="cpu")

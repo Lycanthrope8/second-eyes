@@ -43,9 +43,9 @@ The phase in parentheses is when a folder starts to fill; until then it holds on
 | | |
 |---|---|
 | Phase | A1 · headset feasibility (started 2026-09-27) |
-| Done | S0 (closed 2026-09-27, `notes/phases/S0_infrastructure.md`); A1.1 headset baseline (`20260927_A1_r001`); A1.3a empty passthrough app (`20260928_A1_r002`); A1.3b overlay and 72 Hz request (`20260928_A1_r003`); A1.4a headset event log (`20260928_A1_r004`); A1.4b log pull (`20260928_A1_r005`); A1.5 hand tracking and stop button (`20260928_A1_r006`); A1.6a measuring tools (trial `20260928_A1_r007`); O5 closed, no headset changes (D26); A1.7a starting point found in Meta's docs and source (`docs/meta-ai.md`) |
+| Done | S0 (closed 2026-09-27, `notes/phases/S0_infrastructure.md`); A1.1 headset baseline (`20260927_A1_r001`); A1.3a empty passthrough app (`20260928_A1_r002`); A1.3b overlay and 72 Hz request (`20260928_A1_r003`); A1.4a headset event log (`20260928_A1_r004`); A1.4b log pull (`20260928_A1_r005`); A1.5 hand tracking and stop button (`20260928_A1_r006`); A1.6a measuring tools (trial `20260928_A1_r007`); O5 closed, no headset changes (D26); A1.7a starting point found in Meta's docs and source (`docs/meta-ai.md`); A1.7b PC reference (`20260928_A1_r008`) |
 | Deferred | A1.6's trial and reference measurement, replaced by A1.7d (D25); S0 item 4 (time sync) until Vicon is used; S0 items 5–6 (storage, experiment tracking) until after Gate A |
-| Next | A1.7b: the PC reference answer |
+| Next | A1.7b again, exported without duplicate weights (D30); then A1.7c-1: the model in Unity |
 | Gates passed | none yet |
 
 Update this table whenever a step finishes.
