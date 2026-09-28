@@ -14,11 +14,16 @@ Open questions first, then decisions taken, newest first. A decision records wha
 | O8 | Git tag names for gates | Gate A | to be proposed |
 | O9 | Raw-data storage (S0 item 5) | after Gate A | deferred, see D1 |
 | O10 | Experiment tracking and figure scripts (S0 item 6) | after Gate A | deferred, see D1 |
+| O13 | Draw hand and controller models? | once the GPU headroom is known (after A1.11) | none (D21) · Meta's models, if the GPU has room |
+| O14 | App graphics memory grows about 1.6 GB each time the headset comes off and on while the app runs | suggested: before A1.7, since with the model loaded one off-on may exhaust memory | to be investigated |
 
 ## Decided
 
 | ID | Date | Decision | Alternatives considered | Reason / evidence | By |
 |---|---|---|---|---|---|
+| D24 | 2026-09-28 | A1.6 as proposed, with the sampler on the PC: `tools/profile.py record` samples thermal state, battery and processes every 30 s; OVR Metrics' CSV gives frames, load and memory; `analysis/profile.py` summarizes and compares. Agreement limits: 0.5 fps, 5% peak memory, 3 points of CPU and GPU load. Two repeats on a freshly rebooted headset with a fixed routine | Sampler on the headset, started and stopped around the run (as first proposed) | A1.6 proposal approved; the sampler moved to the PC because the cable stays in (D22) | project lead |
+| D23 | 2026-09-28 | Each reference measurement lasts 10 minutes, repeated twice | 2 × 30 minutes | As recommended: 10 minutes shows the empty app's frame rate and memory; the 30-minute heat test belongs to A1.11 | project lead |
+| D22 | 2026-09-28 | Measurements run with the headset plugged in | Unplugged | Project lead's choice. Consequence: battery drain can't be measured and heat readings include charging; runs note "plugged in" | project lead |
 | D21 | 2026-09-28 | A1.5 as proposed: hand tracking in Meta's controllers-and-hands mode with default settings; no virtual hands, since passthrough shows the real ones; `hands.state` logged at startup and on every change; B on the right controller logs `control.stop`, straight from the button | Meta's hand models; another stop button | A1.5 proposal approved as proposed | project lead |
 | D20 | 2026-09-28 | A1.5 (hand tracking and stop button) stays before A1.6 | Go to A1.6 and A1.7 first, add hands later and measure the reference again | As recommended: A1.6's measurement is the reference for every later step, and the real app uses hand tracking, which costs compute | project lead |
 | D19 | 2026-09-28 | Keep `tools/logs.py` as tested in A1.4b: it refuses to pull while the app's process exists | A newer version that checks each log for `session.end`, written after a misdiagnosis and never applied | Tested on the headset in `20260928_A1_r005`: quitting the app ends its process, so the simpler check works; the earlier refusal came from an app that was still open | project lead |
