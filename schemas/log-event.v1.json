@@ -133,6 +133,38 @@
           "description": "Refresh rates the headset offers, in Hz; empty if it didn't say."
         }
       }
+    },
+    "hands.state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "left_tracked",
+        "right_tracked"
+      ],
+      "properties": {
+        "left_tracked": {
+          "type": "boolean",
+          "description": "Whether the left hand is tracked."
+        },
+        "right_tracked": {
+          "type": "boolean",
+          "description": "Whether the right hand is tracked."
+        }
+      }
+    },
+    "control.stop": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source"
+      ],
+      "properties": {
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "description": "What triggered the stop, e.g. button_b."
+        }
+      }
     }
   }
 }

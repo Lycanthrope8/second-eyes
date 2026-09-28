@@ -12,7 +12,8 @@ namespace SecondEyes.App
 
         private void Update()
         {
-            if (OVRInput.GetDown(OVRInput.Button.One))
+            // Read from the right controller only, so a hand pinch can't be taken for A.
+            if (OVRInput.GetDown(OVRInput.Button.One, OVRInput.Controller.RTouch))
             {
                 count++;
                 EventLog.Mark($"button A #{count}");

@@ -39,7 +39,7 @@ python tools/runs.py check --all
 ## What goes in a run folder
 
 - `config.yaml`, tracked in Git.
-- `raw/`, holding the run's logs and recordings. Git ignores it until raw-data storage is decided (open item O9), so the files exist only on your disk: back up anything you can't recreate. How logs get from the headset into `raw/` is set in A1.
+- `raw/`, holding the run's logs and recordings. Git ignores it until raw-data storage is decided (open item O9), so the files exist only on your disk: back up anything you can't recreate. Headset logs get there with `python tools/logs.py pull <run ID>`, after you quit the app (see `docs/logging.md`).
 
 ## Config fields
 

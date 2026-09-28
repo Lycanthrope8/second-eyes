@@ -42,6 +42,8 @@ Defined in v1:
 | `mark` | `text` | a note added during a session |
 | `error` | `where`, `message` | something went wrong |
 | `display.rate` | `requested_hz`, `available_hz` (list) | once at startup, after the app requests its refresh rate (A1.4a) |
+| `hands.state` | `left_tracked`, `right_tracked` (true or false) | at startup, then whenever either hand starts or stops being tracked (A1.5) |
+| `control.stop` | `source` (`button_b`) | when the stop button, B on the right controller, is pressed (A1.5) |
 
 Planned, and defined by the phase that first emits them (proposal S0 item 3): speech start and end, recognized text, model input and output, candidate probabilities, the validated goal, commands sent, and drone telemetry. Sync events are defined when time sync is built (deferred, D10).
 
