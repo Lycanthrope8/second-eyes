@@ -43,9 +43,9 @@ The phase in parentheses is when a folder starts to fill; until then it holds on
 | | |
 |---|---|
 | Phase | A1 · headset feasibility (started 2026-09-27) |
-| Done | S0 (closed 2026-09-27, `notes/phases/S0_infrastructure.md`); A1.1 headset baseline (`20260927_A1_r001`) |
+| Done | S0 (closed 2026-09-27, `notes/phases/S0_infrastructure.md`); A1.1 headset baseline (`20260927_A1_r001`); A1.3a empty passthrough app (`20260928_A1_r002`); A1.3b overlay and 72 Hz request |
 | Deferred | A1.2 headset cleanup until A1.6 (D11); S0 item 4 (time sync) until Vicon is used; S0 items 5–6 (storage, experiment tracking) until after Gate A |
-| Next | A1.3a: Unity, Meta XR SDK and an empty passthrough app |
+| Next | A1.4a: the headset writes logs |
 | Gates passed | none yet |
 
 Update this table whenever a step finishes.

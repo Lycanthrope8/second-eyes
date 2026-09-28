@@ -14,12 +14,15 @@ Open questions first, then decisions taken, newest first. A decision records wha
 | O8 | Git tag names for gates | Gate A | to be proposed |
 | O9 | Raw-data storage (S0 item 5) | after Gate A | deferred, see D1 |
 | O10 | Experiment tracking and figure scripts (S0 item 6) | after Gate A | deferred, see D1 |
-| O12 | How a headset log is tied to its run | A1, with the log-pull command (D7) | tie at pull time (the pull copies new session files into `runs/<run ID>/raw/`) · give the headset the run ID before each session |
 
 ## Decided
 
 | ID | Date | Decision | Alternatives considered | Reason / evidence | By |
 |---|---|---|---|---|---|
+| D18 | 2026-09-28 | A1.4 as proposed, in two parts: A1.4a, the headset writes logs (`EventLog.cs` in the S0.3 format; A on the right controller adds a `mark`; `DisplayRate` logs a new `display.rate` event), then A1.4b, `tools/logs.py pull` | none recorded | A1.4 proposal approved as proposed | project lead |
+| D17 | 2026-09-28 | The headset logger queues events and a background thread writes them once per second, and right away when the app pauses or quits | Every event straight to disk | As recommended in the A1.4 proposal: no disk writes on the render loop; a crash loses at most the last second | project lead |
+| D16 | 2026-09-28 | A headset log is tied to its run when it is pulled into `runs/<run ID>/raw/` (was O12) | Send the run ID to the headset before each session | As recommended in the A1.4 proposal: the headset never needs run IDs, so a stale ID can't end up in a log | project lead |
+| D15 | 2026-09-28 | A1.3b as proposed: `DebugOverlay.cs` and `DisplayRate.cs` in `quest-app/Assets/SecondEyes/App/` | none recorded | A1.3b proposal approved. Tests 1 and 2 passed; tests 3 and 4 (the log line and the run record) were folded into A1.4a | project lead |
 | D14 | 2026-09-27 | A1.3 as proposed: URP; package name `com.secondeyes.quest`; app-level code in `quest-app/Assets/SecondEyes/`; Unity and SDK versions recorded in `quest-app/README.md`; O6 waits until the first component has C# code | none recorded | A1.3 proposal approved as proposed | project lead |
 | D13 | 2026-09-27 | Target frame rate 72 Hz | 90 Hz | As recommended in the A1.3 proposal: the most headroom for the model, speech recognition and the detector | project lead |
 | D12 | 2026-09-27 | Meta XR SDK for the Quest app | Unity OpenXR + AR Foundation | As recommended in the A1.3 proposal: the Meta samples the research proposal cites (on-device inference, object detection, passthrough camera API) build on it | project lead |

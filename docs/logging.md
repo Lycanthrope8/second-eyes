@@ -7,7 +7,9 @@ How every session log is written, so it can be read, checked and aligned later. 
 - One file per app session, in JSON Lines: one JSON object per line, appended as things happen. That keeps writing cheap on the headset.
 - The first line is `session.start` and the last is `session.end`. A missing `session.end` means the app crashed or the file was pulled mid-session.
 - On the PC, a run's logs live in `runs/<run ID>/raw/`, which Git ignores until raw-data storage is decided (open item O9).
-- How the headset names its files, where it writes them, how they are pulled and how a log is tied to its run are set in A1, together with the C# logger.
+- On the headset, the app writes `Android/data/com.secondeyes.quest/files/logs/<UTC start>_<session ID>.jsonl`, for example `20260928T051200Z_a3f9c2e1.jsonl`, in UTF-8 without a byte-order mark.
+- Events are timestamped when they happen and queued; a background thread writes them once per second, and right away when the app pauses or quits. A crash loses at most the last second (D17). The writer is `quest-app/Assets/SecondEyes/Logging/EventLog.cs`.
+- A log is tied to its run when it is pulled into `runs/<run ID>/raw/` (D16); the pull command comes in A1.4b.
 
 ## Every line
 
@@ -18,7 +20,7 @@ How every session log is written, so it can be read, checked and aligned later. 
 | Field | Meaning |
 |---|---|
 | `seq` | line counter from 0 within the file, so a lost line shows up |
-| `mono_us` | device monotonic clock in microseconds; never jumps, so durations and, later, clock alignment use it |
+| `mono_us` | device monotonic clock in microseconds (on the headset, .NET's `Stopwatch`); never jumps, so durations and, later, clock alignment use it |
 | `utc_us` | wall clock as Unix time in microseconds; can jump when the clock is corrected |
 | `ev` | event type in lower case, prefixed by its component: `asr.text`, `slm.output`, `drone.telemetry` |
 | `data` | the event's own fields |
@@ -39,6 +41,7 @@ Defined in v1:
 | `session.end` | none | last line |
 | `mark` | `text` | a note added during a session |
 | `error` | `where`, `message` | something went wrong |
+| `display.rate` | `requested_hz`, `available_hz` (list) | once at startup, after the app requests its refresh rate (A1.4a) |
 
 Planned, and defined by the phase that first emits them (proposal S0 item 3): speech start and end, recognized text, model input and output, candidate probabilities, the validated goal, commands sent, and drone telemetry. Sync events are defined when time sync is built (deferred, D10).
 
