@@ -26,6 +26,8 @@ RUNS = ROOT / "runs"
 PACKAGE = "com.secondeyes.quest"                          # the app's package name (D14)
 METRICS_DIR = "/sdcard/Android/data/com.oculus.ovrmonitormetricsservice/files/CapturedMetrics"
 METRICS_PREFIX = PACKAGE.replace(".", "_")               # OVR Metrics names its CSVs after the app
+METRICS_SERVICE = "com.oculus.ovrmonitormetricsservice"  # runs only while OVR Metrics is active
+CSV_CHECK_SAMPLE = 2                                     # by the 2nd sample (30 s in), a CSV must be growing
 
 
 class ToolError(Exception):
@@ -46,9 +48,13 @@ def text_of(result: subprocess.CompletedProcess) -> str:
     return (result.stdout or "").replace("\r", "")
 
 
-def app_running() -> bool:
-    result = adb("shell", "pidof", PACKAGE)
+def running(package: str) -> bool:
+    result = adb("shell", "pidof", package)
     return result.returncode == 0 and bool(text_of(result).strip())
+
+
+def app_running() -> bool:
+    return running(PACKAGE)
 
 
 def take_sample(started: float) -> dict:
@@ -76,17 +82,21 @@ def live_line(sample: dict, index: int, total: int) -> str:
             f"thermal status {status.group(1) if status else '?'}")
 
 
-def pull_metrics(raw: Path, since_device_s: int) -> list:
-    """Copy the OVR Metrics CSVs of this app that were written during the recording."""
+def metrics_since(since_device_s: int) -> list:
+    """Paths of this app's OVR Metrics CSVs written to since the given device time."""
     listing = adb("shell", f"stat -c '%Y %n' {METRICS_DIR}/{METRICS_PREFIX}*.csv")
-    pulled = []
+    paths = []
     for line in text_of(listing).splitlines():
         parts = line.strip().split(" ", 1)
-        if len(parts) != 2 or not parts[0].isdigit():
-            continue
-        modified, path = int(parts[0]), parts[1]
-        if modified < since_device_s:
-            continue  # last written before this recording started
+        if len(parts) == 2 and parts[0].isdigit() and int(parts[0]) >= since_device_s:
+            paths.append(parts[1])
+    return paths
+
+
+def pull_metrics(raw: Path, since_device_s: int) -> list:
+    """Copy the OVR Metrics CSVs of this app that were written during the recording."""
+    pulled = []
+    for path in metrics_since(since_device_s):
         result = adb("pull", path, str(raw), timeout=300)
         if result.returncode == 0:
             pulled.append(path.rsplit("/", 1)[-1])
@@ -102,6 +112,9 @@ def cmd_record(args) -> int:
         raise ToolError("No headset ready over adb. Connect exactly one headset, awake, with USB debugging allowed.")
     if not app_running():
         raise ToolError("The app isn't running on the headset. Start it first, then record.")
+    if not running(METRICS_SERVICE):
+        raise ToolError("OVR Metrics isn't running on the headset, so it can't record frames, load and memory.\n"
+                        "Turn on its CSV recording first. Nothing was recorded.")
     raw = run / "raw"
     raw.mkdir(exist_ok=True)
     out = raw / "sampler.jsonl"
@@ -132,6 +145,10 @@ def cmd_record(args) -> int:
                 print(live_line(sample, index, total))
                 if not sample["app_running"]:
                     print("  The app stopped, so the recording ends here.")
+                    break
+                if index == CSV_CHECK_SAMPLE and not metrics_since(device_s - 5):
+                    print("  OVR Metrics isn't writing a CSV, so the recording stops here. Turn its CSV recording on,\n"
+                          "  create a new run and record again.")
                     break
         except KeyboardInterrupt:
             print("  Stopped early.")
