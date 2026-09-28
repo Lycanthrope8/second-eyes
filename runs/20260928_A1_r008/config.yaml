@@ -1,0 +1,29 @@
+# Run config, format v1 (defined in schemas/run-config.v1.json).
+# Made by:   python tools/runs.py new <phase> --purpose "..." --operator "..."
+# Check it:  python tools/runs.py check <run ID>
+# Fill the optional fields that apply to this run and leave the rest null.
+
+# Identity (filled by the tool)
+config_version: 1
+run_id: "20260928_A1_r008"
+phase: "A1"
+created: "2026-09-28T18:45:03-04:00"  # local time with UTC offset
+
+# Required (given to the tool)
+purpose: "A1.7b PC reference"  # one line: why this run exists
+operator: "JH"  # who ran it
+
+# Code (filled by the tool)
+git_commit: "128f38596a33496eaa50d1670c7e36f250dc3239"
+git_dirty: false  # true if the repository had uncommitted changes (files in .gitignore don't count)
+
+# Optional: leave null when a field doesn't apply
+model_checkpoint: "model.onnx_data"  # model file name (--checkpoint fills it)
+model_sha256: "72303ef1d77c02e4efc46a35b5cc60a841213518baa0ddae6247d44f1686265a"  # SHA-256 of that file (--checkpoint fills it)
+prompt_version: null  # version of the prompt template
+schema_version: null  # version of the model's output/scene schema (proposal section 6.2)
+layout_id: null  # which prop layout
+headset_os_build: null  # ro.build.fingerprint (--headset fills it)
+drone_firmware: null
+lighting: null  # lighting conditions
+notes: "fp32: {\"action\": \"INSPECT\", \"target\": \"box_1\"}; PyTorch match yes; fp16w: same as fp32"  
