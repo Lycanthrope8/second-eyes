@@ -26,4 +26,4 @@ layout_id: null  # which prop layout
 headset_os_build: "oculus/eureka/eureka:14/UP1A.231005.007.A1/52433670048800520:user/abl_signing_keys:release,amss_signing_keys:release,release-keys"  # ro.build.fingerprint (--headset fills it)
 drone_firmware: null
 lighting: null  # lighting conditions
-notes: ""  # anything else
+notes: "OVR Metrics: 72 fps, 0 stale frames over 2 min"  # anything else
