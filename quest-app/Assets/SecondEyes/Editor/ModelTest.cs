@@ -22,6 +22,8 @@ namespace SecondEyes.EditorTools
     ///   1. Tokenizer: do Meta's template and tokenizer, with the provider's settings, give the reference's prompt IDs?
     ///   2-4. The model, converted from ONNX in memory with 32-bit weights, then with Unity's 16-bit rounding, and the
     ///      .sentis file the app carries: fed the reference's own prompt IDs, does it give the reference's answer?
+    ///   5. The 32-bit model with the prompt fed one token at a time, so no pass ever handles several tokens at once.
+    ///   6. The 32-bit model on the GPU backend instead of the CPU backend.
     /// The model runs in a plain greedy loop of ours, the same steps as grounding/meta_runner.py, not Meta's runner, on the
     /// CPU backend. If everything here matches but the app still answers wrongly, the difference is in Meta's runner.
     /// Unity doesn't respond while a check runs. The report goes to this window, the Console and, optionally, a run.
@@ -33,7 +35,7 @@ namespace SecondEyes.EditorTools
         const string PrefSaveRun = "SecondEyes.ModelTest.SaveRun";
         const string PromptFile = "grounding/prompts/a17-fixed.json";   // A1.7c's fixed prompt, as in Fill chat provider
 
-        [Flags] enum Checks { Tokenizer = 1, Onnx32 = 2, Onnx16 = 4, Sentis = 8, All = 15 }
+        [Flags] enum Checks { Tokenizer = 1, Onnx32 = 2, Onnx16 = 4, Sentis = 8, All = 15, OneByOne = 16, Gpu = 32 }
 
         [Serializable] public class RefPrompt { public int[] token_ids; }
         [Serializable] public class RefAnswer { public int[] token_ids; public string text_meta_style; public int tokens; }
@@ -80,7 +82,11 @@ namespace SecondEyes.EditorTools
             if (GUILayout.Button("3. 16-bit, in memory")) Run(folders[folderIndex], Checks.Onnx16);
             if (GUILayout.Button("4. The .sentis file")) Run(folders[folderIndex], Checks.Sentis);
             EditorGUILayout.EndHorizontal();
-            if (GUILayout.Button("Run all four")) Run(folders[folderIndex], Checks.All);
+            if (GUILayout.Button("Run 1 to 4")) Run(folders[folderIndex], Checks.All);
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("5. 32-bit, prompt one token at a time")) Run(folders[folderIndex], Checks.OneByOne);
+            if (GUILayout.Button("6. 32-bit, on the GPU")) Run(folders[folderIndex], Checks.Gpu);
+            EditorGUILayout.EndHorizontal();
 
             scroll = EditorGUILayout.BeginScrollView(scroll);
             EditorGUILayout.TextArea(report, GUILayout.ExpandHeight(true));
@@ -112,13 +118,13 @@ namespace SecondEyes.EditorTools
                 var setup = Setup.Load(folder, referenceRun.Trim());
                 output.AppendLine("Model test, " + DateTime.Now.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) +
                                   ": " + Path.GetFileName(folder) + ", prompt " + setup.Prompt.id + ", reference run " +
-                                  referenceRun.Trim() + ", Unity Inference Engine " + setup.Engine.Version + ", CPU backend.");
-                if ((checks & Checks.Tokenizer) != 0) output.AppendLine(TokenizerCheck(setup));
+                                  referenceRun.Trim() + ", Unity Inference Engine " + setup.Engine.Version + ".");
+                if ((checks & Checks.Tokenizer) != 0) output.AppendLine(Guarded("1. Tokenizer", () => TokenizerCheck(setup)));
                 if ((checks & Checks.Onnx32) != 0)
-                    output.AppendLine(ModelCheck(setup, "2. 32-bit weights, converted from ONNX in memory", setup.Ref32, () =>
+                    output.AppendLine(ModelCheck(setup, "2. 32-bit weights, converted from ONNX in memory, CPU backend", setup.Ref32, () =>
                         (Model)setup.Engine.Convert(setup.OnnxPath)));
                 if ((checks & Checks.Onnx16) != 0)
-                    output.AppendLine(ModelCheck(setup, "3. 16-bit weights (Unity's rounding), converted from ONNX in memory",
+                    output.AppendLine(ModelCheck(setup, "3. 16-bit weights (Unity's rounding), converted from ONNX in memory, CPU backend",
                         setup.Ref16, () =>
                         {
                             var model = (Model)setup.Engine.Convert(setup.OnnxPath);
@@ -126,17 +132,28 @@ namespace SecondEyes.EditorTools
                             return model;
                         }));
                 if ((checks & Checks.Sentis) != 0)
-                    output.AppendLine(ModelCheck(setup, "4. The .sentis file: " + setup.Model.sentis_file, setup.Ref16, () =>
+                    output.AppendLine(ModelCheck(setup, "4. The .sentis file " + setup.Model.sentis_file + ", CPU backend", setup.Ref16, () =>
                     {
                         if (!File.Exists(setup.SentisPath))
                             throw new ModelFiles.ToolError(ModelFiles.StreamingAssets + "/" + setup.Model.sentis_file +
                                                            " isn't there. Convert it first (Second Eyes > Convert model).");
                         return ModelLoader.Load(setup.SentisPath);
                     }));
+                if ((checks & Checks.OneByOne) != 0)
+                    output.AppendLine(ModelCheck(setup, "5. 32-bit weights, converted from ONNX in memory, CPU backend, the prompt fed one token at a time",
+                        setup.Ref32, () => (Model)setup.Engine.Convert(setup.OnnxPath), BackendType.CPU, true));
+                if ((checks & Checks.Gpu) != 0)
+                    output.AppendLine(ModelCheck(setup, "6. 32-bit weights, converted from ONNX in memory, GPU backend (GPUCompute)",
+                        setup.Ref32, () => (Model)setup.Engine.Convert(setup.OnnxPath), BackendType.GPUCompute, false));
             }
             catch (ModelFiles.ToolError e)
             {
                 output.AppendLine("Stopped: " + e.Message);
+            }
+            catch (Exception e)
+            {
+                output.AppendLine("Stopped by " + e.GetType().Name + ": " + e.Message);
+                Debug.LogException(e);
             }
             finally
             {
@@ -211,12 +228,29 @@ namespace SecondEyes.EditorTools
             }
         }
 
+        /// <summary>Runs one check so that an error in it is reported and the other checks still run.</summary>
+        static string Guarded(string title, Func<string> check)
+        {
+            try { return check(); }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+                return title + ": stopped by " + e.GetType().Name + ": " + e.Message;
+            }
+        }
+
         static string TokenizerCheck(Setup s)
         {
             if (s.Config == null)
                 return "1. Tokenizer: no provider asset in the model folder, so Meta's tokenizer can't be checked here.";
+            Gpt2Tokenizer tokenizer = s.Config.Tokenizer;   // Meta starts it on first use; null if that failed
+            if (tokenizer == null)
+                return "1. Tokenizer: Meta's tokenizer didn't start. The provider has vocab: " + Name(s.Config.vocabFile) +
+                       ", merges: " + Name(s.Config.mergesFile) + ", config: " + Name(s.Config.tokenizerConfigFile) +
+                       ". The Console has Meta's error just above this report. The model checks don't need the tokenizer; " +
+                       "they show token IDs without their text.";
             string formatted = s.Config.ApplyChatTemplate(s.Prompt.user, s.Config.defaultSystemMessage);
-            List<int> ids = s.Config.Tokenizer.EncodeAsync(formatted).GetAwaiter().GetResult();   // encodes on a worker thread
+            List<int> ids = tokenizer.EncodeAsync(formatted).GetAwaiter().GetResult();   // encodes on a worker thread
             int[] reference = s.Ref32.prompt.token_ids;
             if (ids.SequenceEqual(reference))
                 return "1. Tokenizer: Meta's template and tokenizer, with the provider's settings, give " + ids.Count +
@@ -228,7 +262,8 @@ namespace SecondEyes.EditorTools
                    "; the first difference is at token " + at + ": here " + here + ", reference " + there + ".";
         }
 
-        string ModelCheck(Setup s, string title, RefFile reference, Func<Model> load)
+        string ModelCheck(Setup s, string title, RefFile reference, Func<Model> load,
+                          BackendType backend = BackendType.CPU, bool oneByOne = false)
         {
             var text = new StringBuilder(title + ":\n");
             Model model = null;
@@ -239,7 +274,7 @@ namespace SecondEyes.EditorTools
                 model = load();
                 text.AppendLine("   loaded in " + Seconds(watch.Elapsed.TotalSeconds));
                 text.Append(Greedy(model, s, reference, tokens, (step, fraction) =>
-                    EditorUtility.DisplayProgressBar("Model test", title + ": " + step, fraction)));
+                    EditorUtility.DisplayProgressBar("Model test", title + ": " + step, fraction), backend, oneByOne));
             }
             catch (ModelFiles.ToolError e)
             {
@@ -260,25 +295,42 @@ namespace SecondEyes.EditorTools
 
         /// <summary>
         /// Greedy decoding like grounding/meta_runner.py: the whole prompt first (positions 0 to n-1, a mask of ones, empty
-        /// caches), then one token at a time at the next position, with the caches the previous pass returned.
+        /// caches), then one token at a time at the next position, with the caches the previous pass returned. With
+        /// oneByOne, the prompt too goes in one token at a time, so no pass ever handles more than one token.
         /// </summary>
-        internal static string Greedy(Model model, Setup s, RefFile reference, int maxTokens, Action<string, float> progress)
+        internal static string Greedy(Model model, Setup s, RefFile reference, int maxTokens, Action<string, float> progress,
+                                      BackendType backend = BackendType.CPU, bool oneByOne = false)
         {
             var text = new StringBuilder();
             int[] prompt = reference.prompt.token_ids, expected = reference.answer.token_ids;
             int n = prompt.Length, eos = s.Arch.eos_token_id;
-            var worker = new Worker(model, BackendType.CPU);
+            var worker = new Worker(model, backend);
             var past = new Tensor<float>[2 * s.Arch.max_layers];
             try
             {
                 var empty = new TensorShape(1, s.Arch.num_key_value_heads, 0, s.Arch.head_dim);
                 for (int i = 0; i < past.Length; i++) past[i] = new Tensor<float>(empty);
 
-                progress("the prompt pass (" + n + " tokens)", 0.1f);
                 var watch = Stopwatch.StartNew();
-                Scores scores = Step(worker, prompt, Enumerable.Range(0, n).ToArray(), n, past, s.Arch);
-                text.AppendLine("   prompt pass (" + n + " tokens, the reference's IDs): " + Seconds(watch.Elapsed.TotalSeconds) +
-                                "; at the last position " + scores.Describe(s));
+                Scores scores;
+                if (oneByOne)
+                {
+                    scores = null;
+                    for (int i = 0; i < n; i++)
+                    {
+                        if (i % 10 == 0) progress("prompt token " + (i + 1) + " of " + n, 0.1f * i / n);
+                        scores = Step(worker, new[] { prompt[i] }, new[] { i }, i + 1, past, s.Arch);
+                    }
+                    text.AppendLine("   prompt fed one token at a time (" + n + " passes, the reference's IDs): " +
+                                    Seconds(watch.Elapsed.TotalSeconds) + "; after the last one " + scores.Describe(s));
+                }
+                else
+                {
+                    progress("the prompt pass (" + n + " tokens)", 0.1f);
+                    scores = Step(worker, prompt, Enumerable.Range(0, n).ToArray(), n, past, s.Arch);
+                    text.AppendLine("   prompt pass (" + n + " tokens, the reference's IDs): " + Seconds(watch.Elapsed.TotalSeconds) +
+                                    "; at the last position " + scores.Describe(s));
+                }
 
                 watch.Reset();
                 watch.Start();
@@ -392,6 +444,11 @@ namespace SecondEyes.EditorTools
             {
                 return (NotFinite == 0 ? "all scores are finite" : NotFinite + " scores are NaN or infinite") + "; top 5: " + Top(s);
             }
+        }
+
+        static string Name(UnityEngine.Object asset)
+        {
+            return asset != null ? asset.name : "none";
         }
 
         static string Seconds(double s)
