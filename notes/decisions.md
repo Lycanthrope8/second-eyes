@@ -13,6 +13,7 @@ Open questions first, then decisions taken, newest first. A decision records wha
 | O8 | Git tag names for gates | Gate A | to be proposed |
 | O9 | Raw-data storage (S0 item 5) | after Gate A | deferred, see D1 |
 | O10 | Experiment tracking and figure scripts (S0 item 6) | after Gate A | deferred, see D1 |
+| O15 | Keep only one copy of Qwen's word table (about 0.27 GB less in 16-bit)? | A1.7d, if memory is tight | a rewrite where the last layer reads the table transposed (for example Gemm with transB), tested on its own |
 | O13 | Draw hand and controller models? | once the GPU headroom is known (after A1.11) | none (D21) · Meta's models, if the GPU has room |
 | O14 | App graphics memory grows about 1.6 GB each time the headset comes off and on while the app runs | suggested: before the 30-minute soak (A1.11); until then, runs keep the headset on (`docs/profiling.md`), since with the model loaded one off-on may exhaust memory | to be investigated |
 
@@ -20,6 +21,7 @@ Open questions first, then decisions taken, newest first. A decision records wha
 
 | ID | Date | Decision | Alternatives considered | Reason / evidence | By |
 |---|---|---|---|---|---|
+| D33 | 2026-09-28 | Keep Qwen's duplicate word table for now; the export runs with optimum's post-processing off. Reverses D30 | Write our own single-copy rewrite now | optimum's duplicate removal crashes on Windows at this size, and its approach (a transpose step in place of the second copy) would most likely not save memory on the headset: loading pre-computes the transpose. Project lead's choice; revisit as O15 with a memory measurement | project lead |
 | D32 | 2026-09-28 | A1.7c as proposed, in two parts. A1.7c-1: Inference Engine package, model converted to 16-bit `.sentis` with Meta's converter, Meta's provider asset in Chat mode filled from our description, CPU backend, non-blocking mode. A1.7c-2: a script that sends the fixed prompt at startup, shows the answer on the overlay and logs `model.load`, `model.generate` and the prompt's tokens | none recorded | A1.7c proposal approved as proposed | project lead |
 | D31 | 2026-09-28 | For A1.7c the model lives inside the app (StreamingAssets, Meta's documented way); copying it once with adb, as D27 planned, comes later if builds are too slow | Copy once with adb now | As recommended: the least that can go wrong on a first headset test | project lead |
 | D30 | 2026-09-28 | Export again with Qwen's duplicate embedding weights removed (`accelerate` added to the model tools) | Keep the 2.52 GB export | As recommended: about 0.54 GB smaller in 32-bit and 0.27 GB in 16-bit, and headset memory is tight; the answer shouldn't change | project lead |

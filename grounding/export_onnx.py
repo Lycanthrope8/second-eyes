@@ -7,7 +7,9 @@
 The model description (grounding/models/<name>.json) says which Hugging Face model to fetch and
 what shape it must have. Everything goes into grounding/models/<name>/, which Git ignores:
   hf/          the downloaded model and its tokenizer files (vocab.json, merges.txt, ...)
-  onnx/        model.onnx and model.onnx_data, named the way Meta's runner reads them
+  onnx/        model.onnx and model.onnx_data, named the way Meta's runner reads them. optimum's
+               post-processing is off: its only job here is removing Qwen's duplicate word table,
+               and that step crashes on Windows at this size (D33), so the duplicate stays
   onnx_fp16w/  with --fp16-weights: the same model with its weights rounded to 16 bits and back,
                a stand-in for Unity's Float16 quantization when making a PC reference
   export.json  what was exported: model revision, package versions, file fingerprints, name check
@@ -81,12 +83,12 @@ def check_architecture(desc: dict, hf_dir: Path) -> None:
 def export(desc: dict, hf_dir: Path, onnx_dir: Path) -> None:
     try:
         from optimum.exporters.onnx import main_export
-        import accelerate  # noqa: F401  (without it the exporter silently keeps duplicate weights)
     except ImportError as err:
         raise ToolError(f"A model tool is missing ({err.name}). Run: python -m pip install -r grounding/requirements.txt")
     print(f"Exporting to ONNX (opset {desc['onnx_opset']}); this takes a few minutes ...")
+    # no_post_process: see the docstring and D33 (the duplicate-weight removal crashes on Windows)
     main_export(str(hf_dir), output=str(onnx_dir), task="text-generation-with-past",
-                opset=desc["onnx_opset"], device="cpu")
+                opset=desc["onnx_opset"], device="cpu", no_post_process=True)
 
 
 def check_names(onnx_path: Path, layers: int) -> dict:
