@@ -22,6 +22,8 @@ The 8 characters are the start of the ONNX weights' fingerprint, and the name mu
 4. **Fill the provider.** The first time, create the asset in `Assets/SecondEyes/Models/<model>/`: Create → Meta → AI → Provider Assets → On-Device → Unity Inference Engine. Select it, then run Second Eyes → Fill chat provider. It takes every value from the model description (including its `provider` section), the prompt file and `model.json`, checks everything before writing, and lists every setting in the Console. Run it again after any change to those files.
 5. **If an answer looks wrong,** test on the PC first: Second Eyes → Test model on the PC checks the tokenizer and the model against the PC reference, without Meta's runner and without a build (D46).
 
+After a new export, run the steps again from 2. `copy_to_unity.py` then gives the model a new name (D48) and names any older converted model still in `Assets/StreamingAssets/`: delete it there, or every build carries it too.
+
 ## On the headset
 
 - The copy is at `/sdcard/Android/data/com.secondeyes.quest/files/<name>.sentis`, next to the `logs/` folder. Old copies stay there after the name changes, about 1.3 GB each. List them with `adb shell ls -l /sdcard/Android/data/com.secondeyes.quest/files/`, and delete one with `adb shell rm /sdcard/Android/data/com.secondeyes.quest/files/<name>.sentis`.

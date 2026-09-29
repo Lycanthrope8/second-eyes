@@ -8,7 +8,7 @@ Language grounding (proposal §6): the scene schema, the relation library for us
 | `models/<name>/` | the downloaded and exported model files (ignored by Git; recreate with `export_onnx.py`) | A1.7b |
 | `prompts/<id>.json` | a fixed prompt: system message, user text and the expected target. The headset's test panel reads a copy in `quest-app/Assets/SecondEyes/Grounding/Prompts/`; `check_headset.py` compares token IDs, so a stale copy can't pass | A1.7b |
 | `meta_runner.py` | a Python mirror of Meta's on-device runner: the model's input and output names and its generation loop | A1.7b |
-| `export_onnx.py` | downloads a model and exports it to ONNX the way Meta's runner reads it | A1.7b |
+| `export_onnx.py` | downloads a model and exports it to ONNX the way Meta's runner reads it, with one word table and the weights file below 2 GiB (D47) | A1.7b |
 | `reference.py` | makes the PC reference answer that the headset must reproduce | A1.7b |
 | `check_headset.py` | compares the sends in a run's logs (headset, or the editor's Play mode) with the PC reference: the prompt's token IDs, and the answer text token by token, even if the answer didn't finish | A1.7c |
 | `debug_values.py` | saves onnxruntime's intermediate values for the fixed prompt, and a copy of the export that exposes them (`onnx/model_debug.onnx`), for check 7 of Second Eyes → Test model on the PC | A1.7c |

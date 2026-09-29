@@ -11,8 +11,9 @@ Reads the model description and grounding/models/<name>/export.json, and writes 
                              Fill chat provider
   StreamingAssets/           created if missing; Second Eyes > Convert model saves the .sentis file there
 The ONNX files stay in grounding/models/<name>/onnx/: inside the Unity project, Unity would import them, which runs
-out of memory for a model this size (D38). The .sentis name carries the start of the ONNX weights' fingerprint (D34),
-because Meta's runner copies the file out of the app once and then reuses any copy with the same name.
+out of memory for a model this size (D38). The .sentis name carries the start of a fingerprint over all the export's
+files, model.onnx included (D34, D48), because Meta's runner copies the file out of the app once and then reuses any
+copy with the same name: any change to the export, even to the graph alone, must give a new name.
 The whole procedure: docs/setup/quest-model.md.
 Needs Python 3.9+ and: python -m pip install -r grounding/requirements.txt (huggingface-hub, for the licence file)
 """
@@ -41,7 +42,7 @@ Files for Meta's on-device chat provider, written by `grounding/copy_to_unity.py
 - `model.json`: which `.sentis` file the provider loads, and the fingerprints that Second Eyes → Fill chat provider checks.
 - The provider asset in this folder is filled by Second Eyes → Fill chat provider.
 
-The model itself, `{sentis}`, is made by Second Eyes → Convert model in `Assets/StreamingAssets/`, which Git ignores (D34, D35, D38).
+The model itself, `{sentis}`, is made by Second Eyes → Convert model in `Assets/StreamingAssets/`, which Git ignores (D34, D35, D38, D48).
 """
 
 
@@ -95,7 +96,9 @@ def main(argv=None) -> int:
             raise ToolError(f"No Unity project at {ASSETS.as_posix()}")
         files = export["variants"]["fp32"]["files"]
         weights = max(files.items(), key=lambda kv: kv[1]["bytes"])[0]
-        sentis = f"{name}-{files[weights]['sha256'][:8]}-{QUANTIZATIONS[args.quantization]}.sentis"
+        onnx_files = sorted(files)   # model.onnx and its weights file(s)
+        combined = hashlib.sha256("".join(f"{f}:{files[f]['sha256']}\n" for f in onnx_files).encode("utf-8")).hexdigest()
+        sentis = f"{name}-{combined[:8]}-{QUANTIZATIONS[args.quantization]}.sentis"
 
         hf_dir = model_dir / "hf"
         missing = [f for f in TOKENIZER_FILES if not (hf_dir / f).is_file()]
@@ -103,7 +106,6 @@ def main(argv=None) -> int:
             raise ToolError(f"{hf_dir.as_posix()} has no {', '.join(missing)}. Export again: "
                             f"python grounding/export_onnx.py {desc_path.as_posix()}")
         onnx_dir = model_dir / "onnx"
-        onnx_files = sorted({"model.onnx", weights})
         for f in onnx_files:   # sizes only: Convert model checks the fingerprints right before converting
             path = onnx_dir / f
             if f not in files or not path.is_file() or path.stat().st_size != files[f]["bytes"]:
@@ -127,7 +129,7 @@ def main(argv=None) -> int:
                                                             sentis=sentis), encoding="utf-8")
         record = {"format": 1, "name": name, "hf_repo": export["hf_repo"], "hf_commit": export["hf_commit"],
                   "quantization": args.quantization, "sentis_file": sentis, "onnx_folder": onnx_folder,
-                  "onnx_weights_file": weights,
+                  "onnx_weights_file": weights, "name_fingerprint": combined,
                   "onnx_files": [{"file": f, "sha256": files[f]["sha256"], "bytes": files[f]["bytes"]} for f in onnx_files],
                   "tokenizer_files": tokenizer, "written_by": "grounding/copy_to_unity.py"}
         (unity_dir / "model.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
@@ -135,6 +137,10 @@ def main(argv=None) -> int:
         print(f"Wrote {unity_dir.relative_to(ROOT).as_posix()}/: {', '.join(written + ['README.md', 'model.json'])}")
 
         folder = unity_dir.relative_to(ASSETS.parent).as_posix()
+        older = sorted(f.name for f in (ASSETS / "StreamingAssets").glob(f"{name}-*.sentis") if f.name != sentis)
+        if older:
+            print(f"Delete the older converted model(s) in Assets/StreamingAssets/, or every build carries them too: "
+                  f"{', '.join(older)}")
         if (ASSETS / "StreamingAssets" / sentis).is_file():
             print(f"The converted model is there: Assets/StreamingAssets/{sentis}")
         else:
