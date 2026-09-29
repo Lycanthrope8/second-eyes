@@ -6,10 +6,11 @@ Language grounding (proposal §6): the scene schema, the relation library for us
 |---|---|---|
 | `models/<name>.json` | a model description: which model, its shape, chat template, length limits and the headset provider's run settings (`provider`); Second Eyes → Fill chat provider copies them into the provider asset | A1.7b |
 | `models/<name>/` | the downloaded and exported model files (ignored by Git; recreate with `export_onnx.py`) | A1.7b |
-| `prompts/<id>.json` | a fixed prompt: system message, user text and the expected target | A1.7b |
+| `prompts/<id>.json` | a fixed prompt: system message, user text and the expected target. The headset's test panel reads a copy in `quest-app/Assets/SecondEyes/Grounding/Prompts/`; `check_headset.py` compares token IDs, so a stale copy can't pass | A1.7b |
 | `meta_runner.py` | a Python mirror of Meta's on-device runner: the model's input and output names and its generation loop | A1.7b |
 | `export_onnx.py` | downloads a model and exports it to ONNX the way Meta's runner reads it | A1.7b |
 | `reference.py` | makes the PC reference answer that the headset must reproduce | A1.7b |
+| `check_headset.py` | compares the answers in a run's headset logs with the PC reference: the prompt's token IDs and the answer text | A1.7c |
 | `copy_to_unity.py` | copies a model's tokenizer files into the Unity app and writes `model.json`, which names the converted file and records the ONNX export for Second Eyes → Convert model (`docs/setup/quest-model.md`) | A1.7c |
 
 ## Setup

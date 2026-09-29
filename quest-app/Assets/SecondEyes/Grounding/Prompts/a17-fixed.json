@@ -1,0 +1,7 @@
+{
+  "format": 1,
+  "id": "a17-fixed",
+  "system": "You task a drone in a room. You get the objects in the room, each as id, class and position (x, y, z in meters; z is up), where the user stands, and the user's command. Reply with one JSON object and nothing else: {\"action\": \"INSPECT\", \"target\": \"<object id>\"}.",
+  "user": "Objects:\ntable_1 table (2.60, 1.40, 0.37)\nbox_1 box (1.90, 1.38, 0.20)\nbox_2 box (3.10, 1.42, 0.20)\nchair_1 chair (2.55, 2.18, 0.45)\nchair_2 chair (2.55, 0.62, 0.45)\nUser at (0.40, 1.00, 1.62), facing +x.\nCommand: Inspect the box behind the table.",
+  "expected_target": "box_2"
+}

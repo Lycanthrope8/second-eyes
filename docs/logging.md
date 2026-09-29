@@ -44,6 +44,9 @@ Defined in v1:
 | `display.rate` | `requested_hz`, `available_hz` (list) | once at startup, after the app requests its refresh rate (A1.4a) |
 | `hands.state` | `left_tracked`, `right_tracked` (true or false) | at startup, then whenever either hand starts or stops being tracked (A1.5) |
 | `control.stop` | `source` (`button_b`) | when the stop button, B on the right controller, is pressed (A1.5) |
+| `model.load` | `file`, `copied` (whether this start first copied the model out of the app), `ms`, `backend`, `execution_mode`, `steps_per_frame` | once, when the on-device model has loaded (A1.7c-2) |
+| `model.generate` | `prompt_id` (the fixed prompt's ID, or `typed`), `prompt_tokens`, `prompt_token_ids` (list), `answer`, `answer_tokens`, `first_token_ms` (or null), `total_ms` | after each answer (A1.7c-2) |
+| `model.message` | `level` (`warning` or `error`), `text` | when Meta's on-device code logs a warning or an error, e.g. a truncated prompt (A1.7c-2) |
 
 Planned, and defined by the phase that first emits them (proposal S0 item 3): speech start and end, recognized text, model input and output, candidate probabilities, the validated goal, commands sent, and drone telemetry. Sync events are defined when time sync is built (deferred, D10).
 

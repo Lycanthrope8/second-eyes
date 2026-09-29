@@ -165,6 +165,128 @@
           "description": "What triggered the stop, e.g. button_b."
         }
       }
+    },
+    "model.load": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "file",
+        "copied",
+        "ms",
+        "backend",
+        "execution_mode",
+        "steps_per_frame"
+      ],
+      "properties": {
+        "file": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The .sentis file the provider loads (D34), or null if unknown."
+        },
+        "copied": {
+          "type": "boolean",
+          "description": "Whether this start first copied the model out of the app into its data folder."
+        },
+        "ms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Time for the provider's warm-up, which includes any copy, in milliseconds."
+        },
+        "backend": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The chat's backend, e.g. CPU."
+        },
+        "execution_mode": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Blocking or NonBlocking."
+        },
+        "steps_per_frame": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Steps per frame in NonBlocking mode."
+        }
+      }
+    },
+    "model.generate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "prompt_id",
+        "prompt_tokens",
+        "prompt_token_ids",
+        "answer",
+        "answer_tokens",
+        "first_token_ms",
+        "total_ms"
+      ],
+      "properties": {
+        "prompt_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The fixed prompt's ID if it was sent unedited, else typed."
+        },
+        "prompt_tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of prompt tokens after the chat template."
+        },
+        "prompt_token_ids": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "description": "The prompt's token IDs, from the provider's own template and tokenizer."
+        },
+        "answer": {
+          "type": "string",
+          "description": "The answer text, as streamed."
+        },
+        "answer_tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of answer tokens streamed."
+        },
+        "first_token_ms": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "From the request to the first answer token, in milliseconds; null if none came."
+        },
+        "total_ms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "From the request to the whole answer, in milliseconds."
+        }
+      }
+    },
+    "model.message": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "level",
+        "text"
+      ],
+      "properties": {
+        "level": {
+          "enum": [
+            "warning",
+            "error"
+          ],
+          "description": "The message's level in Unity's log."
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "description": "What Meta's on-device code logged, e.g. a truncated prompt."
+        }
+      }
     }
   }
 }
