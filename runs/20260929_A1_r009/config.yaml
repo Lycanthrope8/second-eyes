@@ -1,0 +1,29 @@
+# Run config, format v1 (defined in schemas/run-config.v1.json).
+# Made by:   python tools/runs.py new <phase> --purpose "..." --operator "..."
+# Check it:  python tools/runs.py check <run ID>
+# Fill the optional fields that apply to this run and leave the rest null.
+
+# Identity (filled by the tool)
+config_version: 1
+run_id: "20260929_A1_r009"
+phase: "A1"
+created: "2026-09-29T00:38:43-04:00"  # local time with UTC offset
+
+# Required (given to the tool)
+purpose: "A1.7c-2 first answer on the headset"  # one line: why this run exists
+operator: "JH"  # who ran it
+
+# Code (filled by the tool)
+git_commit: "2272d87f575e8257f6974a51cd1b05b6cc66063b"
+git_dirty: false  # true if the repository had uncommitted changes (files in .gitignore don't count)
+
+# Optional: leave null when a field doesn't apply
+model_checkpoint: "qwen2.5-0.5b-instruct-72303ef1-f16.sentis"  # model file name (--checkpoint fills it)
+model_sha256: "82c365cda53fbdc3238568d7cd131c1a894da2a75f84dd2db680b553b6946728"  # SHA-256 of that file (--checkpoint fills it)
+prompt_version: null  # version of the prompt template
+schema_version: null  # version of the model's output/scene schema (proposal section 6.2)
+layout_id: null  # which prop layout
+headset_os_build: "oculus/eureka/eureka:14/UP1A.231005.007.A1/52433670048800520:user/abl_signing_keys:release,amss_signing_keys:release,release-keys"  # ro.build.fingerprint (--headset fills it)
+drone_firmware: null
+lighting: null  # lighting conditions
+notes: "Panel test: model loaded in 8.6 s (first start, with copy), 3.4-4.2 s later; Send gave '1' and line breaks over and over, never finished; heavy frame drops from Send on; keyboard didn't open; no answer logged (D43). raw/before_run/ holds an unrelated older session (D45)."  # anything else

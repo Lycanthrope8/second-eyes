@@ -5,13 +5,16 @@
 
 Quit the app first. The command copies every new session log from the headset into
 runs/<run ID>/raw/, checks each copy's size, then moves the original into logs/pulled/
-on the headset, so nothing is copied twice and nothing is deleted (D16).
+on the headset, so nothing is copied twice and nothing is deleted (D16). Logs that started
+before the run was created go into raw/before_run/ instead, which the checks skip (D45).
 Log format: docs/logging.md. Needs Python 3.9+ and adb on your PATH.
 """
 
 from __future__ import annotations
 
 import argparse
+import datetime as dt
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -65,6 +68,23 @@ def new_logs() -> list:
     return sorted(name for name in text_of(listing).splitlines() if name.endswith(".jsonl"))
 
 
+def run_created_utc(run: Path):
+    """When the run was created, in UTC, from config.yaml's created field; None if it can't be read."""
+    match = re.search(r"^created:\s*['\"]?([0-9][0-9T:+\-.]+)", (run / "config.yaml").read_text(encoding="utf-8"), re.M)
+    try:
+        return dt.datetime.fromisoformat(match.group(1)).astimezone(dt.timezone.utc) if match else None
+    except ValueError:
+        return None
+
+
+def log_start_utc(name: str):
+    """A session's start from its file name, <UTC start>_<session ID>.jsonl; None if the name has no time."""
+    try:
+        return dt.datetime.strptime(name[:16], "%Y%m%dT%H%M%SZ").replace(tzinfo=dt.timezone.utc)
+    except ValueError:
+        return None
+
+
 def remote_size(path: str) -> int:
     result = adb("shell", "stat", "-c", "%s", path)
     size = text_of(result)
@@ -85,22 +105,29 @@ def cmd_pull(args) -> int:
 
     raw = run / "raw"
     raw.mkdir(exist_ok=True)
+    created = run_created_utc(run)
+    older = 0
     if adb("shell", "mkdir", "-p", PULLED_DIR).returncode != 0:
         raise ToolError(f"Could not create {PULLED_DIR} on the headset. Nothing was pulled.")
 
     print(f"{len(names)} new log(s) on the headset:")
     for name in names:
         source = f"{LOG_DIR}/{name}"
-        target = raw / name
+        start = log_start_utc(name)
+        before = created is not None and start is not None and start < created
+        folder = raw / "before_run" if before else raw
+        folder.mkdir(exist_ok=True)
+        older += before
+        target = folder / name
         size = remote_size(source)
         note = ""
         if target.exists():
             if target.stat().st_size != size:
-                raise ToolError(f"runs/{args.run_id}/raw/{name} already exists with a different size, so it was not "
+                raise ToolError(f"{target.relative_to(ROOT).as_posix()} already exists with a different size, so it was not "
                                 "overwritten, and the original stays on the headset.")
             note = "  (already here from an earlier pull)"
         else:
-            copy = adb("pull", source, str(raw), timeout=600)
+            copy = adb("pull", source, str(folder), timeout=600)
             if copy.returncode != 0:
                 target.unlink(missing_ok=True)
                 raise ToolError(f"Copying {name} failed: {error_of(copy)}\n"
@@ -114,9 +141,14 @@ def cmd_pull(args) -> int:
         if move.returncode != 0:
             raise ToolError(f"{name} was copied, but moving it into pulled/ on the headset failed: {error_of(move)}\n"
                             "Run the pull again; it will recognize the copy.")
-        print(f"  {name}  {size:,} bytes -> runs/{args.run_id}/raw/{note}")
+        where = f"runs/{args.run_id}/raw/" + ("before_run/  (started before the run was created)" if before else "")
+        print(f"  {name}  {size:,} bytes -> {where}{note}")
 
     print(f"Pulled {len(names)} file(s); the originals are now in logs/pulled/ on the headset.")
+    if older:
+        they = "it" if older == 1 else "they"
+        print(f"{older} of them started before this run was created, so {they} went into raw/before_run/, which the "
+              "checks skip. If one does belong to this run, move it up into raw/.")
     print(f"Next: python analysis/eventlog.py check {args.run_id}")
     return 0
 

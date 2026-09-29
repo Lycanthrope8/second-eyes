@@ -45,8 +45,11 @@ Defined in v1:
 | `hands.state` | `left_tracked`, `right_tracked` (true or false) | at startup, then whenever either hand starts or stops being tracked (A1.5) |
 | `control.stop` | `source` (`button_b`) | when the stop button, B on the right controller, is pressed (A1.5) |
 | `model.load` | `file`, `copied` (whether this start first copied the model out of the app), `ms`, `backend`, `execution_mode`, `steps_per_frame` | once, when the on-device model has loaded (A1.7c-2) |
-| `model.generate` | `prompt_id` (the fixed prompt's ID, or `typed`), `prompt_tokens`, `prompt_token_ids` (list), `answer`, `answer_tokens`, `first_token_ms` (or null), `total_ms` | after each answer (A1.7c-2) |
+| `model.request` | `request` (counted from 1 per session), `prompt_id` (the fixed prompt's ID, or `typed`), `prompt_tokens`, `prompt_token_ids` (list) | when Send is pressed, before the model starts (A1.7c-2, D43) |
+| `model.token` | `request`, `index` (from 0), `text`, `ms` (since the request) | for each piece of the answer as it arrives (D43) |
+| `model.generate` | `request`, `prompt_id`, `answer`, `answer_tokens`, `first_token_ms` (or null), `total_ms`, `stopped` | when the answer ends or Stop ends it (D43) |
 | `model.message` | `level` (`warning` or `error`), `text` | when Meta's on-device code logs a warning or an error, e.g. a truncated prompt (A1.7c-2) |
+| `ui.keyboard` | `event` (`opened`, `open_failed`, `done`, `canceled`, `lost_focus` or `unsupported`), `chars` | when the text box opens the system keyboard, and when the keyboard closes (D44) |
 
 Planned, and defined by the phase that first emits them (proposal S0 item 3): speech start and end, recognized text, model input and output, candidate probabilities, the validated goal, commands sent, and drone telemetry. Sync events are defined when time sync is built (deferred, D10).
 

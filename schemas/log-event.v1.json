@@ -215,32 +215,24 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
+        "request",
         "prompt_id",
-        "prompt_tokens",
-        "prompt_token_ids",
         "answer",
         "answer_tokens",
         "first_token_ms",
-        "total_ms"
+        "total_ms",
+        "stopped"
       ],
       "properties": {
+        "request": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Which send this belongs to, counted from 1 in each session."
+        },
         "prompt_id": {
           "type": "string",
           "minLength": 1,
-          "description": "The fixed prompt's ID if it was sent unedited, else typed."
-        },
-        "prompt_tokens": {
-          "type": "integer",
-          "minimum": 0,
-          "description": "Number of prompt tokens after the chat template."
-        },
-        "prompt_token_ids": {
-          "type": "array",
-          "items": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "description": "The prompt's token IDs, from the provider's own template and tokenizer."
+          "description": "As in the request."
         },
         "answer": {
           "type": "string",
@@ -262,7 +254,11 @@
         "total_ms": {
           "type": "number",
           "minimum": 0,
-          "description": "From the request to the whole answer, in milliseconds."
+          "description": "From the request to the end of the answer, in milliseconds."
+        },
+        "stopped": {
+          "type": "boolean",
+          "description": "Whether Stop ended the answer early."
         }
       }
     },
@@ -285,6 +281,98 @@
           "type": "string",
           "minLength": 1,
           "description": "What Meta's on-device code logged, e.g. a truncated prompt."
+        }
+      }
+    },
+    "model.request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request",
+        "prompt_id",
+        "prompt_tokens",
+        "prompt_token_ids"
+      ],
+      "properties": {
+        "request": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Which send this belongs to, counted from 1 in each session."
+        },
+        "prompt_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The fixed prompt's ID if it was sent unedited, else typed."
+        },
+        "prompt_tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of prompt tokens after the chat template."
+        },
+        "prompt_token_ids": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "description": "The prompt's token IDs, from the provider's own template and tokenizer."
+        }
+      }
+    },
+    "model.token": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request",
+        "index",
+        "text",
+        "ms"
+      ],
+      "properties": {
+        "request": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Which send this belongs to, counted from 1 in each session."
+        },
+        "index": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "The answer token's position, from 0."
+        },
+        "text": {
+          "type": "string",
+          "description": "The token's text, as Meta's runner decodes it."
+        },
+        "ms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "From the request to this token, in milliseconds."
+        }
+      }
+    },
+    "ui.keyboard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event",
+        "chars"
+      ],
+      "properties": {
+        "event": {
+          "enum": [
+            "opened",
+            "open_failed",
+            "done",
+            "canceled",
+            "lost_focus",
+            "unsupported"
+          ],
+          "description": "What the system keyboard did."
+        },
+        "chars": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Length of the text box's text at that moment."
         }
       }
     }
