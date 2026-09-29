@@ -42,3 +42,5 @@ Building adds further permissions from Unity and its packages. The installed app
 - **Android's own:** `com.secondeyes.quest.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`, which the app declares for its internal messages.
 
 Record the list again after every change that could affect it. The paper's ethics section and the IRB protocol need it.
+
+Two things don't show in the committed file. Meta's build step adds features to the build's own copy of the manifest, for example the system keyboard's `oculus.software.overlay_keyboard`; look in `Library/Bee/Android/Prj/IL2CPP/Gradle/launcher/build/intermediates/merged_manifest/` after a build. And the three audio and Bluetooth permissions come from the manifest Unity itself generates for the build (O16).

@@ -164,8 +164,11 @@ namespace SecondEyes.EditorTools
             GC.Collect();
         }
 
-        /// <summary>Unity's Inference Engine, reached by name at run time so that this file compiles whatever Unity changes.</summary>
-        sealed class InferenceEngine
+        /// <summary>
+        /// Unity's Inference Engine, reached by name at run time so that this file compiles whatever Unity changes.
+        /// Also used by Second Eyes > Test model on the PC (ModelTest.cs) to convert the ONNX export in memory.
+        /// </summary>
+        internal sealed class InferenceEngine
         {
             const BindingFlags Any = BindingFlags.Public | BindingFlags.NonPublic;
             ConstructorInfo converterConstructor;

@@ -20,6 +20,7 @@ The 8 characters are the start of the ONNX weights' fingerprint, and the name mu
 2. **Copy** the small files into the Unity project: `python grounding/copy_to_unity.py grounding/models/<model>.json`. It writes `model.json`, which names the `.sentis` file and records the ONNX export's fingerprints.
 3. **Convert.** In Unity, select `Assets/SecondEyes/Models/<model>/` in the Project window and run Second Eyes → Convert model. It checks the ONNX files against `model.json`, converts them with Unity's ONNX converter, rounds the weights as `model.json` says (Float16), and only then saves the `.sentis` file. It takes a few minutes and several GB of memory, and Unity doesn't respond meanwhile, so close big programs such as a web browser first. The Console gets a report with the Inference Engine version and the time each step took.
 4. **Fill the provider.** The first time, create the asset in `Assets/SecondEyes/Models/<model>/`: Create → Meta → AI → Provider Assets → On-Device → Unity Inference Engine. Select it, then run Second Eyes → Fill chat provider. It takes every value from the model description (including its `provider` section), the prompt file and `model.json`, checks everything before writing, and lists every setting in the Console. Run it again after any change to those files.
+5. **If an answer looks wrong,** test on the PC first: Second Eyes → Test model on the PC checks the tokenizer and the model against the PC reference, without Meta's runner and without a build (D46).
 
 ## On the headset
 
