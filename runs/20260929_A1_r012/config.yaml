@@ -1,0 +1,29 @@
+# Run config, format v1 (defined in schemas/run-config.v1.json).
+# Made by:   python tools/runs.py new <phase> --purpose "..." --operator "..."
+# Check it:  python tools/runs.py check <run ID>
+# Fill the optional fields that apply to this run and leave the rest null.
+
+# Identity (filled by the tool)
+config_version: 1
+run_id: "20260929_A1_r012"
+phase: "A1"
+created: "2026-09-29T12:46:39-04:00"  # local time with UTC offset
+
+# Required (given to the tool)
+purpose: "A1.7c-2 model test: prompt one token at a time, and the GPU"  # one line: why this run exists
+operator: "JH"  # who ran it
+
+# Code (filled by the tool)
+git_commit: "d3a5d5b87bdabd7289d30892edab5800841c2d5c"
+git_dirty: false  # true if the repository had uncommitted changes (files in .gitignore don't count)
+
+# Optional: leave null when a field doesn't apply
+model_checkpoint: "qwen2.5-0.5b-instruct-72303ef1-f16.sentis"  # model file name (--checkpoint fills it)
+model_sha256: "82c365cda53fbdc3238568d7cd131c1a894da2a75f84dd2db680b553b6946728"  # SHA-256 of that file (--checkpoint fills it)
+prompt_version: null  # version of the prompt template
+schema_version: null  # version of the model's output/scene schema (proposal section 6.2)
+layout_id: null  # which prop layout
+headset_os_build: null  # ro.build.fingerprint (--headset fills it)
+drone_firmware: null
+lighting: null  # lighting conditions
+notes: "Checks 5 and 6: the prompt fed one token at a time (230 passes in 45.3 s, then 0.26 s per token) and the GPU backend (prompt pass 33.9 s, then 0.20 s per token) give the same wrong answer, with the same top five scores, as checks 2-4. Reports in raw/."

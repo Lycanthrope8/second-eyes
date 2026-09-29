@@ -11,6 +11,7 @@ Language grounding (proposal §6): the scene schema, the relation library for us
 | `export_onnx.py` | downloads a model and exports it to ONNX the way Meta's runner reads it | A1.7b |
 | `reference.py` | makes the PC reference answer that the headset must reproduce | A1.7b |
 | `check_headset.py` | compares the sends in a run's logs (headset, or the editor's Play mode) with the PC reference: the prompt's token IDs, and the answer text token by token, even if the answer didn't finish | A1.7c |
+| `debug_values.py` | saves onnxruntime's intermediate values for the fixed prompt, and a copy of the export that exposes them (`onnx/model_debug.onnx`), for check 7 of Second Eyes → Test model on the PC | A1.7c |
 | `copy_to_unity.py` | copies a model's tokenizer files into the Unity app and writes `model.json`, which names the converted file and records the ONNX export for Second Eyes → Convert model (`docs/setup/quest-model.md`) | A1.7c |
 
 ## Setup

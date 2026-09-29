@@ -24,6 +24,9 @@ namespace SecondEyes.EditorTools
     ///      .sentis file the app carries: fed the reference's own prompt IDs, does it give the reference's answer?
     ///   5. The 32-bit model with the prompt fed one token at a time, so no pass ever handles several tokens at once.
     ///   6. The 32-bit model on the GPU backend instead of the CPU backend.
+    ///   7. Layer by layer: onnx/model_debug.onnx (from grounding/debug_values.py) exposes the values before the decoder
+    ///      layers, inside layer 0 and after each later layer; Unity's values for one pass over the prompt are compared
+    ///      with onnxruntime's (debug/values.bin), and the first value that differs is named, with its inputs.
     /// The model runs in a plain greedy loop of ours, the same steps as grounding/meta_runner.py, not Meta's runner, on the
     /// CPU backend. If everything here matches but the app still answers wrongly, the difference is in Meta's runner.
     /// Unity doesn't respond while a check runs. The report goes to this window, the Console and, optionally, a run.
@@ -35,14 +38,25 @@ namespace SecondEyes.EditorTools
         const string PrefSaveRun = "SecondEyes.ModelTest.SaveRun";
         const string PromptFile = "grounding/prompts/a17-fixed.json";   // A1.7c's fixed prompt, as in Fill chat provider
 
-        [Flags] enum Checks { Tokenizer = 1, Onnx32 = 2, Onnx16 = 4, Sentis = 8, All = 15, OneByOne = 16, Gpu = 32 }
+        [Flags] enum Checks { Tokenizer = 1, Onnx32 = 2, Onnx16 = 4, Sentis = 8, All = 15, OneByOne = 16, Gpu = 32, Layers = 64 }
 
         [Serializable] public class RefPrompt { public int[] token_ids; }
         [Serializable] public class RefAnswer { public int[] token_ids; public string text_meta_style; public int tokens; }
         [Serializable] public class RefFile { public RefPrompt prompt; public RefAnswer answer; }
         [Serializable] public class Prompt { public string id, system, user; }
+        [Serializable] public class DebugTensor
+        {
+            public string name, op, node, type;
+            public string[] inputs;
+            public int[] shape;
+            public long offset;
+            public int count;
+            public bool last_position_only;
+        }
+        [Serializable] public class DebugIndex { public string reference_run, prompt_id, onnxruntime; public int[] prompt_token_ids; public DebugTensor[] tensors; }
 
         string referenceRun = "", saveRun = "", report = "";
+        string layerTable;   // check 7's full comparison, one value per line, saved into the run with the report
         int tokens = 16, folderIndex;
         Vector2 scroll;
 
@@ -87,6 +101,7 @@ namespace SecondEyes.EditorTools
             if (GUILayout.Button("5. 32-bit, prompt one token at a time")) Run(folders[folderIndex], Checks.OneByOne);
             if (GUILayout.Button("6. 32-bit, on the GPU")) Run(folders[folderIndex], Checks.Gpu);
             EditorGUILayout.EndHorizontal();
+            if (GUILayout.Button("7. Layer by layer against onnxruntime")) Run(folders[folderIndex], Checks.Layers);
 
             scroll = EditorGUILayout.BeginScrollView(scroll);
             EditorGUILayout.TextArea(report, GUILayout.ExpandHeight(true));
@@ -145,6 +160,8 @@ namespace SecondEyes.EditorTools
                 if ((checks & Checks.Gpu) != 0)
                     output.AppendLine(ModelCheck(setup, "6. 32-bit weights, converted from ONNX in memory, GPU backend (GPUCompute)",
                         setup.Ref32, () => (Model)setup.Engine.Convert(setup.OnnxPath), BackendType.GPUCompute, false));
+                if ((checks & Checks.Layers) != 0)
+                    output.AppendLine(Guarded("7. Layer by layer", () => LayerCheck(setup, folder)));
             }
             catch (ModelFiles.ToolError e)
             {
@@ -161,7 +178,9 @@ namespace SecondEyes.EditorTools
             }
             report = output.ToString();
             Debug.Log("[Model test]\n" + report);
-            if (!string.IsNullOrWhiteSpace(saveRun)) report += SaveReport(saveRun.Trim(), report);
+            if (!string.IsNullOrWhiteSpace(saveRun)) report += SaveReport(saveRun.Trim(), report, "model-test_", ".txt");
+            if (!string.IsNullOrWhiteSpace(saveRun) && layerTable != null) report += SaveReport(saveRun.Trim(), layerTable, "layer-compare_", ".tsv");
+            layerTable = null;
             Repaint();
         }
 
@@ -408,6 +427,185 @@ namespace SecondEyes.EditorTools
             return copy;
         }
 
+
+        /// <summary>
+        /// Check 7: one pass over the prompt through onnx/model_debug.onnx in Unity, and every exposed value compared with
+        /// onnxruntime's from debug/values.bin, in graph order. Floats count as the same if the largest difference is at
+        /// most 0.001 times the largest onnxruntime value (and at least 0.001); whole numbers must be equal.
+        /// </summary>
+        string LayerCheck(Setup s, string folder)
+        {
+            string name = Path.GetFileName(folder), repo = ModelFiles.RepoRoot;
+            string debugDir = Path.Combine(repo, "grounding", "models", name, "debug");
+            string debugOnnx = Path.Combine(repo, s.Model.onnx_folder ?? "", "model_debug.onnx");
+            string make = "Make them first: python grounding/debug_values.py grounding/models/" + name + ".json --reference " + referenceRun.Trim();
+            if (!File.Exists(debugOnnx) || !File.Exists(Path.Combine(debugDir, "values.bin")))
+                throw new ModelFiles.ToolError("onnx/model_debug.onnx or debug/values.bin isn't there. " + make);
+            var index = ModelFiles.ReadJson<DebugIndex>(Path.Combine(debugDir, "index.json"), "grounding/models/" + name + "/debug/index.json", make);
+            if (index.tensors == null || index.tensors.Length == 0 || index.prompt_token_ids == null)
+                throw new ModelFiles.ToolError("debug/index.json lists no values. " + make);
+
+            var text = new StringBuilder("7. Layer by layer against onnxruntime " + (index.onnxruntime ?? "") +
+                                         " (onnx/model_debug.onnx, CPU backend, one pass over the prompt, " + index.prompt_token_ids.Length + " tokens):\n");
+            if (!index.prompt_token_ids.SequenceEqual(s.Ref32.prompt.token_ids))
+                text.AppendLine("   note: debug/values.bin was made for other prompt IDs than this reference run's.");
+            EditorUtility.DisplayProgressBar("Model test", "7. Converting onnx/model_debug.onnx", 0.1f);
+            var watch = Stopwatch.StartNew();
+            var model = (Model)s.Engine.Convert(debugOnnx);
+            text.AppendLine("   converted in " + Seconds(watch.Elapsed.TotalSeconds));
+            var status = new Dictionary<string, string>();
+            var table = new StringBuilder("name\top\tnode\tstatus\tlargest difference\tshape\n");
+            int same = 0, different = 0, missing = 0;
+            var firsts = new List<string>();
+            var missingBefore = new List<string>();
+            string firstDetail = null, firstOp = null;
+            var worker = new Worker(model, BackendType.CPU);
+            var past = new Tensor<float>[2 * s.Arch.max_layers];
+            try
+            {
+                var empty = new TensorShape(1, s.Arch.num_key_value_heads, 0, s.Arch.head_dim);
+                for (int i = 0; i < past.Length; i++) past[i] = new Tensor<float>(empty);
+                int[] ids = index.prompt_token_ids;
+                int n = ids.Length;
+                EditorUtility.DisplayProgressBar("Model test", "7. One pass over the prompt", 0.4f);
+                using (var input = new Tensor<int>(new TensorShape(1, n), ids))
+                using (var attention = new Tensor<int>(new TensorShape(1, n), Enumerable.Repeat(1, n).ToArray()))
+                using (var position = new Tensor<int>(new TensorShape(1, n), Enumerable.Range(0, n).ToArray()))
+                using (var values = File.OpenRead(Path.Combine(debugDir, "values.bin")))
+                {
+                    worker.SetInput("input_ids", input);
+                    worker.SetInput("attention_mask", attention);
+                    worker.SetInput("position_ids", position);
+                    for (int i = 0; i < s.Arch.max_layers; i++)
+                    {
+                        worker.SetInput("past_key_values." + i + ".key", past[2 * i]);
+                        worker.SetInput("past_key_values." + i + ".value", past[2 * i + 1]);
+                    }
+                    worker.Schedule();
+                    for (int k = 0; k < index.tensors.Length; k++)
+                    {
+                        DebugTensor e = index.tensors[k];
+                        if (k % 20 == 0) EditorUtility.DisplayProgressBar("Model test", "7. Comparing " + e.name, 0.4f + 0.6f * k / index.tensors.Length);
+                        string detail;
+                        string verdict = CompareOne(worker, e, values, out detail);
+                        status[e.name] = verdict;
+                        table.Append(e.name).Append('\t').Append(e.op).Append('\t').Append(e.node).Append('\t').Append(verdict)
+                             .Append('\t').Append(detail).Append('\t').Append(string.Join("x", (e.shape ?? new int[0]).Select(d => d.ToString(CultureInfo.InvariantCulture)).ToArray())).Append('\n');
+                        if (verdict == "same") { same++; continue; }
+                        if (verdict == "missing") { missing++; if (different == 0) missingBefore.Add(e.name); continue; }
+                        different++;
+                        if (firstDetail == null)
+                        {
+                            firstOp = e.op + " (" + e.node + ")";
+                            var inputs = (e.inputs ?? new string[0]).Select(i => i + " " + (status.ContainsKey(i) ? status[i] : "(a weight or model input, not compared)")).ToArray();
+                            firstDetail = "   first difference: " + e.name + " (" + e.op + ", node " + e.node + "), shape [" +
+                                          string.Join(", ", (e.shape ?? new int[0]).Select(d => d.ToString(CultureInfo.InvariantCulture)).ToArray()) + "]: " + detail + "\n" +
+                                          "      its inputs: " + (inputs.Length > 0 ? string.Join("; ", inputs) : "none");
+                        }
+                        else if (firsts.Count < 5) firsts.Add(e.name + " (" + e.op + ")");
+                    }
+                }
+            }
+            finally
+            {
+                foreach (var t in past) if (t != null) t.Dispose();
+                worker.Dispose();
+                s.Engine.DisposeWeights(model);
+                GC.Collect();
+            }
+            text.AppendLine("   compared " + index.tensors.Length + " values: " + same + " the same, " + different + " different, " +
+                            missing + " not in Unity's model.");
+            if (missingBefore.Count > 0)
+                text.AppendLine("   not in Unity's model, before the first difference: " + string.Join(", ", missingBefore.Take(8).ToArray()) +
+                                (missingBefore.Count > 8 ? " and " + (missingBefore.Count - 8) + " more" : ""));
+            if (firstDetail == null)
+                text.AppendLine("   Result: every value Unity has matches onnxruntime's, the word scores too. So with these values " +
+                                "exposed, Unity computes the model correctly: the difference must come from something Unity changes only " +
+                                "when they aren't outputs, such as merging operations.");
+            else
+            {
+                text.AppendLine(firstDetail);
+                if (firsts.Count > 0) text.AppendLine("   the next differences: " + string.Join(", ", firsts.ToArray()));
+                var lastAdd = new SortedDictionary<int, string>();   // each layer's output: its last residual addition
+                foreach (var t in index.tensors)
+                {
+                    int layer = LayerOutput(t.name);
+                    if (layer >= 0) lastAdd[layer] = t.name;
+                }
+                if (lastAdd.Count > 0)
+                    text.AppendLine("   each layer's output: " + string.Join(", ", lastAdd.Select(kv => kv.Key + " " + status[kv.Value]).ToArray()));
+                text.AppendLine("   Result: DIFFERENT. The first operation Unity computes differently is " + firstOp + ".");
+            }
+            layerTable = table.ToString();
+            return text.ToString();
+        }
+
+        /// <summary>The layer number if this is a layer's output (the last residual addition of /model/layers.N/); else -1.</summary>
+        static int LayerOutput(string name)
+        {
+            const string prefix = "/model/layers.";
+            if (!name.StartsWith(prefix, StringComparison.Ordinal)) return -1;
+            string rest = name.Substring(prefix.Length);
+            int slash = rest.IndexOf('/');
+            int layer;
+            if (slash <= 0 || !int.TryParse(rest.Substring(0, slash), NumberStyles.None, CultureInfo.InvariantCulture, out layer)) return -1;
+            string tail = rest.Substring(slash + 1);
+            return tail.StartsWith("Add", StringComparison.Ordinal) && tail.IndexOf('/') < 0 ? layer : -1;
+        }
+
+        /// <summary>Compares one exposed value; returns same, different or missing, with a short detail.</summary>
+        static string CompareOne(Worker worker, DebugTensor e, FileStream values, out string detail)
+        {
+            Tensor unity = null;
+            try { unity = worker.PeekOutput(e.name); }
+            catch (Exception) { unity = null; }
+            if (unity == null) { detail = "not in Unity's model"; return "missing"; }
+            var bytes = new byte[4 * (long)e.count];
+            values.Seek(e.offset, SeekOrigin.Begin);
+            int read = 0;
+            while (read < bytes.Length)
+            {
+                int got = values.Read(bytes, read, bytes.Length - read);
+                if (got <= 0) throw new ModelFiles.ToolError("debug/values.bin ends early; make it again with grounding/debug_values.py.");
+                read += got;
+            }
+            float[] expectedF = null, actualF = null;
+            int[] expectedI = null, actualI = null;
+            if (e.type == "float") { expectedF = new float[e.count]; Buffer.BlockCopy(bytes, 0, expectedF, 0, bytes.Length); }
+            else { expectedI = new int[e.count]; Buffer.BlockCopy(bytes, 0, expectedI, 0, bytes.Length); }
+            var asFloat = unity as Tensor<float>;
+            var asInt = unity as Tensor<int>;
+            if (asFloat != null) actualF = asFloat.DownloadToArray();
+            else if (asInt != null) actualI = asInt.DownloadToArray();
+            else { detail = "Unity has it as " + unity.GetType().Name; return "different"; }
+            if (e.last_position_only)   // onnxruntime kept only the last row; take Unity's too
+            {
+                if (actualF != null && actualF.Length >= e.count) actualF = actualF.Skip(actualF.Length - e.count).ToArray();
+                if (actualI != null && actualI.Length >= e.count) actualI = actualI.Skip(actualI.Length - e.count).ToArray();
+            }
+            double[] a = actualF != null ? actualF.Select(v => (double)v).ToArray() : actualI.Select(v => (double)v).ToArray();
+            double[] x = expectedF != null ? expectedF.Select(v => (double)v).ToArray() : expectedI.Select(v => (double)v).ToArray();
+            if (a.Length != x.Length)
+            {
+                detail = "Unity has " + a.Length + " numbers, onnxruntime " + x.Length;
+                return "different";
+            }
+            double worst = 0, scale = 0;
+            int at = -1;
+            for (int i = 0; i < a.Length; i++)
+            {
+                double d = double.IsNaN(a[i]) != double.IsNaN(x[i]) ? double.PositiveInfinity : Math.Abs(a[i] - x[i]);
+                if (d > worst || (at < 0 && d > 0)) { worst = d; at = i; }
+                if (!double.IsNaN(x[i]) && !double.IsInfinity(x[i])) scale = Math.Max(scale, Math.Abs(x[i]));
+            }
+            bool whole = e.type != "float";
+            bool isSame = whole ? worst == 0 : worst <= 1e-3 * Math.Max(1.0, scale);
+            detail = worst == 0 ? "0" : "largest difference " + worst.ToString("G4", CultureInfo.InvariantCulture) + " at element " + at +
+                     ": Unity " + a[at].ToString("G6", CultureInfo.InvariantCulture) + ", onnxruntime " + x[at].ToString("G6", CultureInfo.InvariantCulture) +
+                     " (largest onnxruntime value " + scale.ToString("G4", CultureInfo.InvariantCulture) + ")";
+            return isSame ? "same" : "different";
+        }
+
         /// <summary>The scores of one position: the highest, the top five, and how many aren't finite numbers.</summary>
         sealed class Scores
         {
@@ -456,14 +654,14 @@ namespace SecondEyes.EditorTools
             return s.ToString("F2", CultureInfo.InvariantCulture) + " s";
         }
 
-        static string SaveReport(string run, string text)
+        static string SaveReport(string run, string text, string prefix, string extension)
         {
             string dir = Path.Combine(ModelFiles.RepoRoot, "runs", run);
             if (!File.Exists(Path.Combine(dir, "config.yaml")))
                 return "\nNot saved: there is no run " + run + " in runs/.\n";
             string raw = Path.Combine(dir, "raw");
             Directory.CreateDirectory(raw);
-            string file = "model-test_" + DateTime.UtcNow.ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture) + ".txt";
+            string file = prefix + DateTime.UtcNow.ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture) + extension;
             File.WriteAllText(Path.Combine(raw, file), text, new UTF8Encoding(false));
             return "\nSaved as runs/" + run + "/raw/" + file + ".\n";
         }
