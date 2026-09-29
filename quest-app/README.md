@@ -9,7 +9,7 @@ The Unity app that runs on the Meta Quest 3. At deployment, all AI inference hap
 | Unity | 6000.3.25f1 |
 | Meta XR Core SDK | 207.0.0 |
 | Unity Inference Engine (`com.unity.ai.inference`) | 2.2.1 (D36) |
-| System keyboard | on: OVRManager → Quest Features → General → Requires System Keyboard (D42) |
+| System keyboard | on: OVRManager → Quest Features → General → Requires System Keyboard (D42); it doesn't appear in this OpenXR setup, although `TouchScreenKeyboard.Open` returns (r015) |
 | XR plug-in provider | OpenXR 1.18.0 |
 | Render pipeline | URP (D14) |
 | Package name | `com.secondeyes.quest` (D14) |

@@ -212,9 +212,15 @@ namespace SecondEyes.Grounding
             {
                 // stopped before the model started; the end is logged below
             }
+            catch (Exception e) when (running.IsCancellationRequested)
+            {
+                // Stopping mid-pass makes Meta's runner throw (a NullReferenceException in r015): expected, so a warning.
+                LogMessage("warning", "[ChatPanel] Stop interrupted Meta's runner: " + e.GetType().Name + ": " + e.Message +
+                                      FirstFrame(e.StackTrace));
+            }
             catch (Exception e)
             {
-                Fail("model.generate", e.Message);
+                Fail("model.generate", e.Message + FirstFrame(e.StackTrace));
             }
 
             bool stopped = running.IsCancellationRequested;
@@ -344,15 +350,28 @@ namespace SecondEyes.Grounding
             {
                 if (message.StartsWith(prefix, StringComparison.Ordinal))
                 {
-                    var data = new StringBuilder("{\"level\":");
-                    LogJson.AppendString(data, type == LogType.Warning ? "warning" : "error");
-                    data.Append(",\"text\":");
-                    LogJson.AppendString(data, message);
-                    data.Append('}');
-                    EventLog.Write("model.message", data.ToString());
+                    LogMessage(type == LogType.Warning ? "warning" : "error", message);
                     return;
                 }
             }
+        }
+
+        private static void LogMessage(string level, string text)
+        {
+            var data = new StringBuilder("{\"level\":");
+            LogJson.AppendString(data, level);
+            data.Append(",\"text\":");
+            LogJson.AppendString(data, text);
+            data.Append('}');
+            EventLog.Write("model.message", data.ToString());
+        }
+
+        /// <summary>" (at <first line of the stack trace>)", so a logged error says where it came from; empty if unknown.</summary>
+        private static string FirstFrame(string stackTrace)
+        {
+            if (string.IsNullOrEmpty(stackTrace)) return "";
+            string first = stackTrace.Split('\n')[0].Trim();
+            return first.Length > 0 ? " (" + first + ")" : "";
         }
 
         private void Fail(string where, string message)

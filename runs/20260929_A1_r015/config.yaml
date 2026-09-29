@@ -1,0 +1,29 @@
+# Run config, format v1 (defined in schemas/run-config.v1.json).
+# Made by:   python tools/runs.py new <phase> --purpose "..." --operator "..."
+# Check it:  python tools/runs.py check <run ID>
+# Fill the optional fields that apply to this run and leave the rest null.
+
+# Identity (filled by the tool)
+config_version: 1
+run_id: "20260929_A1_r015"
+phase: "A1"
+created: "2026-09-29T18:19:18-04:00"  # local time with UTC offset
+
+# Required (given to the tool)
+purpose: "A1.7c-2 the panel on the headset, one-word-table model"  # one line: why this run exists
+operator: "JH"  # who ran it
+
+# Code (filled by the tool)
+git_commit: "1a38ae05f8c880fb6a8115a0a44e4f96d3254320"
+git_dirty: false  # true if the repository had uncommitted changes (files in .gitignore don't count)
+
+# Optional: leave null when a field doesn't apply
+model_checkpoint: "qwen2.5-0.5b-instruct-fa9d3a46-f16.sentis"  # model file name (--checkpoint fills it)
+model_sha256: "76c5e4770f1c43f381f7cd96ceac4d5c9dbe200311c9228fd51972feff56597c"  # SHA-256 of that file (--checkpoint fills it)
+prompt_version: null  # version of the prompt template
+schema_version: null  # version of the model's output/scene schema (proposal section 6.2)
+layout_id: null  # which prop layout
+headset_os_build: "oculus/eureka/eureka:14/UP1A.231005.007.A1/52433670048800520:user/abl_signing_keys:release,amss_signing_keys:release,release-keys"  # ro.build.fingerprint (--headset fills it)
+drone_firmware: null
+lighting: null  # lighting conditions
+notes: "Headset panel test with the one-word-table model: PASS. Model loads in 5.5 s (first start, with copy) and 2.8 s. The fixed prompt's answer equals the reference (15 tokens): first token after 5.6-5.9 s, then one every 1.14 s, all after about 23 s. Stop works; stopping mid-pass makes Meta's runner throw (logged as an error then, as a warning now). Frame rate about 10-20 fps while generating, 72 otherwise (operator's estimate). The system keyboard didn't appear although TouchScreenKeyboard.Open returned. The first session wasn't quit, so it has no session.end."
