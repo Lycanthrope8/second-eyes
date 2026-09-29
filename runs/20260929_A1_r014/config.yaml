@@ -1,0 +1,29 @@
+# Run config, format v1 (defined in schemas/run-config.v1.json).
+# Made by:   python tools/runs.py new <phase> --purpose "..." --operator "..."
+# Check it:  python tools/runs.py check <run ID>
+# Fill the optional fields that apply to this run and leave the rest null.
+
+# Identity (filled by the tool)
+config_version: 1
+run_id: "20260929_A1_r014"
+phase: "A1"
+created: "2026-09-29T16:11:04-04:00"  # local time with UTC offset
+
+# Required (given to the tool)
+purpose: "A1.7c-2 PC reference for the one-word-table export (D47)"  # one line: why this run exists
+operator: "JH"  # who ran it
+
+# Code (filled by the tool)
+git_commit: "0bce5621ca569439ac008061cc2efde9d8f6f23a"
+git_dirty: false  # true if the repository had uncommitted changes (files in .gitignore don't count)
+
+# Optional: leave null when a field doesn't apply
+model_checkpoint: "model.onnx_data"  # model file name (--checkpoint fills it)
+model_sha256: "bde45212eb8549f4e9efd78d0c19e12f6d70d54c2dd657ffac3e9cd0f7269748"  # SHA-256 of that file (--checkpoint fills it)
+prompt_version: null  # version of the prompt template
+schema_version: null  # version of the model's output/scene schema (proposal section 6.2)
+layout_id: null  # which prop layout
+headset_os_build: null  # ro.build.fingerprint (--headset fills it)
+drone_firmware: null
+lighting: null  # lighting conditions
+notes: "PC reference for the one-word-table export (D47): fp32 and fp16w both answer {\"action\": \"INSPECT\", \"target\": \"box_1\"} (15 tokens), PyTorch agrees. Model test checks 2 and 4 give the same answer in Unity. The .sentis is 0.99 GB; on the PC's CPU a token takes 0.44 s with 32-bit weights, 2.40 s with 16-bit."

@@ -4,19 +4,20 @@
   "hf_repo": "Qwen/Qwen2.5-0.5B-Instruct",
   "hf_commit": "7ae557604adf67be50417f59c2c2f167def9a775",
   "quantization": "Float16",
-  "sentis_file": "qwen2.5-0.5b-instruct-72303ef1-f16.sentis",
+  "sentis_file": "qwen2.5-0.5b-instruct-fa9d3a46-f16.sentis",
   "onnx_folder": "grounding/models/qwen2.5-0.5b-instruct/onnx",
   "onnx_weights_file": "model.onnx_data",
+  "name_fingerprint": "fa9d3a46e4d1b72612ac3dd0fb0a7aae82a903dfed9f9583687b4ef93c0b21d0",
   "onnx_files": [
     {
       "file": "model.onnx",
-      "sha256": "1fe771ee549e4cc5db33aa41afe55cb7e8b6f4b9a9e632971a9167790ac3c584",
-      "bytes": 1113522
+      "sha256": "d81134662d645b9c7c0c2136ffbda0653b9e3548dd071e87cf78949e29224c4b",
+      "bytes": 1135978
     },
     {
       "file": "model.onnx_data",
-      "sha256": "72303ef1d77c02e4efc46a35b5cc60a841213518baa0ddae6247d44f1686265a",
-      "bytes": 2520669824
+      "sha256": "bde45212eb8549f4e9efd78d0c19e12f6d70d54c2dd657ffac3e9cd0f7269748",
+      "bytes": 1976106496
     }
   ],
   "tokenizer_files": [

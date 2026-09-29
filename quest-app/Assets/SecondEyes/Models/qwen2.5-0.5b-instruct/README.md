@@ -7,4 +7,4 @@ Files for Meta's on-device chat provider, written by `grounding/copy_to_unity.py
 - `model.json`: which `.sentis` file the provider loads, and the fingerprints that Second Eyes → Fill chat provider checks.
 - The provider asset in this folder is filled by Second Eyes → Fill chat provider.
 
-The model itself, `qwen2.5-0.5b-instruct-72303ef1-f16.sentis`, is made by Second Eyes → Convert model in `Assets/StreamingAssets/`, which Git ignores (D34, D35, D38).
+The model itself, `qwen2.5-0.5b-instruct-fa9d3a46-f16.sentis`, is made by Second Eyes → Convert model in `Assets/StreamingAssets/`, which Git ignores (D34, D35, D38, D48).

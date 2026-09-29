@@ -15,9 +15,9 @@ MonoBehaviour:
   supportedInferenceTypes: 4
   mode: 2
   modelFile: {fileID: 0}
-  streamingAssetModel: {fileID: 102900000, guid: d91da97e2254d6e408c9106dbfea0ebe, type: 3}
+  streamingAssetModel: {fileID: 102900000, guid: da4a90bebb52dec4c8a312151d5b704c, type: 3}
   useStreamingAsset: 1
-  streamingAssetFileName: qwen2.5-0.5b-instruct-72303ef1-f16.sentis
+  streamingAssetFileName: qwen2.5-0.5b-instruct-fa9d3a46-f16.sentis
   modelContentId: 0
   classLabelsContentId: 0
   backend: 256
