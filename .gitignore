@@ -26,6 +26,8 @@ venv/
 *.pt
 *.pth
 *.ckpt
+*.sentis
+*.sentis.meta
 # point clouds and motion capture
 *.ply
 *.c3d
@@ -65,6 +67,9 @@ venv/
 # Unity build side-products, created next to the APK
 *_BurstDebugInformation_DoNotShip/
 *_BackUpThisFolder_ButDontShipItWithYourGame/
+# StreamingAssets holds only the converted model (A1.7c, D35, D38), recreated with docs/setup/quest-model.md
+/quest-app/Assets/StreamingAssets/
+/quest-app/Assets/StreamingAssets.meta
 
 # Run data stays out of Git until raw-data storage is decided (open item O9)
 /runs/*/raw/

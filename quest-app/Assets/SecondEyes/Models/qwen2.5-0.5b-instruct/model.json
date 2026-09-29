@@ -1,0 +1,40 @@
+{
+  "format": 1,
+  "name": "qwen2.5-0.5b-instruct",
+  "hf_repo": "Qwen/Qwen2.5-0.5B-Instruct",
+  "hf_commit": "7ae557604adf67be50417f59c2c2f167def9a775",
+  "quantization": "Float16",
+  "sentis_file": "qwen2.5-0.5b-instruct-72303ef1-f16.sentis",
+  "onnx_folder": "grounding/models/qwen2.5-0.5b-instruct/onnx",
+  "onnx_weights_file": "model.onnx_data",
+  "onnx_files": [
+    {
+      "file": "model.onnx",
+      "sha256": "1fe771ee549e4cc5db33aa41afe55cb7e8b6f4b9a9e632971a9167790ac3c584",
+      "bytes": 1113522
+    },
+    {
+      "file": "model.onnx_data",
+      "sha256": "72303ef1d77c02e4efc46a35b5cc60a841213518baa0ddae6247d44f1686265a",
+      "bytes": 2520669824
+    }
+  ],
+  "tokenizer_files": [
+    {
+      "file": "vocab.json",
+      "sha256": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910",
+      "bytes": 2776833
+    },
+    {
+      "file": "merges.txt",
+      "sha256": "599bab54075088774b1733fde865d5bd747cbcc7a547c5bc12610e874e26f5e3",
+      "bytes": 1671839
+    },
+    {
+      "file": "tokenizer_config.json",
+      "sha256": "5b5d4f65d0acd3b2d56a35b56d374a36cbc1c8fa5cf3b3febbbfabf22f359583",
+      "bytes": 7305
+    }
+  ],
+  "written_by": "grounding/copy_to_unity.py"
+}

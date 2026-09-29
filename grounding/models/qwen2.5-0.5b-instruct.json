@@ -13,5 +13,10 @@
   },
   "chat_template": "<|im_start|>system\n{1}<|im_end|>\n<|im_start|>user\n{0}<|im_end|>\n<|im_start|>assistant\n",
   "max_new_tokens": 100,
-  "max_prompt_length": 512
+  "max_prompt_length": 512,
+  "provider": {
+    "backend": "CPU",
+    "execution_mode": "NonBlocking",
+    "steps_per_frame": 150
+  }
 }

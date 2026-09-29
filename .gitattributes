@@ -1,0 +1,5 @@
+# Files the headset reads byte for byte: Git must not change their line endings (D35).
+# Second Eyes > Fill chat provider checks their fingerprints against model.json.
+quest-app/Assets/SecondEyes/Models/*/vocab.json -text
+quest-app/Assets/SecondEyes/Models/*/merges.txt -text
+quest-app/Assets/SecondEyes/Models/*/tokenizer_config.json -text

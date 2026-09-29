@@ -1,0 +1,61 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8ee0a5db7462b764094b0d8e02abcb8a, type: 3}
+  m_Name: ChatProvider
+  m_EditorClassIdentifier: Meta.XR.BuildingBlocks.AIBlocks::Meta.XR.BuildingBlocks.AIBlocks.UnityInferenceEngineProvider
+  supportedInferenceTypes: 4
+  mode: 2
+  modelFile: {fileID: 0}
+  streamingAssetModel: {fileID: 102900000, guid: d91da97e2254d6e408c9106dbfea0ebe, type: 3}
+  useStreamingAsset: 1
+  streamingAssetFileName: qwen2.5-0.5b-instruct-72303ef1-f16.sentis
+  modelContentId: 0
+  classLabelsContentId: 0
+  backend: 256
+  classLabelsAsset: {fileID: 0}
+  selectedClassLabelIndices: 
+  splitOverFrames: 0
+  layersPerFrame: 22
+  inputWidth: 640
+  inputHeight: 640
+  scoreThreshold: 0.5
+  llmConfig:
+    inferenceExecutionMode: 1
+    stepsPerFrame: 150
+    vocabFile: {fileID: 4900000, guid: 284167a27b91b4841be9bd360d4af391, type: 3}
+    mergesFile: {fileID: 4900000, guid: 2999167b203f2a7488304d7e119dd097, type: 3}
+    tokenizerConfigFile: {fileID: 4900000, guid: 1a2573ca832063040a870bc4e124b3b5, type: 3}
+    vocabFileContentId: 0
+    mergesFileContentId: 0
+    tokenizerConfigFileContentId: 0
+    chatTemplateFormat: '<|im_start|>system
+
+      {1}<|im_end|>
+
+      <|im_start|>user
+
+      {0}<|im_end|>
+
+      <|im_start|>assistant
+
+'
+    defaultSystemMessage: 'You task a drone in a room. You get the objects in the
+      room, each as id, class and position (x, y, z in meters; z is up), where the
+      user stands, and the user''s command. Reply with one JSON object and nothing
+      else: {"action": "INSPECT", "target": "<object id>"}.'
+    maxLayers: 24
+    numKeyValueHeads: 2
+    headDim: 64
+    eosTokenId: 151645
+    maxNewTokens: 100
+    maxPromptLength: 512
+    backendType: 512
