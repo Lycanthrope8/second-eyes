@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading;
@@ -15,15 +16,16 @@ using Stopwatch = System.Diagnostics.Stopwatch;
 namespace SecondEyes.Grounding
 {
     /// <summary>
-    /// A1.7c-2's test panel (D40, D43, D44). At startup it loads the on-device model and shows, about a meter ahead, a text
-    /// box filled with the fixed prompt's user text, a Send button and the answer. Selecting the text box opens the Quest
-    /// system keyboard. Send runs the text through Meta's provider, and while it runs the button is Stop. Each step is
-    /// logged as it happens, so an unfinished answer still leaves data: model.request (the prompt's token IDs, from the
-    /// provider's own template and tokenizer), model.token (each piece of the answer and its time) and model.generate (the
-    /// end). grounding/check_headset.py compares a run with the PC reference. Sends of the unedited fixed prompt carry its
-    /// ID; edited ones are logged as "typed". In the Unity editor's Play mode, right-click the component and choose
-    /// "Send or Stop" to run it without a headset; the answer then also goes to the Console. The right thumbstick's click
-    /// puts the panel in front again.
+    /// A1.7c-2's test panel (D40, D43, D49). At startup it loads the on-device model and shows, about a meter ahead, the
+    /// prompt's user text, a row of preset buttons (the fixed prompt and the presets, each a prompt file like
+    /// grounding/prompts/a17-fixed.json), a Send button and the answer. There is no typing: the Quest's system keyboard
+    /// doesn't appear in this setup (r015), and presets cost the least memory (D49). Send runs the shown text through
+    /// Meta's provider, and while it runs the button is Stop. Each step is logged as it happens, so an unfinished answer
+    /// still leaves data: model.request (the prompt's ID and token IDs, from the provider's own template and tokenizer),
+    /// model.token (each piece of the answer and its time) and model.generate (the end). grounding/check_headset.py
+    /// compares a run with the PC references. In the Unity editor's Play mode, right-click the component and choose
+    /// "Next preset" or "Send or Stop" to run it without a headset; the answer then also goes to the Console. The right
+    /// thumbstick's click puts the panel in front again.
     /// </summary>
     public class ChatPanel : MonoBehaviour
     {
@@ -31,27 +33,28 @@ namespace SecondEyes.Grounding
         [SerializeField] private UnityInferenceEngineProvider provider;
         [Tooltip("The fixed prompt, a copy of grounding/prompts/a17-fixed.json; its user text fills the text box.")]
         [SerializeField] private TextAsset prompt;
+        [Tooltip("More prompts, each a copy of a file in grounding/prompts/; each gets a button next to the fixed prompt's.")]
+        [SerializeField] private TextAsset[] presets = new TextAsset[0];
         [Tooltip("Where the panel appears relative to the head, in meters: right, up, forward.")]
         [SerializeField] private Vector3 offsetM = new Vector3(0f, -0.1f, 1.0f);
 
         private const string TypedId = "typed";
-        private const string Placeholder = "Type a command";
         private static readonly string[] MetaPrefixes =
             { "[TextOnlyLLMRunner]", "[UnityInferenceEngineProvider]", "[GPT2Tokenizer]", "[OnDeviceLLMConfig]" };
-        private static readonly Color TextColor = Color.white, HintColor = new Color(1f, 1f, 1f, 0.35f);
+        private static readonly Color PresetColor = new Color(0.22f, 0.25f, 0.3f), ChosenColor = new Color(0.3f, 0.45f, 0.6f);
 
 #pragma warning disable 0649   // filled by JsonUtility
         [Serializable] private class PromptFile { public string id, user; }
 #pragma warning restore 0649
 
         private OnDeviceLlmConfig config;
-        private PromptFile fixedPrompt;
+        private readonly List<PromptFile> choices = new List<PromptFile>();   // the fixed prompt first, then the presets
+        private readonly List<Button> presetButtons = new List<Button>();
+        private int chosen;
         private RectTransform panel;
-        private Button textBox, sendButton;
+        private Button sendButton;
         private Text boxText, buttonLabel, status, answer;
         private string text = "";
-        private TouchScreenKeyboard keyboard;
-        private string textBeforeKeyboard;
         private CancellationTokenSource running;
         private int requests;
         private bool loaded, placed;
@@ -62,9 +65,13 @@ namespace SecondEyes.Grounding
 
         private async void Start()
         {
+            foreach (TextAsset asset in new[] { prompt }.Concat(presets ?? new TextAsset[0]))
+            {
+                PromptFile parsed = asset != null ? JsonUtility.FromJson<PromptFile>(asset.text) : null;
+                if (parsed != null && !string.IsNullOrEmpty(parsed.id) && parsed.user != null) choices.Add(parsed);
+            }
             BuildPanel();
-            fixedPrompt = prompt != null ? JsonUtility.FromJson<PromptFile>(prompt.text) : null;
-            SetText(fixedPrompt != null ? fixedPrompt.user : "");
+            Choose(0);
             if (Application.isEditor)
             {
                 Debug.Log("[ChatPanel] This session's event log: " + EventLog.FilePath);
@@ -118,33 +125,6 @@ namespace SecondEyes.Grounding
             }
         }
 
-        private void Update()
-        {
-            if (keyboard == null)
-            {
-                return;
-            }
-            switch (keyboard.status)
-            {
-                case TouchScreenKeyboard.Status.Visible:
-                    if (keyboard.text != text)
-                    {
-                        SetText(keyboard.text);
-                    }
-                    break;
-                case TouchScreenKeyboard.Status.Canceled:
-                    SetText(textBeforeKeyboard);
-                    LogKeyboard("canceled");
-                    keyboard = null;
-                    break;
-                default:   // Done, or LostFocus when the keyboard closed some other way
-                    SetText(keyboard.text ?? text);
-                    LogKeyboard(keyboard.status == TouchScreenKeyboard.Status.Done ? "done" : "lost_focus");
-                    keyboard = null;
-                    break;
-            }
-        }
-
         private void LateUpdate()
         {
             if (!placed && Time.timeSinceLevelLoad > 0.5f)   // wait until the head pose is tracked
@@ -155,6 +135,35 @@ namespace SecondEyes.Grounding
             {
                 Place();
             }
+        }
+
+        [ContextMenu("Next preset")]
+        private void NextPresetFromInspector()
+        {
+            if (!Application.isPlaying || choices.Count == 0) return;
+            Choose((chosen + 1) % choices.Count);
+            Debug.Log("[ChatPanel] Preset " + choices[chosen].id + ": " + Command(choices[chosen]));
+        }
+
+        /// <summary>Shows choice k's user text; Send then sends it under that prompt's ID.</summary>
+        private void Choose(int k)
+        {
+            if (running != null || k < 0 || k >= choices.Count)
+            {
+                if (choices.Count == 0) SetText("");
+                return;
+            }
+            chosen = k;
+            SetText(choices[k].user);
+            for (int i = 0; i < presetButtons.Count; i++)
+                presetButtons[i].targetGraphic.color = i == k ? ChosenColor : PresetColor;
+        }
+
+        /// <summary>The prompt's command line, without "Command: ", for its button.</summary>
+        private static string Command(PromptFile file)
+        {
+            string last = file.user.Split('\n').Last();
+            return last.StartsWith("Command: ", StringComparison.Ordinal) ? last.Substring("Command: ".Length) : file.id;
         }
 
         [ContextMenu("Send or Stop")]
@@ -191,10 +200,11 @@ namespace SecondEyes.Grounding
             }
             int request = ++requests;
             string sent = text;
-            string promptId = fixedPrompt != null && sent == fixedPrompt.user ? fixedPrompt.id : TypedId;
+            PromptFile match = choices.FirstOrDefault(c => c.user == sent);
+            string promptId = match != null ? match.id : TypedId;
             running = new CancellationTokenSource();
             buttonLabel.text = "Stop";
-            textBox.interactable = false;
+            foreach (Button b in presetButtons) b.interactable = false;
             answer.text = "";
             SetStatus("Generating...");
             var stream = new AnswerStream(this, request);
@@ -240,7 +250,7 @@ namespace SecondEyes.Grounding
             running.Dispose();
             running = null;
             buttonLabel.text = "Send";
-            textBox.interactable = true;
+            foreach (Button b in presetButtons) b.interactable = true;
         }
 
         /// <summary>Receives the answer one token at a time, straight from the provider's loop, and logs each piece.</summary>
@@ -286,23 +296,6 @@ namespace SecondEyes.Grounding
             }
         }
 
-        private void OpenKeyboard()
-        {
-            if (running != null || keyboard != null)
-            {
-                return;
-            }
-            if (!TouchScreenKeyboard.isSupported)
-            {
-                LogKeyboard("unsupported");
-                SetStatus("No system keyboard here. In the editor, right-click the component and choose Send or Stop.");
-                return;
-            }
-            textBeforeKeyboard = text;
-            keyboard = TouchScreenKeyboard.Open(text, TouchScreenKeyboardType.Default, false, true, false, false, Placeholder);
-            LogKeyboard(keyboard != null ? "opened" : "open_failed");
-        }
-
         private void LogRequest(int request, string promptId, List<int> ids)
         {
             var data = new StringBuilder("{\"request\":").Append(request.ToString(CultureInfo.InvariantCulture));
@@ -330,14 +323,6 @@ namespace SecondEyes.Grounding
             data.Append(",\"total_ms\":").Append(Number(total));
             data.Append(",\"stopped\":").Append(stopped ? "true" : "false").Append('}');
             EventLog.Write("model.generate", data.ToString());
-        }
-
-        private void LogKeyboard(string what)
-        {
-            var data = new StringBuilder("{\"event\":");
-            LogJson.AppendString(data, what);
-            data.Append(",\"chars\":").Append(text.Length.ToString(CultureInfo.InvariantCulture)).Append('}');
-            EventLog.Write("ui.keyboard", data.ToString());
         }
 
         private void OnLog(string message, string stackTrace, LogType type)
@@ -392,8 +377,7 @@ namespace SecondEyes.Grounding
         private void SetText(string value)
         {
             text = value ?? "";
-            boxText.text = text.Length > 0 ? text : Placeholder;
-            boxText.color = text.Length > 0 ? TextColor : HintColor;
+            boxText.text = text;
         }
 
         private bool Place()
@@ -444,17 +428,28 @@ namespace SecondEyes.Grounding
             status = Label(panel, "Status", 20f, 56f, 600f, 30f, 18, FontStyle.Normal);
             status.color = new Color(0.75f, 0.8f, 0.85f);
 
-            // The text box is a button: clicking it opens the system keyboard (D44).
-            RectTransform box = Box(panel, "TextBox", 20f, 96f, 600f, 250f);
+            // The text box only shows the prompt; the preset buttons below choose it (D49).
+            RectTransform box = Box(panel, "TextBox", 20f, 96f, 600f, 196f);
             Image boxImage = box.gameObject.AddComponent<Image>();
             boxImage.color = new Color(0.16f, 0.18f, 0.21f);
-            boxText = Label(box, "Text", 12f, 10f, 576f, 230f, 18, FontStyle.Normal);
+            boxText = Label(box, "Text", 12f, 8f, 576f, 180f, 16, FontStyle.Normal);
             boxText.supportRichText = false;
-            textBox = box.gameObject.AddComponent<Button>();
-            textBox.targetGraphic = boxImage;
-            textBox.onClick.AddListener(OpenKeyboard);
+            for (int k = 0; k < choices.Count && k < 4; k++)   // up to four prompts fit in a row
+            {
+                int which = k;
+                RectTransform presetBox = Box(panel, "Preset " + choices[k].id, 20f + k * 153f, 300f, 140f, 50f);
+                Image presetImage = presetBox.gameObject.AddComponent<Image>();
+                presetImage.color = PresetColor;
+                Text presetText = Label(presetBox, "Label", 6f, 3f, 128f, 44f, 14, FontStyle.Normal);
+                presetText.text = Command(choices[k]);
+                presetText.alignment = TextAnchor.MiddleCenter;
+                Button preset = presetBox.gameObject.AddComponent<Button>();
+                preset.targetGraphic = presetImage;
+                preset.onClick.AddListener(() => Choose(which));
+                presetButtons.Add(preset);
+            }
 
-            RectTransform buttonBox = Box(panel, "Send", 460f, 358f, 160f, 56f);
+            RectTransform buttonBox = Box(panel, "Send", 460f, 362f, 160f, 52f);
             Image buttonImage = buttonBox.gameObject.AddComponent<Image>();
             buttonImage.color = new Color(0.2f, 0.5f, 0.95f);
             buttonLabel = Label(buttonBox, "Label", 0f, 0f, 160f, 56f, 22, FontStyle.Bold);

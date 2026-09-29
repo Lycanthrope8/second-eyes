@@ -9,7 +9,7 @@ The Unity app that runs on the Meta Quest 3. At deployment, all AI inference hap
 | Unity | 6000.3.25f1 |
 | Meta XR Core SDK | 207.0.0 |
 | Unity Inference Engine (`com.unity.ai.inference`) | 2.2.1 (D36) |
-| System keyboard | on: OVRManager → Quest Features → General → Requires System Keyboard (D42); it doesn't appear in this OpenXR setup, although `TouchScreenKeyboard.Open` returns (r015) |
+| System keyboard | off (D49): it doesn't appear in this OpenXR setup, although `TouchScreenKeyboard.Open` returns (r015) |
 | XR plug-in provider | OpenXR 1.18.0 |
 | Render pipeline | URP (D14) |
 | Package name | `com.secondeyes.quest` (D14) |
@@ -21,7 +21,7 @@ Update this table whenever a version changes, and log the change in `notes/decis
 
 - Our app-level code goes in `Assets/SecondEyes/` (D14).
 - Each component's headset code goes in `Assets/SecondEyes/<Component>/`, for example `Grounding/` (D39).
-- The scene has a `ChatPanel` object with the `ChatPanel` and `UiPointer` components (A1.7c-2, D40, D41). Its text box opens the system keyboard itself (D44). In the editor's Play mode, right-click the Chat Panel component and choose Send or Stop to run the model on the PC (D43).
+- The scene has a `ChatPanel` object with the `ChatPanel` and `UiPointer` components (A1.7c-2, D40, D41). Its Prompt field holds the fixed prompt and its Presets list the other prompt files, one button each; there is no typing (D49). In the editor's Play mode, right-click the Chat Panel component and choose Send or Stop to run the model on the PC (D43).
 - Editor-only tools go in `Assets/SecondEyes/Editor/`: Second Eyes → Convert model (D38) and Second Eyes → Fill chat provider (D37), which share `ModelFiles.cs`.
 - Each language model has a folder `Assets/SecondEyes/Models/<model>/` with its tokenizer files and provider asset. The model itself goes in `Assets/StreamingAssets/`, which Git ignores (D35). ONNX files never go into `Assets/`: Unity would import them, which runs out of memory for a model this size (D38). How: `docs/setup/quest-model.md`.
 - Commit `Assets/`, `Packages/` and `ProjectSettings/`. Unity's generated folders (`Library/`, `Temp/`, `Logs/`, `Builds/` and similar) are ignored by the root `.gitignore`.

@@ -589,6 +589,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SecondEyes.Grounding.ChatPanel
   provider: {fileID: 11400000, guid: 508cf627e8f1c944f8caabac57120664, type: 2}
   prompt: {fileID: 4900000, guid: 05e88501e72c4c043a2781c9e335c93e, type: 3}
+  presets:
+  - {fileID: 4900000, guid: 03508d8ccec30ea47a11a6e490899912, type: 3}
+  - {fileID: 4900000, guid: 529628567babd734ca99aaf8805aecd3, type: 3}
+  - {fileID: 4900000, guid: ccd8733f50ba2d745a65cff5ca7296e5, type: 3}
   offsetM: {x: 0, y: -0.1, z: 1}
 --- !u!4 &441867075
 Transform:

@@ -6,13 +6,14 @@
 Reads every log in runs/<run ID>/raw/ (on the headset, pull them first with tools/logs.py) and the reference
 files runs/<reference>/raw/reference_<prompt id>_<variant>.json that grounding/reference.py wrote. Each send is
 model.request, then one model.token per answer piece, then model.generate at the end, all with the same request
-number. For each send of an unedited fixed prompt it checks:
+number. For each send of a prompt file (the fixed prompt or a preset, D49) whose PC reference the reference run
+holds, it checks:
   prompt  the token IDs equal the reference's, so the template, the system message and the tokenizer are the
           same as on the PC; this works even if the answer never finished
   answer  the text equals the 16-bit-weights reference (fp16w) as Meta's runner streams it, token by token, and
           otherwise says at which token it first differs; the full-precision reference (fp32) is shown too
-Typed sends are listed without a comparison. The result is PASS, and the exit code 0, only if there is at least
-one fixed-prompt send, and every one has the reference's prompt and finished with the reference's answer.
+Sends without a reference in that run, and typed sends, are listed without a comparison. The result is PASS, and the
+exit code 0, only if at least one send finished with its reference's answer and no send contradicts its reference.
 """
 
 from __future__ import annotations
@@ -113,11 +114,16 @@ def main(argv=None) -> int:
 
         fixed = [s for s in sends if s["request"] and s["request"]["data"].get("prompt_id") not in (None, TYPED)]
         typed = [s for s in sends if s["request"] and s["request"]["data"].get("prompt_id") == TYPED]
-        verdicts = []
-        print("\nSends of fixed prompts:" + ("" if fixed else " none. Press Send once without editing the text."))
+        verdicts, unreferenced = [], []
+        print("\nSends of prompt files:" + ("" if fixed else " none. Press Send once."))
         for n, s in enumerate(fixed, start=1):
             d = s["request"]["data"]
-            ref16 = load_reference(ref_dir, d["prompt_id"], "fp16w", required=True)
+            ref16 = load_reference(ref_dir, d["prompt_id"], "fp16w", required=False)
+            if ref16 is None:
+                unreferenced.append(d["prompt_id"])
+                print(f"  #{n} {d['prompt_id']} at {when(s['request'])}: no 16-bit reference for this prompt in "
+                      f"{args.reference}, so not compared")
+                continue
             ref32 = load_reference(ref_dir, d["prompt_id"], "fp32", required=False)
             ids, ref_ids = d.get("prompt_token_ids") or [], ref16["prompt"]["token_ids"]
             prompt_ok = ids == ref_ids
@@ -163,10 +169,13 @@ def main(argv=None) -> int:
         answer_wrong = any(a not in ("same", "same so far") for _, _, a in verdicts)
         matched = any(p and st == "finished" and a == "same" for p, st, a in verdicts)
         passed = matched and not prompt_wrong and not answer_wrong
+        if unreferenced:
+            print(f"\nNo reference in {args.reference} for: {', '.join(sorted(set(unreferenced)))}. Make them with "
+                  "grounding/reference.py (with and without --variant fp16w).")
         if passed:
             print("\nResult: PASS. The headset sees exactly the reference's prompt and gives the reference's answer.")
         elif not verdicts:
-            print("\nResult: no result yet, since no fixed prompt was sent.")
+            print("\nResult: no result yet: no send had a reference to compare with.")
         elif prompt_wrong:
             print("\nResult: FAIL. The prompt differs: check the provider's template, system message and tokenizer files "
                   "(Second Eyes > Fill chat provider).")
