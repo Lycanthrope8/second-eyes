@@ -12,7 +12,9 @@ holds, it checks:
           same as on the PC; this works even if the answer never finished
   answer  the text equals the 16-bit-weights reference (fp16w) as Meta's runner streams it, token by token, and
           otherwise says at which token it first differs; the full-precision reference (fp32) is shown too
-Sends without a reference in that run, and typed sends, are listed without a comparison. The result is PASS, and the
+Sends without a reference in that run, and typed sends, are listed without a comparison. With more than 8 sends (a
+Repeat run, D50), each send gets one line. At the end, the finished sends' timing is summarized by the steps per
+frame each ran with (from model.load and model.setting). The result is PASS, and the
 exit code 0, only if at least one send finished with its reference's answer and no send contradicts its reference.
 """
 
@@ -21,6 +23,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import statistics
 import sys
 from pathlib import Path
 
@@ -102,6 +105,17 @@ def main(argv=None) -> int:
             raise ToolError(f"No run {args.reference} with a raw/ folder in runs/")
         events = [e for log in logs for e in read_events(log)]
         sends = [s for log in logs for s in sends_of(log)]
+        steps_at = {}   # (log name, request) -> the steps per frame when it was sent
+        for log in logs:
+            steps = None
+            for e in read_events(log):
+                d = e.get("data", {})
+                if e.get("ev") in ("model.load", "model.setting"):
+                    steps = d.get("steps_per_frame", steps)
+                elif e.get("ev") == "model.request" and isinstance(d.get("request"), int):
+                    steps_at[(log.name, d["request"])] = steps
+        for s in sends:
+            s["steps"] = steps_at.get((s["log"], s["request"]["data"].get("request") if s["request"] else None))
 
         print(f"Run {args.run_id}: {len(logs)} log(s). Reference: {args.reference}.")
         loads = [e for e in events if e.get("ev") == "model.load"]
@@ -115,7 +129,9 @@ def main(argv=None) -> int:
         fixed = [s for s in sends if s["request"] and s["request"]["data"].get("prompt_id") not in (None, TYPED)]
         typed = [s for s in sends if s["request"] and s["request"]["data"].get("prompt_id") == TYPED]
         verdicts, unreferenced = [], []
-        print("\nSends of prompt files:" + ("" if fixed else " none. Press Send once."))
+        brief = len(fixed) > 8
+        print("\nSends of prompt files:" + ("" if fixed else " none. Press Send once.")
+              + (f" {len(fixed)}, one line each." if brief else ""))
         for n, s in enumerate(fixed, start=1):
             d = s["request"]["data"]
             ref16 = load_reference(ref_dir, d["prompt_id"], "fp16w", required=False)
@@ -135,6 +151,10 @@ def main(argv=None) -> int:
             if state == "finished" and answer == "same" and len(pieces) != ref16["answer"]["tokens"]:
                 answer = f"same text, but {len(pieces)} tokens instead of {ref16['answer']['tokens']}"
             verdicts.append((prompt_ok, state, answer))
+            if brief:
+                print(f"  #{n} {d['prompt_id']} at {when(s['request'])}: {state}; prompt "
+                      f"{'same' if prompt_ok else 'DIFFERENT'}; answer {answer}; {timing(s)}; steps {s['steps']}")
+                continue
             print(f"  #{n} {d['prompt_id']} at {when(s['request'])} ({s['log']}, request {d.get('request')}): {state}")
             print(f"     prompt: {len(ids)} tokens; same IDs as the reference ({len(ref_ids)}): "
                   + ("yes" if prompt_ok else "NO, " + first_difference(ids, ref_ids)))
@@ -143,6 +163,18 @@ def main(argv=None) -> int:
                                             == ref16["answer"]["text_meta_style"] else "; the fp32 reference differs")
             print(f"             against the 16-bit reference ({ref16['answer']['tokens']} tokens): {answer}{fp32}")
             print(f"     timing: {timing(s)}")
+
+        finished = [s for s in sends if s["end"] and not s["end"]["data"].get("stopped") and len(s["tokens"]) > 1]
+        print("\nTiming of finished answers, by steps per frame:" + ("" if finished else " none"))
+        for steps in sorted({s["steps"] for s in finished}, key=lambda v: (v is None, v or 0), reverse=True):
+            group = [s for s in finished if s["steps"] == steps]
+            first = [s["tokens"][0]["data"]["ms"] / 1000 for s in group]
+            per = [(s["tokens"][-1]["data"]["ms"] - s["tokens"][0]["data"]["ms"]) / (len(s["tokens"]) - 1) / 1000
+                   for s in group]
+            total = [s["end"]["data"]["total_ms"] / 1000 for s in group if s["end"]["data"].get("total_ms") is not None]
+            print(f"  {steps if steps is not None else '?'} steps: {len(group)} answer(s); median first token after "
+                  f"{statistics.median(first):.1f} s (range {min(first):.1f}-{max(first):.1f}), then one every "
+                  f"{statistics.median(per):.2f} s, all after {statistics.median(total):.1f} s")
 
         print("\nTyped sends:" + ("" if typed else " none"))
         for s in typed:
@@ -153,11 +185,14 @@ def main(argv=None) -> int:
             print(f"  {when(s['request'])}  {d.get('prompt_tokens')} prompt tokens -> {text!r} ({count(len(pieces))}, "
                   f"{state}); {timing(s)}")
 
-        notes = [e for e in events if e.get("ev") in ("model.message", "error", "ui.keyboard")]
-        print("\nKeyboard, Meta's messages and errors:" + ("" if notes else " none"))
+        notes = [e for e in events if e.get("ev") in ("model.message", "error", "ui.keyboard", "model.setting")]
+        print("\nSettings, keyboard, Meta's messages and errors:" + ("" if notes else " none"))
         for e in notes:
             d = e.get("data", {})
-            if e["ev"] == "ui.keyboard":
+            if e["ev"] == "model.setting":
+                print(f"  {when(e)}  setting: Repeat {'on' if d.get('repeat') else 'off'}, "
+                      f"{d.get('steps_per_frame')} steps per frame")
+            elif e["ev"] == "ui.keyboard":
                 print(f"  {when(e)}  keyboard: {d.get('event')} ({d.get('chars')} characters in the text box)")
             elif e["ev"] == "model.message":
                 print(f"  {when(e)}  {d.get('level')}: {d.get('text')}")

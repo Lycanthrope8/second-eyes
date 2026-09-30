@@ -34,6 +34,27 @@ The headset stays plugged in (D22), so the summary reports the charging state in
 
 Taking the headset off and putting it back on while the app runs currently makes the app set up its graphics memory again without releasing the old copy: about 1.6 GB more each time (open item O14). If the headset comes off during a recording, the run is not valid: quit and restart the app, and record a new run. The summary flags gaps in the OVR Metrics rows and sudden memory jumps, so this can't go unnoticed.
 
+## A1.7d: what the model costs (D50)
+
+Six runs of one build, in two blocks. Each block starts with steps 1 and 2 of the procedure above: a freshly rebooted
+headset, worn, two minutes in Home, and OVR Metrics' CSV recording on. Within a block the headset stays on, and each run
+is its own app session: start the app, set the condition, record, quit the app, pull its log. The panel starts with the
+model off (D50).
+
+| Run | Block | Condition | Set it by | Minutes |
+|---|---|---|---|---|
+| A1 | 1 | model off: the app's reference, which A1.6 would have taken (D25) | starting the app | 10 |
+| B | 1 | model loaded, idle | Load model, then waiting for Ready | 10 |
+| C | 1 | generating, 150 steps per frame (Meta's default) | Load model, then Repeat | 10 |
+| A2 | 2 | model off again: the reference's second repeat (D23, D24) | starting the app | 10 |
+| S50 | 2 | generating, 50 steps per frame | Load model, Steps to 50, then Repeat | 5 |
+| S15 | 2 | generating, 15 steps per frame | Load model, Steps to 15, then Repeat | 5 |
+
+Repeat sends the fixed prompt again 5 s after each answer, so the model works most of the time. Start
+`tools/profile.py record` only once the condition is set. For the generating runs, `grounding/check_headset.py` checks
+every answer against the PC references and summarizes the timing by steps per frame. `analysis/profile.py table` puts
+all six runs in one table, and `compare` checks A1 against A2.
+
 ## Comparing two runs
 
 ```

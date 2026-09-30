@@ -1,0 +1,29 @@
+# Run config, format v1 (defined in schemas/run-config.v1.json).
+# Made by:   python tools/runs.py new <phase> --purpose "..." --operator "..."
+# Check it:  python tools/runs.py check <run ID>
+# Fill the optional fields that apply to this run and leave the rest null.
+
+# Identity (filled by the tool)
+config_version: 1
+run_id: "20260929_A1_r016"
+phase: "A1"
+created: "2026-09-29T19:05:57-04:00"  # local time with UTC offset
+
+# Required (given to the tool)
+purpose: "A1.7c-2 PC references for the fixed prompt and the presets (D49)"  # one line: why this run exists
+operator: "JH"  # who ran it
+
+# Code (filled by the tool)
+git_commit: "ac2cecda56e8c5c6ce14c88ee4afb78aeb1957ce"
+git_dirty: false  # true if the repository had uncommitted changes (files in .gitignore don't count)
+
+# Optional: leave null when a field doesn't apply
+model_checkpoint: "model.onnx_data"  # model file name (--checkpoint fills it)
+model_sha256: "bde45212eb8549f4e9efd78d0c19e12f6d70d54c2dd657ffac3e9cd0f7269748"  # SHA-256 of that file (--checkpoint fills it)
+prompt_version: null  # version of the prompt template
+schema_version: null  # version of the model's output/scene schema (proposal section 6.2)
+layout_id: null  # which prop layout
+headset_os_build: null  # ro.build.fingerprint (--headset fills it)
+drone_firmware: null
+lighting: null  # lighting conditions
+notes: "PC references for the one-word-table export, four prompts, each 15 tokens, repeatable, fp16w same as fp32, PyTorch agrees: a17-fixed box_1 (expected box_2), a17-front box_1, a17-left chair_1, a17-table table_1. The reference for headset checks from here on."

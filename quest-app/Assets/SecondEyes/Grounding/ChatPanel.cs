@@ -16,16 +16,18 @@ using Stopwatch = System.Diagnostics.Stopwatch;
 namespace SecondEyes.Grounding
 {
     /// <summary>
-    /// A1.7c-2's test panel (D40, D43, D49). At startup it loads the on-device model and shows, about a meter ahead, the
-    /// prompt's user text, a row of preset buttons (the fixed prompt and the presets, each a prompt file like
-    /// grounding/prompts/a17-fixed.json), a Send button and the answer. There is no typing: the Quest's system keyboard
-    /// doesn't appear in this setup (r015), and presets cost the least memory (D49). Send runs the shown text through
-    /// Meta's provider, and while it runs the button is Stop. Each step is logged as it happens, so an unfinished answer
-    /// still leaves data: model.request (the prompt's ID and token IDs, from the provider's own template and tokenizer),
-    /// model.token (each piece of the answer and its time) and model.generate (the end). grounding/check_headset.py
-    /// compares a run with the PC references. In the Unity editor's Play mode, right-click the component and choose
-    /// "Next preset" or "Send or Stop" to run it without a headset; the answer then also goes to the Console. The right
-    /// thumbstick's click puts the panel in front again.
+    /// The model test panel (A1.7c-2: D40, D43, D49; A1.7d: D50). It shows, about a meter ahead, the prompt's user text,
+    /// a row of preset buttons (the fixed prompt and the presets, each a prompt file like grounding/prompts/a17-fixed.json)
+    /// and a row with Load model, Repeat, Steps and Send, then the answer. There is no typing (D49).
+    /// Load model loads the on-device model; unless Load at Start is ticked, the app starts without it, so its cost can be
+    /// measured with the model off (A1.7d). Send runs the shown text through Meta's provider, and while it runs the button
+    /// is Stop. Repeat sends the chosen prompt again a few seconds after each answer, until Repeat or Stop is pressed.
+    /// Steps cycles Meta's steps per frame (its prompt pass uses half), between answers only. Each step is logged as it
+    /// happens: model.load, model.setting (Repeat and Steps), model.request (the prompt's ID and token IDs, from the
+    /// provider's own template and tokenizer), model.token (each piece of the answer and its time) and model.generate
+    /// (the end). grounding/check_headset.py compares a run with the PC references. In the Unity editor's Play mode,
+    /// right-click the component for the same actions without a headset; the answer then also goes to the Console.
+    /// The right thumbstick's click puts the panel in front again.
     /// </summary>
     public class ChatPanel : MonoBehaviour
     {
@@ -35,6 +37,12 @@ namespace SecondEyes.Grounding
         [SerializeField] private TextAsset prompt;
         [Tooltip("More prompts, each a copy of a file in grounding/prompts/; each gets a button next to the fixed prompt's.")]
         [SerializeField] private TextAsset[] presets = new TextAsset[0];
+        [Tooltip("Load the model as the app starts. Off: the Load model button loads it, so the app can run without it (D50).")]
+        [SerializeField] private bool loadAtStart;
+        [Tooltip("With Repeat on, the pause after each answer before the next send, in seconds.")]
+        [SerializeField] private float repeatPauseS = 5f;
+        [Tooltip("The steps per frame the Steps button cycles through (Meta's setting; its prompt pass uses half).")]
+        [SerializeField] private int[] stepsChoices = { 150, 50, 15 };
         [Tooltip("Where the panel appears relative to the head, in meters: right, up, forward.")]
         [SerializeField] private Vector3 offsetM = new Vector3(0f, -0.1f, 1.0f);
 
@@ -42,6 +50,7 @@ namespace SecondEyes.Grounding
         private static readonly string[] MetaPrefixes =
             { "[TextOnlyLLMRunner]", "[UnityInferenceEngineProvider]", "[GPT2Tokenizer]", "[OnDeviceLLMConfig]" };
         private static readonly Color PresetColor = new Color(0.22f, 0.25f, 0.3f), ChosenColor = new Color(0.3f, 0.45f, 0.6f);
+        private static readonly Color RepeatOnColor = new Color(0.75f, 0.45f, 0.15f);
 
 #pragma warning disable 0649   // filled by JsonUtility
         [Serializable] private class PromptFile { public string id, user; }
@@ -52,18 +61,19 @@ namespace SecondEyes.Grounding
         private readonly List<Button> presetButtons = new List<Button>();
         private int chosen;
         private RectTransform panel;
-        private Button sendButton;
-        private Text boxText, buttonLabel, status, answer;
+        private Button sendButton, loadButton, repeatButton, stepsButton;
+        private Text boxText, buttonLabel, loadLabel, repeatLabel, stepsLabel, status, answer;
         private string text = "";
         private CancellationTokenSource running;
         private int requests;
-        private bool loaded, placed;
+        private bool loaded, loading, placed, repeat;
+        private float nextRepeatAt = -1f;   // Time.unscaledTime of Repeat's next send; negative: none planned
 
         private void OnEnable() { Application.logMessageReceived += OnLog; }
 
         private void OnDisable() { Application.logMessageReceived -= OnLog; }
 
-        private async void Start()
+        private void Start()
         {
             foreach (TextAsset asset in new[] { prompt }.Concat(presets ?? new TextAsset[0]))
             {
@@ -87,7 +97,33 @@ namespace SecondEyes.Grounding
                 Fail("setup", "Can't read the provider's chat settings (llmConfig). Meta's SDK may have changed.");
                 return;
             }
+            UpdateLabels();
+            if (loadAtStart)
+            {
+                LoadModel();
+            }
+            else
+            {
+                loadButton.interactable = true;
+                SetStatus("The model is off. Press Load model to load it.");
+            }
+        }
 
+        [ContextMenu("Load model")]
+        private void LoadModelFromInspector()
+        {
+            if (Application.isPlaying) LoadModel();
+        }
+
+        private async void LoadModel()
+        {
+            if (loaded || loading || config == null)
+            {
+                return;
+            }
+            loading = true;
+            loadButton.interactable = false;
+            loadLabel.text = "Loading...";
             string file = Field<string>(provider, "streamingAssetFileName");
             string source = Application.streamingAssetsPath;
             bool copies = !string.IsNullOrEmpty(file) && (source.Contains("://") || source.Contains("jar:"))
@@ -100,6 +136,9 @@ namespace SecondEyes.Grounding
             }
             catch (Exception e)
             {
+                loading = false;
+                loadButton.interactable = true;
+                loadLabel.text = "Load model";
                 Fail("model.load", e.Message);
                 return;
             }
@@ -117,7 +156,10 @@ namespace SecondEyes.Grounding
             EventLog.Write("model.load", data.ToString());
 
             loaded = true;
+            loading = false;
+            loadLabel.text = "Model loaded";
             sendButton.interactable = true;
+            repeatButton.interactable = true;
             SetStatus($"Ready. The model loaded in {ms / 1000:F1} s.");
             if (Application.isEditor)
             {
@@ -127,6 +169,11 @@ namespace SecondEyes.Grounding
 
         private void LateUpdate()
         {
+            if (repeat && running == null && nextRepeatAt >= 0f && Time.unscaledTime >= nextRepeatAt)
+            {
+                nextRepeatAt = -1f;
+                Send();
+            }
             if (!placed && Time.timeSinceLevelLoad > 0.5f)   // wait until the head pose is tracked
             {
                 placed = Place();
@@ -166,6 +213,75 @@ namespace SecondEyes.Grounding
             return last.StartsWith("Command: ", StringComparison.Ordinal) ? last.Substring("Command: ".Length) : file.id;
         }
 
+        [ContextMenu("Repeat on or off")]
+        private void RepeatFromInspector()
+        {
+            if (Application.isPlaying) ToggleRepeat();
+        }
+
+        [ContextMenu("Next steps per frame")]
+        private void StepsFromInspector()
+        {
+            if (Application.isPlaying) NextSteps();
+        }
+
+        /// <summary>Repeat on: sends now if idle, then again a pause after each answer. Off: no more sends are planned.</summary>
+        private void ToggleRepeat()
+        {
+            if (!loaded)
+            {
+                return;
+            }
+            SetRepeat(!repeat);
+            if (repeat && running == null)
+            {
+                Send();
+            }
+        }
+
+        private void SetRepeat(bool on)
+        {
+            if (repeat == on) return;
+            repeat = on;
+            nextRepeatAt = -1f;
+            if (!on && status.text.EndsWith(RepeatNote(), StringComparison.Ordinal))
+            {
+                SetStatus(status.text.Substring(0, status.text.Length - RepeatNote().Length));
+            }
+            UpdateLabels();
+            LogSetting();
+        }
+
+        /// <summary>The next value of stepsChoices, between answers only, so one answer never mixes two settings.</summary>
+        private void NextSteps()
+        {
+            if (config == null || running != null || stepsChoices == null || stepsChoices.Length == 0)
+            {
+                return;
+            }
+            int k = Array.IndexOf(stepsChoices, config.stepsPerFrame);
+            config.stepsPerFrame = Math.Max(1, stepsChoices[(k + 1) % stepsChoices.Length]);   // not in the list: its first
+            UpdateLabels();
+            LogSetting();
+        }
+
+        private string RepeatNote() { return $" Again in {repeatPauseS:F0} s."; }
+
+        private void UpdateLabels()
+        {
+            repeatLabel.text = repeat ? "Repeat: on" : "Repeat: off";
+            repeatButton.targetGraphic.color = repeat ? RepeatOnColor : PresetColor;
+            stepsLabel.text = config != null ? "Steps: " + config.stepsPerFrame.ToString(CultureInfo.InvariantCulture) : "Steps: ?";
+        }
+
+        private void LogSetting()
+        {
+            var data = new StringBuilder("{\"repeat\":").Append(repeat ? "true" : "false");
+            data.Append(",\"steps_per_frame\":").Append(config != null ? config.stepsPerFrame.ToString(CultureInfo.InvariantCulture) : "1");
+            data.Append(",\"pause_s\":").Append(Number(repeatPauseS)).Append('}');
+            EventLog.Write("model.setting", data.ToString());
+        }
+
         [ContextMenu("Send or Stop")]
         private void SendOrStopFromInspector()
         {
@@ -181,6 +297,7 @@ namespace SecondEyes.Grounding
         {
             if (running != null)
             {
+                SetRepeat(false);   // Stop always means stop
                 running.Cancel();
                 SetStatus("Stopping...");
                 return;
@@ -205,6 +322,7 @@ namespace SecondEyes.Grounding
             running = new CancellationTokenSource();
             buttonLabel.text = "Stop";
             foreach (Button b in presetButtons) b.interactable = false;
+            stepsButton.interactable = false;
             answer.text = "";
             SetStatus("Generating...");
             var stream = new AnswerStream(this, request);
@@ -230,6 +348,7 @@ namespace SecondEyes.Grounding
             }
             catch (Exception e)
             {
+                SetRepeat(false);   // don't repeat a failure
                 Fail("model.generate", e.Message + FirstFrame(e.StackTrace));
             }
 
@@ -251,6 +370,12 @@ namespace SecondEyes.Grounding
             running = null;
             buttonLabel.text = "Send";
             foreach (Button b in presetButtons) b.interactable = true;
+            stepsButton.interactable = true;
+            if (repeat && !stopped)
+            {
+                nextRepeatAt = Time.unscaledTime + Mathf.Max(0f, repeatPauseS);
+                SetStatus(status.text + RepeatNote());
+            }
         }
 
         /// <summary>Receives the answer one token at a time, straight from the provider's loop, and logs each piece.</summary>
@@ -424,7 +549,7 @@ namespace SecondEyes.Grounding
 
             Image background = Box(panel, "Background", 0f, 0f, 640f, 600f).gameObject.AddComponent<Image>();
             background.color = new Color(0.08f, 0.09f, 0.11f, 0.92f);
-            Label(panel, "Title", 20f, 16f, 600f, 36f, 26, FontStyle.Bold).text = "Second Eyes · model test (A1.7c)";
+            Label(panel, "Title", 20f, 16f, 600f, 36f, 26, FontStyle.Bold).text = "Second Eyes · model test (A1.7)";
             status = Label(panel, "Status", 20f, 56f, 600f, 30f, 18, FontStyle.Normal);
             status.color = new Color(0.75f, 0.8f, 0.85f);
 
@@ -449,6 +574,13 @@ namespace SecondEyes.Grounding
                 presetButtons.Add(preset);
             }
 
+            loadButton = RowButton("Load", 20f, 140f, out loadLabel, LoadModel);
+            loadLabel.text = "Load model";
+            loadButton.interactable = false;   // until the settings are read
+            repeatButton = RowButton("Repeat", 173f, 140f, out repeatLabel, ToggleRepeat);
+            repeatButton.interactable = false;   // until the model is loaded
+            stepsButton = RowButton("Steps", 326f, 120f, out stepsLabel, NextSteps);
+
             RectTransform buttonBox = Box(panel, "Send", 460f, 362f, 160f, 52f);
             Image buttonImage = buttonBox.gameObject.AddComponent<Image>();
             buttonImage.color = new Color(0.2f, 0.5f, 0.95f);
@@ -462,6 +594,20 @@ namespace SecondEyes.Grounding
 
             Label(panel, "AnswerTitle", 20f, 426f, 600f, 28f, 18, FontStyle.Bold).text = "Answer";
             answer = Label(panel, "Answer", 20f, 456f, 600f, 130f, 18, FontStyle.Normal);
+            UpdateLabels();
+        }
+
+        private Button RowButton(string name, float x, float width, out Text label, UnityEngine.Events.UnityAction onClick)
+        {
+            RectTransform rect = Box(panel, name, x, 362f, width, 52f);
+            Image image = rect.gameObject.AddComponent<Image>();
+            image.color = PresetColor;
+            label = Label(rect, "Label", 4f, 0f, width - 8f, 52f, 17, FontStyle.Normal);
+            label.alignment = TextAnchor.MiddleCenter;
+            Button button = rect.gameObject.AddComponent<Button>();
+            button.targetGraphic = image;
+            button.onClick.AddListener(onClick);
+            return button;
         }
 
         /// <summary>A child rectangle placed from the parent's top-left corner, in panel units.</summary>

@@ -45,6 +45,7 @@ Defined in v1:
 | `hands.state` | `left_tracked`, `right_tracked` (true or false) | at startup, then whenever either hand starts or stops being tracked (A1.5) |
 | `control.stop` | `source` (`button_b`) | when the stop button, B on the right controller, is pressed (A1.5) |
 | `model.load` | `file`, `copied` (whether this start first copied the model out of the app), `ms`, `backend`, `execution_mode`, `steps_per_frame` | once, when the on-device model has loaded (A1.7c-2) |
+| `model.setting` | `repeat`, `steps_per_frame`, `pause_s` | when the panel's Repeat or Steps changes (D50); before the first, Repeat is off and steps per frame is `model.load`'s |
 | `model.request` | `request` (counted from 1 per session), `prompt_id` (the prompt file's ID: the fixed prompt or a preset, D49; `typed` for other text), `prompt_tokens`, `prompt_token_ids` (list) | when Send is pressed, before the model starts (A1.7c-2, D43) |
 | `model.token` | `request`, `index` (from 0), `text`, `ms` (since the request) | for each piece of the answer as it arrives (D43) |
 | `model.generate` | `request`, `prompt_id`, `answer`, `answer_tokens`, `first_token_ms` (or null), `total_ms`, `stopped` | when the answer ends or Stop ends it (D43) |

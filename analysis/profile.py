@@ -255,6 +255,35 @@ def cmd_compare(args) -> int:
     return 0
 
 
+def purpose_of(run_id: str) -> str:
+    """The run's purpose from its config.yaml, for labeling a table row."""
+    try:
+        text = (RUNS / run_id / "config.yaml").read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    m = re.search(r"^purpose:\s*(.*)$", text, re.M)
+    return m.group(1).strip().strip('"').strip("'").replace("|", "/") if m else ""
+
+
+def cmd_table(args) -> int:
+    """One Markdown row per run, for phase notes (A1.7d, D50); flags are counted here and listed by summary."""
+    print("| Run | Purpose | Minutes | fps mean (min) | Seconds below 71 fps | Stale frames | CPU % mean (max) | "
+          "GPU % mean (max) | App memory max, MB (graphics) | SoC °C start → max | Thermal status max | Flags |")
+    print("|---|---|---|---|---|---|---|---|---|---|---|---|")
+    for run_id in args.run_ids:
+        s = summarize(run_id)
+        if s["rows"]:
+            frames, below, stale = f"{s['fps_mean']:.1f} ({s['fps_min']:.0f})", str(s["below_71_s"]), f"{s['stale']:.0f}"
+            cpu, gpu = f"{s['cpu_mean']:.0f} ({s['cpu_max']:.0f})", f"{s['gpu_mean']:.0f} ({s['gpu_max']:.0f})"
+            mem = f"{s['app_mem_max_mb']:.0f} ({fmt(s['gpu_mem_max_mb'])})"
+        else:
+            frames = below = stale = cpu = gpu = mem = "?"
+        heat = f"{fmt(s['soc_start'], '{:.1f}')} → {fmt(s['soc_max'], '{:.1f}')}"
+        print(f"| {run_id} | {purpose_of(run_id)} | {s['minutes']:.1f} | {frames} | {below} | {stale} | {cpu} | {gpu} | "
+              f"{mem} | {heat} | {fmt(s['thermal_max'])} | {len(s['flags']) or 'none'} |")
+    return 0
+
+
 def main(argv=None) -> int:
     for stream in (sys.stdout, sys.stderr):
         try:
@@ -266,12 +295,14 @@ def main(argv=None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     summary = sub.add_parser("summary", help="summarize one or more recorded runs")
     summary.add_argument("run_ids", nargs="+", metavar="RUN_ID")
+    table = sub.add_parser("table", help="one Markdown table row per run, for phase notes")
+    table.add_argument("run_ids", nargs="+", metavar="RUN_ID")
     compare = sub.add_parser("compare", help="check two runs against the agreement limits")
     compare.add_argument("run_a", metavar="RUN_A")
     compare.add_argument("run_b", metavar="RUN_B")
     args = parser.parse_args(argv)
     try:
-        return cmd_summary(args) if args.command == "summary" else cmd_compare(args)
+        return {"summary": cmd_summary, "table": cmd_table, "compare": cmd_compare}[args.command](args)
     except ToolError as err:
         print(f"Error: {err}", file=sys.stderr)
         return 2

@@ -211,6 +211,32 @@
         }
       }
     },
+    "model.setting": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repeat",
+        "steps_per_frame",
+        "pause_s"
+      ],
+      "properties": {
+        "repeat": {
+          "type": "boolean",
+          "description": "Whether the panel's Repeat is on: it sends the chosen prompt again a pause after each answer (D50)."
+        },
+        "steps_per_frame": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Meta's steps per frame from now on; its prompt pass uses half."
+        },
+        "pause_s": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Repeat's pause after each answer, in seconds."
+        }
+      },
+      "description": "Written whenever the panel's Repeat or Steps setting changes; the setting at a model.load is off and that event's steps_per_frame."
+    },
     "model.generate": {
       "type": "object",
       "additionalProperties": false,

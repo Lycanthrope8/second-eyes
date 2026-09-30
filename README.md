@@ -45,7 +45,7 @@ The phase in parentheses is when a folder starts to fill; until then it holds on
 | Phase | A1 · headset feasibility (started 2026-09-27) |
 | Done | S0 (closed 2026-09-27, `notes/phases/S0_infrastructure.md`); A1.1 headset baseline (`20260927_A1_r001`); A1.3a empty passthrough app (`20260928_A1_r002`); A1.3b overlay and 72 Hz request (`20260928_A1_r003`); A1.4a headset event log (`20260928_A1_r004`); A1.4b log pull (`20260928_A1_r005`); A1.5 hand tracking and stop button (`20260928_A1_r006`); A1.6a measuring tools (trial `20260928_A1_r007`); O5 closed, no headset changes (D26); A1.7a starting point found in Meta's docs and source (`docs/meta-ai.md`); A1.7b PC reference (`20260928_A1_r008`); A1.7c-1 model in Unity (`qwen2.5-0.5b-instruct-72303ef1-f16.sentis`, 1.26 GB; D34–D38); A1.7c-2 the model answers the fixed prompt exactly like the PC reference, on the PC (`20260929_A1_r014`) and on the headset (`20260929_A1_r015`), after D47 |
 | Deferred | A1.6's trial and reference measurement, replaced by A1.7d (D25); S0 item 4 (time sync) until Vicon is used; S0 items 5–6 (storage, experiment tracking) until after Gate A |
-| Next | the presets' PC references (D49); A1.7d: what the model costs on the headset (frame rate, CPU and GPU, memory, heat) |
+| Next | A1.7d: what the model costs on the headset, six runs (D50, `docs/profiling.md`); then A1.8, which settles the runtime A2 needs |
 | Gates passed | none yet |
 
 Update this table whenever a step finishes.
