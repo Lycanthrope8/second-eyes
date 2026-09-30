@@ -72,7 +72,9 @@ def git(*args: str) -> subprocess.CompletedProcess:
 
 
 def git_state() -> tuple:
-    """Return (commit, dirty, changed paths). Refuse without a repository or a commit."""
+    """Return (commit, dirty, changed paths). Refuse without a repository or a commit. Paths inside run folders
+    (runs/<run ID>/) don't count: they record runs rather than change what a run executes, so several runs in one
+    session needn't be committed one by one (D51)."""
     inside = git("rev-parse", "--is-inside-work-tree")
     if inside.returncode != 0 or inside.stdout.strip() != "true":
         raise ToolError(
@@ -87,7 +89,14 @@ def git_state() -> tuple:
     if status.returncode != 0:
         raise ToolError("git status failed:\n" + status.stderr.strip())
     changed = [line[3:] for line in status.stdout.splitlines() if line.strip()]
+    changed = [path for path in changed if not is_run_record(path)]
     return head.stdout.strip(), bool(changed), changed
+
+
+def is_run_record(path: str) -> bool:
+    """Whether a path from git status lies inside one run's folder, runs/<run ID>/ (D51)."""
+    parts = path.strip().strip('"').split("/")
+    return len(parts) >= 2 and parts[0] == "runs" and bool(RUN_ID.match(parts[1]))
 
 
 def sha256_of(path: Path) -> str:

@@ -43,17 +43,21 @@ model off (D50).
 
 | Run | Block | Condition | Set it by | Minutes |
 |---|---|---|---|---|
-| A1 | 1 | model off: the app's reference, which A1.6 would have taken (D25) | starting the app | 10 |
-| B | 1 | model loaded, idle | Load model, then waiting for Ready | 10 |
-| C | 1 | generating, 150 steps per frame (Meta's default) | Load model, then Repeat | 10 |
-| A2 | 2 | model off again: the reference's second repeat (D23, D24) | starting the app | 10 |
-| S50 | 2 | generating, 50 steps per frame | Load model, Steps to 50, then Repeat | 5 |
-| S15 | 2 | generating, 15 steps per frame | Load model, Steps to 15, then Repeat | 5 |
+| 1 | 1 | model off: the app's reference, which A1.6 would have taken (D25) | starting the app | 10 |
+| 2 | 1 | model loaded, idle | Load model, then waiting for Ready | 10 |
+| 3 | 1 | generating, 150 steps per frame (Meta's default) | Load model, then Repeat | 10 |
+| 4 | 2 | model off again: the reference's second repeat (D23, D24) | starting the app | 10 |
+| 5 | 2 | generating, 50 steps per frame | Load model, Steps to 50, then Repeat | 5 |
+| 6 | 2 | generating, 15 steps per frame | Load model, Steps to 15, then Repeat | 5 |
+
+Each run's purpose starts with `A1.7d run <number>:`. The app is closed between runs, so the headset may come off
+then; never while the app runs (O14). In runs 1, 2 and 4 the summary's flags must be none, or the run is redone; in
+runs 3, 5 and 6 a flag may come from the model itself, so it's reported, not redone, unless the headset came off.
 
 Repeat sends the fixed prompt again 5 s after each answer, so the model works most of the time. Start
 `tools/profile.py record` only once the condition is set. For the generating runs, `grounding/check_headset.py` checks
 every answer against the PC references and summarizes the timing by steps per frame. `analysis/profile.py table` puts
-all six runs in one table, and `compare` checks A1 against A2.
+all six runs in one table, and `compare` checks run 1 against run 4.
 
 ## Comparing two runs
 
