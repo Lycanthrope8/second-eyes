@@ -12,9 +12,12 @@ template, where each one's scene ends (grounding/scene.py), and the objects to s
 libse_llama.so and llama-bench (tools/build_llama.py android) and the GGUF model (grounding/export_gguf.py) to
 /data/local/tmp/se on the headset; the model only if the headset's copy differs in size. run runs the job there and
 pulls cli_results.json; bench runs llama.cpp's llama-bench for standard speeds (llama_bench.json). check compares the
-results with the PC references in the reference runs (the first that has a file wins): token IDs, the greedy answer, cached against uncached, and each
-candidate's log-probability against reference_<prompt>_candidates.json (grounding/reference.py --candidates); then it
-summarizes the timings. With --local BIN_DIR, prepare and run use the PC and a local build instead of the headset.
+results with the PC references in the reference runs (the first that has a file wins): token IDs, the greedy answer,
+cached against uncached, and the candidates against reference_<prompt>_candidates.json (grounding/reference.py
+--candidates); then it summarizes the timings. The candidates pass as D56 sets out: in every path the same best candidate
+and the same order among the plausible ones (at least 1% of the probability), and the cached path, which the app uses,
+within a total variation distance of 0.05 of PyTorch's distribution over the candidates. Log-probabilities are reported,
+not judged: 8-bit weights move those of unlikely candidates most, which no decision depends on. With --local BIN_DIR, prepare and run use the PC and a local build instead of the headset.
 """
 from __future__ import annotations
 
@@ -34,10 +37,20 @@ RUNS = ROOT / "runs"
 DEVICE_DIR = "/data/local/tmp/se"
 BINARIES = ("se_llama_cli", "libse_llama.so", "llama-bench")
 DEFAULT_PROMPTS = ("a17-fixed", "a17-front", "a17-left", "a17-table")
-# A candidate's log-probability may differ from the 32-bit PC reference by this much (8-bit weights round), and the
-# candidates must keep their order.
-SCORE_TOLERANCE = 0.15
-CACHE_TOLERANCE = 0.05   # cached scene against uncached, on the same device
+PLAUSIBLE = 0.01   # a candidate with at least this share of the probability counts for the order (D56)
+DISTANCE = 0.05    # the cached path against PyTorch: total variation distance between the candidate distributions (D56)
+
+
+def shares(logprobs: dict) -> dict:
+    """Each candidate's share of the probability over the candidates."""
+    top = max(logprobs.values())
+    z = sum(math.exp(v - top) for v in logprobs.values())
+    return {c: math.exp(v - top) / z for c, v in logprobs.items()}
+
+
+def distance(a: dict, b: dict) -> float:
+    """Total variation distance between two distributions over the same candidates: how much probability moves."""
+    return 0.5 * sum(abs(a[c] - b[c]) for c in a)
 
 
 class ToolError(Exception):
@@ -208,13 +221,17 @@ def cmd_check(args) -> int:
             lines.append(f"answer {r['uncached'][0]['answer']['text']!r}: "
                          f"{first_difference(answer, ref['answer']['token_ids'])} against the reference")
         cached, uncached = r["cached"], r["uncached"]
+        for mode, runs in (("uncached", uncached), ("cached", cached)):
+            spread = max((abs(x["scores"]["logprobs"][c] - runs[0]["scores"]["logprobs"][c])
+                          for x in runs for c in runs[0]["scores"]["logprobs"]), default=0.0)
+            if spread > 0:
+                lines.append(f"{mode} repeats differ by up to {spread:.2e}")
         if cached:
             same = cached[0]["answer"]["token_ids"] == uncached[0]["answer"]["token_ids"]
-            gap = max(abs(cached[0]["scores"]["logprobs"][c] - uncached[0]["scores"]["logprobs"][c])
-                      for c in uncached[0]["scores"]["logprobs"])
-            lines.append(f"cached scene: answer {'same' if same else 'DIFFERENT'}, scores within {gap:.4f}")
-            if not same or gap > CACHE_TOLERANCE:
-                problems.append(f"{head} the cached scene changes the result")
+            gap = distance(shares(cached[0]["scores"]["logprobs"]), shares(uncached[0]["scores"]["logprobs"]))
+            lines.append(f"cached scene: answer {'same' if same else 'DIFFERENT'}; candidates {gap:.3f} from uncached")
+            if not same:
+                problems.append(f"{head} the cached scene changes the answer")
         else:
             problems.append(f"{head} no cached runs (the scene isn't a token prefix of the prompt)")
         cref_path = find(f"reference_{pid}_candidates.json")
@@ -222,14 +239,28 @@ def cmd_check(args) -> int:
         if cref_path:
             cref = json.loads(cref_path.read_text(encoding="utf-8"))
             want = {c: v["logprob"] for c, v in cref["candidates"].items()}
-            ids_ok = all(r["candidate_ids"][c] == cref["candidates"][c]["token_ids"] for c in want)
-            gap = max(abs(scores[c] - want[c]) for c in want)
-            order = sorted(want, key=want.get, reverse=True) == sorted(scores, key=scores.get, reverse=True)
-            lines.append(f"candidates: best {max(scores, key=scores.get)} (reference {max(want, key=want.get)}), "
-                         f"order {'same' if order else 'DIFFERENT'}, largest difference {gap:.3f}"
-                         + ("" if ids_ok else ", candidate tokens DIFFER"))
-            if not (order and ids_ok and gap <= SCORE_TOLERANCE):
-                problems.append(f"{head} candidate scores don't match the reference")
+            pw = shares(want)
+            best = max(want, key=want.get)
+            order = [c for c in sorted(want, key=want.get, reverse=True) if pw[c] >= PLAUSIBLE]
+            if not all(r["candidate_ids"][c] == cref["candidates"][c]["token_ids"] for c in want):
+                problems.append(f"{head} the candidates' tokens differ from the reference's")
+            for mode, runs in (("uncached", uncached), ("cached", cached)):
+                if not runs:
+                    continue
+                got = runs[0]["scores"]["logprobs"]
+                mine = [c for c in sorted(got, key=got.get, reverse=True) if c in order]
+                d = distance(shares(got), pw)
+                lp_plausible = max(abs(got[c] - want[c]) for c in order)
+                lp_all = max(abs(got[c] - want[c]) for c in want)
+                ok_best, ok_order = max(got, key=got.get) == best, mine == order
+                lines.append(f"{mode} against PyTorch: best {max(got, key=got.get)} "
+                             f"({'same' if ok_best else 'DIFFERENT'}), order of {len(order)} plausible "
+                             f"{'same' if ok_order else 'DIFFERENT'}, distance {d:.3f}; log-probabilities within "
+                             f"{lp_plausible:.3f} (plausible), {lp_all:.3f} (all)")
+                if not (ok_best and ok_order):
+                    problems.append(f"{head} {mode}: a different decision than PyTorch's")
+                if mode == "cached" and d > DISTANCE:
+                    problems.append(f"{head} cached: candidates {d:.3f} from PyTorch's, over {DISTANCE}")
         else:
             lines.append("candidates: " + ", ".join(f"{c} {v:.2f}" for c, v in sorted(scores.items(), key=lambda kv: -kv[1]))
                          + f" (no reference_{pid}_candidates.json in {', '.join(args.reference)})")
@@ -254,8 +285,8 @@ def cmd_check(args) -> int:
     if problems:
         print("\nResult: FAIL.\n  " + "\n  ".join(problems))
         return 1
-    print("\nResult: PASS. Same tokens as the PC, the cached scene changes nothing, and the candidate scores match "
-          "the reference where it exists.")
+    print("\nResult: PASS. Same tokens as the PC, the same decisions in every path, and the cached path's candidates "
+          f"within {DISTANCE} of PyTorch's where a reference exists (D56).")
     return 0
 
 

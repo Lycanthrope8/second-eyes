@@ -1,0 +1,29 @@
+# Run config, format v1 (defined in schemas/run-config.v1.json).
+# Made by:   python tools/runs.py new <phase> --purpose "..." --operator "..."
+# Check it:  python tools/runs.py check <run ID>
+# Fill the optional fields that apply to this run and leave the rest null.
+
+# Identity (filled by the tool)
+config_version: 1
+run_id: "20260930_A1_r027"
+phase: "A1"
+created: "2026-09-30T18:07:11-04:00"  # local time with UTC offset
+
+# Required (given to the tool)
+purpose: "A1.8b llama.cpp on the headset from the command line, Q8_0"  # one line: why this run exists
+operator: "JH"  # who ran it
+
+# Code (filled by the tool)
+git_commit: "ebbed0ff2968597668f59083f07c5202270c5f1c"
+git_dirty: false  # true if the repository had uncommitted changes (files in .gitignore don't count)
+
+# Optional: leave null when a field doesn't apply
+model_checkpoint: "qwen2.5-0.5b-instruct-q8_0.gguf"  # model file name (--checkpoint fills it)
+model_sha256: "dd753cd62f163c8baa8d2e598e3b61385f31cd46ca04488cd88ba01a9c83eb18"  # SHA-256 of that file (--checkpoint fills it)
+prompt_version: null  # version of the prompt template
+schema_version: null  # version of the model's output/scene schema (proposal section 6.2)
+layout_id: null  # which prop layout
+headset_os_build: "oculus/eureka/eureka:14/UP1A.231005.007.A1/52433670048800520:user/abl_signing_keys:release,amss_signing_keys:release,release-keys"  # ro.build.fingerprint (--headset fills it)
+drone_firmware: null
+lighting: null  # lighting conditions
+notes: "A1.8b llama.cpp b11277 on the headset from adb shell, Q8_0 (531 MB), worn in Home after a fresh reboot, plugged in. Same tokens and greedy answers as the PC for all 4 prompts at 4 and 2 threads; every best candidate and order equal PyTorch's, cached or not; cached path within 0.035 of PyTorch's candidate distribution (D56). 4 threads: whole prompt 0.82 s, then 35 ms per token, a command with the scene cached 0.18 s, scoring 5 candidates 0.61 s; memory 1.06 GB, peak 1.08 GB. llama-bench tokens/s at 4/2/1 threads: prompt 285/170/77, generation 31.5/33.5/25.8."  # anything else
