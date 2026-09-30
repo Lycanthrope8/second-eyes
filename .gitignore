@@ -73,3 +73,8 @@ venv/
 
 # Run data stays out of Git until raw-data storage is decided (open item O9)
 /runs/*/raw/
+
+# llama.cpp (A1.8b, D55): the pinned checkout, build folders and built binaries are recreated by tools/build_llama.py
+/third_party/
+/build/
+/native/out/
