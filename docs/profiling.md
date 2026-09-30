@@ -65,7 +65,7 @@ all six runs in one table, and `compare` checks run 1 against run 4.
 python analysis/profile.py compare <run A> <run B>
 ```
 
-Two runs agree when, with the limits proposed in A1.6, the mean frame rate is within 0.5 fps, peak app memory within 5%, and mean CPU and GPU load each within 3 percentage points.
+Two runs agree when the mean frame rate is within 0.5 fps, peak app memory within 5%, mean CPU load within 3 percentage points (D24), and our app's own GPU time within 5% (D52). Whole-GPU load is shown too, but not judged: it includes the system's boundary and compositor, which vary with where the wearer sits.
 
 ## Summary lines
 

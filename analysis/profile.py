@@ -26,7 +26,9 @@ APP = "com.secondeyes.quest"
 METRICS_TOOL = "com.oculus.ovrmonitormetricsservice"
 JUMP_MB = 500     # app memory rising this much from one second to the next is flagged
 GAP_S = 3.0       # seconds without an OVR Metrics row are flagged (app paused, headset off)
-LIMITS = {"fps_mean": ("fps", 0.5), "app_mem_max_mb": ("%", 5.0), "cpu_mean": ("points", 3.0), "gpu_mean": ("points", 3.0)}
+# D24's limits, with GPU judged by our app's own GPU time (D52): whole-GPU load includes the system's boundary and
+# compositor, which vary with where the wearer sits, so it is shown for information only.
+LIMITS = {"fps_mean": ("fps", 0.5), "app_mem_max_mb": ("%", 5.0), "cpu_mean": ("points", 3.0), "app_gpu_ms": ("%", 5.0)}
 
 
 class ToolError(Exception):
@@ -209,7 +211,10 @@ def summarize(run_id: str) -> dict:
                  gpu_mem_start_mb=gpu_mem[0] if gpu_mem else None, gpu_mem_max_mb=max(gpu_mem) if gpu_mem else None,
                  free_min_mb=min(column(rows, "available_memory_MB") or [0]),
                  power_mean_w=statistics.mean(column(rows, "power_wattage") or [0]) / 1000,
-                 app_gpu_ms=statistics.mean(column(rows, "app_gpu_time_microseconds") or [0]) / 1000)
+                 app_gpu_ms=statistics.mean(column(rows, "app_gpu_time_microseconds") or [0]) / 1000,
+                 compositor_gpu_ms=statistics.mean(column(rows, "timewarp_gpu_time_microseconds") or [0]) / 1000,
+                 boundary_gpu_ms=statistics.mean(column(rows, "guardian_gpu_time_microseconds") or [0]) / 1000,
+                 boundary_share=sum(1 for v in column(rows, "guardian_gpu_time_microseconds") if v > 0) / len(rows) * 100)
         sends = prompt_passes(raw)
         in_pass = []
         for before, after in zip(rows, rows[1:]):
@@ -280,7 +285,8 @@ def print_summary(s: dict) -> None:
                   + (f"; {len(s['pass_gaps'])} freeze(s) of {min(s['pass_gaps']):.0f}-{max(s['pass_gaps']):.0f} s inside "
                      "prompt passes" if s.get("pass_gaps") else ""))
         print(f"  load     CPU mean {s['cpu_mean']:.0f}% (max {s['cpu_max']:.0f}), GPU mean {s['gpu_mean']:.0f}% "
-              f"(max {s['gpu_max']:.0f}), app GPU time {s['app_gpu_ms']:.1f} ms/frame, "
+              f"(max {s['gpu_max']:.0f}), app GPU time {s['app_gpu_ms']:.2f} ms/frame (system: compositor "
+              f"{s['compositor_gpu_ms']:.2f}, boundary {s['boundary_gpu_ms']:.2f}, drawn in {s['boundary_share']:.0f}% of seconds), "
               f"levels CPU {s['cpu_levels']} GPU {s['gpu_levels']}")
         print(f"  memory   app {s['app_mem_start_mb']:.0f} -> {s['app_mem_end_mb']:.0f} MB (max {s['app_mem_max_mb']:.0f}), "
               f"of it graphics {fmt(s['gpu_mem_start_mb'])} -> max {fmt(s['gpu_mem_max_mb'])} MB, "
@@ -305,7 +311,8 @@ def cmd_summary(args) -> int:
 
 def cmd_compare(args) -> int:
     a, b = summarize(args.run_a), summarize(args.run_b)
-    names = {"fps_mean": "fps mean", "app_mem_max_mb": "app memory max (MB)", "cpu_mean": "CPU mean (%)", "gpu_mean": "GPU mean (%)"}
+    names = {"fps_mean": "fps mean", "app_mem_max_mb": "app memory max (MB)", "cpu_mean": "CPU mean (%)",
+             "app_gpu_ms": "app GPU time (ms)"}
     print(f"{'metric':22s} {args.run_a:>18s} {args.run_b:>18s} {'difference':>12s} {'limit':>10s}  agree")
     outside = []
     for key, (unit, limit) in LIMITS.items():
@@ -319,6 +326,9 @@ def cmd_compare(args) -> int:
         if not ok:
             outside.append(names[key])
         print(f"{names[key]:22s} {va:18.1f} {vb:18.1f} {diff:12.1f} {limit:>8g} {unit:<2s}  {'yes' if ok else 'NO'}")
+    ga, gb = a.get("gpu_mean"), b.get("gpu_mean")
+    if ga is not None and gb is not None:
+        print(f"{'GPU mean (%), whole GPU':22s} {ga:18.1f} {gb:18.1f} {abs(ga - gb):12.1f} {'(shown only, D52)':>13s}")
     for label, s in (("A", a), ("B", b)):
         if s["flags"]:
             print(f"flags in {label} ({s['run_id']}): " + "; ".join(s["flags"]))
