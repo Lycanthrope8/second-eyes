@@ -73,6 +73,21 @@ default from A1.8a on.
 If the 32-bit model can't load, or Android closes the app while it loads, that is run 8's result: pull the log (its
 `mark` names what was loading) and keep the headset's own record of the kill (`adb logcat`).
 
+## A1.8c: llama.cpp in the app (D58)
+
+Four runs of one build in one block, from a freshly rebooted headset as above, each its own app session. Compare with
+A1.7d's runs, which used Meta's runner in the same app.
+
+| Run | Condition | Set it by | Minutes |
+|---|---|---|---|
+| 9 | model off: this build's reference | starting the app | 5 |
+| 10 | llama.cpp loaded, idle | Runtime to llama.cpp, Load model | 5 |
+| 11 | llama.cpp answering and scoring, 2 threads | Runtime to llama.cpp, Load model, then Repeat | 10 |
+| 12 | the same, 4 threads | as run 11, with Threads set to 4 first | 5 |
+
+`check_headset.py` checks every answer against the PC references and every set of scores against PyTorch's (D56),
+with `--reference 20260929_A1_r016 20260930_A1_r026`.
+
 ## Comparing two runs
 
 ```

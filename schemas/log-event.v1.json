@@ -174,8 +174,7 @@
         "copied",
         "ms",
         "backend",
-        "execution_mode",
-        "steps_per_frame"
+        "execution_mode"
       ],
       "properties": {
         "file": {
@@ -208,6 +207,28 @@
           "type": "integer",
           "minimum": 1,
           "description": "Steps per frame in NonBlocking mode."
+        },
+        "runtime": {
+          "type": "string",
+          "enum": [
+            "unity",
+            "llama.cpp"
+          ],
+          "description": "Which runtime loaded the model; absent means Meta's (A1.8c, D58)."
+        },
+        "threads": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "llama.cpp's CPU threads."
+        },
+        "llama_cpp": {
+          "type": "string",
+          "description": "llama.cpp's release, e.g. b11277 (eae11d22)."
+        },
+        "memory_kb": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "The app's resident memory right after loading, in KB."
         }
       }
     },
@@ -216,7 +237,6 @@
       "additionalProperties": false,
       "required": [
         "repeat",
-        "steps_per_frame",
         "pause_s"
       ],
       "properties": {
@@ -233,6 +253,11 @@
           "type": "number",
           "minimum": 0,
           "description": "Repeat's pause after each answer, in seconds."
+        },
+        "threads": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "llama.cpp's CPU threads from now on (A1.8c)."
         }
       },
       "description": "Written whenever the panel's Repeat or Steps setting changes; the setting at a model.load is off and that event's steps_per_frame."
@@ -285,6 +310,44 @@
         "stopped": {
           "type": "boolean",
           "description": "Whether Stop ended the answer early."
+        }
+      }
+    },
+    "model.scores": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request",
+        "prompt_id",
+        "candidates",
+        "best",
+        "ms"
+      ],
+      "description": "llama.cpp: each object the prompt lists, scored after the answer's start (A1.8c, D56, D58).",
+      "properties": {
+        "request": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "prompt_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "candidates": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "Object ID to the log-probability of the ID and the closing '\"}'."
+        },
+        "best": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ms": {
+          "type": "number",
+          "minimum": 0
         }
       }
     },
@@ -342,6 +405,24 @@
             "minimum": 0
           },
           "description": "The prompt's token IDs, from the provider's own template and tokenizer."
+        },
+        "runtime": {
+          "type": "string",
+          "enum": [
+            "unity",
+            "llama.cpp"
+          ],
+          "description": "Absent means Meta's runner."
+        },
+        "cached_tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "llama.cpp: how many of the prompt's tokens came from the cache (the scene)."
+        },
+        "scene_ms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "llama.cpp: time to evaluate the scene when it wasn't cached; 0 otherwise."
         }
       }
     },

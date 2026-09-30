@@ -51,3 +51,23 @@ runtime reports `NEON, ARM_FMA, FP16_VA, DOTPROD, REPACK`.
 - **Options** of `se_load_ex`: `use_extra_bufts = false` keeps the weights in the file's layout (no repacked copy),
   `flash_attn_type` forces flash attention off or on, `load_mode = LLAMA_LOAD_MODE_NONE` reads the file into memory.
 - **Stripping.** `llvm-strip --strip-unneeded` keeps the exported functions that P/Invoke and `dlsym` need.
+
+## The four configurations on the headset (A1.8c, D58)
+
+From `adb shell`, 4 threads, runs `20260930_A1_r028`–`r031`; distances are to PyTorch's 32-bit candidate
+distribution, worst prompt.
+
+| Configuration | Whole prompt | Cached command | Scoring, batched · one by one | Peak memory | Cached vs uncached | Cached vs PyTorch |
+|---|---|---|---|---|---|---|
+| default | 0.80 s | 0.18 s | 0.24 · 0.53 s | 1.09 GB | 0.053 | 0.035 |
+| flash attention off | 0.87 s | 0.18 s | 0.23 · 0.53 s | 1.09 GB | 0.000 | 0.151 |
+| no repacking | 1.94 s | 0.36 s | 0.34 · 0.55 s | 0.59 GB | 0.037 | 0.084 |
+| both off | 2.00 s | 0.37 s | 0.34 · 0.55 s | 0.59 GB | 0.000 | 0.176, a changed decision |
+
+- **Flash attention** is what makes the cached path differ from one batch; off, the numbers agree exactly, but they
+  drift from PyTorch toward overconfidence on the ambiguous commands (box_1 0.766 against PyTorch's 0.615 on
+  `a17-front`).
+- **Repacking** copies the weights into a faster layout: twice the speed, half a gigabyte more memory, and closer to
+  PyTorch. Load takes 0.55 s without it, 1.2–1.4 s with.
+- **Batched scoring** equals one by one exactly with flash attention on.
+- **Stripped**, `libse_llama.so` is 5.9 MB and `llama-bench` 5.2 MB.

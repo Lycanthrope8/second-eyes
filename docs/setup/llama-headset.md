@@ -23,3 +23,9 @@ them.
 `prepare` takes `--flash-attn auto|on|off`, `--no-repack`, `--no-mmap` and `--n-seq`; each configuration is a run of its
 own. `check` prints the configuration, how far the cached scene lands from uncached, and how far scoring in one batch
 lands from scoring one by one, with both times.
+
+## In the app (A1.8c)
+
+`python tools/build_llama.py android` also copies `libse_llama.so` into `quest-app/Assets/Plugins/Android/libs/arm64-v8a/`;
+in Unity its import settings must say Android, ARM64. `python grounding/llama_headset.py push-model <description>` copies
+the model into the app's data folder (the app must have run once). On the panel, Runtime chooses llama.cpp before Load.

@@ -11,7 +11,8 @@ ANDROID_NDK_ROOT or ANDROID_NDK, else the newest NDK inside a Unity install (Uni
 one). llama.cpp's CPU code is built for --arm-arch (dot-product and half-precision instructions, which the Quest 3's
 Arm cores have); the rest keeps Android's portable baseline, as llama.cpp's docs/android.md advises. host builds for
 this PC, for tests, with llama.cpp's native flags: it runs only on a processor like the one that built it. The
-Android files are stripped with the NDK's llvm-strip (the unstripped ones stay in build/, for reading crash reports). Both need CMake and Ninja (pip install cmake ninja). The files go to native/out/<target>/, with
+Android files are stripped with the NDK's llvm-strip (the unstripped ones stay in build/, for reading crash reports), and
+libse_llama.so is also copied into the Unity app, quest-app/Assets/Plugins/Android/libs/arm64-v8a/ (A1.8c). Both need CMake and Ninja (pip install cmake ninja). The files go to native/out/<target>/, with
 build.json recording the release, the NDK, the flags and each file's SHA-256.
 """
 from __future__ import annotations
@@ -146,6 +147,11 @@ def build(target: str, args) -> int:
             run([strip, "--strip-unneeded", out_dir / name])
         record["files"][name] = {"bytes": (out_dir / name).stat().st_size, "unstripped_bytes": found.stat().st_size,
                                  "sha256": sha256_of(out_dir / name)}
+    if target == "android":   # the Unity app's native plugin (Git ignores it; this command recreates it)
+        plugin = ROOT / "quest-app" / "Assets" / "Plugins" / "Android" / "libs" / "arm64-v8a"
+        plugin.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(out_dir / "libse_llama.so", plugin / "libse_llama.so")
+        print(f"Copied libse_llama.so into {plugin.relative_to(ROOT).as_posix()}/")
     tag, commit = pinned()
     record["llama_cpp"] = f"{tag} ({commit[:8]})"
     record["cmake"] = subprocess.run(["cmake", "--version"], capture_output=True, text=True).stdout.split("\n")[0]

@@ -6,6 +6,7 @@
     python grounding/llama_headset.py run RUN_ID
     python grounding/llama_headset.py bench RUN_ID
     python grounding/llama_headset.py check RUN_ID --reference REFERENCE_RUN [MORE_REFERENCE_RUNS]
+    python grounding/llama_headset.py push-model grounding/models/qwen2.5-0.5b-instruct.json
 
 prepare writes runs/RUN_ID/raw/job.json: the fixed prompt and the presets, formatted with the model description's
 template, where each one's scene ends (grounding/scene.py), and the objects to score. push copies the test program,
@@ -14,7 +15,8 @@ libse_llama.so and llama-bench (tools/build_llama.py android) and the GGUF model
 pulls cli_results.json; bench runs llama.cpp's llama-bench for standard speeds (llama_bench.json). check compares the
 results with the PC references in the reference runs (the first that has a file wins): token IDs, the greedy answer,
 cached against uncached, and the candidates against reference_<prompt>_candidates.json (grounding/reference.py
---candidates); then it summarizes the timings. The candidates pass as D56 sets out: in every path the same best candidate
+--candidates); then it summarizes the timings. push-model copies the GGUF model into the app's own data folder, where the panel's llama.cpp
+runtime loads it (A1.8c). The candidates pass as D56 sets out: in every path the same best candidate
 and the same order among the plausible ones (at least 1% of the probability), and the cached path, which the app uses,
 within a total variation distance of 0.05 of PyTorch's distribution over the candidates. Log-probabilities are reported,
 not judged: 8-bit weights move those of unlikely candidates most, which no decision depends on. With --local BIN_DIR, prepare and run use the PC and a local build instead of the headset.
@@ -132,6 +134,28 @@ def cmd_push(args) -> int:
         adb("push", str(gguf), remote, capture=False)
     adb("push", str(raw / "job.json"), f"{DEVICE_DIR}/job.json")
     print(f"Pushed to {DEVICE_DIR}. Next: python grounding/llama_headset.py run {args.run_id}")
+    return 0
+
+
+APP_DIR = "/sdcard/Android/data/com.secondeyes.quest/files"
+
+
+def cmd_push_model(args) -> int:
+    desc_path = Path(args.description)
+    desc = json.loads(desc_path.read_text(encoding="utf-8"))
+    gguf = gguf_of(desc_path, desc, args.quant)
+    if not gguf.is_file():
+        raise ToolError(f"{gguf.as_posix()} isn't there. Convert first: python grounding/export_gguf.py {desc_path.as_posix()}")
+    if adb("shell", "ls", APP_DIR, check=False).returncode != 0:
+        raise ToolError(f"{APP_DIR} isn't on the headset yet: start the app once, then push again.")
+    remote = f"{APP_DIR}/{gguf.name}"
+    size = adb("shell", "stat", "-c", "%s", remote, check=False).stdout.strip()
+    if size == str(gguf.stat().st_size):
+        print(f"{gguf.name} is already in the app's data folder.")
+        return 0
+    print(f"Pushing {gguf.name} ({gguf.stat().st_size / 1e6:.0f} MB) into the app's data folder ...")
+    adb("push", str(gguf), remote, capture=False)
+    print(f"Done: {remote}")
     return 0
 
 
@@ -333,13 +357,16 @@ def main(argv=None) -> int:
             q.add_argument("--threads", nargs="+", type=int, default=[1, 2, 4])
             q.add_argument("--prompt-tokens", type=int, default=230)
             q.add_argument("--gen-tokens", type=int, default=32)
+    m = sub.add_parser("push-model", help="copy the GGUF model into the app's data folder, for the panel")
+    m.add_argument("description", help="e.g. grounding/models/qwen2.5-0.5b-instruct.json")
+    m.add_argument("--quant", default="q8_0")
     c = sub.add_parser("check")
     c.add_argument("run_id", metavar="RUN_ID")
     c.add_argument("--reference", required=True, nargs="+", metavar="RUN", help="the runs holding the PC references")
     args = parser.parse_args(argv)
     try:
         return {"prepare": cmd_prepare, "push": cmd_push, "run": cmd_run, "bench": cmd_bench,
-                "check": cmd_check}[args.command](args)
+                "check": cmd_check, "push-model": cmd_push_model}[args.command](args)
     except ToolError as err:
         print(f"Error: {err}", file=sys.stderr)
         return 2

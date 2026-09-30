@@ -21,7 +21,11 @@ namespace SecondEyes.Grounding
     /// and a row with Load model, Repeat, Steps and Send, then the answer. There is no typing (D49).
     /// Load model loads the on-device model; unless Load at Start is ticked, the app starts without it, so its cost can be
     /// measured with the model off (A1.7d). Backend (CPU or GPU) and Weights (16-bit, or 32-bit from a file pushed to the
-    /// headset with adb) apply at Load and are fixed after it (A1.8a, D53); model.load logs the file and backend used. Send runs the shown text through Meta's provider, and while it runs the button
+    /// headset with adb) apply at Load and are fixed after it (A1.8a, D53); model.load logs the file and backend used.
+    /// Runtime (A1.8c, D58) chooses Meta's runner or llama.cpp before Load. llama.cpp runs on a worker thread
+    /// (LlamaRuntime), keeps the scene in its cache, answers greedily as the PC references do, then scores the objects
+    /// the prompt lists (model.scores); its Steps button sets threads instead. Its model is a GGUF file pushed to the app's
+    /// data folder (python grounding/llama_headset.py push-model), and its library exists on the headset only. Send runs the shown text through Meta's provider, and while it runs the button
     /// is Stop. Repeat sends the chosen prompt again a few seconds after each answer, until Repeat or Stop is pressed.
     /// Steps cycles Meta's steps per frame (its prompt pass uses half), between answers only. Each step is logged as it
     /// happens: model.load, model.setting (Repeat and Steps), model.request (the prompt's ID and token IDs, from the
@@ -44,6 +48,10 @@ namespace SecondEyes.Grounding
         [SerializeField] private float repeatPauseS = 5f;
         [Tooltip("The steps per frame the Steps button cycles through (Meta's setting; its prompt pass uses half).")]
         [SerializeField] private int[] stepsChoices = { 150, 50, 15 };
+        [Tooltip("llama.cpp's model, in the app's data folder (python grounding/llama_headset.py push-model).")]
+        [SerializeField] private string ggufFile = "qwen2.5-0.5b-instruct-q8_0.gguf";
+        [Tooltip("The threads llama.cpp's Threads button cycles through.")]
+        [SerializeField] private int[] threadChoices = { 2, 4 };
         [Tooltip("Where the panel appears relative to the head, in meters: right, up, forward.")]
         [SerializeField] private Vector3 offsetM = new Vector3(0f, -0.1f, 1.0f);
 
@@ -64,7 +72,15 @@ namespace SecondEyes.Grounding
         private RectTransform panel;
         private Button sendButton, loadButton, repeatButton, stepsButton, backendButton, weightsButton;
         private Text boxText, buttonLabel, loadLabel, repeatLabel, stepsLabel, backendLabel, weightsLabel, status, answer;
-        private bool useGpu, use32Bit;
+        private bool useGpu, use32Bit, useLlama;
+        private LlamaRuntime llama;
+        private int llamaThreads = 2;
+        private Button runtimeButton;
+        private Text runtimeLabel;
+        private const string AnswerPrefix = "{\"action\": \"INSPECT\", \"target\": \"";   // as grounding/scene.py
+        private const string CandidateSuffix = "\"}";
+        private static readonly System.Text.RegularExpressions.Regex ObjectLine =
+            new System.Text.RegularExpressions.Regex(@"^([A-Za-z][A-Za-z0-9]*_[0-9]+) ", System.Text.RegularExpressions.RegexOptions.Multiline);
         private UnityInferenceEngineProvider working;   // the copy the panel uses; the asset stays as it is (D53)
         private string file16;   // the provider's own model file: the 16-bit one
         private string text = "";
@@ -82,6 +98,11 @@ namespace SecondEyes.Grounding
             if (working != null)
             {
                 Destroy(working);   // Meta's OnDisable on the copy then releases the model
+            }
+            if (llama != null)
+            {
+                llama.Dispose();    // frees llama.cpp's model on its worker thread
+                llama = null;
             }
         }
 
@@ -113,6 +134,8 @@ namespace SecondEyes.Grounding
                 return;
             }
             file16 = Field<string>(working, "streamingAssetFileName");
+            if (threadChoices != null && threadChoices.Length > 0) llamaThreads = Math.Max(1, threadChoices[0]);
+            runtimeButton.interactable = true;
             backendButton.interactable = true;
             weightsButton.interactable = File32() != null;
             UpdateLabels();
@@ -137,6 +160,11 @@ namespace SecondEyes.Grounding
         {
             if (loaded || loading || config == null)
             {
+                return;
+            }
+            if (useLlama)
+            {
+                LoadLlama();
                 return;
             }
             string chosen = use32Bit ? File32() : file16;
@@ -294,6 +322,11 @@ namespace SecondEyes.Grounding
         /// <summary>The next value of stepsChoices, between answers only, so one answer never mixes two settings.</summary>
         private void NextSteps()
         {
+            if (useLlama)
+            {
+                NextThreads();
+                return;
+            }
             if (config == null || running != null || stepsChoices == null || stepsChoices.Length == 0)
             {
                 return;
@@ -305,6 +338,80 @@ namespace SecondEyes.Grounding
         }
 
         private string RepeatNote() { return $" Again in {repeatPauseS:F0} s."; }
+
+        private async void NextThreads()
+        {
+            if (running != null || loading || threadChoices == null || threadChoices.Length == 0) return;
+            int k = Array.IndexOf(threadChoices, llamaThreads);
+            llamaThreads = Math.Max(1, threadChoices[(k + 1) % threadChoices.Length]);
+            UpdateLabels();
+            LogSetting();
+            if (llama != null && loaded)
+            {
+                stepsButton.interactable = false;
+                try { await llama.SetThreadsAsync(llamaThreads); }
+                finally { stepsButton.interactable = running == null; }
+            }
+        }
+
+        private async void LoadLlama()
+        {
+            string path = Path.Combine(Application.persistentDataPath, ggufFile);
+            if (!File.Exists(path))
+            {
+                SetStatus("llama.cpp's model isn't on the headset. Push it: python grounding/llama_headset.py push-model");
+                return;
+            }
+            loading = true;
+            loadButton.interactable = runtimeButton.interactable = false;
+            loadLabel.text = "Loading...";
+            SetStatus("Loading model with llama.cpp...");
+            var mark = new StringBuilder("{\"text\":");
+            LogJson.AppendString(mark, "loading " + ggufFile + " with llama.cpp, " + llamaThreads + " threads");
+            EventLog.Write("mark", mark.Append('}').ToString());
+            llama = new LlamaRuntime(System.Threading.SynchronizationContext.Current);
+            double ms;
+            try
+            {
+                ms = await llama.LoadAsync(path, 1024, llamaThreads, 0);
+            }
+            catch (Exception e)
+            {
+                llama.Dispose();
+                llama = null;
+                loading = false;
+                loadButton.interactable = runtimeButton.interactable = true;
+                loadLabel.text = "Load model";
+                string why = e is DllNotFoundException || e.InnerException is DllNotFoundException
+                    ? "llama.cpp runs on the headset only: libse_llama isn't built for this platform." : e.Message;
+                Fail("model.load", why);
+                return;
+            }
+            var data = new StringBuilder("{\"file\":");
+            LogJson.AppendString(data, ggufFile);
+            data.Append(",\"copied\":false,\"ms\":").Append(Number(ms));
+            data.Append(",\"backend\":\"llama.cpp\",\"execution_mode\":\"worker thread\",\"runtime\":\"llama.cpp\"");
+            data.Append(",\"threads\":").Append(llamaThreads.ToString(CultureInfo.InvariantCulture));
+            data.Append(",\"llama_cpp\":");
+            LogJson.AppendString(data, llama.Version);
+            data.Append(",\"memory_kb\":").Append(LlamaRuntime.MemoryKb(false).ToString(CultureInfo.InvariantCulture)).Append('}');
+            EventLog.Write("model.load", data.ToString());
+            loaded = true;
+            loading = false;
+            loadLabel.text = "Model loaded";
+            sendButton.interactable = true;
+            repeatButton.interactable = true;
+            SetStatus($"Ready. llama.cpp loaded the model in {ms / 1000:F1} s ({llamaThreads} threads).");
+        }
+
+        private void ToggleRuntime()
+        {
+            if (loaded || loading) return;
+            useLlama = !useLlama;
+            backendButton.interactable = !useLlama;
+            weightsButton.interactable = !useLlama && File32() != null;
+            UpdateLabels();
+        }
 
         private void ToggleBackend()
         {
@@ -342,15 +449,18 @@ namespace SecondEyes.Grounding
         {
             repeatLabel.text = repeat ? "Repeat: on" : "Repeat: off";
             repeatButton.targetGraphic.color = repeat ? RepeatOnColor : PresetColor;
-            stepsLabel.text = config != null ? "Steps: " + config.stepsPerFrame.ToString(CultureInfo.InvariantCulture) : "Steps: ?";
-            backendLabel.text = useGpu ? "Backend: GPU" : "Backend: CPU";
-            weightsLabel.text = use32Bit ? "Weights: 32-bit" : "Weights: 16-bit";
+            stepsLabel.text = useLlama ? "Threads: " + llamaThreads.ToString(CultureInfo.InvariantCulture)
+                            : config != null ? "Steps: " + config.stepsPerFrame.ToString(CultureInfo.InvariantCulture) : "Steps: ?";
+            runtimeLabel.text = useLlama ? "Runtime: llama.cpp" : "Runtime: Unity";
+            backendLabel.text = useLlama ? "Backend: CPU" : useGpu ? "Backend: GPU" : "Backend: CPU";
+            weightsLabel.text = useLlama ? "Weights: 8-bit" : use32Bit ? "Weights: 32-bit" : "Weights: 16-bit";
         }
 
         private void LogSetting()
         {
             var data = new StringBuilder("{\"repeat\":").Append(repeat ? "true" : "false");
-            data.Append(",\"steps_per_frame\":").Append(config != null ? config.stepsPerFrame.ToString(CultureInfo.InvariantCulture) : "1");
+            if (useLlama) data.Append(",\"threads\":").Append(llamaThreads.ToString(CultureInfo.InvariantCulture));
+            else data.Append(",\"steps_per_frame\":").Append(config != null ? config.stepsPerFrame.ToString(CultureInfo.InvariantCulture) : "1");
             data.Append(",\"pause_s\":").Append(Number(repeatPauseS)).Append('}');
             EventLog.Write("model.setting", data.ToString());
         }
@@ -400,14 +510,22 @@ namespace SecondEyes.Grounding
             SetStatus("Generating...");
             var stream = new AnswerStream(this, request);
             ChatResponse response = null;
+            LlamaRuntime.Prepared prepared = null;   // llama.cpp: scored after the answer is logged
             try
             {
                 // The same two steps Meta's runner takes, so these are exactly the IDs the model sees.
                 string formatted = config.ApplyChatTemplate(sent, config.defaultSystemMessage);
-                List<int> ids = await config.Tokenizer.EncodeAsync(formatted);
-                LogRequest(request, promptId, ids);
-                stream.Watch.Restart();
-                response = await working.ChatAsync(new ChatRequest(sent), stream, running.Token);
+                if (useLlama)
+                {
+                    prepared = await SendLlama(request, promptId, formatted, stream);
+                }
+                else
+                {
+                    List<int> ids = await config.Tokenizer.EncodeAsync(formatted);
+                    LogRequest(request, promptId, ids);
+                    stream.Watch.Restart();
+                    response = await working.ChatAsync(new ChatRequest(sent), stream, running.Token);
+                }
             }
             catch (OperationCanceledException)
             {
@@ -430,6 +548,19 @@ namespace SecondEyes.Grounding
             string reply = response != null && !string.IsNullOrEmpty(response.text) ? response.text : stream.Text;
             answer.text = reply;
             LogGenerate(request, promptId, reply, stream, total, stopped);
+            string scored = "";
+            if (prepared != null && !stopped)
+            {
+                try
+                {
+                    scored = await ScoreLlama(request, promptId, sent, prepared);
+                }
+                catch (Exception e)
+                {
+                    SetRepeat(false);
+                    Fail("model.scores", e.Message + FirstFrame(e.StackTrace));
+                }
+            }
             if (Application.isEditor)
             {
                 Debug.Log($"[ChatPanel] {(stopped ? "Stopped" : "Done")} after {Tokens(stream.Pieces)}: {reply}");
@@ -437,7 +568,7 @@ namespace SecondEyes.Grounding
             SetStatus(stream.Pieces == 0
                 ? (stopped ? "Stopped before the first token." : "No answer came back. The event log has Meta's messages.")
                 : $"{(stopped ? "Stopped" : "Done")}: {Tokens(stream.Pieces)}, the first after {stream.FirstMs / 1000:F1} s, " +
-                  $"all after {total / 1000:F1} s.");
+                  $"all after {total / 1000:F1} s." + scored);
 
             running.Dispose();
             running = null;
@@ -449,6 +580,50 @@ namespace SecondEyes.Grounding
                 nextRepeatAt = Time.unscaledTime + Mathf.Max(0f, repeatPauseS);
                 SetStatus(status.text + RepeatNote());
             }
+        }
+
+        /// <summary>A command through llama.cpp: the scene from the cache (evaluated when it changes), then the rest and
+        /// the greedy answer token by token. Returns what ScoreLlama needs.</summary>
+        private async System.Threading.Tasks.Task<LlamaRuntime.Prepared> SendLlama(int request, string promptId,
+                                                                                   string formatted, AnswerStream stream)
+        {
+            int sceneChars = formatted.IndexOf("\nUser at ", StringComparison.Ordinal) + 1;
+            stream.Watch.Restart();
+            LlamaRuntime.Prepared p = await llama.PrepareAsync(formatted, sceneChars);
+            LogRequest(request, promptId, new List<int>(p.Ids), p.SceneReused ? p.SceneTokens : 0, p.SceneMs);
+            await llama.AnswerAsync(p, Math.Max(1, config.maxNewTokens), stream.Watch, stream.Add, running.Token);
+            stream.Watch.Stop();   // the answer's time ends here; scoring is logged on its own
+            return p;
+        }
+
+        /// <summary>Scores the objects the prompt lists (model.scores); returns a note for the status line.</summary>
+        private async System.Threading.Tasks.Task<string> ScoreLlama(int request, string promptId, string sent,
+                                                                     LlamaRuntime.Prepared p)
+        {
+            var names = new List<string>();
+            string head = sent.Split(new[] { "Objects:" }, 2, StringSplitOptions.None).Last();
+            int user = head.IndexOf("User at", StringComparison.Ordinal);
+            foreach (System.Text.RegularExpressions.Match m in ObjectLine.Matches(user >= 0 ? head.Substring(0, user) : head))
+            {
+                names.Add(m.Groups[1].Value);
+            }
+            if (names.Count == 0) return "";
+            LlamaRuntime.Scores sc = await llama.ScoreAsync(p, AnswerPrefix, names, CandidateSuffix);
+            var data = new StringBuilder("{\"request\":").Append(request.ToString(CultureInfo.InvariantCulture));
+            data.Append(",\"prompt_id\":");
+            LogJson.AppendString(data, promptId);
+            data.Append(",\"candidates\":{");
+            for (int i = 0; i < names.Count; i++)
+            {
+                if (i > 0) data.Append(',');
+                LogJson.AppendString(data, names[i]);
+                data.Append(':').Append(sc.LogProbs[names[i]].ToString("R", CultureInfo.InvariantCulture));
+            }
+            data.Append("},\"best\":");
+            LogJson.AppendString(data, sc.Best);
+            data.Append(",\"ms\":").Append(Number(sc.Ms)).Append('}');
+            EventLog.Write("model.scores", data.ToString());
+            return $" Scored {names.Count} objects in {sc.Ms / 1000:F2} s: best {sc.Best}.";
         }
 
         /// <summary>Receives the answer one token at a time, straight from the provider's loop, and logs each piece.</summary>
@@ -471,12 +646,16 @@ namespace SecondEyes.Grounding
 
             public void Report(ChatDelta delta)
             {
-                double ms = Watch.Elapsed.TotalMilliseconds;
+                Add(delta != null && delta.textFragment != null ? delta.textFragment : "", Watch.Elapsed.TotalMilliseconds);
+            }
+
+            /// <summary>One piece of the answer, at `ms` on this stream's clock (llama.cpp's worker measures it).</summary>
+            public void Add(string piece, double ms)
+            {
                 if (Pieces == 0)
                 {
                     FirstMs = ms;
                 }
-                string piece = delta != null && delta.textFragment != null ? delta.textFragment : "";
                 text.Append(piece);
                 owner.answer.text = text.ToString();
 
@@ -494,7 +673,7 @@ namespace SecondEyes.Grounding
             }
         }
 
-        private void LogRequest(int request, string promptId, List<int> ids)
+        private void LogRequest(int request, string promptId, List<int> ids, int cachedTokens = -1, double sceneMs = 0)
         {
             var data = new StringBuilder("{\"request\":").Append(request.ToString(CultureInfo.InvariantCulture));
             data.Append(",\"prompt_id\":");
@@ -505,7 +684,13 @@ namespace SecondEyes.Grounding
             {
                 data.Append(i == 0 ? "" : ",").Append(ids[i].ToString(CultureInfo.InvariantCulture));
             }
-            data.Append("]}");
+            data.Append(']');
+            if (cachedTokens >= 0)   // llama.cpp: how many prompt tokens came from the cache, and the scene's time if not
+            {
+                data.Append(",\"runtime\":\"llama.cpp\",\"cached_tokens\":").Append(cachedTokens.ToString(CultureInfo.InvariantCulture));
+                data.Append(",\"scene_ms\":").Append(Number(sceneMs));
+            }
+            data.Append('}');
             EventLog.Write("model.request", data.ToString());
         }
 
@@ -673,13 +858,10 @@ namespace SecondEyes.Grounding
             sendButton.onClick.AddListener(OnButton);
 
             // Backend and Weights apply at Load (A1.8a, D53)
-            backendButton = RowButton("Backend", 20f, 190f, out backendLabel, ToggleBackend, 424f);
-            weightsButton = RowButton("Weights", 223f, 190f, out weightsLabel, ToggleWeights, 424f);
-            backendButton.interactable = weightsButton.interactable = false;   // until the settings are read
-            Text hint = Label(panel, "ChoicesHint", 426f, 424f, 194f, 52f, 15, FontStyle.Italic);
-            hint.text = "Set these before Load model";
-            hint.alignment = TextAnchor.MiddleLeft;
-            hint.color = new Color(0.65f, 0.7f, 0.75f);
+            runtimeButton = RowButton("Runtime", 20f, 190f, out runtimeLabel, ToggleRuntime, 424f);
+            backendButton = RowButton("Backend", 223f, 190f, out backendLabel, ToggleBackend, 424f);
+            weightsButton = RowButton("Weights", 426f, 194f, out weightsLabel, ToggleWeights, 424f);
+            runtimeButton.interactable = backendButton.interactable = weightsButton.interactable = false;   // until the settings are read
 
             Label(panel, "AnswerTitle", 20f, 488f, 600f, 28f, 18, FontStyle.Bold).text = "Answer";
             answer = Label(panel, "Answer", 20f, 518f, 600f, 130f, 18, FontStyle.Normal);

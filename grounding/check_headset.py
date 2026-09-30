@@ -94,7 +94,9 @@ def compare_answer(pieces: list, text: str, reference: str) -> str:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Compare the headset's answers with the PC reference (A1.7c-2).")
     parser.add_argument("run_id", help="the run whose headset logs to check, e.g. 20260929_A1_r010")
-    parser.add_argument("--reference", required=True, help="the run holding the PC reference, e.g. 20260928_A1_r008")
+    parser.add_argument("--reference", required=True, nargs="+", metavar="RUN",
+                        help="the runs holding the PC references (the first that has a file wins), e.g. "
+                             "20260929_A1_r016 20260930_A1_r026")
     args = parser.parse_args(argv)
     try:
         raw = ROOT / "runs" / args.run_id / "raw"
@@ -102,18 +104,28 @@ def main(argv=None) -> int:
         if not logs:
             raise ToolError(f"No logs in runs/{args.run_id}/raw/. On the headset, pull them first: "
                             f"python tools/logs.py pull {args.run_id}")
-        ref_dir = ROOT / "runs" / args.reference / "raw"
-        if not ref_dir.is_dir():
-            raise ToolError(f"No run {args.reference} with a raw/ folder in runs/")
+        ref_dirs = [ROOT / "runs" / r / "raw" for r in args.reference]
+        for r, d in zip(args.reference, ref_dirs):
+            if not d.is_dir():
+                raise ToolError(f"No run {r} with a raw/ folder in runs/")
+        find_ref = lambda pid, variant: next((x for x in (load_reference(d, pid, variant, required=False)
+                                                           for d in ref_dirs) if x is not None), None)
+        args.reference = ", ".join(args.reference)
         events = [e for log in logs for e in read_events(log)]
         sends = [s for log in logs for s in sends_of(log)]
-        steps_at = {}   # (log name, request) -> the steps per frame when it was sent
+        steps_at = {}   # (log name, request) -> the setting it was sent with: "150 steps" (Meta) or "2 threads" (llama.cpp)
+        scores = {}     # (log name, request) -> its model.scores data (llama.cpp)
         for log in logs:
             steps = None
             for e in read_events(log):
                 d = e.get("data", {})
                 if e.get("ev") in ("model.load", "model.setting"):
-                    steps = d.get("steps_per_frame", steps)
+                    if d.get("threads") is not None:
+                        steps = f"{d['threads']} threads"
+                    elif d.get("steps_per_frame") is not None:
+                        steps = f"{d['steps_per_frame']} steps"
+                elif e.get("ev") == "model.scores" and isinstance(d.get("request"), int):
+                    scores[(log.name, d["request"])] = d
                 elif e.get("ev") == "model.request" and isinstance(d.get("request"), int):
                     steps_at[(log.name, d["request"])] = steps
         for s in sends:
@@ -124,6 +136,11 @@ def main(argv=None) -> int:
         print("\nModel loads:" + ("" if loads else " none"))
         for e in loads:
             d = e.get("data", {})
+            if d.get("runtime") == "llama.cpp":
+                memory = f", app memory {d['memory_kb'] / 1024:.0f} MB" if d.get("memory_kb") else ""
+                print(f"  {when(e)}  {d.get('file')}: {seconds(d.get('ms'))}; llama.cpp {d.get('llama_cpp')}, "
+                      f"{d.get('threads')} threads{memory}")
+                continue
             copy = "copied out of the app first" if d.get("copied") else "already copied"
             print(f"  {when(e)}  {d.get('file')}: {seconds(d.get('ms'))}, {copy}; {d.get('backend')}, "
                   f"{d.get('execution_mode')}, {d.get('steps_per_frame')} steps per frame")
@@ -136,13 +153,13 @@ def main(argv=None) -> int:
               + (f" {len(fixed)}, one line each." if brief else ""))
         for n, s in enumerate(fixed, start=1):
             d = s["request"]["data"]
-            ref16 = load_reference(ref_dir, d["prompt_id"], "fp16w", required=False)
+            ref16 = find_ref(d["prompt_id"], "fp16w")
             if ref16 is None:
                 unreferenced.append(d["prompt_id"])
                 print(f"  #{n} {d['prompt_id']} at {when(s['request'])}: no 16-bit reference for this prompt in "
                       f"{args.reference}, so not compared")
                 continue
-            ref32 = load_reference(ref_dir, d["prompt_id"], "fp32", required=False)
+            ref32 = find_ref(d["prompt_id"], "fp32")
             ids, ref_ids = d.get("prompt_token_ids") or [], ref16["prompt"]["token_ids"]
             prompt_ok = ids == ref_ids
             pieces = [t["data"].get("text", "") for t in s["tokens"]]
@@ -155,7 +172,7 @@ def main(argv=None) -> int:
             verdicts.append((prompt_ok, state, answer))
             if brief:
                 print(f"  #{n} {d['prompt_id']} at {when(s['request'])}: {state}; prompt "
-                      f"{'same' if prompt_ok else 'DIFFERENT'}; answer {answer}; {timing(s)}; steps {s['steps']}")
+                      f"{'same' if prompt_ok else 'DIFFERENT'}; answer {answer}; {timing(s)}; {s['steps']}")
                 continue
             print(f"  #{n} {d['prompt_id']} at {when(s['request'])} ({s['log']}, request {d.get('request')}): {state}")
             print(f"     prompt: {len(ids)} tokens; same IDs as the reference ({len(ref_ids)}): "
@@ -167,16 +184,43 @@ def main(argv=None) -> int:
             print(f"     timing: {timing(s)}")
 
         finished = [s for s in sends if s["end"] and not s["end"]["data"].get("stopped") and len(s["tokens"]) > 1]
-        print("\nTiming of finished answers, by steps per frame:" + ("" if finished else " none"))
-        for steps in sorted({s["steps"] for s in finished}, key=lambda v: (v is None, v or 0), reverse=True):
+        print("\nTiming of finished answers, by setting:" + ("" if finished else " none"))
+        for steps in sorted({s["steps"] for s in finished}, key=lambda v: (v is None, str(v))):
             group = [s for s in finished if s["steps"] == steps]
             first = [s["tokens"][0]["data"]["ms"] / 1000 for s in group]
             per = [(s["tokens"][-1]["data"]["ms"] - s["tokens"][0]["data"]["ms"]) / (len(s["tokens"]) - 1) / 1000
                    for s in group]
             total = [s["end"]["data"]["total_ms"] / 1000 for s in group if s["end"]["data"].get("total_ms") is not None]
-            print(f"  {steps if steps is not None else '?'} steps: {len(group)} answer(s); median first token after "
+            print(f"  {steps if steps is not None else '?'}: {len(group)} answer(s); median first token after "
                   f"{statistics.median(first):.1f} s (range {min(first):.1f}-{max(first):.1f}), then one every "
                   f"{statistics.median(per):.2f} s, all after {statistics.median(total):.1f} s")
+
+        score_problems = []
+        scored = [(s, scores.get((s["log"], s["request"]["data"].get("request")))) for s in fixed]
+        scored = [(s, sc) for s, sc in scored if sc]
+        if scored:
+            from llama_headset import DISTANCE, PLAUSIBLE, distance, shares
+            print(f"\nCandidate scores (llama.cpp), judged as D56 sets out:")
+            for n, (s, sc) in enumerate(scored, start=1):
+                pid, got = sc["prompt_id"], sc["candidates"]
+                cref = next((json.loads((d / f"reference_{pid}_candidates.json").read_text(encoding="utf-8"))
+                             for d in ref_dirs if (d / f"reference_{pid}_candidates.json").exists()), None)
+                if cref is None:
+                    print(f"  #{n} {pid}: best {sc['best']} in {sc['ms']:.0f} ms (no candidate reference)")
+                    continue
+                want = {c: v["logprob"] for c, v in cref["candidates"].items()}
+                pw, pg = shares(want), shares({c: got[c] for c in want if c in got})
+                order = [c for c in sorted(want, key=want.get, reverse=True) if pw[c] >= PLAUSIBLE]
+                mine = [c for c in sorted(pg, key=pg.get, reverse=True) if c in order]
+                d_ = distance(pg, pw) if set(pg) == set(pw) else float("inf")
+                ok = max(pg, key=pg.get) == max(want, key=want.get) and mine == order and d_ <= DISTANCE
+                print(f"  #{n} {pid} at {when(s['request'])}: best {sc['best']} (PyTorch {max(want, key=want.get)}), "
+                      f"order of {len(order)} plausible {'same' if mine == order else 'DIFFERENT'}, distance {d_:.3f}; "
+                      f"{sc['ms']:.0f} ms; {s['steps']}" + ("" if ok else "  <-- does not match"))
+                if not ok:
+                    score_problems.append(f"#{n} {pid}")
+            ms = [sc["ms"] for _, sc in scored]
+            print(f"  scoring took {statistics.median(ms):.0f} ms (median of {len(ms)})")
 
         print("\nTyped sends:" + ("" if typed else " none"))
         for s in typed:
@@ -194,8 +238,8 @@ def main(argv=None) -> int:
             if e["ev"] == "mark":
                 print(f"  {when(e)}  mark: {d.get('text')}")
             elif e["ev"] == "model.setting":
-                print(f"  {when(e)}  setting: Repeat {'on' if d.get('repeat') else 'off'}, "
-                      f"{d.get('steps_per_frame')} steps per frame")
+                what = f"{d['threads']} threads" if d.get("threads") is not None else f"{d.get('steps_per_frame')} steps per frame"
+                print(f"  {when(e)}  setting: Repeat {'on' if d.get('repeat') else 'off'}, {what}")
             elif e["ev"] == "ui.keyboard":
                 print(f"  {when(e)}  keyboard: {d.get('event')} ({d.get('chars')} characters in the text box)")
             elif e["ev"] == "model.message":
@@ -207,10 +251,12 @@ def main(argv=None) -> int:
         prompt_wrong = any(not p for p, _, _ in verdicts)
         answer_wrong = any(a not in ("same", "same so far", "nothing yet") for _, _, a in verdicts)
         matched = any(p and st == "finished" and a == "same" for p, st, a in verdicts)
-        passed = matched and not prompt_wrong and not answer_wrong
+        passed = matched and not prompt_wrong and not answer_wrong and not score_problems
         if unreferenced:
             print(f"\nNo reference in {args.reference} for: {', '.join(sorted(set(unreferenced)))}. Make them with "
                   "grounding/reference.py (with and without --variant fp16w).")
+        if score_problems:
+            print("\nCandidate scores that don't match PyTorch's (D56): " + ", ".join(score_problems))
         if passed:
             print("\nResult: PASS. The headset sees exactly the reference's prompt and gives the reference's answer.")
         elif not verdicts:

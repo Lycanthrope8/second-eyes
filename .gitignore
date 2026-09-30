@@ -78,3 +78,5 @@ venv/
 /third_party/
 /build/
 /native/out/
+# the Unity app's copy of libse_llama.so (tools/build_llama.py android copies it there; its .meta is tracked)
+/quest-app/Assets/Plugins/Android/libs/arm64-v8a/libse_llama.so

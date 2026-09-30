@@ -44,11 +44,12 @@ Defined in v1:
 | `display.rate` | `requested_hz`, `available_hz` (list) | once at startup, after the app requests its refresh rate (A1.4a) |
 | `hands.state` | `left_tracked`, `right_tracked` (true or false) | at startup, then whenever either hand starts or stops being tracked (A1.5) |
 | `control.stop` | `source` (`button_b`) | when the stop button, B on the right controller, is pressed (A1.5) |
-| `model.load` | `file`, `copied` (whether this start first copied the model out of the app), `ms`, `backend`, `execution_mode`, `steps_per_frame` | once, when the on-device model has loaded (A1.7c-2) |
-| `model.setting` | `repeat`, `steps_per_frame`, `pause_s` | when the panel's Repeat or Steps changes (D50); before the first, Repeat is off and steps per frame is `model.load`'s |
-| `model.request` | `request` (counted from 1 per session), `prompt_id` (the prompt file's ID: the fixed prompt or a preset, D49; `typed` for other text), `prompt_tokens`, `prompt_token_ids` (list) | when Send is pressed, before the model starts (A1.7c-2, D43) |
+| `model.load` | `file`, `copied` (whether this start first copied the model out of the app), `ms`, `backend`, `execution_mode`, `steps_per_frame` (Meta's runner); for llama.cpp `runtime` (`llama.cpp`), `threads`, `llama_cpp` (its release) and `memory_kb` (the app's memory right after loading) instead of `steps_per_frame` (A1.8c, D58) | once, when the on-device model has loaded (A1.7c-2) |
+| `model.setting` | `repeat`, `steps_per_frame` (Meta's runner) or `threads` (llama.cpp), `pause_s` | when the panel's Repeat, Steps or Threads changes (D50, D58); before the first, Repeat is off and the setting is `model.load`'s |
+| `model.request` | `request` (counted from 1 per session), `prompt_id` (the prompt file's ID: the fixed prompt or a preset, D49; `typed` for other text), `prompt_tokens`, `prompt_token_ids` (list); for llama.cpp also `runtime`, `cached_tokens` (how many came from the cache, the scene) and `scene_ms` (its time when it wasn't cached) | when Send is pressed, before the model starts (A1.7c-2, D43) |
 | `model.token` | `request`, `index` (from 0), `text`, `ms` (since the request) | for each piece of the answer as it arrives (D43) |
 | `model.generate` | `request`, `prompt_id`, `answer`, `answer_tokens`, `first_token_ms` (or null), `total_ms`, `stopped` | when the answer ends or Stop ends it (D43) |
+| `model.scores` | `request`, `prompt_id`, `candidates` (object ID to the log-probability of the ID and the closing `"}` after the answer's start), `best`, `ms` | llama.cpp: after each finished answer, once the objects are scored (A1.8c, D56, D58) |
 | `model.message` | `level` (`warning` or `error`), `text` | when Meta's on-device code logs a warning or an error, e.g. a truncated prompt (A1.7c-2) |
 | `ui.keyboard` | `event` (`opened`, `open_failed`, `done`, `canceled`, `lost_focus` or `unsupported`), `chars` | when the text box opened the system keyboard, and when the keyboard closed (D44). Not written since D49 |
 
