@@ -1,0 +1,29 @@
+# Run config, format v1 (defined in schemas/run-config.v1.json).
+# Made by:   python tools/runs.py new <phase> --purpose "..." --operator "..."
+# Check it:  python tools/runs.py check <run ID>
+# Fill the optional fields that apply to this run and leave the rest null.
+
+# Identity (filled by the tool)
+config_version: 1
+run_id: "20260930_A1_r025"
+phase: "A1"
+created: "2026-09-30T02:03:25-04:00"  # local time with UTC offset
+
+# Required (given to the tool)
+purpose: "A1.8a run 8: CPU backend, 32-bit weights, 50 steps per frame"  # one line: why this run exists
+operator: "JH"  # who ran it
+
+# Code (filled by the tool)
+git_commit: "4886869503ee93352a903b0c4d2c2ab53a74a0f9"
+git_dirty: true  # true if the repository had uncommitted changes (files in .gitignore don't count)
+
+# Optional: leave null when a field doesn't apply
+model_checkpoint: "qwen2.5-0.5b-instruct-fa9d3a46-f32.sentis"  # model file name (--checkpoint fills it)
+model_sha256: "f4731a24530e0ce59706abb9bb9c50d9ecef83bab30c7cba61c60a45231bf621"  # SHA-256 of that file (--checkpoint fills it)
+prompt_version: null  # version of the prompt template
+schema_version: null  # version of the model's output/scene schema (proposal section 6.2)
+layout_id: null  # which prop layout
+headset_os_build: "oculus/eureka/eureka:14/UP1A.231005.007.A1/52433670048800520:user/abl_signing_keys:release,amss_signing_keys:release,release-keys"  # ro.build.fingerprint (--headset fills it)
+drone_firmware: null
+lighting: null  # lighting conditions
+notes: "A1.8a run 8: CPU backend, 32-bit weights (pushed with adb). Not recorded: in two fresh sessions (20260930T060545Z, 20260930T060614Z) the app was killed while loading the 1.98 GB file; each log ends at the loading mark. A third session (20260930T060644Z) was quit without loading. Created before the A1.8a files were committed (git_dirty)."  # anything else

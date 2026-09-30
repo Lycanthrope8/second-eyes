@@ -187,11 +187,13 @@ def main(argv=None) -> int:
             print(f"  {when(s['request'])}  {d.get('prompt_tokens')} prompt tokens -> {text!r} ({count(len(pieces))}, "
                   f"{state}); {timing(s)}")
 
-        notes = [e for e in events if e.get("ev") in ("model.message", "error", "ui.keyboard", "model.setting")]
-        print("\nSettings, keyboard, Meta's messages and errors:" + ("" if notes else " none"))
+        notes = [e for e in events if e.get("ev") in ("model.message", "error", "ui.keyboard", "model.setting", "mark")]
+        print("\nMarks, settings, keyboard, Meta's messages and errors:" + ("" if notes else " none"))
         for e in notes:
             d = e.get("data", {})
-            if e["ev"] == "model.setting":
+            if e["ev"] == "mark":
+                print(f"  {when(e)}  mark: {d.get('text')}")
+            elif e["ev"] == "model.setting":
                 print(f"  {when(e)}  setting: Repeat {'on' if d.get('repeat') else 'off'}, "
                       f"{d.get('steps_per_frame')} steps per frame")
             elif e["ev"] == "ui.keyboard":

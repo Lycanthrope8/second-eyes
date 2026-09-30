@@ -43,6 +43,8 @@ Read in A1.7a from `com.meta.xr.sdk.core` in `quest-app/Library/PackageCache/`: 
 - **Loading.** With Use Streaming Asset on, the first use on the headset copies the `.sentis` file from the app into `Application.persistentDataPath`, and later uses load that copy. If a file with the same name is already there, it is used as is, even if it came from an older model or was left incomplete by an interrupted first start; hence the naming rule D34 (`docs/setup/quest-model.md`). `ModelLoader.Load` itself runs on the main thread.
 - **Defaults.** The chat defaults to the CPU backend (the comment says it's recommended for language models, for better accuracy), NonBlocking mode and 150 steps per frame. The shape defaults are SmolLM's: 30 layers, 3 key-value heads, head size 64, end token 2. Qwen2.5-0.5B needs 24, 2, 64 and 151645. The default chat template is already Qwen's format.
 - **Two backend settings.** The provider's own Backend (default GPUCompute) is used only for object detection and image segmentation. The chat runs on the LLM config's Backend Type.
+- **The provider is a ScriptableObject asset.** Changed in Play mode, its settings stay changed after Play mode and go into the next build, so the panel works on a copy (D53). The chat's backend is read when the model loads, and `streamingAssetFileName` when the runner loads its file, so both can be chosen before Load.
+- **A failed load stays failed.** `EnsureLlmRunnerAsync` assigns the runner before loading its file and keeps it if the load throws, so a later WarmUp on the same provider returns at once without loading (r024). The panel replaces its copy after a failure (D54).
 - **Setting names**, as Second Eyes → Fill chat provider uses them. On the provider: `mode`, `modelFile`, `streamingAssetModel`, `useStreamingAsset`, the hidden `streamingAssetFileName` (Meta's inspector fills it in from the model picked) and `llmConfig`. Inside `llmConfig`: `inferenceExecutionMode`, `stepsPerFrame`, `vocabFile`, `mergesFile`, `tokenizerConfigFile`, `chatTemplateFormat`, `defaultSystemMessage`, `maxLayers`, `numKeyValueHeads`, `headDim`, `eosTokenId`, `maxNewTokens`, `maxPromptLength` and `backendType`. They exist only while the Inference Engine package is installed.
 - **Package.** The on-device code only switches on when Unity's Inference Engine package (`com.unity.ai.inference`) version 2.2.1 or newer is installed (define `UNITY_INFERENCE_INSTALLED`).
 
@@ -57,6 +59,9 @@ Measured with our 230-token prompt and the one-word-table model in 16-bit weight
 - **Memory.** Loading the 0.99 GB `.sentis` adds 2.47 GB to the app. Left idle, Android reclaims most of it within
   minutes.
 - **Heat.** Ten minutes of continuous answers left the SoC at 67 °C, thermal status 0.
+- **The GPU backend (A1.8a).** On the headset Unity allows no compute buffer over 128 MiB (134,217,728 bytes), so a
+  model with a tensor bigger than that doesn't load on GPUCompute. Our word table is 544.5 MB in 32-bit (r024).
+- **32-bit weights (A1.8a).** The 1.98 GB model gets the app killed while Meta's runner loads it (r025).
 
 ## Camera and object detection (A1.10)
 

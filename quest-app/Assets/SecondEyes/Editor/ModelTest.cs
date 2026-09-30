@@ -24,6 +24,8 @@ namespace SecondEyes.EditorTools
     ///      .sentis file the app carries: fed the reference's own prompt IDs, does it give the reference's answer?
     ///   5. The 32-bit model with the prompt fed one token at a time, so no pass ever handles several tokens at once.
     ///   6. The 32-bit model on the GPU backend instead of the CPU backend.
+    ///   8. The .sentis file on the GPU backend: the headset's GPU option in A1.8a (D53).
+    ///   Checks 4 and 8 compare with the 32-bit reference when model.json's weights are unrounded (quantization None).
     ///   7. Layer by layer: onnx/model_debug.onnx (from grounding/debug_values.py) exposes the values before the decoder
     ///      layers, inside layer 0 and after each later layer; Unity's values for one pass over the prompt are compared
     ///      with onnxruntime's (debug/values.bin), and the first value that differs is named, with its inputs.
@@ -38,7 +40,7 @@ namespace SecondEyes.EditorTools
         const string PrefSaveRun = "SecondEyes.ModelTest.SaveRun";
         const string PromptFile = "grounding/prompts/a17-fixed.json";   // A1.7c's fixed prompt, as in Fill chat provider
 
-        [Flags] enum Checks { Tokenizer = 1, Onnx32 = 2, Onnx16 = 4, Sentis = 8, All = 15, OneByOne = 16, Gpu = 32, Layers = 64 }
+        [Flags] enum Checks { Tokenizer = 1, Onnx32 = 2, Onnx16 = 4, Sentis = 8, All = 15, OneByOne = 16, Gpu = 32, Layers = 64, SentisGpu = 128 }
 
         [Serializable] public class RefPrompt { public int[] token_ids; }
         [Serializable] public class RefAnswer { public int[] token_ids; public string text_meta_style; public int tokens; }
@@ -100,6 +102,7 @@ namespace SecondEyes.EditorTools
             EditorGUILayout.BeginHorizontal();
             if (GUILayout.Button("5. 32-bit, prompt one token at a time")) Run(folders[folderIndex], Checks.OneByOne);
             if (GUILayout.Button("6. 32-bit, on the GPU")) Run(folders[folderIndex], Checks.Gpu);
+            if (GUILayout.Button("8. The .sentis file, on the GPU")) Run(folders[folderIndex], Checks.SentisGpu);
             EditorGUILayout.EndHorizontal();
             if (GUILayout.Button("7. Layer by layer against onnxruntime")) Run(folders[folderIndex], Checks.Layers);
 
@@ -146,14 +149,17 @@ namespace SecondEyes.EditorTools
                             ModelQuantizer.QuantizeWeights(QuantizationType.Float16, ref model);
                             return model;
                         }));
+                Func<Model> loadSentis = () =>
+                {
+                    if (!File.Exists(setup.SentisPath))
+                        throw new ModelFiles.ToolError(ModelFiles.StreamingAssets + "/" + setup.Model.sentis_file +
+                                                       " isn't there. Convert it first (Second Eyes > Convert model).");
+                    return ModelLoader.Load(setup.SentisPath);
+                };
+                // An unrounded .sentis is compared with the 32-bit reference, a rounded one with the 16-bit reference.
+                RefFile sentisRef = setup.Model.quantization == "None" ? setup.Ref32 : setup.Ref16;
                 if ((checks & Checks.Sentis) != 0)
-                    output.AppendLine(ModelCheck(setup, "4. The .sentis file " + setup.Model.sentis_file + ", CPU backend", setup.Ref16, () =>
-                    {
-                        if (!File.Exists(setup.SentisPath))
-                            throw new ModelFiles.ToolError(ModelFiles.StreamingAssets + "/" + setup.Model.sentis_file +
-                                                           " isn't there. Convert it first (Second Eyes > Convert model).");
-                        return ModelLoader.Load(setup.SentisPath);
-                    }));
+                    output.AppendLine(ModelCheck(setup, "4. The .sentis file " + setup.Model.sentis_file + ", CPU backend", sentisRef, loadSentis));
                 if ((checks & Checks.OneByOne) != 0)
                     output.AppendLine(ModelCheck(setup, "5. 32-bit weights, converted from ONNX in memory, CPU backend, the prompt fed one token at a time",
                         setup.Ref32, () => (Model)setup.Engine.Convert(setup.OnnxPath), BackendType.CPU, true));
@@ -162,6 +168,9 @@ namespace SecondEyes.EditorTools
                         setup.Ref32, () => (Model)setup.Engine.Convert(setup.OnnxPath), BackendType.GPUCompute, false));
                 if ((checks & Checks.Layers) != 0)
                     output.AppendLine(Guarded("7. Layer by layer", () => LayerCheck(setup, folder)));
+                if ((checks & Checks.SentisGpu) != 0)
+                    output.AppendLine(ModelCheck(setup, "8. The .sentis file " + setup.Model.sentis_file + ", GPU backend (GPUCompute)",
+                        sentisRef, loadSentis, BackendType.GPUCompute, false));
             }
             catch (ModelFiles.ToolError e)
             {

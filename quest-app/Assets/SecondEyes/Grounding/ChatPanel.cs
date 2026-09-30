@@ -20,7 +20,8 @@ namespace SecondEyes.Grounding
     /// a row of preset buttons (the fixed prompt and the presets, each a prompt file like grounding/prompts/a17-fixed.json)
     /// and a row with Load model, Repeat, Steps and Send, then the answer. There is no typing (D49).
     /// Load model loads the on-device model; unless Load at Start is ticked, the app starts without it, so its cost can be
-    /// measured with the model off (A1.7d). Send runs the shown text through Meta's provider, and while it runs the button
+    /// measured with the model off (A1.7d). Backend (CPU or GPU) and Weights (16-bit, or 32-bit from a file pushed to the
+    /// headset with adb) apply at Load and are fixed after it (A1.8a, D53); model.load logs the file and backend used. Send runs the shown text through Meta's provider, and while it runs the button
     /// is Stop. Repeat sends the chosen prompt again a few seconds after each answer, until Repeat or Stop is pressed.
     /// Steps cycles Meta's steps per frame (its prompt pass uses half), between answers only. Each step is logged as it
     /// happens: model.load, model.setting (Repeat and Steps), model.request (the prompt's ID and token IDs, from the
@@ -61,8 +62,11 @@ namespace SecondEyes.Grounding
         private readonly List<Button> presetButtons = new List<Button>();
         private int chosen;
         private RectTransform panel;
-        private Button sendButton, loadButton, repeatButton, stepsButton;
-        private Text boxText, buttonLabel, loadLabel, repeatLabel, stepsLabel, status, answer;
+        private Button sendButton, loadButton, repeatButton, stepsButton, backendButton, weightsButton;
+        private Text boxText, buttonLabel, loadLabel, repeatLabel, stepsLabel, backendLabel, weightsLabel, status, answer;
+        private bool useGpu, use32Bit;
+        private UnityInferenceEngineProvider working;   // the copy the panel uses; the asset stays as it is (D53)
+        private string file16;   // the provider's own model file: the 16-bit one
         private string text = "";
         private CancellationTokenSource running;
         private int requests;
@@ -72,6 +76,14 @@ namespace SecondEyes.Grounding
         private void OnEnable() { Application.logMessageReceived += OnLog; }
 
         private void OnDisable() { Application.logMessageReceived -= OnLog; }
+
+        private void OnDestroy()
+        {
+            if (working != null)
+            {
+                Destroy(working);   // Meta's OnDisable on the copy then releases the model
+            }
+        }
 
         private void Start()
         {
@@ -91,12 +103,18 @@ namespace SecondEyes.Grounding
                 Fail("setup", "No provider asset is assigned to ChatPanel.");
                 return;
             }
-            config = Field<OnDeviceLlmConfig>(provider, "llmConfig");   // Meta keeps this field internal
+            // Work on a copy: Steps, Backend and Weights change the provider's settings, and in the editor a
+            // ScriptableObject changed in Play mode stays changed, so a test would silently change the next build (D53).
+            working = Instantiate(provider);
+            config = Field<OnDeviceLlmConfig>(working, "llmConfig");   // Meta keeps this field internal
             if (config == null)
             {
                 Fail("setup", "Can't read the provider's chat settings (llmConfig). Meta's SDK may have changed.");
                 return;
             }
+            file16 = Field<string>(working, "streamingAssetFileName");
+            backendButton.interactable = true;
+            weightsButton.interactable = File32() != null;
             UpdateLabels();
             if (loadAtStart)
             {
@@ -121,23 +139,44 @@ namespace SecondEyes.Grounding
             {
                 return;
             }
+            string chosen = use32Bit ? File32() : file16;
+            if (use32Bit && !OnHeadset(chosen))
+            {
+                SetStatus("The 32-bit model isn't on the headset. Push it with adb first (docs/setup/quest-model.md).");
+                return;
+            }
+            config.backendType = useGpu ? Unity.InferenceEngine.BackendType.GPUCompute : Unity.InferenceEngine.BackendType.CPU;
+            SetField(working, "streamingAssetFileName", chosen);
             loading = true;
             loadButton.interactable = false;
+            backendButton.interactable = weightsButton.interactable = false;   // fixed from here on
             loadLabel.text = "Loading...";
-            string file = Field<string>(provider, "streamingAssetFileName");
+            string file = Field<string>(working, "streamingAssetFileName");
             string source = Application.streamingAssetsPath;
             bool copies = !string.IsNullOrEmpty(file) && (source.Contains("://") || source.Contains("jar:"))
                           && !File.Exists(Path.Combine(Application.persistentDataPath, file));
             SetStatus(copies ? "Loading model (first start: copying it out of the app first)..." : "Loading model...");
+            // Written before the load, so a run whose app is killed while loading still shows what it tried (A1.8a).
+            var mark = new StringBuilder("{\"text\":");
+            LogJson.AppendString(mark, "loading " + file + " on the " + config.backendType + " backend");
+            EventLog.Write("mark", mark.Append('}').ToString());
             var watch = Stopwatch.StartNew();
             try
             {
-                await provider.WarmUp();
+                await working.WarmUp();
             }
             catch (Exception e)
             {
                 loading = false;
+                // Meta's provider keeps a runner whose load failed, and a second WarmUp then does nothing (r024), so a
+                // new attempt needs a fresh copy of the asset.
+                Destroy(working);
+                working = Instantiate(provider);
+                config = Field<OnDeviceLlmConfig>(working, "llmConfig");
+                UpdateLabels();
                 loadButton.interactable = true;
+                backendButton.interactable = true;
+                weightsButton.interactable = File32() != null;
                 loadLabel.text = "Load model";
                 Fail("model.load", e.Message);
                 return;
@@ -267,11 +306,45 @@ namespace SecondEyes.Grounding
 
         private string RepeatNote() { return $" Again in {repeatPauseS:F0} s."; }
 
+        private void ToggleBackend()
+        {
+            if (loaded || loading) return;
+            useGpu = !useGpu;
+            UpdateLabels();
+        }
+
+        private void ToggleWeights()
+        {
+            if (loaded || loading || File32() == null) return;
+            use32Bit = !use32Bit;
+            UpdateLabels();
+        }
+
+        /// <summary>The 32-bit file next to the provider's 16-bit one (the same export, D48 naming), or null.</summary>
+        private string File32()
+        {
+            const string tag = "-f16.sentis";
+            return file16 != null && file16.EndsWith(tag, StringComparison.Ordinal)
+                ? file16.Substring(0, file16.Length - tag.Length) + "-f32.sentis" : null;
+        }
+
+        /// <summary>Whether Meta's runner can load this file without copying it out of the app: in the app's data folder,
+        /// or, in the editor, in StreamingAssets itself.</summary>
+        private static bool OnHeadset(string file)
+        {
+            if (string.IsNullOrEmpty(file)) return false;
+            if (File.Exists(Path.Combine(Application.persistentDataPath, file))) return true;
+            string source = Application.streamingAssetsPath;
+            return !source.Contains("://") && !source.Contains("jar:") && File.Exists(Path.Combine(source, file));
+        }
+
         private void UpdateLabels()
         {
             repeatLabel.text = repeat ? "Repeat: on" : "Repeat: off";
             repeatButton.targetGraphic.color = repeat ? RepeatOnColor : PresetColor;
             stepsLabel.text = config != null ? "Steps: " + config.stepsPerFrame.ToString(CultureInfo.InvariantCulture) : "Steps: ?";
+            backendLabel.text = useGpu ? "Backend: GPU" : "Backend: CPU";
+            weightsLabel.text = use32Bit ? "Weights: 32-bit" : "Weights: 16-bit";
         }
 
         private void LogSetting()
@@ -334,7 +407,7 @@ namespace SecondEyes.Grounding
                 List<int> ids = await config.Tokenizer.EncodeAsync(formatted);
                 LogRequest(request, promptId, ids);
                 stream.Watch.Restart();
-                response = await provider.ChatAsync(new ChatRequest(sent), stream, running.Token);
+                response = await working.ChatAsync(new ChatRequest(sent), stream, running.Token);
             }
             catch (OperationCanceledException)
             {
@@ -518,6 +591,13 @@ namespace SecondEyes.Grounding
             return true;
         }
 
+        private static void SetField(object target, string name, object value)
+        {
+            FieldInfo f = target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            if (f == null) throw new InvalidOperationException("Meta's provider has no field " + name + " (SDK changed?)");
+            f.SetValue(target, value);
+        }
+
         private static T Field<T>(object target, string name) where T : class
         {
             FieldInfo field = target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
@@ -543,11 +623,11 @@ namespace SecondEyes.Grounding
             canvasObject.GetComponent<Canvas>().renderMode = RenderMode.WorldSpace;
             canvasObject.GetComponent<CanvasScaler>().dynamicPixelsPerUnit = 4f;   // sharper text in world space
             panel = (RectTransform)canvasObject.transform;
-            panel.sizeDelta = new Vector2(640f, 600f);
+            panel.sizeDelta = new Vector2(640f, 666f);
             panel.localScale = Vector3.one * 0.001f;
             panel.position = new Vector3(0f, -100f, 0f);   // out of sight until Place() runs
 
-            Image background = Box(panel, "Background", 0f, 0f, 640f, 600f).gameObject.AddComponent<Image>();
+            Image background = Box(panel, "Background", 0f, 0f, 640f, 666f).gameObject.AddComponent<Image>();
             background.color = new Color(0.08f, 0.09f, 0.11f, 0.92f);
             Label(panel, "Title", 20f, 16f, 600f, 36f, 26, FontStyle.Bold).text = "Second Eyes · model test (A1.7)";
             status = Label(panel, "Status", 20f, 56f, 600f, 30f, 18, FontStyle.Normal);
@@ -592,14 +672,24 @@ namespace SecondEyes.Grounding
             sendButton.interactable = false;
             sendButton.onClick.AddListener(OnButton);
 
-            Label(panel, "AnswerTitle", 20f, 426f, 600f, 28f, 18, FontStyle.Bold).text = "Answer";
-            answer = Label(panel, "Answer", 20f, 456f, 600f, 130f, 18, FontStyle.Normal);
+            // Backend and Weights apply at Load (A1.8a, D53)
+            backendButton = RowButton("Backend", 20f, 190f, out backendLabel, ToggleBackend, 424f);
+            weightsButton = RowButton("Weights", 223f, 190f, out weightsLabel, ToggleWeights, 424f);
+            backendButton.interactable = weightsButton.interactable = false;   // until the settings are read
+            Text hint = Label(panel, "ChoicesHint", 426f, 424f, 194f, 52f, 15, FontStyle.Italic);
+            hint.text = "Set these before Load model";
+            hint.alignment = TextAnchor.MiddleLeft;
+            hint.color = new Color(0.65f, 0.7f, 0.75f);
+
+            Label(panel, "AnswerTitle", 20f, 488f, 600f, 28f, 18, FontStyle.Bold).text = "Answer";
+            answer = Label(panel, "Answer", 20f, 518f, 600f, 130f, 18, FontStyle.Normal);
             UpdateLabels();
         }
 
-        private Button RowButton(string name, float x, float width, out Text label, UnityEngine.Events.UnityAction onClick)
+        private Button RowButton(string name, float x, float width, out Text label, UnityEngine.Events.UnityAction onClick,
+                                 float y = 362f)
         {
-            RectTransform rect = Box(panel, name, x, 362f, width, 52f);
+            RectTransform rect = Box(panel, name, x, y, width, 52f);
             Image image = rect.gameObject.AddComponent<Image>();
             image.color = PresetColor;
             label = Label(rect, "Label", 4f, 0f, width - 8f, 52f, 17, FontStyle.Normal);

@@ -28,3 +28,24 @@ After a new export, run the steps again from 2. `copy_to_unity.py` then gives th
 
 - The copy is at `/sdcard/Android/data/com.secondeyes.quest/files/<name>.sentis`, next to the `logs/` folder. Old copies stay there after the name changes, about 1.3 GB each. List them with `adb shell ls -l /sdcard/Android/data/com.secondeyes.quest/files/`, and delete one with `adb shell rm /sdcard/Android/data/com.secondeyes.quest/files/<name>.sentis`.
 - If the app is stopped during that first copy, the copy can be left incomplete, and the next start loads it anyway. Delete it with the same `adb shell rm` and start the app again.
+
+## A second, 32-bit copy of the model (A1.8a, D53)
+
+The app carries the 16-bit file. A 32-bit file of the same export (1.98 GB) doesn't go into the app: it is pushed
+once into the app's data folder on the headset, where Meta's runner looks first, and the panel's Weights button
+picks it before Load.
+
+1. `python grounding/copy_to_unity.py grounding/models/qwen2.5-0.5b-instruct.json --quantization None`: `model.json`
+   now names the 32-bit file (`…-f32.sentis`, the same fingerprint as the 16-bit one).
+2. In Unity: Second Eyes → Convert model. It writes the 32-bit file into `Assets/StreamingAssets/`.
+3. Second Eyes → Test model on the PC → 4. The .sentis file: it compares a 32-bit file with the 32-bit reference.
+4. Move the file out of `Assets`, so no build carries it, and push it (the data folder exists once the app has run):
+   ```
+   Move-Item quest-app/Assets/StreamingAssets/<model>-<fingerprint>-f32.sentis grounding/models/<model>/
+   Remove-Item quest-app/Assets/StreamingAssets/<model>-<fingerprint>-f32.sentis.meta -ErrorAction SilentlyContinue
+   adb push grounding/models/<model>/<model>-<fingerprint>-f32.sentis /sdcard/Android/data/com.secondeyes.quest/files/
+   ```
+5. `python grounding/copy_to_unity.py grounding/models/qwen2.5-0.5b-instruct.json`: `model.json` names the 16-bit
+   file again. The provider asset still names it, so Fill chat provider isn't needed.
+
+To free the headset's space later: `adb shell rm /sdcard/Android/data/com.secondeyes.quest/files/<the f32 file>`.

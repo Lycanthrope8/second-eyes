@@ -1,0 +1,29 @@
+# Run config, format v1 (defined in schemas/run-config.v1.json).
+# Made by:   python tools/runs.py new <phase> --purpose "..." --operator "..."
+# Check it:  python tools/runs.py check <run ID>
+# Fill the optional fields that apply to this run and leave the rest null.
+
+# Identity (filled by the tool)
+config_version: 1
+run_id: "20260930_A1_r024"
+phase: "A1"
+created: "2026-09-30T01:59:53-04:00"  # local time with UTC offset
+
+# Required (given to the tool)
+purpose: "A1.8a run 7: GPU backend, 16-bit weights, 50 steps per frame"  # one line: why this run exists
+operator: "JH"  # who ran it
+
+# Code (filled by the tool)
+git_commit: "4886869503ee93352a903b0c4d2c2ab53a74a0f9"
+git_dirty: true  # true if the repository had uncommitted changes (files in .gitignore don't count)
+
+# Optional: leave null when a field doesn't apply
+model_checkpoint: "qwen2.5-0.5b-instruct-fa9d3a46-f16.sentis"  # model file name (--checkpoint fills it)
+model_sha256: "76c5e4770f1c43f381f7cd96ceac4d5c9dbe200311c9228fd51972feff56597c"  # SHA-256 of that file (--checkpoint fills it)
+prompt_version: null  # version of the prompt template
+schema_version: null  # version of the model's output/scene schema (proposal section 6.2)
+layout_id: null  # which prop layout
+headset_os_build: "oculus/eureka/eureka:14/UP1A.231005.007.A1/52433670048800520:user/abl_signing_keys:release,amss_signing_keys:release,release-keys"  # ro.build.fingerprint (--headset fills it)
+drone_firmware: null
+lighting: null  # lighting conditions
+notes: "A1.8a run 7: GPU backend, 16-bit weights. Not recorded: the load failed, the compute buffer of 544538624 bytes exceeding the maximum of 134217728 bytes (128 MiB): the word table in 32-bit. A second load in the same session (32-bit, CPU) reused Meta's failed runner and loaded nothing. Log 20260930T060039Z_d3d4a261. Created before the A1.8a files were committed (git_dirty)."  # anything else

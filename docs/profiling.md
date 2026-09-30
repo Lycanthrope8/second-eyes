@@ -59,6 +59,20 @@ Repeat sends the fixed prompt again 5 s after each answer, so the model works mo
 every answer against the PC references and summarizes the timing by steps per frame. `analysis/profile.py table` puts
 all six runs in one table, and `compare` checks run 1 against run 4.
 
+## A1.8a: backend and weights (D53)
+
+Two runs in one block, from a freshly rebooted headset as above, compared with A1.7d's run 5 (CPU, 16-bit weights,
+50 steps per frame, `20260930_A1_r021`). The panel's Backend and Weights apply at Load; 50 steps per frame is the
+default from A1.8a on.
+
+| Run | Condition | Set it by | Minutes |
+|---|---|---|---|
+| 7 | GPU backend, 16-bit weights | Backend to GPU, Load model, then Repeat | 5 |
+| 8 | CPU backend, 32-bit weights (pushed with adb) | Weights to 32-bit, Load model, then Repeat | 5 |
+
+If the 32-bit model can't load, or Android closes the app while it loads, that is run 8's result: pull the log (its
+`mark` names what was loading) and keep the headset's own record of the kill (`adb logcat`).
+
 ## Comparing two runs
 
 ```

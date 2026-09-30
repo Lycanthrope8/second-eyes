@@ -137,7 +137,8 @@ def main(argv=None) -> int:
         print(f"Wrote {unity_dir.relative_to(ROOT).as_posix()}/: {', '.join(written + ['README.md', 'model.json'])}")
 
         folder = unity_dir.relative_to(ASSETS.parent).as_posix()
-        older = sorted(f.name for f in (ASSETS / "StreamingAssets").glob(f"{name}-*.sentis") if f.name != sentis)
+        tag = QUANTIZATIONS[args.quantization]   # other roundings of the same export are kept: A1.8a uses both
+        older = sorted(f.name for f in (ASSETS / "StreamingAssets").glob(f"{name}-*-{tag}.sentis") if f.name != sentis)
         if older:
             print(f"Delete the older converted model(s) in Assets/StreamingAssets/, or every build carries them too: "
                   f"{', '.join(older)}")

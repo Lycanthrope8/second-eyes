@@ -17,6 +17,6 @@
   "provider": {
     "backend": "CPU",
     "execution_mode": "NonBlocking",
-    "steps_per_frame": 150
+    "steps_per_frame": 50
   }
 }
