@@ -30,8 +30,21 @@ SE_API const char * se_last_error(void);
 // Echo llama.cpp's own log to stderr (0 or 1). Off by default.
 SE_API void se_set_verbose(int32_t on);
 
-// Load a GGUF model, memory-mapped, with a context of n_ctx tokens and n_threads CPU threads. NULL on failure.
+// Options for se_load_ex, combined with |.
+#define SE_NO_REPACK      1   // keep the weights in the file's layout: no repacked copy for faster arithmetic
+#define SE_FLASH_ATTN_OFF 2   // never use flash attention (by default llama.cpp decides)
+#define SE_FLASH_ATTN_ON  4   // always use flash attention
+#define SE_NO_MMAP        8   // read the weights into memory instead of mapping the file
+
+// Load a GGUF model with a context of n_ctx tokens shared by up to n_seq sequences (se_score_many scores each
+// continuation as a sequence of its own, sharing the cached tokens), n_threads CPU threads and SE_* options. By default
+// the weights are memory-mapped and repacked. NULL on failure.
+SE_API se_llama * se_load_ex(const char * path, int32_t n_ctx, int32_t n_threads, int32_t n_seq, int32_t flags);
+// se_load_ex(path, n_ctx, n_threads, 16, 0).
 SE_API se_llama * se_load(const char * path, int32_t n_ctx, int32_t n_threads);
+// The options and sequences se_load_ex was given.
+SE_API int32_t se_flags(const se_llama * s);
+SE_API int32_t se_n_seq(const se_llama * s);
 SE_API void se_free(se_llama * s);
 SE_API void se_set_threads(se_llama * s, int32_t n_threads);
 
@@ -59,6 +72,11 @@ SE_API int32_t se_logits(const se_llama * s, float * out, int32_t max);
 // The log-probability of n tokens following the cache: log P(t0) + log P(t1 | t0) + ... The cache and the last scores
 // are restored afterwards, so any number of continuations can be scored from the same point. NaN on error.
 SE_API double se_score(se_llama * s, const int32_t * tokens, int32_t n);
+
+// se_score for n continuations at once, in one evaluation: each gets a sequence of its own that shares the cache.
+// tokens holds the continuations one after another, lengths[i] is the i-th one's length, and out[i] receives its
+// log-probability. The cache and the last scores are restored. n must be below se_n_seq. Returns 0 or a negative error.
+SE_API int32_t se_score_many(se_llama * s, const int32_t * tokens, const int32_t * lengths, int32_t n, double * out);
 
 // This process's memory in KB, from /proc/self/status: peak (VmHWM) and current (VmRSS) resident size; -1 if unknown.
 SE_API int64_t se_memory_kb(int32_t peak);

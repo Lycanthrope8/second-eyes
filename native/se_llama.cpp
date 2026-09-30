@@ -51,6 +51,8 @@ struct se_llama {
     const llama_vocab * vocab = nullptr;
     int32_t n_vocab = 0;
     int32_t n_batch = 512;
+    int32_t n_seq = 1;
+    int32_t flags = 0;
     std::vector<float> last;     // scores of the last evaluated position (llama.cpp's own buffer goes stale on drops)
     double last_lse = 0.0;       // log-sum-exp of `last`
     bool have_last = false;
@@ -84,6 +86,10 @@ const char * se_last_error(void) {
 void se_set_verbose(int32_t on) { g_verbose = on != 0; }
 
 se_llama * se_load(const char * path, int32_t n_ctx, int32_t n_threads) {
+    return se_load_ex(path, n_ctx, n_threads, 16, 0);
+}
+
+se_llama * se_load_ex(const char * path, int32_t n_ctx, int32_t n_threads, int32_t n_seq, int32_t flags) {
     std::call_once(g_init, [] {
         llama_log_set(on_log, nullptr);
         llama_backend_init();
@@ -95,7 +101,9 @@ se_llama * se_load(const char * path, int32_t n_ctx, int32_t n_threads) {
     }
     llama_model_params mp = llama_model_default_params();
     mp.n_gpu_layers = 0;                    // CPU only
-    mp.load_mode = LLAMA_LOAD_MODE_MMAP;    // weights stay file-backed pages the system can drop and re-read
+    mp.load_mode = (flags & SE_NO_MMAP) ? LLAMA_LOAD_MODE_NONE
+                                        : LLAMA_LOAD_MODE_MMAP;   // file-backed pages the system can drop and re-read
+    mp.use_extra_bufts = (flags & SE_NO_REPACK) == 0;              // repacked weights: faster, but a copy
     llama_model * model = llama_model_load_from_file(path, mp);
     if (model == nullptr) {
         std::string why = last_error();
@@ -106,7 +114,10 @@ se_llama * se_load(const char * path, int32_t n_ctx, int32_t n_threads) {
     cp.n_ctx = n_ctx > 0 ? static_cast<uint32_t>(n_ctx) : 1024;
     cp.n_batch = std::min<uint32_t>(512, cp.n_ctx);
     cp.n_ubatch = cp.n_batch;
-    cp.n_seq_max = 1;
+    cp.n_seq_max = static_cast<uint32_t>(std::max(1, n_seq));
+    cp.kv_unified = true;   // one cache for all sequences: se_score_many's share the cached prompt, and none splits n_ctx
+    if (flags & SE_FLASH_ATTN_OFF) cp.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_DISABLED;
+    if (flags & SE_FLASH_ATTN_ON) cp.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_ENABLED;
     cp.n_threads = cp.n_threads_batch = n_threads > 0 ? n_threads : 4;
     cp.no_perf = true;
     llama_context * ctx = llama_init_from_model(model, cp);
@@ -122,6 +133,8 @@ se_llama * se_load(const char * path, int32_t n_ctx, int32_t n_threads) {
     s->vocab = llama_model_get_vocab(model);
     s->n_vocab = llama_vocab_n_tokens(s->vocab);
     s->n_batch = static_cast<int32_t>(cp.n_batch);
+    s->n_seq = static_cast<int32_t>(cp.n_seq_max);
+    s->flags = flags;
     s->last.assign(static_cast<size_t>(s->n_vocab), 0.0f);
     return s;
 }
@@ -138,6 +151,10 @@ void se_set_threads(se_llama * s, int32_t n_threads) {
 }
 
 int32_t se_n_vocab(const se_llama * s) { return s != nullptr ? s->n_vocab : 0; }
+
+int32_t se_flags(const se_llama * s) { return s != nullptr ? s->flags : 0; }
+
+int32_t se_n_seq(const se_llama * s) { return s != nullptr ? s->n_seq : 0; }
 
 int32_t se_n_ctx(const se_llama * s) { return s != nullptr ? static_cast<int32_t>(llama_n_ctx(s->ctx)) : 0; }
 
@@ -246,6 +263,79 @@ double se_score(se_llama * s, const int32_t * tokens, int32_t n) {
     s->last_lse = saved_lse;
     s->have_last = true;
     return sum;
+}
+
+int32_t se_score_many(se_llama * s, const int32_t * tokens, const int32_t * lengths, int32_t n, double * out) {
+    if (s == nullptr || tokens == nullptr || lengths == nullptr || out == nullptr || n <= 0 || !s->have_last) {
+        set_error("se_score_many needs evaluated tokens before it and at least one continuation");
+        return -1;
+    }
+    if (n >= s->n_seq) {
+        set_error("se_score_many takes at most " + std::to_string(s->n_seq - 1) + " continuations at once (n_seq " +
+                  std::to_string(s->n_seq) + ")");
+        return -2;
+    }
+    const int32_t base = se_n_cached(s);
+    int32_t fed = 0;
+    const int32_t * t = tokens;
+    for (int32_t i = 0; i < n; i++) {
+        if (lengths[i] <= 0) {
+            set_error("every continuation needs at least one token");
+            return -3;
+        }
+        out[i] = se_logprob(s, t[0]);   // the first token's probability comes from the scores we already have
+        fed += lengths[i] - 1;          // the others need the tokens before them evaluated
+        t += lengths[i];
+    }
+    if (fed == 0) return 0;
+    if (base + fed > se_n_ctx(s)) {
+        set_error("the context holds " + std::to_string(se_n_ctx(s)) + " tokens; " + std::to_string(base + fed) +
+                  " don't fit");
+        return -4;
+    }
+    llama_memory_t mem = llama_get_memory(s->ctx);
+    for (int32_t i = 1; i <= n; i++) llama_memory_seq_cp(mem, 0, i, -1, -1);   // shares the cells, copies nothing
+    llama_batch batch = llama_batch_init(fed, 0, 1);
+    t = tokens;
+    int32_t k = 0;
+    for (int32_t i = 0; i < n; i++) {
+        for (int32_t j = 0; j + 1 < lengths[i]; j++, k++) {
+            batch.token[k] = t[j];
+            batch.pos[k] = base + j;
+            batch.n_seq_id[k] = 1;
+            batch.seq_id[k][0] = i + 1;
+            batch.logits[k] = 1;
+        }
+        t += lengths[i];
+    }
+    batch.n_tokens = fed;
+    int32_t result = llama_decode(s->ctx, batch);
+    if (result == 0) {
+        t = tokens;
+        k = 0;
+        for (int32_t i = 0; i < n && result == 0; i++) {
+            for (int32_t j = 0; j + 1 < lengths[i]; j++, k++) {
+                const float * row = llama_get_logits_ith(s->ctx, k);
+                if (row == nullptr) {
+                    result = -5;
+                    break;
+                }
+                float top = *std::max_element(row, row + s->n_vocab);
+                double sum = 0.0;
+                for (int32_t v = 0; v < s->n_vocab; v++) sum += std::exp(static_cast<double>(row[v]) - top);
+                out[i] += static_cast<double>(row[t[j + 1]]) - (top + std::log(sum));
+            }
+            t += lengths[i];
+        }
+        if (result != 0) set_error("llama.cpp returned no scores for a continuation's token");
+    } else {
+        std::string why = last_error();
+        set_error("llama_decode returned " + std::to_string(result) + (why.empty() ? "" : ": " + why));
+        result = -10;
+    }
+    llama_batch_free(batch);
+    for (int32_t i = 1; i <= n; i++) llama_memory_seq_rm(mem, i, -1, -1);   // sequence 0 and our scores stay as they were
+    return result;
 }
 
 int64_t se_memory_kb(int32_t peak) {

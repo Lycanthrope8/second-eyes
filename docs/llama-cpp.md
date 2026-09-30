@@ -38,3 +38,16 @@ runtime reports `NEON, ARM_FMA, FP16_VA, DOTPROD, REPACK`.
   one batch: up to 0.30 in a candidate's log-probability, 0.053 in total variation distance (O18). Both stay within
   0.09 of PyTorch's 32-bit distribution, the cached one within 0.035, with the same decisions.
 - **Build size.** Unstripped, `libse_llama.so` is 49 MB and `llama-bench` 123 MB.
+
+## Options and batched scoring (A1.8c, D57)
+
+- **Several sequences share one cache** when `kv_unified` is on; with it off, llama.cpp splits `n_ctx` between the
+  `n_seq_max` sequences. `llama_memory_seq_cp(mem, 0, i, -1, -1)` then gives sequence i the cached prompt by tagging
+  its cells, without copying. `se_score_many` scores each candidate as such a sequence, all in one batch; on the tiny
+  test model it gives exactly `se_score`'s numbers.
+- **Flash attention isn't batch-invariant.** On the tiny test model a cached scene plus the rest differs from the whole
+  prompt by 0.0022 in log-probability with flash attention on (llama.cpp's automatic choice on the CPU) and by nothing
+  with it off. Weight repacking changes nothing there.
+- **Options** of `se_load_ex`: `use_extra_bufts = false` keeps the weights in the file's layout (no repacked copy),
+  `flash_attn_type` forces flash attention off or on, `load_mode = LLAMA_LOAD_MODE_NONE` reads the file into memory.
+- **Stripping.** `llvm-strip --strip-unneeded` keeps the exported functions that P/Invoke and `dlsym` need.

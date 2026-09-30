@@ -39,6 +39,10 @@ def bind(path: str):
         "se_logits": ([C.c_void_p, C.POINTER(C.c_float), C.c_int32], C.c_int32),
         "se_score": ([C.c_void_p, C.POINTER(C.c_int32), C.c_int32], C.c_double),
         "se_memory_kb": ([C.c_int32], C.c_int64), "se_set_threads": ([C.c_void_p, C.c_int32], None),
+        "se_load_ex": ([C.c_char_p, C.c_int32, C.c_int32, C.c_int32, C.c_int32], C.c_void_p),
+        "se_flags": ([C.c_void_p], C.c_int32), "se_n_seq": ([C.c_void_p], C.c_int32),
+        "se_score_many": ([C.c_void_p, C.POINTER(C.c_int32), C.POINTER(C.c_int32), C.c_int32, C.POINTER(C.c_double)],
+                          C.c_int32),
     }
     for name, (args, res) in sig.items():
         f = getattr(lib, name)
@@ -138,6 +142,39 @@ def main(argv=None) -> int:
     total = sum(math.exp(v) for v in lp)
     check("log-probabilities sum to 1", abs(total - 1.0) < 1e-3, f"{total:.6f}")
     check("argmax is the most likely token", lp[lib.se_argmax(s)] == max(lp))
+
+    # 3b. se_score_many = se_score for each candidate, in one evaluation, and restores the cache.
+    names = ["table_1", "box_1", "box_2", "chair_1", "chair_2"]
+    conts = [tokenize(n + '"}') for n in names]
+    one = [lib.se_score(s, ints(c), len(c)) for c in conts]
+    flat = [t for c in conts for t in c]
+    out = (C.c_double * len(conts))()
+    base, before = lib.se_n_cached(s), last_logits()
+    code = lib.se_score_many(s, ints(flat), ints([len(c) for c in conts]), len(conts), out)
+    gap = max(abs(a - b) for a, b in zip(out, one))
+    check("se_score_many scores all candidates at once", code == 0, lib.se_last_error().decode() if code else "")
+    check("se_score_many = se_score, candidate by candidate", gap < 1e-2, f"largest difference {gap:.2e}")
+    check("se_score_many restores the cache and the last scores", lib.se_n_cached(s) == base and last_logits() == before)
+    check("the sequences are the default 16", lib.se_n_seq(s) == 16)
+    many = [conts[0]] * 16
+    check("more continuations than sequences are refused",
+          lib.se_score_many(s, ints([t for c in many for t in c]), ints([len(c) for c in many]), 16,
+                            (C.c_double * 16)()) < 0, lib.se_last_error().decode())
+    long_prompt = [11] * 1000
+    check("16 sequences share one context (a 1000-token prompt fits in 1024)",
+          lib.se_eval(s, ints(long_prompt), len(long_prompt), 0) == 0, lib.se_last_error().decode())
+
+    # 3c. The load options.
+    for flags, name in ((1, "no repacking"), (2, "flash attention off"), (4, "flash attention on"), (8, "no memory map")):
+        t = lib.se_load_ex(model_path.encode(), 1024, 2, 8, flags)
+        ok = bool(t) and lib.se_flags(t) == flags and lib.se_n_seq(t) == 8
+        if t:
+            lib.se_eval(t, ints(ids), len(ids), 0)
+            buf = (C.c_float * n_vocab)()
+            lib.se_logits(t, buf, n_vocab)
+            d = max(abs(a - b) for a, b in zip(log_softmax(list(buf)), log_softmax(whole)))
+            lib.se_free(t)
+        check(f"loads with {name}, and scores like the default", ok and d < 1e-2, f"largest difference {d:.2e}" if ok else "")
 
     # 4. Errors are reported, not crashes.
     check("keep beyond the cache is refused", lib.se_eval(s, ints([1]), 1, lib.se_n_cached(s) + 5) < 0,

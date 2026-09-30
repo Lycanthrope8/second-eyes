@@ -95,11 +95,13 @@ def cmd_prepare(args) -> int:
                         "candidate_suffix": scene.CANDIDATE_SUFFIX, "expected_target": p.get("expected_target")})
     model = str(gguf.resolve()) if args.local else f"{DEVICE_DIR}/{gguf.name}"
     job = {"model": model, "n_ctx": 1024, "threads": args.threads, "repeats": args.repeats,
-           "max_new_tokens": desc["max_new_tokens"], "prompts": prompts,
+           "max_new_tokens": desc["max_new_tokens"], "prompts": prompts, "flash_attn": args.flash_attn,
+           "repack": not args.no_repack, "mmap": not args.no_mmap, "n_seq": args.n_seq,
            "gguf": {"file": gguf.name, "bytes": gguf.stat().st_size}}
     (raw / "job.json").write_text(json.dumps(job, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"Wrote runs/{args.run_id}/raw/job.json: {len(prompts)} prompts, threads {args.threads}, "
-          f"{args.repeats} repeats, model {gguf.name} ({gguf.stat().st_size / 1e6:.0f} MB)"
+          f"{args.repeats} repeats, flash attention {args.flash_attn}, repacking {'off' if args.no_repack else 'on'}, "
+          f"model {gguf.name} ({gguf.stat().st_size / 1e6:.0f} MB)"
           + (" on this PC" if args.local else " on the headset"))
     return 0
 
@@ -204,7 +206,11 @@ def cmd_check(args) -> int:
     print(f"Run {args.run_id}: llama.cpp {res['llama_cpp']}; model loaded in {res['load_ms'] / 1000:.2f} s; "
           f"memory {res['memory_kb_after_load'] / 1024:.0f} MB after loading, peak {res['memory_kb_peak'] / 1024:.0f} MB")
     print(f"  {res['system_info'].strip()}")
-    problems, timing = [], {}
+    o = res.get("options", {})
+    if o:
+        print(f"  options: flash attention {o.get('flash_attn')}, repacking {'on' if o.get('repack') else 'off'}, "
+              f"memory map {'on' if o.get('mmap') else 'off'}, {o.get('n_seq')} sequences")
+    problems, timing, cache_gaps = [], {}, []
     for r in res["runs"]:
         pid, t = r["prompt_id"], r["threads"]
         head = f"threads {t}, {pid}:"
@@ -230,6 +236,12 @@ def cmd_check(args) -> int:
             same = cached[0]["answer"]["token_ids"] == uncached[0]["answer"]["token_ids"]
             gap = distance(shares(cached[0]["scores"]["logprobs"]), shares(uncached[0]["scores"]["logprobs"]))
             lines.append(f"cached scene: answer {'same' if same else 'DIFFERENT'}; candidates {gap:.3f} from uncached")
+            cache_gaps.append(gap)
+        seq = uncached[0]["scores"].get("sequential")
+        if seq:
+            one_gap = distance(shares(uncached[0]["scores"]["logprobs"]), shares(seq["logprobs"]))
+            lines.append(f"scored in one batch against one by one: {one_gap:.3f} apart; {uncached[0]['scores']['ms']:.0f} "
+                         f"against {seq['ms']:.0f} ms")
             if not same:
                 problems.append(f"{head} the cached scene changes the answer")
         else:
@@ -268,7 +280,7 @@ def cmd_check(args) -> int:
         tm = timing.setdefault(t, {"prompt": [], "step": [], "scene": [], "suffix": [], "score": [], "suffix_tokens": []})
         tm["prompt"] += [u["prompt_ms"] for u in uncached]
         tm["step"] += [s for u in uncached for s in u["answer"]["step_ms"]]
-        tm["score"] += [u["scores"]["ms"] for u in uncached + cached]
+        tm["score"] += [u["scores"]["ms"] for u in uncached + cached]   # the batched scoring, as the app does it
         tm["suffix"] += [c["suffix_ms"] for c in cached]
         tm["suffix_tokens"] += [c["suffix_tokens"] for c in cached]
         if "scene_evaluated_ms" in r:
@@ -279,6 +291,8 @@ def cmd_check(args) -> int:
               f"scene alone {med(tm['scene']):.0f} ms, once; with it cached, the rest "
               f"({med(tm['suffix_tokens']):.0f} tokens) {med(tm['suffix']):.0f} ms; "
               f"scoring {len(res['runs'][0]['candidate_ids'])} candidates {med(tm['score']):.0f} ms")
+    if cache_gaps:
+        print(f"\nCached scene against uncached (O18): at most {max(cache_gaps):.3f} apart in distance")
     if (raw / "llama_bench.json").exists():
         print("\nllama-bench:")
         print_bench(raw / "llama_bench.json")
@@ -306,6 +320,10 @@ def main(argv=None) -> int:
     p.add_argument("--repeats", type=int, default=3)
     p.add_argument("--quant", default="q8_0", help="the GGUF's weight type, as grounding/export_gguf.py named it")
     p.add_argument("--local", metavar="BIN_DIR", help="run on this PC with a local build")
+    p.add_argument("--flash-attn", choices=["auto", "on", "off"], default="auto")
+    p.add_argument("--no-repack", action="store_true", help="keep the weights in the file's layout (O18)")
+    p.add_argument("--no-mmap", action="store_true", help="read the weights into memory instead of mapping the file")
+    p.add_argument("--n-seq", type=int, default=16, help="sequences, for scoring candidates in one batch")
     for name in ("push", "run", "bench"):
         q = sub.add_parser(name)
         q.add_argument("run_id", metavar="RUN_ID")

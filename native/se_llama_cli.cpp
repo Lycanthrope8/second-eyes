@@ -4,9 +4,11 @@
 //
 // JOB.json (written by grounding/llama_headset.py):
 //   {"model": path, "n_ctx": 1024, "threads": [4, 2], "repeats": 3, "max_new_tokens": 100,
+//    "repack": true, "flash_attn": "auto" | "on" | "off", "mmap": true, "n_seq": 16,
 //    "prompts": [{"id", "formatted", "prefix_chars", "answer_prefix", "candidates": [...], "candidate_suffix"}]}
 // For every thread count and prompt it measures, from an empty cache: the prompt pass, the greedy answer token by
-// token, and the log-probability of each candidate after the prompt plus answer_prefix. Then the same from a cached
+// token, and the log-probability of each candidate after the prompt plus answer_prefix, all candidates in one batch
+// (se_score_many, as the app does) and, on the first repeat, also one by one (se_score) for comparison. Then the same from a cached
 // scene: formatted[0:prefix_chars] is evaluated once and kept, and each command evaluates only the rest. RESULTS.json
 // holds the token IDs, answers, scores, every timing and peak memory, for grounding/llama_headset.py to check.
 #include "se_llama.h"
@@ -82,20 +84,36 @@ json greedy(se_llama * s, int32_t max_new) {
     return out;
 }
 
-// Each candidate's log-probability after the cache end plus answer_prefix; the cache is left at `keep`.
+// Each candidate's log-probability after the cache end plus answer_prefix, all in one batch (se_score_many) and, if
+// asked, also one by one (se_score); the cache is left at `keep` plus the answer prefix.
 json scores(se_llama * s, int32_t keep, const std::vector<int32_t> & answer_prefix,
-            const std::vector<std::vector<int32_t>> & candidates, const json & names) {
-    json out = json::object();
+            const std::vector<std::vector<int32_t>> & candidates, const json & names, bool also_sequential) {
+    json out;
     double t0 = now_ms();
     eval(s, answer_prefix, keep);
-    for (size_t k = 0; k < candidates.size(); k++) {
-        out[names[k].get<std::string>()] =
-            se_score(s, candidates[k].data(), static_cast<int32_t>(candidates[k].size()));
+    std::vector<int32_t> flat, lengths;
+    for (const auto & c : candidates) {
+        flat.insert(flat.end(), c.begin(), c.end());
+        lengths.push_back(static_cast<int32_t>(c.size()));
     }
-    json timed;
-    timed["logprobs"] = out;
-    timed["ms"] = now_ms() - t0;
-    return timed;
+    std::vector<double> lp(candidates.size());
+    if (se_score_many(s, flat.data(), lengths.data(), static_cast<int32_t>(candidates.size()), lp.data()) != 0) {
+        fail("batched scoring failed");
+    }
+    json batched = json::object();
+    for (size_t k = 0; k < candidates.size(); k++) batched[names[k].get<std::string>()] = lp[k];
+    out["logprobs"] = batched;
+    out["ms"] = now_ms() - t0;
+    if (also_sequential) {
+        json one = json::object();
+        double t1 = now_ms();
+        for (size_t k = 0; k < candidates.size(); k++) {
+            one[names[k].get<std::string>()] =
+                se_score(s, candidates[k].data(), static_cast<int32_t>(candidates[k].size()));
+        }
+        out["sequential"] = {{"logprobs", one}, {"ms", now_ms() - t1}};
+    }
+    return out;
 }
 
 }  // namespace
@@ -116,15 +134,21 @@ int main(int argc, char ** argv) {
     const std::vector<int32_t> threads = job.value("threads", std::vector<int32_t>{4});
     const int32_t repeats = job.value("repeats", 3);
     const int32_t max_new = job.value("max_new_tokens", 100);
+    const std::string flash = job.value("flash_attn", std::string("auto"));
+    const int32_t flags = (job.value("repack", true) ? 0 : SE_NO_REPACK) | (job.value("mmap", true) ? 0 : SE_NO_MMAP) |
+                          (flash == "off" ? SE_FLASH_ATTN_OFF : flash == "on" ? SE_FLASH_ATTN_ON : 0);
 
     json res;
     res["llama_cpp"] = se_llama_version();
     res["system_info"] = se_system_info();
     res["memory_kb_before_load"] = se_memory_kb(0);
     double t0 = now_ms();
-    se_llama * s = se_load(job.at("model").get<std::string>().c_str(), job.value("n_ctx", 1024), threads.front());
+    se_llama * s = se_load_ex(job.at("model").get<std::string>().c_str(), job.value("n_ctx", 1024), threads.front(),
+                              job.value("n_seq", 16), flags);
     if (s == nullptr) fail("could not load the model");
     res["load_ms"] = now_ms() - t0;
+    res["options"] = {{"repack", job.value("repack", true)}, {"flash_attn", flash}, {"mmap", job.value("mmap", true)},
+                      {"n_seq", se_n_seq(s)}, {"flags", se_flags(s)}};
     res["memory_kb_after_load"] = se_memory_kb(0);
     res["n_vocab"] = se_n_vocab(s);
     std::cout << "Loaded in " << res["load_ms"].get<double>() << " ms; " << se_system_info() << std::endl;
@@ -164,7 +188,7 @@ int main(int argc, char ** argv) {
                 eval(s, ids, 0);
                 u["prompt_ms"] = now_ms() - t;
                 u["answer"] = greedy(s, max_new);
-                u["scores"] = scores(s, static_cast<int32_t>(ids.size()), answer_prefix, cand, p.at("candidates"));
+                u["scores"] = scores(s, static_cast<int32_t>(ids.size()), answer_prefix, cand, p.at("candidates"), k == 0);
                 uncached.push_back(u);
             }
             r["uncached"] = uncached;
@@ -205,7 +229,7 @@ int main(int argc, char ** argv) {
                     c["suffix_ms"] = now_ms() - t;
                     c["answer"] = greedy(s, max_new);
                     c["scores"] = scores(s, static_cast<int32_t>(ids.size()), all_answer_prefix[i], all_cand[i],
-                                         p.at("candidates"));
+                                         p.at("candidates"), k == 0);
                     cached.push_back(c);
                 }
                 se_eval(s, nullptr, 0, keep);   // back to the scene alone, for the next command

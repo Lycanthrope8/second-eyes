@@ -10,7 +10,8 @@ android cross-compiles native/ for the headset (arm64-v8a) with an Android NDK: 
 ANDROID_NDK_ROOT or ANDROID_NDK, else the newest NDK inside a Unity install (Unity's Android Build Support includes
 one). llama.cpp's CPU code is built for --arm-arch (dot-product and half-precision instructions, which the Quest 3's
 Arm cores have); the rest keeps Android's portable baseline, as llama.cpp's docs/android.md advises. host builds for
-this PC, for tests, with llama.cpp's native flags: it runs only on a processor like the one that built it. Both need CMake and Ninja (pip install cmake ninja). The files go to native/out/<target>/, with
+this PC, for tests, with llama.cpp's native flags: it runs only on a processor like the one that built it. The
+Android files are stripped with the NDK's llvm-strip (the unstripped ones stay in build/, for reading crash reports). Both need CMake and Ninja (pip install cmake ninja). The files go to native/out/<target>/, with
 build.json recording the release, the NDK, the flags and each file's SHA-256.
 """
 from __future__ import annotations
@@ -97,6 +98,13 @@ def ndk_revision(ndk: Path) -> str:
     return "unknown"
 
 
+def find_strip(ndk: Path) -> Path:
+    found = sorted((ndk / "toolchains" / "llvm" / "prebuilt").glob("*/bin/llvm-strip*"))
+    if not found:
+        raise ToolError(f"llvm-strip isn't in {ndk}/toolchains/llvm/prebuilt/*/bin/.")
+    return found[0]
+
+
 def sha256_of(path: Path) -> str:
     digest = hashlib.sha256()
     with open(path, "rb") as f:
@@ -115,8 +123,10 @@ def build(target: str, args) -> int:
     config = ["cmake", "-S", NATIVE, "-B", build_dir, "-G", "Ninja", f"-DCMAKE_MAKE_PROGRAM={shutil.which('ninja')}",
               "-DCMAKE_BUILD_TYPE=Release", f"-DLLAMA_DIR={llama}", "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"]
     record = {"target": target}
+    strip = None
     if target == "android":
         ndk = find_ndk(args.ndk)
+        strip = find_strip(ndk)
         record["ndk"] = {"path": str(ndk), "revision": ndk_revision(ndk)}
         record["arm_arch"] = args.arm_arch
         print(f"NDK {record['ndk']['revision']} at {ndk}")
@@ -132,7 +142,10 @@ def build(target: str, args) -> int:
         if found is None:
             raise ToolError(f"The build finished, but {name} isn't in {build_dir.relative_to(ROOT).as_posix()}/.")
         shutil.copy2(found, out_dir / name)
-        record["files"][name] = {"bytes": found.stat().st_size, "sha256": sha256_of(found)}
+        if strip is not None:
+            run([strip, "--strip-unneeded", out_dir / name])
+        record["files"][name] = {"bytes": (out_dir / name).stat().st_size, "unstripped_bytes": found.stat().st_size,
+                                 "sha256": sha256_of(out_dir / name)}
     tag, commit = pinned()
     record["llama_cpp"] = f"{tag} ({commit[:8]})"
     record["cmake"] = subprocess.run(["cmake", "--version"], capture_output=True, text=True).stdout.split("\n")[0]

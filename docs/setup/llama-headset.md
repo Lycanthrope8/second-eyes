@@ -17,3 +17,9 @@ Quest 3 before anything goes into the app. Everything below runs on the PC, with
 
 The test program and model stay in `/data/local/tmp/se` on the headset; `adb shell rm -r /data/local/tmp/se` removes
 them.
+
+## Comparing configurations (A1.8c, O18)
+
+`prepare` takes `--flash-attn auto|on|off`, `--no-repack`, `--no-mmap` and `--n-seq`; each configuration is a run of its
+own. `check` prints the configuration, how far the cached scene lands from uncached, and how far scoring in one batch
+lands from scoring one by one, with both times.

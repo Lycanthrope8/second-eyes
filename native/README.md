@@ -7,7 +7,7 @@ builds from it.
 
 | File | What it is |
 |---|---|
-| `se_llama.h`, `se_llama.cpp` | the interface: load a GGUF model (memory-mapped), tokenize, evaluate after keeping part of the cache (a cached scene), the last position's log-probabilities, and scoring continuations, which restores the cache |
+| `se_llama.h`, `se_llama.cpp` | the interface: load a GGUF model (memory-mapped; `se_load_ex` with options), tokenize, evaluate after keeping part of the cache (a cached scene), the last position's log-probabilities, and scoring continuations one by one (`se_score`) or all in one batch (`se_score_many`), both restoring the cache |
 | `se_llama_cli.cpp` | A1.8b's test program: runs a job from `grounding/llama_headset.py` on the headset through `adb shell` and writes every token, answer, score, timing and the peak memory to a JSON file |
 | `CMakeLists.txt` | builds llama.cpp as static libraries inside `libse_llama`, with the options of llama.cpp's `docs/android.md` |
 | `tests/make_tiny_model.py` | a two-layer GGUF with random weights and Qwen's real tokenizer, for tests without the real model |
