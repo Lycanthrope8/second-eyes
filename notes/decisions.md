@@ -13,6 +13,7 @@ Open questions first, then decisions taken, newest first. A decision records wha
 | O9 | Raw-data storage (S0 item 5) | after Gate A | deferred, see D1 |
 | O10 | Experiment tracking and figure scripts (S0 item 6) | after Gate A | deferred, see D1 |
 | O16 | Where do the app's `RECORD_AUDIO`, `MODIFY_AUDIO_SETTINGS` and `BLUETOOTH` permissions come from, and should it drop them until on-device speech recognition needs the microphone? | before the IRB protocol is final | Source found in the `r009` build's merger report: all three come from the manifest Unity generates for the build (`unityLibrary/src/main/AndroidManifest.xml`, lines 5–7), most likely because code in the build uses the microphone (Meta's speech building blocks). Options: a `tools:node="remove"` line per permission in our manifest; keep `RECORD_AUDIO` once speech recognition arrives |
+| O17 | How two runs' GPU cost must agree: whole-GPU utilization within 3 points (D24), or our app's own GPU time? | before the next reference comparison | keep D24 · our app's GPU time within 5% · keep D24 but hold the boundary constant |
 | O13 | Draw hand and controller models? | once the GPU headroom is known (after A1.11) | none (D21) · Meta's models, if the GPU has room |
 | O14 | App graphics memory grows about 1.6 GB each time the headset comes off and on while the app runs | suggested: before the 30-minute soak (A1.11); until then, runs keep the headset on (`docs/profiling.md`), since with the model loaded one off-on may exhaust memory | to be investigated |
 

@@ -266,6 +266,32 @@ def check_one(folder: Path, schema: dict, used: dict) -> tuple:
     return problems, notes
 
 
+NOTES_LINE = re.compile(r'^notes:[ \t]*(?:"(?:[^"\\]|\\.)*"|[^#]*?)([ \t]*#.*)?$')
+
+
+def cmd_note(args) -> int:
+    """Set a run's notes, keeping the line's comment and the file's line endings, then read it back."""
+    path = RUNS / args.run_id / "config.yaml"
+    if not path.is_file():
+        raise ToolError(f"No run {args.run_id} in runs/.")
+    text = path.read_bytes().decode("utf-8")
+    newline = "\r\n" if "\r\n" in text else "\n"
+    lines = text.split(newline)
+    for i, line in enumerate(lines):
+        m = NOTES_LINE.match(line)
+        if m:
+            lines[i] = f"notes: {yaml_value(args.text)}{m.group(1) or ''}"
+            break
+    else:
+        raise ToolError(f"runs/{args.run_id}/config.yaml has no notes: line to fill.")
+    new_text = newline.join(lines)
+    if (yaml.safe_load(new_text) or {}).get("notes") != args.text:
+        raise ToolError("The notes didn't survive a read-back, so nothing was written.")
+    path.write_bytes(new_text.encode("utf-8"))
+    print(f"Wrote the notes of {args.run_id} ({len(args.text)} characters). Next: python tools/runs.py check {args.run_id}")
+    return 0
+
+
 def cmd_check(args) -> int:
     schema = load_schema()
     folders = run_folders()
@@ -331,9 +357,13 @@ def main(argv=None) -> int:
     check.add_argument("run_ids", nargs="*", metavar="RUN_ID")
     check.add_argument("--all", action="store_true", help="check every run folder")
 
+    note = sub.add_parser("note", help="set a run's notes (the notes: line of its config.yaml)")
+    note.add_argument("run_id", metavar="RUN_ID")
+    note.add_argument("text", help="the notes, in quotes")
+
     args = parser.parse_args(argv)
     try:
-        return cmd_new(args) if args.command == "new" else cmd_check(args)
+        return {"new": cmd_new, "check": cmd_check, "note": cmd_note}[args.command](args)
     except ToolError as err:
         print(f"Error: {err}", file=sys.stderr)
         return 2

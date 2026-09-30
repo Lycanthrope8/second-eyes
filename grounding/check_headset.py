@@ -77,6 +77,8 @@ def compare_answer(pieces: list, text: str, reference: str) -> str:
     """Where the headset's answer first differs from the reference, by answer token."""
     if text == reference:
         return "same"
+    if not text:
+        return "nothing yet"   # stopped or cut off before its first token: no evidence either way
     at, done = 0, 0
     while at < min(len(text), len(reference)) and text[at] == reference[at]:
         at += 1
@@ -201,7 +203,7 @@ def main(argv=None) -> int:
 
         # A stopped or unfinished send only counts against the run if what it produced already differs.
         prompt_wrong = any(not p for p, _, _ in verdicts)
-        answer_wrong = any(a not in ("same", "same so far") for _, _, a in verdicts)
+        answer_wrong = any(a not in ("same", "same so far", "nothing yet") for _, _, a in verdicts)
         matched = any(p and st == "finished" and a == "same" for p, st, a in verdicts)
         passed = matched and not prompt_wrong and not answer_wrong
         if unreferenced:

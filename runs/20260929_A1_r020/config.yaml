@@ -1,0 +1,29 @@
+# Run config, format v1 (defined in schemas/run-config.v1.json).
+# Made by:   python tools/runs.py new <phase> --purpose "..." --operator "..."
+# Check it:  python tools/runs.py check <run ID>
+# Fill the optional fields that apply to this run and leave the rest null.
+
+# Identity (filled by the tool)
+config_version: 1
+run_id: "20260929_A1_r020"
+phase: "A1"
+created: "2026-09-29T23:59:37-04:00"  # local time with UTC offset
+
+# Required (given to the tool)
+purpose: "A1.7d run 4: model off, second repeat"  # one line: why this run exists
+operator: "JH"  # who ran it
+
+# Code (filled by the tool)
+git_commit: "10d49688c377f53c0da7a0a07e48ac08a7edf725"
+git_dirty: false  # true if the repository had uncommitted changes (files in .gitignore don't count)
+
+# Optional: leave null when a field doesn't apply
+model_checkpoint: "qwen2.5-0.5b-instruct-fa9d3a46-f16.sentis"  # model file name (--checkpoint fills it)
+model_sha256: "76c5e4770f1c43f381f7cd96ceac4d5c9dbe200311c9228fd51972feff56597c"  # SHA-256 of that file (--checkpoint fills it)
+prompt_version: null  # version of the prompt template
+schema_version: null  # version of the model's output/scene schema (proposal section 6.2)
+layout_id: null  # which prop layout
+headset_os_build: "oculus/eureka/eureka:14/UP1A.231005.007.A1/52433670048800520:user/abl_signing_keys:release,amss_signing_keys:release,release-keys"  # ro.build.fingerprint (--headset fills it)
+drone_firmware: null
+lighting: null  # lighting conditions
+notes: "A1.7d run 4: model off, the reference's second repeat. Block 2 after a fresh reboot, plugged in. 72.5 fps (min 72), 9 stale frames; CPU 18%, GPU 74%; app 1.98 GB; SoC 53.4-59.1 C, 3.6 W. Against run 1: frame rate, memory and CPU agree; GPU utilization 5.0 points lower (limit 3), from the system's boundary and compositor (O17)."  # anything else

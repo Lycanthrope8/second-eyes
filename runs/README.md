@@ -57,6 +57,6 @@ python tools/runs.py check --all
 | `headset_os_build` | you or `--headset` | the headset's `ro.build.fingerprint` |
 | `drone_firmware` | you | drone firmware version |
 | `lighting` | you | lighting conditions |
-| `notes` | you | anything else |
+| `notes` | you | anything else; set it with `python tools/runs.py note <run ID> "<text>"`, which keeps the file's layout |
 
 To add or change a field, change `schemas/run-config.v1.json` first and log the change in `notes/decisions.md`.

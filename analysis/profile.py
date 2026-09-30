@@ -132,6 +132,58 @@ def parse_top(top: str) -> dict:
 
 # ---------------------------------------------------------------- summarizing
 
+def prompt_passes(raw: Path) -> list:
+    """The run's sends from its event logs (not raw/before_run/): (request, Send, first token, end) in UTC seconds."""
+    try:
+        from eventlog import read_events
+    except ImportError:
+        return []
+    sends = {}
+    for log in sorted(raw.glob("*.jsonl")):
+        if log.name == "sampler.jsonl":
+            continue
+        for e in read_events(log):
+            d = e.get("data", {})
+            if e.get("ev") in ("model.request", "model.token", "model.generate") and isinstance(d.get("request"), int):
+                x = sends.setdefault((log.name, d["request"]), {"n": d["request"]})
+                t = e.get("utc_us", 0) / 1e6
+                if e["ev"] == "model.request":
+                    x["send"] = t
+                elif e["ev"] == "model.token":
+                    x.setdefault("first", t)
+                else:
+                    x["end"] = t
+    return [(x["n"], x["send"], x.get("first"), x.get("end")) for _, x in sorted(sends.items()) if "send" in x]
+
+
+def frameless(before: dict, after: dict) -> int:
+    """Seconds without app frames hidden in the interval between two rows (A1.7d): a gap over GAP_S, or a missing row
+    followed by a second of mostly stale frames. A lone missing row with normal frames around it (2 s, 72 fps, no stale
+    frames: seen in every run) is OVR Metrics skipping a row, not the app freezing."""
+    gap = after["_t"] - before["_t"]
+    if gap <= 1.5:
+        return 0
+    if gap > GAP_S or (number(after, "stale_frame_count") or 0) >= 30:
+        return max(0, int(gap + 0.5) - 1)
+    return 0
+
+
+def phase_fps(rows: list, intervals: list):
+    """Mean frame rate over the given time intervals, each row standing for the second before it and a gap in the
+    rows for seconds without frames (A1.7d: the app freezes, and OVR Metrics writes nothing)."""
+    frames = seconds = 0.0
+    for before, after in zip(rows, rows[1:]):
+        t0, t1, fps = before["_t"], after["_t"], number(after, "average_frame_rate") or 0.0
+        pieces = [(max(t0, t1 - 1.0), t1, fps)] + ([(t0, t1 - 1.0, 0.0)] if frameless(before, after) else [])
+        for a, b, rate in pieces:
+            for x, y in intervals:
+                overlap = min(b, y) - max(a, x)
+                if overlap > 0:
+                    frames += rate * overlap
+                    seconds += overlap
+    return frames / seconds if seconds else None
+
+
 def summarize(run_id: str) -> dict:
     raw = RUNS / run_id / "raw"
     if not (RUNS / run_id).is_dir():
@@ -144,7 +196,11 @@ def summarize(run_id: str) -> dict:
     if rows:
         fps, mem, gpu_mem = column(rows, "average_frame_rate"), column(rows, "app_pss_MB"), column(rows, "app_gpu_physical_MB")
         cpu, gpu = column(rows, "cpu_utilization_percentage"), column(rows, "gpu_utilization_percentage")
-        s.update(fps_mean=statistics.mean(fps), fps_min=min(fps), below_71_s=sum(1 for v in fps if v < 71),
+        # Seconds without a row count as seconds without frames: while the model's pass blocks the app, OVR Metrics
+        # writes no row at all, so averaging only the rows would hide the worst seconds (A1.7d).
+        missing = sum(frameless(a, b) for a, b in zip(rows, rows[1:]))
+        s.update(fps_mean=sum(fps) / (len(fps) + missing), fps_mean_rows=statistics.mean(fps), missing_s=missing,
+                 fps_min=0 if missing else min(fps), below_71_s=sum(1 for v in fps if v < 71) + missing,
                  stale=sum(column(rows, "stale_frame_count")),
                  cpu_mean=statistics.mean(cpu), cpu_max=max(cpu), gpu_mean=statistics.mean(gpu), gpu_max=max(gpu),
                  cpu_levels=sorted(set(int(v) for v in column(rows, "cpu_level"))),
@@ -154,16 +210,27 @@ def summarize(run_id: str) -> dict:
                  free_min_mb=min(column(rows, "available_memory_MB") or [0]),
                  power_mean_w=statistics.mean(column(rows, "power_wattage") or [0]) / 1000,
                  app_gpu_ms=statistics.mean(column(rows, "app_gpu_time_microseconds") or [0]) / 1000)
+        sends = prompt_passes(raw)
+        in_pass = []
         for before, after in zip(rows, rows[1:]):
             m0, m1 = number(before, "app_pss_MB"), number(after, "app_pss_MB")
             gap = after["_t"] - before["_t"]
             when = before["_t"] - header["device_start_s"]
             if gap > GAP_S:
-                s["flags"].append(f"no OVR Metrics rows for {gap:.0f} s at {when:.0f} s (app paused or headset off?)")
+                if any(t_send - 1.5 <= before["_t"] <= (first or end or t_send) + 0.5 for _, t_send, first, end in sends):
+                    in_pass.append(gap)   # the model's prompt pass blocked the app: expected, reported below
+                else:
+                    s["flags"].append(f"no OVR Metrics rows for {gap:.0f} s at {when:.0f} s (app paused or headset off?)")
             if m0 is not None and m1 is not None and m1 - m0 > JUMP_MB:
                 s["flags"].append(f"app memory jumped {m1 - m0:+.0f} MB at {when:.0f} s")
         if len(used) > 1:
             s["flags"].append(f"{len(used)} OVR Metrics sessions in one recording: the app restarted")
+        s["pass_gaps"] = in_pass
+        done = [(n, a, f, e) for n, a, f, e in sends if f and e and rows[0]["_t"] <= a and e <= rows[-1]["_t"]]
+        if done:
+            follow = [(e, nxt[1]) for (_, _, _, e), nxt in zip(done, done[1:])]
+            s["model"] = {"sends": len(done), "prompt_pass": phase_fps(rows, [(a, f) for _, a, f, _ in done]),
+                          "answer": phase_fps(rows, [(f, e) for _, _, f, e in done]), "pause": phase_fps(rows, follow)}
     else:
         s["flags"].append("no OVR Metrics rows inside the recording window (was its CSV recording on?)")
 
@@ -204,7 +271,14 @@ def print_summary(s: dict) -> None:
           f"{s['rows']} OVR Metrics rows ({', '.join(s['csvs']) or 'none'})")
     if s["rows"]:
         print(f"  frames   fps mean {s['fps_mean']:.1f} (min {s['fps_min']:.0f}), stale frames {s['stale']:.0f}, "
-              f"seconds below 71 fps {s['below_71_s']}")
+              f"seconds below 71 fps {s['below_71_s']}" + (f", of them {s['missing_s']} without a frame (no row); "
+              f"{s['fps_mean_rows']:.1f} fps over the rows alone" if s["missing_s"] else ""))
+        if s.get("model"):
+            m = s["model"]
+            print(f"  model    {m['sends']} finished sends in the recording; fps mean in their prompt passes "
+                  f"{fmt(m['prompt_pass'], '{:.1f}')}, answers {fmt(m['answer'], '{:.1f}')}, pauses {fmt(m['pause'], '{:.1f}')}"
+                  + (f"; {len(s['pass_gaps'])} freeze(s) of {min(s['pass_gaps']):.0f}-{max(s['pass_gaps']):.0f} s inside "
+                     "prompt passes" if s.get("pass_gaps") else ""))
         print(f"  load     CPU mean {s['cpu_mean']:.0f}% (max {s['cpu_max']:.0f}), GPU mean {s['gpu_mean']:.0f}% "
               f"(max {s['gpu_max']:.0f}), app GPU time {s['app_gpu_ms']:.1f} ms/frame, "
               f"levels CPU {s['cpu_levels']} GPU {s['gpu_levels']}")
@@ -261,8 +335,13 @@ def purpose_of(run_id: str) -> str:
         text = (RUNS / run_id / "config.yaml").read_text(encoding="utf-8")
     except OSError:
         return ""
-    m = re.search(r"^purpose:\s*(.*)$", text, re.M)
-    return m.group(1).strip().strip('"').strip("'").replace("|", "/") if m else ""
+    try:
+        import yaml
+        value = (yaml.safe_load(text) or {}).get("purpose")
+    except Exception:   # no PyYAML, or a file it can't read: the quoted value, or the text before a comment
+        m = re.search(r'^purpose:[ \t]*(?:"((?:[^"\\]|\\.)*)"|([^#\r\n]*))', text, re.M)
+        value = (m.group(1) if m.group(1) is not None else m.group(2).strip()) if m else ""
+    return str(value or "").replace("|", "/")
 
 
 def cmd_table(args) -> int:

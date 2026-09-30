@@ -71,7 +71,8 @@ Two runs agree when, with the limits proposed in A1.6, the mean frame rate is wi
 
 | Line | Meaning |
 |---|---|
-| frames | mean and minimum frame rate, stale frames, seconds below 71 fps |
+| frames | mean and minimum frame rate over all seconds, stale frames, seconds below 71 fps. Seconds without a row count as frameless: OVR Metrics writes nothing while the app is frozen. A lone missing row with normal frames and no stale frames around it is OVR Metrics skipping one and doesn't count (A1.7d) |
+| model | for runs with sends: the frame rate in their prompt passes, answers and pauses, and the freezes inside prompt passes, which are not flags |
 | load | mean and peak CPU and GPU load, the app's GPU time per frame, the CPU and GPU levels used |
 | memory | the app's memory at the start, at the end and at its peak, the graphics part, and the least free memory on the headset |
 | heat | SoC and battery temperature at the start and end and at their peak, the highest thermal status, mean power |
