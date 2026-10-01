@@ -24,6 +24,9 @@ words.
 5. **Every computation on the Quest counts** (2026-09-27): *"I don't want to waste any computational power."*
 6. **Later, not now:** Vicon until it is actually used (2026-09-27, D10); participants and Vicon until they are needed
    (2026-10-01); S0 items 5 and 6, storage and experiment tracking, until headset feasibility is known (D1).
+7. **Earlier chats** (2026-10-01): *"If you must look into any chats, just refer to the chat named "A1 Complete (Except
+   Object Detector and Speech)." Don't look into any other chats because I don't want you to be confused."* Only that
+   chat, and only when needed; the repository still decides.
 
 **A slip to avoid:** in A1.8c's results round the assistant added two tool changes nobody had asked for
 (`runs.py set`, the load-jump report). Useful, but they should have been proposed first, under constraint 1.
@@ -38,7 +41,7 @@ restructure the repository before the project lead decides.
 | What | Where |
 |---|---|
 | The plan | `Second_Eyes_Research_Proposal_Revision_3.pdf`, in the Claude project's files. Phase IDs (S0, A0–A10, B1–B3) follow its Section 10 and its Phases part |
-| Decisions and open items | `notes/decisions.md`: D1–D60, and the open items O3–O16 at its top |
+| Decisions and open items | `notes/decisions.md`: D1–D62, and the open items O3–O16 at its top |
 | Failures, including the assistant's own errors | `notes/failures.md` |
 | Limitations for the papers | `notes/limitations.md` |
 | Phase and sub-step notes | `notes/phases/`: S0, A1.7d, A1.8b, A1.8c, and `_template.md` |
@@ -75,8 +78,11 @@ agreed at its start:
 | A1.11 | Everything together, 30-minute soak: Gate A | **open** | |
 
 **Gate A** is open. For the language model alone: the frame rate holds (2 stale frames in 10 minutes of commands),
-memory fits (+1.07 GB, about 2 GB left free), no throttling in 10 minutes, and the model uses about 0.6 s of the 3 s
-latency budget. Speech, the detector and the 30-minute soak are still to measure.
+memory fits (+1.07 GB, about 2 GB left free), no throttling in 10 minutes, and with the scene cached the panel as
+built takes about 1.1 s of the 3 s latency budget: the greedy answer (0.8 s), then the candidates' scores (0.30 s).
+The 0.6 s given earlier, here and in the A1 report, was an estimate for a scores-only design (the command's pass,
+0.3 s, plus the scores), which no run measured as such (`notes/failures.md`). Speech, the detector and the 30-minute
+soak are still to measure.
 
 **Next:** A2 (section 10), with A1.9–A1.11 alongside. A2 depends on A1's runtime path only, and that is settled (D60).
 
