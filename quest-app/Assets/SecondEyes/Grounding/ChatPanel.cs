@@ -72,6 +72,9 @@ namespace SecondEyes.Grounding
         private RectTransform panel;
         private Button sendButton, loadButton, repeatButton, stepsButton, backendButton, weightsButton;
         private Text boxText, buttonLabel, loadLabel, repeatLabel, stepsLabel, backendLabel, weightsLabel, status, answer;
+        [SerializeField, Tooltip("Start on llama.cpp, the headset's runtime (D60); Meta's runner stays one press of Runtime away, for A1.7's comparison.")]
+        private bool startWithLlama = true;
+
         private bool useGpu, use32Bit, useLlama;
         private LlamaRuntime llama;
         private int llamaThreads = 2;
@@ -135,9 +138,10 @@ namespace SecondEyes.Grounding
             }
             file16 = Field<string>(working, "streamingAssetFileName");
             if (threadChoices != null && threadChoices.Length > 0) llamaThreads = Math.Max(1, threadChoices[0]);
+            useLlama = startWithLlama;
             runtimeButton.interactable = true;
-            backendButton.interactable = true;
-            weightsButton.interactable = File32() != null;
+            backendButton.interactable = !useLlama;   // Backend and Weights are Meta's runner's settings
+            weightsButton.interactable = !useLlama && File32() != null;
             UpdateLabels();
             if (loadAtStart)
             {
