@@ -86,7 +86,8 @@ A1.7d's runs, which used Meta's runner in the same app.
 | 12 | the same, 4 threads | as run 11, with Threads set to 4 first | 5 |
 
 `check_headset.py` checks every answer against the PC references and every set of scores against PyTorch's (D56),
-with `--reference 20260929_A1_r016 20260930_A1_r026`.
+with `--reference 20260929_A1_r016 20260930_A1_r026`. Recording from before Load also captures the load; the summary
+then reports its memory jump on the memory line instead of flagging it.
 
 ## Comparing two runs
 

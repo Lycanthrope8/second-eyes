@@ -71,3 +71,18 @@ distribution, worst prompt.
   PyTorch. Load takes 0.55 s without it, 1.2–1.4 s with.
 - **Batched scoring** equals one by one exactly with flash attention on.
 - **Stripped**, `libse_llama.so` is 5.9 MB and `llama-bench` 5.2 MB.
+
+## In the app (A1.8c, D58, D59)
+
+The panel's llama.cpp runtime on the headset, 2 threads, runs `20260930_A1_r032`–`20261001_A1_r036`.
+
+- **Same results as from the command line.** Every answer equals the PC's, and the scores land exactly where the
+  command line's cached path put them: 0.021, 0.035, 0.002 and 0.000 from PyTorch on the four prompts.
+- **Speed.** Load 1.1–1.5 s. The first command evaluates the scene: 1.3 s to the first token. With the scene cached,
+  0.3 s to the first token, the 15-token answer done at 0.8 s, and scoring five objects 0.30 s.
+- **No frame lost.** Ten minutes of a command every 6 s: 72.5 fps, 0 seconds below 71 fps, 2 stale frames.
+- **Memory.** Loading adds about 1.07 GB at once (app 1.95 → 3.02 GB), leaving the headset about 2 GB free.
+- **Threads.** The app's extra threads run on cores 3–5 only; cores 0–2 carry the headset's own work. Two llama.cpp
+  threads fit; four take 3.45 s per token, because llama.cpp's threads wait for each other at the end of every step
+  and four on three cores keep one waiting (D59). From `adb shell` the program has the cores to itself, so there 4
+  threads were fastest.

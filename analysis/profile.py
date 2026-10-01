@@ -170,6 +170,28 @@ def frameless(before: dict, after: dict) -> int:
     return 0
 
 
+def model_loads(raw: Path) -> list:
+    """When the model loaded, from the event logs: (start, end) in UTC seconds, the start being the panel's 'loading'
+    mark when there is one. A memory jump inside such a span is the load, not the headset coming off (A1.8c)."""
+    try:
+        from eventlog import read_events
+    except ImportError:
+        return []
+    spans = []
+    for log in sorted(raw.glob("*.jsonl")):
+        if log.name == "sampler.jsonl":
+            continue
+        start = None
+        for e in read_events(log):
+            t = e.get("utc_us", 0) / 1e6
+            if e.get("ev") == "mark" and str(e.get("data", {}).get("text", "")).startswith("loading "):
+                start = t
+            elif e.get("ev") == "model.load":
+                spans.append(((start if start is not None else t - 15.0) - 2.0, t + 5.0))
+                start = None
+    return spans
+
+
 def phase_fps(rows: list, intervals: list):
     """Mean frame rate over the given time intervals, each row standing for the second before it and a gap in the
     rows for seconds without frames (A1.7d: the app freezes, and OVR Metrics writes nothing)."""
@@ -216,6 +238,8 @@ def summarize(run_id: str) -> dict:
                  boundary_gpu_ms=statistics.mean(column(rows, "guardian_gpu_time_microseconds") or [0]) / 1000,
                  boundary_share=sum(1 for v in column(rows, "guardian_gpu_time_microseconds") if v > 0) / len(rows) * 100)
         sends = prompt_passes(raw)
+        loads = model_loads(raw)
+        s["load_jumps"] = []
         in_pass = []
         for before, after in zip(rows, rows[1:]):
             m0, m1 = number(before, "app_pss_MB"), number(after, "app_pss_MB")
@@ -227,7 +251,10 @@ def summarize(run_id: str) -> dict:
                 else:
                     s["flags"].append(f"no OVR Metrics rows for {gap:.0f} s at {when:.0f} s (app paused or headset off?)")
             if m0 is not None and m1 is not None and m1 - m0 > JUMP_MB:
-                s["flags"].append(f"app memory jumped {m1 - m0:+.0f} MB at {when:.0f} s")
+                if any(a <= after["_t"] <= b for a, b in loads):
+                    s["load_jumps"].append((m1 - m0, when))   # the model loading: reported, not a flag
+                else:
+                    s["flags"].append(f"app memory jumped {m1 - m0:+.0f} MB at {when:.0f} s")
         if len(used) > 1:
             s["flags"].append(f"{len(used)} OVR Metrics sessions in one recording: the app restarted")
         s["pass_gaps"] = in_pass
@@ -290,7 +317,8 @@ def print_summary(s: dict) -> None:
               f"levels CPU {s['cpu_levels']} GPU {s['gpu_levels']}")
         print(f"  memory   app {s['app_mem_start_mb']:.0f} -> {s['app_mem_end_mb']:.0f} MB (max {s['app_mem_max_mb']:.0f}), "
               f"of it graphics {fmt(s['gpu_mem_start_mb'])} -> max {fmt(s['gpu_mem_max_mb'])} MB, "
-              f"headset free min {s['free_min_mb']:.0f} MB")
+              f"headset free min {s['free_min_mb']:.0f} MB"
+              + "".join(f"; the model's load added {j:+.0f} MB at {w:.0f} s" for j, w in s.get("load_jumps", [])))
     print(f"  heat     SoC {fmt(s['soc_start'], '{:.1f}')} -> {fmt(s['soc_end'], '{:.1f}')} C "
           f"(max {fmt(s['soc_max'], '{:.1f}')}), battery {fmt(s['batt_start'], '{:.1f}')} -> {fmt(s['batt_end'], '{:.1f}')} C, "
           f"thermal status max {fmt(s['thermal_max'])}" + (f", power mean {s['power_mean_w']:.1f} W" if s["rows"] else ""))
