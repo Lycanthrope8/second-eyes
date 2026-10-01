@@ -4,7 +4,7 @@ Language grounding (proposal §6): the scene schema, the relation library for us
 
 | Path | What it is | Since |
 |---|---|---|
-| `models/<name>.json` | a model description: which model, its shape, chat template, length limits and the headset provider's run settings (`provider`); Second Eyes → Fill chat provider copies them into the provider asset | A1.7b |
+| `models/<name>.json` | a model description: which model, its shape, chat template, length limits and the run settings of Meta's provider (`provider`), used only for A1.7's comparison since D60; Second Eyes → Fill chat provider copies them into the provider asset | A1.7b |
 | `models/<name>/` | the downloaded and exported model files (ignored by Git; recreate with `export_onnx.py`) | A1.7b |
 | `prompts/<id>.json` | a fixed prompt: system message, user text and the expected target. `a17-fixed` and the presets `a17-front`, `a17-left` and `a17-table` share one scene and system message and differ in their command (D49). The headset's test panel reads a copy in `quest-app/Assets/SecondEyes/Grounding/Prompts/`; `check_headset.py` compares token IDs, so a stale copy can't pass | A1.7b |
 | `meta_runner.py` | a Python mirror of Meta's on-device runner: the model's input and output names and its generation loop | A1.7b |
@@ -25,4 +25,15 @@ Python 3.9 or newer, and a few GB of downloads the first time:
 python -m pip install -r grounding/requirements.txt
 ```
 
-To use a different model, add a description in `models/` and export it; the tools and the headset's provider asset read everything model-specific from there.
+## On the headset
+
+Since D60 the headset runs the model with llama.cpp: `export_gguf.py` makes the 8-bit GGUF from the download
+`export_onnx.py` made, and `llama_headset.py push-model` copies it into the app's data folder. The ONNX export, the
+`.sentis` conversion and Meta's provider asset (`copy_to_unity.py`, Second Eyes → Convert model and Fill chat provider)
+stay only for comparison with Meta's runner (A1.7).
+
+The model's revision is pinned to a Hugging Face commit in its description (D61), so a download on another PC gets the
+same weights as the headset's file and the references.
+
+To use a different model, add a description in `models/` and export it; the tools read everything model-specific from
+there.

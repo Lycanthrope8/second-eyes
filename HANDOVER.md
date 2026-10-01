@@ -6,6 +6,33 @@ Written 2026-10-01, at the end of A1.8, to start A2 in a new chat. Update it at 
 file summarizes; the repository decides. Don't rely on memory, yours or a summary's: when this file and a record
 disagree, the record wins, and the disagreement is worth reporting.
 
+## The project lead's standing constraints
+
+These apply to every chat, every phase, until the project lead changes them. The quotes are the project lead's own
+words.
+
+1. **Approval first** (2026-09-27): *"Throughout this chat you must not assume anything and do it on your own. You must
+   ask me for approval."* Propose before building or changing anything, in the repository or on the headset, including
+   small fixes noticed along the way. Where there's a choice, give the options with a recommendation. If something is
+   unclear or inconsistent, raise it instead of fixing it quietly; if an interpretation is needed, state it and ask.
+2. **Few steps per response** (2026-09-27): *"Do not try to finish a lot of steps in one response."* One step or
+   sub-step per response, delivered and tested before the next.
+3. **No far-future planning** (2026-09-27): *"I don't want you to overthink about too far future."* The Go/No-go gates
+   may end or change the plan, so plan up to the next gate.
+4. **Easy to understand later** (2026-09-27): *"Do it in such a way that in future it takes less time for me to
+   understand everything"*, with a repository that is well structured and easy to maintain.
+5. **Every computation on the Quest counts** (2026-09-27): *"I don't want to waste any computational power."*
+6. **Later, not now:** Vicon until it is actually used (2026-09-27, D10); participants and Vicon until they are needed
+   (2026-10-01); S0 items 5 and 6, storage and experiment tracking, until headset feasibility is known (D1).
+
+**A slip to avoid:** in A1.8c's results round the assistant added two tool changes nobody had asked for
+(`runs.py set`, the load-jump report). Useful, but they should have been proposed first, under constraint 1.
+
+**Direction, 2026-10-01:** the project lead wants to finish the whole pipeline first, leaving participants and Vicon for
+later, and may split the project into one repository per paper after meeting the advisor next week. Ask what "the
+whole pipeline first" means for the order of A2, A1.9–A1.11 and the drone steps before proposing one, and don't
+restructure the repository before the project lead decides.
+
 ## 1. Sources
 
 | What | Where |
@@ -57,7 +84,7 @@ latency budget. Speech, the detector and the 30-minute soak are still to measure
 
 | Part | What | Where |
 |---|---|---|
-| Model | Qwen2.5-0.5B-Instruct, pinned revision in its description | `grounding/models/qwen2.5-0.5b-instruct.json` |
+| Model | Qwen2.5-0.5B-Instruct, pinned to commit `7ae55760…` in its description (D61) | `grounding/models/qwen2.5-0.5b-instruct.json` |
 | Headset file | GGUF, 8-bit (Q8_0), 531 MB, SHA-256 starting `dd753cd6` | made by `grounding/export_gguf.py`; pushed by `grounding/llama_headset.py push-model` into `/sdcard/Android/data/com.secondeyes.quest/files/` |
 | Runtime | llama.cpp `b11277` (`eae11d22`) | pinned in `native/llama.cpp.pin`; fetched and built by `tools/build_llama.py` |
 | Our C interface | load with options, prompt with scene cache, greedy answer, candidate scoring in one batch (`se_score_many`) | `native/se_llama.h`, `native/se_llama.cpp`; tests in `native/tests/` |
@@ -74,7 +101,12 @@ PyTorch's, and the cached path's shares lie within a total variation distance of
 **Numbers in the app, 2 threads** (`notes/phases/A1.8c_llama_app.md`): load 1.1–1.5 s; first command 1.3 s to the
 first token (the scene is evaluated); with the scene cached 0.3 s to the first token, 0.03 s per token, the 15-token
 answer at 0.8 s, scoring five objects 0.30 s; 72.5 fps with 0 seconds below 71 while answering; app +1.07 GB.
-Meta's runner for comparison: 24.8 s per answer and 43.3 fps at its best usable setting (A1.7d).
+Meta's runner for comparison, at 50 steps per frame: 24.8 s per answer and 37.1 fps while answering, 43.3 fps over
+the run (A1.7d; while answering it gave 13.4, 37.1 and 64.6 fps at 150, 50 and 15 steps).
+
+**Reproduced is not correct.** "Equal to the PC" means the headset reproduces the model, not that the model is right.
+Zero-shot, it answers `a17-fixed` ("Inspect the box behind the table.") with `box_1`; the expected `box_2` ranks third
+in PyTorch's scores (`r026`). The other three presets are right. Each prompt file records its expected target.
 
 **Why 2 threads:** the app's extra threads get cores 3–5 only; four llama.cpp threads on three cores wait for each
 other at every step, and a token took 3.45 s (D59).
@@ -99,9 +131,10 @@ Qwen's tokenizer files are tracked (D35), in `quest-app/Assets/SecondEyes/Models
 
 ## 6. How we work
 
-**Steps and approvals.** Each step is proposed first: what, how, its test, and any choice with a recommendation. The
-project lead approves, usually by picking an option, and the approval becomes a D-entry. Nothing changes on the
-headset without approval (`docs/setup/quest3.md`).
+**Steps and approvals** (constraints 1 and 2). Each step is proposed first: what, how, its test, and any choice with
+a recommendation. The project lead approves, usually by picking an option, and the approval becomes a D-entry. Nothing
+changes on the headset without approval (`docs/setup/quest3.md`). Reading and analysing files the project lead sends,
+to answer what was asked, has been done directly; anything that builds or changes something waits for approval.
 
 **Instructions.** Numbered steps labeled **[PC]**, **[Unity]** or **[Headset]**, with commands to copy into Windows
 PowerShell. Keep commands and run notes in plain ASCII. The newest run's ID is captured with
@@ -168,7 +201,10 @@ O16 where three Android permissions come from.
   Backend and Weights greyed out.
 - **A1's phase note** is written when A1 closes, from the sub-step notes.
 - **A0** (scope freeze, IRB submission, thresholds agreed with the advisor) hasn't been part of these chats. Ask
-  about its status: A3 needs IRB approval, and Gate B's thresholds are proposed defaults until agreed.
+  about its status when it matters: Gate B's thresholds are proposed defaults until agreed, and A3 needs IRB approval
+  (participants wait, constraint 6).
+- **Experiment tracking.** D1 defers it until Gate A, but A2's training runs start before Gate A. Ask whether run
+  records are enough for A2 or tracking comes earlier.
 
 ## 9. Lessons and pitfalls
 
@@ -192,7 +228,9 @@ on held-out natural commands, at least 10 points above rules and within 5 points
 
 **What A1 gives A2:** candidate scoring is already the "direct selection" design, with confidences; any fine-tuned
 model becomes a GGUF for the same runtime, and the headset's command line can check its scores against PyTorch's
-(D56) in minutes.
+(D56) in minutes. **What A1 doesn't give:** any evidence of correctness. A1 checked that the headset reproduces the
+model; on its four prompts the model is right on three and wrong on "the box behind the table". Measuring and
+improving correctness over many commands is A2's job.
 
 **Suggested breakdown,** to propose in detail and approve one step at a time:
 
@@ -218,12 +256,34 @@ which can be collected remotely.
 
 ## 11. Starting a new chat
 
-Upload the repository as a zip made by Git (tracked files only, a few MB), from a clean, pushed working copy:
+Make the zip from a clean, pushed working copy (tracked files only, a few MB):
 
 ```
 git status
+git rev-parse --short HEAD
 git archive --format=zip -o "$HOME\Downloads\second-eyes-src.zip" HEAD
 ```
 
-Then write: *"We're continuing Second Eyes. Attached is the repository at commit `<short hash>`. Read `HANDOVER.md`
-first, check what you need in the files it points to, tell me what you understood, then propose the next step."*
+Open the new chat inside the Claude project, so it sees the proposal and can search earlier chats. Upload the zip and
+paste the prompt below, with the commit's short hash filled in.
+
+> We're continuing the Second Eyes project. Attached is second-eyes-src.zip, the repository at commit `<short hash>`.
+> The proposal, Second_Eyes_Research_Proposal_Revision_3.pdf, is in this project's files.
+>
+> Read HANDOVER.md first, then check what you need in the files it points to. Don't rely on memory or summaries:
+> the repository decides.
+>
+> My standing constraints, from the start of the project:
+>
+> 1. Don't assume anything and don't do anything on your own. Propose first and wait for my approval, even for small
+>    fixes. Where there's a choice, give me the options with your recommendation. If something is unclear or
+>    inconsistent, ask; don't fix it quietly.
+> 2. One step at a time. Don't try to finish many steps in one response.
+> 3. Don't plan too far ahead. The Go/No-go gates may end or change things, so plan up to the next gate.
+> 4. Keep everything easy for me to understand later: clear records and a well-structured repository.
+> 5. Every computation on the Quest 3 counts. Don't waste its compute or memory.
+> 6. Vicon and participants wait until I actually need them. Storage and experiment tracking wait until headset
+>    feasibility is settled.
+>
+> Start by telling me briefly what you understood, and ask me what "finish the whole pipeline first" means for the
+> order of the next steps. Then propose the next step and wait for my approval.
