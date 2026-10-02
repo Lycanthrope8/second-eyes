@@ -31,23 +31,25 @@ words.
 **A slip to avoid:** in A1.8c's results round the assistant added two tool changes nobody had asked for
 (`runs.py set`, the load-jump report). Useful, but they should have been proposed first, under constraint 1.
 
-**Direction, 2026-10-01:** the project lead wants to finish the whole pipeline first, leaving participants and Vicon for
-later, and may split the project into one repository per paper after meeting the advisor next week. Ask what "the
-whole pipeline first" means for the order of A2, A1.9–A1.11 and the drone steps before proposing one, and don't
-restructure the repository before the project lead decides.
+**Direction, 2026-10-01:** finish the whole pipeline first: build every stage of the system before participants and
+Vicon. This doesn't mean closing Gate A first. The order is A2, then A1.10, then A1.11, with on-device speech (A1.9)
+last, before the pilot study; commands are typed text until then (D62, D63). The project lead may split the project
+into one repository per paper after meeting the advisor next week; don't restructure the repository before the
+project lead decides.
 
 ## 1. Sources
 
 | What | Where |
 |---|---|
 | The plan | `Second_Eyes_Research_Proposal_Revision_3.pdf`, in the Claude project's files. Phase IDs (S0, A0–A10, B1–B3) follow its Section 10 and its Phases part |
-| Decisions and open items | `notes/decisions.md`: D1–D62, and the open items O3–O16 at its top |
+| The plan's A2 revision | `Second_Eyes___Revision_3_1_supplement_A2_and_the_sections_it_touches.pdf`, in the Claude project's files; text in `docs/plan/revision-3.1-supplement.md`. Replaces Revision 3's A2 card and every passage A2 touches (D63) |
+| Decisions and open items | `notes/decisions.md`: D1–D65, and the open items O3–O21 at its top |
 | Failures, including the assistant's own errors | `notes/failures.md` |
 | Limitations for the papers | `notes/limitations.md` |
 | Phase and sub-step notes | `notes/phases/`: S0, A1.7d, A1.8b, A1.8c, and `_template.md` |
 | Facts about tools, runtimes and procedures | `docs/` (see section 5) |
 | Status | the table in `README.md` |
-| Earlier chats | searchable from any chat in this project; the repository wins when they disagree |
+| Earlier chats | only the chat the project lead names (constraint 7), and only when needed; the repository wins when they disagree |
 
 ## 2. The project in brief
 
@@ -73,9 +75,9 @@ agreed at its start:
 | A1.6 | Cost of the empty app | tools done (`r007`); the measurement folded into A1.7d | D24, D25 |
 | A1.7 | Language model on the headset with Meta's runner (path A) | done: correct, but too slow and drops frames | `r008`–`r022`, `notes/phases/A1.7d_model_cost.md` |
 | A1.8 | Token probabilities and caching; path B, llama.cpp | done (A1.8a–d) | `r023`–`r036`, A1.8b and A1.8c notes; D53–D60 |
-| A1.9 | Offline speech recognition, push-to-talk | **open** | |
-| A1.10 | Object detector on passthrough, alone and beside the model | **open** | `docs/meta-ai.md` has the starting point |
-| A1.11 | Everything together, 30-minute soak: Gate A | **open** | |
+| A1.9 | Offline speech recognition, push-to-talk | **open**: last, before A9 (D63) | |
+| A1.10 | Object detector on passthrough, alone and beside the model | **open**: after A2 (D63) | `docs/meta-ai.md` has the starting point |
+| A1.11 | Everything together, 30-minute soak: Gate A evidence | **open**: after A1.10 (D63); Gate A per O19 | |
 
 **Gate A** is open. For the language model alone: the frame rate holds (2 stale frames in 10 minutes of commands),
 memory fits (+1.07 GB, about 2 GB left free), no throttling in 10 minutes, and with the scene cached the panel as
@@ -84,7 +86,9 @@ The 0.6 s given earlier, here and in the A1 report, was an estimate for a scores
 0.3 s, plus the scores), which no run measured as such (`notes/failures.md`). Speech, the detector and the 30-minute
 soak are still to measure.
 
-**Next:** A2 (section 10), with A1.9–A1.11 alongside. A2 depends on A1's runtime path only, and that is settled (D60).
+**Next:** A2, as the Revision 3.1 supplement plans it (D63, section 10), starting with A2.1's specification. Then
+A1.10, A1.11, and A1.9 last. How Gate A is judged while speech waits is the advisor's decision, before A1.11 (D65,
+O19).
 
 ## 4. The language model on the headset (A1's outcome)
 
@@ -128,7 +132,7 @@ other at every step, and a token took 3.45 s (D59).
 | `quest-app/` | the Unity project; our code in `Assets/SecondEyes/` (`App/`, `Logging/`, `Grounding/`, `Editor/`); versions in `quest-app/README.md` |
 | `perception/`, `drone-bridge/` | placeholders for A4 and A6 |
 | `schemas/` | `run-config.v1.json`, `log-event.v1.json` |
-| `docs/` | `conventions.md`, `logging.md`, `profiling.md`, `meta-ai.md`, `llama-cpp.md`, `setup/` (`quest3.md`, `quest-model.md`, `llama-headset.md`) |
+| `docs/` | `conventions.md`, `logging.md`, `profiling.md`, `meta-ai.md`, `llama-cpp.md`, `setup/` (`quest3.md`, `quest-model.md`, `llama-headset.md`), `plan/` (`revision-3.1-supplement.md`, the plan's text, verbatim) |
 | `notes/` | decisions, failures, limitations, phase notes |
 | `runs/` | one folder per run: `config.yaml` tracked, `raw/` ignored (D8) |
 
@@ -190,7 +194,8 @@ time with options to pick.
 **Open items** (`notes/decisions.md`): O3 coordinate frames and units in logs · O4 recording Vicon for clock
 alignment · O7 where Track B lives · O8 Git tag names for gates · O9 raw-data storage · O10 experiment tracking and
 figure scripts · O13 drawing hand and controller models · O14 graphics memory grows about 1.6 GB per headset off-on ·
-O16 where three Android permissions come from.
+O16 where three Android permissions come from · O19 how Gate A is judged while speech waits (with the advisor) · O20
+Gate B's thresholds (with the advisor) · O21 how typed commands reach the app for A2.5.
 
 **Loose ends from A1:**
 
@@ -207,8 +212,8 @@ O16 where three Android permissions come from.
   Backend and Weights greyed out.
 - **A1's phase note** is written when A1 closes, from the sub-step notes.
 - **A0** (scope freeze, IRB submission, thresholds agreed with the advisor) hasn't been part of these chats. Ask
-  about its status when it matters: Gate B's thresholds are proposed defaults until agreed, and A3 needs IRB approval
-  (participants wait, constraint 6).
+  about its status when it matters: Gate B's thresholds are proposed defaults until agreed (O20), and A3 needs IRB
+  approval (participants wait, constraint 6).
 - **Experiment tracking.** D1 defers it until Gate A, but A2's training runs start before Gate A. Ask whether run
   records are enough for A2 or tracking comes earlier.
 
@@ -227,10 +232,19 @@ O16 where three Android permissions come from.
 
 ## 10. A2 · Grounding baselines
 
-**The proposal's card (weeks 2–4):** measure how well rules, a small model and a large model map commands to semantic
-goals, before any drone is involved. Exit: preliminary Gate B on synthetic and lab-member commands; the final check
-uses A3's test split. **Gate B** (proposed default): the fine-tuned small model reaches at least 90% target accuracy
-on held-out natural commands, at least 10 points above rules and within 5 points of the large model.
+**The plan** is the Revision 3.1 supplement's A2 card (D63; text in `docs/plan/revision-3.1-supplement.md`), which
+replaces Revision 3's. A2 ends at preliminary Gate B, whose thresholds are still to agree with the advisor (O20), and
+claims no Gate A pass (D65). Commands are typed text, published data is the main training source, no custom scene
+generator is built, and the natural lab commands are for evaluation only.
+
+| Step | What | Runs on |
+|---|---|---|
+| A2.1 | A short specification of the scene contract, relations, outputs and outcomes; then the validator, serializer, relation library and shared resolver, checked with independently reviewed fixtures | any PC |
+| A2.2 | Published data, starting with an IRef-VLA subset: access, an adapter and scene-disjoint splits; 50–100 natural lab-member text commands collected and held out | a PC with room for the data |
+| A2.3 | Rules, zero-shot Qwen2.5-0.5B-Instruct and a larger reference model on equivalent scene evidence; two formats shortlisted | any PC; the larger model on the RTX |
+| A2.4 | A bounded, matched LoRA comparison of direct selection and query parsing | RTX |
+| A2.5 | The exported grounder checked against the PC and measured in the Quest app, from typed submission to validated goal, grounding-only (O21) | RTX, then the headset |
+| A2.6 | Preliminary Gate B on frozen evaluations, with public data and lab commands reported separately | any PC |
 
 **What A1 gives A2:** candidate scoring is already the "direct selection" design, with confidences; any fine-tuned
 model becomes a GGUF for the same runtime, and the headset's command line can check its scores against PyTorch's
@@ -238,27 +252,17 @@ model becomes a GGUF for the same runtime, and the headset's command line can ch
 model; on its four prompts the model is right on three and wrong on "the box behind the table". Measuring and
 improving correctness over many commands is A2's job.
 
-**Suggested breakdown,** to propose in detail and approve one step at a time:
-
-| Step | What | Runs on |
-|---|---|---|
-| A2.1 | Scene schema and relation library: Section 6.5's relations in user, drone and object frames, thresholds as parameters, tested | any PC |
-| A2.2 | Scene generator (3–10 props, duplicates, partitions) and the four formats (coordinate JSON, SpatialLM-style code, relation lists, user-relative bearings), with token counts from Qwen's tokenizer and headset latency from the curve above | any PC |
-| A2.3 | Commands: templates with targets correct by construction; paraphrases from a large model, kept only if the relation library confirms the target; 50–100 written by lab members; the test set stratified by phenomenon (Section 9.3) | RTX for paraphrases |
-| A2.4 | Baselines: rule parser with the shared deterministic resolver; Qwen-0.5B zero-shot with constrained output; a large model as the ceiling | RTX |
-| A2.5 | LoRA fine-tuning on synthetic data; a smaller model; GGUF export and a headset check | RTX, then the headset |
-| A2.6 | Evaluation by model, design (direct selection against query parsing), format and phenomenon; the accuracy–latency frontier; annotated failures; preliminary Gate B | any PC |
-
 **Where A2 runs:** almost all of it on the lab PC through Remote Desktop, so being in the lab isn't needed. Long jobs
 keep running when Remote Desktop is disconnected, but not after signing out or a forced restart. The headset is
-needed only for the latency curve and GGUF checks, and for A1.9–A1.11, from whichever PC it is plugged into.
+needed only for the latency curve (section 8) and A2.5, from whichever PC it is plugged into.
 
-**To settle at A2's start:** the lab PC's operating system, CUDA and Python versions and free disk; how models move
-between the lab PC and the PC the headset is plugged into (Git carries code, not models); which large model serves as
-the ceiling; A0's status.
+**To settle when A2 first needs the lab PC:** its operating system, CUDA and Python versions and free disk; how models
+move between the lab PC and the PC the headset is plugged into (Git carries code, not models); which larger reference
+model to use; A0's status.
 
-**Needed from the project lead:** access to the lab PC; about an hour of lab members' time for the 50–100 commands,
-which can be collected remotely.
+**Needed from the project lead:** access to the lab PC; the data-access requests, which start with A2 (ScanNet where
+the chosen files need it); about an hour of lab members' time for the 50–100 commands, which can be collected
+remotely.
 
 ## 11. Starting a new chat
 
@@ -270,11 +274,12 @@ git rev-parse --short HEAD
 git archive --format=zip -o "$HOME\Downloads\second-eyes-src.zip" HEAD
 ```
 
-Open the new chat inside the Claude project, so it sees the proposal and can search earlier chats. Upload the zip and
-paste the prompt below, with the commit's short hash filled in.
+Open the new chat inside the Claude project, so it sees the proposal and its supplement and can read the chat the
+prompt names. Upload the zip and paste the prompt below, with the commit's short hash and that chat's name filled in.
 
 > We're continuing the Second Eyes project. Attached is second-eyes-src.zip, the repository at commit `<short hash>`.
-> The proposal, Second_Eyes_Research_Proposal_Revision_3.pdf, is in this project's files.
+> The proposal, Second_Eyes_Research_Proposal_Revision_3.pdf, and its Revision 3.1 supplement are in this project's
+> files.
 >
 > Read HANDOVER.md first, then check what you need in the files it points to. Don't rely on memory or summaries:
 > the repository decides.
@@ -290,6 +295,7 @@ paste the prompt below, with the commit's short hash filled in.
 > 5. Every computation on the Quest 3 counts. Don't waste its compute or memory.
 > 6. Vicon and participants wait until I actually need them. Storage and experiment tracking wait until headset
 >    feasibility is settled.
+> 7. If you must look into any chats, just refer to the chat named "<chat name>." Don't look into any other chats
+>    because I don't want you to be confused.
 >
-> Start by telling me briefly what you understood, and ask me what "finish the whole pipeline first" means for the
-> order of the next steps. Then propose the next step and wait for my approval.
+> Start by telling me briefly what you understood. Then propose the next step and wait for my approval.

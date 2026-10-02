@@ -14,5 +14,6 @@ How this repository is organized, and the rules that keep it easy to follow. The
 8. **Photograph every physical setup on the day it is built:** props, partitions, cradle, tag and markers. Keep the originals outside the repository until storage is decided (O9).
 9. **Tag a Git release at every gate.** Tag names are open item O8.
 10. **Suggestions are not decisions.** Something is decided only once it has been approved and logged in `notes/decisions.md`.
+11. **The plan's text is verbatim.** Unlike the rest of `docs/`, `docs/plan/` holds the approved plan's text verbatim; it changes only with a new revision, logged in `notes/decisions.md`.
 
 Anything not written here is not decided yet. The open list is in `notes/decisions.md`.
