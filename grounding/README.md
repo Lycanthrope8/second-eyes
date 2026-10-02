@@ -21,6 +21,9 @@ Language grounding (proposal §6, with A2 as the Revision 3.1 supplement plans i
 | `relations/geometry.py`, `relations/predicates.py` | the relation library (`docs/relations.md`): closest and farthest, near, above, below, on, inside and between over validated scene records, with three-valued results and field-level provenance | A2.1b |
 | `relations/relations.v1.json` | the relation library's provisional parameters (format `schemas/relation-config.v1.json`) | A2.1b |
 | `tests/test_relations.py`, `tests/fixtures/relations/` | the relation library's tests and reviewed cases: `python grounding/tests/test_relations.py` | A2.1b |
+| `relations/directions.py` | the directional relations (`docs/directions.md`): left, right, in front of and behind in the user-heading, user-to-anchor and object-intrinsic frames | A2.1c |
+| `relations/directions.v1.json` | their provisional band and cutoffs (format `schemas/direction-config.v1.json`) | A2.1c |
+| `tests/test_directions.py`, `tests/fixtures/directions/` | their tests and the brief's fixed cases: `python grounding/tests/test_directions.py` | A2.1c |
 
 ## Setup
 
@@ -30,7 +33,7 @@ Python 3.9 or newer, and a few GB of downloads the first time:
 python -m pip install -r grounding/requirements.txt
 ```
 
-The contract's validator, the relation library and their tests need only `jsonschema` from that list.
+The contract's validator, the relation library, the directional relations and their tests need only `jsonschema` from that list.
 
 ## On the headset
 

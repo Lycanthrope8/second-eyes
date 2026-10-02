@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "record_type": "command_context",
+  "command_id": "fx.dir.v.nohead",
+  "text": "Direction fixture: heading and user rotation unknown.",
+  "scene_id": "fixture.dir.v",
+  "scene_revision": 0,
+  "sources": [
+    {
+      "source_id": "fx",
+      "kind": "fixture",
+      "description": "A2.1c direction fixture command: heading and user rotation unknown; all values are test values",
+      "release": "fixture-v1"
+    }
+  ],
+  "assumptions": [],
+  "user_pose": {
+    "pose_kind": "authored",
+    "frame_id": "scene",
+    "scene_revision": 0,
+    "position_m": {"state": "known", "value": [0.0, 0.0, 1.6], "evidence": {"kind": "annotated", "source": "fx", "assumptions": []}},
+    "rotation_xyzw": {"state": "unknown", "reason": "not_in_source", "source": "fx"},
+    "heading_xy": {"state": "unknown", "reason": "not_in_source", "source": "fx"},
+    "snapshot_time": {"state": "unknown", "reason": "not_in_source", "source": "fx"}
+  }
+}

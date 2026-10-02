@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "record_type": "direction_config",
+  "config_id": "directions.v1",
+  "status": "provisional",
+  "description": "Initial values (A2.1c, D68): documented starting points for later calibration, not estimates of measured perception uncertainty. direction_band_m is a symmetric band on the signed projection, whose edges are both UNKNOWN; the two cutoffs make a frame UNKNOWN at or below them, with no band of their own.",
+  "bands": {"direction_band_m": 0.02},
+  "thresholds": {"viewer_anchor_min_horizontal_m": 0.02, "semantic_front_min_horizontal_norm": 0.1}
+}

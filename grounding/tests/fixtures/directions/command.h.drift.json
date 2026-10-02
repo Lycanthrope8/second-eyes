@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "record_type": "command_context",
+  "command_id": "fx.dir.h.drift",
+  "text": "Direction fixture: heading (0, 1.0000005), within the unit tolerance.",
+  "scene_id": "fixture.dir.h",
+  "scene_revision": 0,
+  "sources": [
+    {
+      "source_id": "fx",
+      "kind": "fixture",
+      "description": "A2.1c direction fixture command: heading (0, 1.0000005), within the unit tolerance; all values are test values",
+      "release": "fixture-v1"
+    }
+  ],
+  "assumptions": [],
+  "user_pose": {
+    "pose_kind": "authored",
+    "frame_id": "scene",
+    "scene_revision": 0,
+    "position_m": {"state": "known", "value": [0.0, 0.0, 1.6], "evidence": {"kind": "annotated", "source": "fx", "assumptions": []}},
+    "rotation_xyzw": {"state": "unknown", "reason": "not_in_source", "source": "fx"},
+    "heading_xy": {
+      "state": "known",
+      "value": [0.0, 1.0000005],
+      "heading_source": "authored",
+      "evidence": {"kind": "annotated", "source": "fx", "assumptions": []}
+    },
+    "snapshot_time": {"state": "unknown", "reason": "not_in_source", "source": "fx"}
+  }
+}

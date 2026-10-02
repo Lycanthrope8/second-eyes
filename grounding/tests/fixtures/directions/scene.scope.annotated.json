@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "record_type": "scene",
+  "scene_id": "fixture.dir.scope",
+  "scene_revision": 0,
+  "evidence_profile": "annotated",
+  "category_map": "map.fx",
+  "coordinate_frame": {
+    "frame_id": "scene",
+    "units": "m",
+    "handedness": "right",
+    "up_axis": "+z",
+    "origin": "as authored for the A2.1c direction fixtures",
+    "conversion": "authored_in_scene_frame"
+  },
+  "sources": [
+    {
+      "source_id": "fx",
+      "kind": "fixture",
+      "description": "A2.1c direction fixture, scope: a scene and a command that use the same local source and assumption IDs; all values are test values",
+      "release": "fixture-v1"
+    }
+  ],
+  "assumptions": [
+    {
+      "assumption_id": "local_note",
+      "description": "A scene-level test assumption; the command's assumption of the same ID is a different one."
+    }
+  ],
+  "objects": [
+    {
+      "object_id": "obj_001",
+      "source_ref": {"source_id": "fx", "source_object_id": "item_001", "source_label": "box"},
+      "category": {
+        "state": "known",
+        "value": {"standard": "box", "model": "box"},
+        "evidence": {"kind": "annotated", "source": "fx", "assumptions": []}
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [1.0, 0.0, 0.0],
+          "evidence": {"kind": "annotated", "source": "fx", "assumptions": ["local_note"]}
+        },
+        "size_m": {
+          "state": "known",
+          "value": [0.2, 0.2, 0.2],
+          "evidence": {"kind": "annotated", "source": "fx", "assumptions": []}
+        },
+        "rotation_xyzw": {
+          "state": "known",
+          "value": [0.0, 0.0, 0.0, 1.0],
+          "support": "axis_aligned",
+          "evidence": {"kind": "annotated", "source": "fx", "assumptions": []}
+        }
+      },
+      "semantic_front": {"state": "unknown", "reason": "not_in_source", "source": "fx"},
+      "attributes": {"colours": {"state": "unknown", "reason": "not_in_source", "source": "fx"}},
+      "observation": {
+        "source": "fx",
+        "capture_time": {"state": "unknown", "reason": "not_in_source", "source": "fx"},
+        "detector_confidence": {"state": "unknown", "reason": "not_in_source", "source": "fx"},
+        "geometry_uncertainty": {"state": "unknown", "reason": "not_in_source", "source": "fx"}
+      }
+    }
+  ]
+}

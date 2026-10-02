@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "record_type": "command_context",
+  "command_id": "fx.dir.scope.c001",
+  "text": "Direction fixture: user at the origin facing +y, with a command-level local_note.",
+  "scene_id": "fixture.dir.scope",
+  "scene_revision": 0,
+  "sources": [
+    {
+      "source_id": "fx",
+      "kind": "fixture",
+      "description": "A2.1c direction fixture command: user at the origin facing +y, with a command-level local_note; all values are test values",
+      "release": "fixture-v1"
+    }
+  ],
+  "assumptions": [
+    {
+      "assumption_id": "local_note",
+      "description": "A command-level test assumption; the scene's assumption of the same ID is a different one."
+    }
+  ],
+  "user_pose": {
+    "pose_kind": "authored",
+    "frame_id": "scene",
+    "scene_revision": 0,
+    "position_m": {
+      "state": "known",
+      "value": [0.0, 0.0, 1.6],
+      "evidence": {"kind": "annotated", "source": "fx", "assumptions": ["local_note"]}
+    },
+    "rotation_xyzw": {"state": "unknown", "reason": "not_in_source", "source": "fx"},
+    "heading_xy": {
+      "state": "known",
+      "value": [0.0, 1.0],
+      "heading_source": "authored",
+      "evidence": {"kind": "annotated", "source": "fx", "assumptions": []}
+    },
+    "snapshot_time": {"state": "unknown", "reason": "not_in_source", "source": "fx"}
+  }
+}

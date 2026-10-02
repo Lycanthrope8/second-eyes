@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "record_type": "command_context",
+  "command_id": "fx.dir.i.nopose",
+  "text": "Direction fixture: no user pose.",
+  "scene_id": "fixture.dir.i",
+  "scene_revision": 0,
+  "sources": [
+    {
+      "source_id": "fx",
+      "kind": "fixture",
+      "description": "A2.1c direction fixture command: no user pose; all values are test values",
+      "release": "fixture-v1"
+    }
+  ],
+  "assumptions": [],
+  "user_pose": {
+    "pose_kind": "none",
+    "frame_id": "scene",
+    "scene_revision": 0,
+    "position_m": {"state": "unknown", "reason": "not_in_source", "source": "fx"},
+    "rotation_xyzw": {"state": "unknown", "reason": "not_in_source", "source": "fx"},
+    "heading_xy": {"state": "unknown", "reason": "not_in_source", "source": "fx"},
+    "snapshot_time": {"state": "unknown", "reason": "not_in_source", "source": "fx"}
+  }
+}

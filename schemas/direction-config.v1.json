@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "direction-config.v1.json",
+  "title": "Second Eyes direction configuration, format v1",
+  "description": "The directional relations' band and degeneracy cutoffs (A2.1c, D68). Rules: docs/directions.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "record_type", "config_id", "status", "description", "bands", "thresholds"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "record_type": {"const": "direction_config"},
+    "config_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_.-]{0,127}$"},
+    "status": {
+      "enum": ["provisional", "frozen"],
+      "description": "provisional: initial values, not calibrated; frozen: chosen on development data before an evaluation (specification section 10.1)"
+    },
+    "description": {"type": "string", "minLength": 1},
+    "bands": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["direction_band_m"],
+      "properties": {"direction_band_m": {"$ref": "#/$defs/metres"}}
+    },
+    "thresholds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["viewer_anchor_min_horizontal_m", "semantic_front_min_horizontal_norm"],
+      "properties": {
+        "viewer_anchor_min_horizontal_m": {"$ref": "#/$defs/metres"},
+        "semantic_front_min_horizontal_norm": {"type": "number", "minimum": 0, "exclusiveMaximum": 1}
+      }
+    }
+  },
+  "$defs": {"metres": {"type": "number", "minimum": 0}}
+}

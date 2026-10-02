@@ -1,0 +1,1652 @@
+{
+ "description": "Fixed acceptance cases of A2.1c, transcribed from Section 7 of the implementation brief before the directional code existed. Scores are the brief's arithmetic expressions, which are authoritative; null means no score is computable. Values are exact; scores and measures are compared within tolerance_m.",
+ "tolerance_m": 1e-09,
+ "scenes": {
+  "h": "scene.h.annotated.json",
+  "h.r": "scene.h.restricted.json",
+  "v": "scene.v.annotated.json",
+  "v.r": "scene.v.restricted.json",
+  "i": "scene.i.annotated.json",
+  "i.r": "scene.i.restricted.json",
+  "scope": "scene.scope.annotated.json"
+ },
+ "commands": {
+  "h.base": "command.h.base.json",
+  "h.east": "command.h.east.json",
+  "h.diag": "command.h.diag.json",
+  "h.nopos": "command.h.nopos.json",
+  "h.nohead": "command.h.nohead.json",
+  "h.drift": "command.h.drift.json",
+  "v.base": "command.v.base.json",
+  "v.north": "command.v.north.json",
+  "v.east": "command.v.east.json",
+  "v.at_anchor": "command.v.at_anchor.json",
+  "v.at_anchor_low": "command.v.at_anchor_low.json",
+  "v.nohead": "command.v.nohead.json",
+  "v.nopos": "command.v.nopos.json",
+  "i.nopose": "command.i.nopose.json",
+  "scope.c001": "command.scope.c001.json"
+ },
+ "rows": [
+  {
+   "id": "D01",
+   "section": "7.1",
+   "inputs": "H; T=(1,0)",
+   "calls": [
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "right",
+     "target": "obj_001",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "true",
+      "score": "1",
+      "reasons": []
+     }
+    }
+   ]
+  },
+  {
+   "id": "D02",
+   "section": "7.1",
+   "inputs": "H; T=(1,0)",
+   "calls": [
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "left",
+     "target": "obj_001",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "false",
+      "score": "-1",
+      "reasons": [
+       "failed:left"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "D03",
+   "section": "7.1",
+   "inputs": "H; T=(0,1)",
+   "calls": [
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "in_front_of",
+     "target": "obj_002",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "true",
+      "score": "1",
+      "reasons": []
+     }
+    }
+   ]
+  },
+  {
+   "id": "D04",
+   "section": "7.1",
+   "inputs": "H; T=(0,-1)",
+   "calls": [
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "behind",
+     "target": "obj_003",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "true",
+      "score": "-(-1)",
+      "reasons": []
+     }
+    }
+   ]
+  },
+  {
+   "id": "D05",
+   "section": "7.1",
+   "inputs": "H; T=(1,1)",
+   "calls": [
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "right",
+     "target": "obj_004",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "true",
+      "score": "1",
+      "reasons": []
+     }
+    },
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "in_front_of",
+     "target": "obj_004",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "true",
+      "score": "1",
+      "reasons": []
+     }
+    }
+   ]
+  },
+  {
+   "id": "D06",
+   "section": "7.1",
+   "inputs": "H; H=(1,0); T=(1,0)",
+   "calls": [
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "right",
+     "target": "obj_001",
+     "anchor": null,
+     "command": "h.east",
+     "expect": {
+      "value": "unknown",
+      "score": "1*0+0*(-1)",
+      "reasons": [
+       "boundary:right"
+      ]
+     }
+    },
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "in_front_of",
+     "target": "obj_001",
+     "anchor": null,
+     "command": "h.east",
+     "expect": {
+      "value": "true",
+      "score": "1",
+      "reasons": []
+     }
+    }
+   ]
+  },
+  {
+   "id": "D07",
+   "section": "7.1",
+   "inputs": "V; T=(1,2)",
+   "calls": [
+    {
+     "scene": "v",
+     "frame": "user_to_anchor",
+     "relation": "right",
+     "target": "obj_002",
+     "anchor": "obj_001",
+     "command": "v.base",
+     "expect": {
+      "value": "true",
+      "score": "1",
+      "reasons": []
+     }
+    },
+    {
+     "scene": "v",
+     "frame": "user_to_anchor",
+     "relation": "left",
+     "target": "obj_002",
+     "anchor": "obj_001",
+     "command": "v.base",
+     "expect": {
+      "value": "false",
+      "score": "-1",
+      "reasons": [
+       "failed:left"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "D08",
+   "section": "7.1",
+   "inputs": "V; T=(0,3)",
+   "calls": [
+    {
+     "scene": "v",
+     "frame": "user_to_anchor",
+     "relation": "behind",
+     "target": "obj_003",
+     "anchor": "obj_001",
+     "command": "v.base",
+     "expect": {
+      "value": "true",
+      "score": "-(2-3)",
+      "reasons": []
+     }
+    },
+    {
+     "scene": "v",
+     "frame": "user_to_anchor",
+     "relation": "in_front_of",
+     "target": "obj_003",
+     "anchor": "obj_001",
+     "command": "v.base",
+     "expect": {
+      "value": "false",
+      "score": "-1",
+      "reasons": [
+       "failed:in_front_of"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "D09",
+   "section": "7.1",
+   "inputs": "V; U=(0,4); T=(0,3)",
+   "calls": [
+    {
+     "scene": "v",
+     "frame": "user_to_anchor",
+     "relation": "in_front_of",
+     "target": "obj_003",
+     "anchor": "obj_001",
+     "command": "v.north",
+     "expect": {
+      "value": "true",
+      "score": "0*0+1*1",
+      "reasons": []
+     }
+    }
+   ]
+  },
+  {
+   "id": "D10",
+   "section": "7.1",
+   "inputs": "V; U=(0,4); T=(1,2)",
+   "calls": [
+    {
+     "scene": "v",
+     "frame": "user_to_anchor",
+     "relation": "right",
+     "target": "obj_002",
+     "anchor": "obj_001",
+     "command": "v.north",
+     "expect": {
+      "value": "false",
+      "score": "1*(-1)+0*0",
+      "reasons": [
+       "failed:right"
+      ]
+     }
+    },
+    {
+     "scene": "v",
+     "frame": "user_to_anchor",
+     "relation": "left",
+     "target": "obj_002",
+     "anchor": "obj_001",
+     "command": "v.north",
+     "expect": {
+      "value": "true",
+      "score": "1",
+      "reasons": []
+     }
+    }
+   ]
+  },
+  {
+   "id": "D11",
+   "section": "7.1",
+   "inputs": "V; T=(1,2); change H from (0,1) to (1,0)",
+   "calls": [
+    {
+     "scene": "v",
+     "frame": "user_to_anchor",
+     "relation": "right",
+     "target": "obj_002",
+     "anchor": "obj_001",
+     "command": "v.base",
+     "expect": {
+      "value": "true",
+      "score": "1",
+      "reasons": []
+     }
+    },
+    {
+     "scene": "v",
+     "frame": "user_to_anchor",
+     "relation": "right",
+     "target": "obj_002",
+     "anchor": "obj_001",
+     "command": "v.east",
+     "expect": {
+      "value": "true",
+      "score": "1",
+      "reasons": []
+     }
+    }
+   ]
+  },
+  {
+   "id": "D12",
+   "section": "7.1",
+   "inputs": "I; T=(0,3)",
+   "calls": [
+    {
+     "scene": "i",
+     "frame": "object_intrinsic",
+     "relation": "in_front_of",
+     "target": "obj_002",
+     "anchor": "obj_001",
+     "command": null,
+     "expect": {
+      "value": "true",
+      "score": "3-2",
+      "reasons": []
+     }
+    }
+   ]
+  },
+  {
+   "id": "D13",
+   "section": "7.1",
+   "inputs": "I; T=(1,2)",
+   "calls": [
+    {
+     "scene": "i",
+     "frame": "object_intrinsic",
+     "relation": "right",
+     "target": "obj_003",
+     "anchor": "obj_001",
+     "command": null,
+     "expect": {
+      "value": "true",
+      "score": "1",
+      "reasons": []
+     }
+    }
+   ]
+  },
+  {
+   "id": "D14",
+   "section": "7.1",
+   "inputs": "I; F=(0,-1,0); T=(0,3)",
+   "calls": [
+    {
+     "scene": "i",
+     "frame": "object_intrinsic",
+     "relation": "behind",
+     "target": "obj_002",
+     "anchor": "obj_004",
+     "command": null,
+     "expect": {
+      "value": "true",
+      "score": "-(0*0+1*(-1))",
+      "reasons": []
+     }
+    }
+   ]
+  },
+  {
+   "id": "D15",
+   "section": "7.1",
+   "inputs": "I; F=(0,-1,0); T=(1,2)",
+   "calls": [
+    {
+     "scene": "i",
+     "frame": "object_intrinsic",
+     "relation": "right",
+     "target": "obj_003",
+     "anchor": "obj_004",
+     "command": null,
+     "expect": {
+      "value": "false",
+      "score": "-1",
+      "reasons": [
+       "failed:right"
+      ]
+     }
+    },
+    {
+     "scene": "i",
+     "frame": "object_intrinsic",
+     "relation": "left",
+     "target": "obj_003",
+     "anchor": "obj_004",
+     "command": null,
+     "expect": {
+      "value": "true",
+      "score": "1",
+      "reasons": []
+     }
+    }
+   ]
+  },
+  {
+   "id": "D16",
+   "section": "7.1",
+   "inputs": "H; H=(3/5,4/5); T=(4/5,-3/5)",
+   "calls": [
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "right",
+     "target": "obj_005",
+     "anchor": null,
+     "command": "h.diag",
+     "expect": {
+      "value": "true",
+      "score": "16/25+9/25",
+      "reasons": []
+     }
+    },
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "in_front_of",
+     "target": "obj_005",
+     "anchor": null,
+     "command": "h.diag",
+     "expect": {
+      "value": "unknown",
+      "score": "12/25-12/25",
+      "reasons": [
+       "boundary:in_front_of"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "D17",
+   "section": "7.1",
+   "inputs": "V; A=(3,4); T=(3.8,3.4)",
+   "calls": [
+    {
+     "scene": "v",
+     "frame": "user_to_anchor",
+     "relation": "right",
+     "target": "obj_006",
+     "anchor": "obj_005",
+     "command": "v.base",
+     "expect": {
+      "value": "true",
+      "score": ".64+.36",
+      "reasons": []
+     }
+    },
+    {
+     "scene": "v",
+     "frame": "user_to_anchor",
+     "relation": "in_front_of",
+     "target": "obj_006",
+     "anchor": "obj_005",
+     "command": "v.base",
+     "expect": {
+      "value": "unknown",
+      "score": "-.48+.48",
+      "reasons": [
+       "boundary:in_front_of"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "D18",
+   "section": "7.1",
+   "inputs": "I; A=(0,0); F=(.36,.48,.8); T=(.8,-.6)",
+   "calls": [
+    {
+     "scene": "i",
+     "frame": "object_intrinsic",
+     "relation": "right",
+     "target": "obj_006",
+     "anchor": "obj_005",
+     "command": null,
+     "expect": {
+      "value": "true",
+      "score": "1",
+      "reasons": []
+     }
+    },
+    {
+     "scene": "i",
+     "frame": "object_intrinsic",
+     "relation": "in_front_of",
+     "target": "obj_006",
+     "anchor": "obj_005",
+     "command": null,
+     "expect": {
+      "value": "unknown",
+      "score": "0",
+      "reasons": [
+       "boundary:in_front_of"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "D19",
+   "section": "7.2",
+   "inputs": "B; s=.03; repeated on H with T=(0,s)",
+   "calls": [
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "right",
+     "target": "obj_006",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "true",
+      "score": ".03",
+      "reasons": []
+     }
+    },
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "left",
+     "target": "obj_006",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "false",
+      "score": "-(.03)",
+      "reasons": [
+       "failed:left"
+      ]
+     }
+    },
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "in_front_of",
+     "target": "obj_013",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "true",
+      "score": ".03",
+      "reasons": []
+     }
+    },
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "behind",
+     "target": "obj_013",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "false",
+      "score": "-(.03)",
+      "reasons": [
+       "failed:behind"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "D20",
+   "section": "7.2",
+   "inputs": "B; s=.02; repeated on H with T=(0,s)",
+   "calls": [
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "right",
+     "target": "obj_007",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "unknown",
+      "score": ".02",
+      "reasons": [
+       "boundary:right"
+      ]
+     }
+    },
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "left",
+     "target": "obj_007",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "unknown",
+      "score": "-(.02)",
+      "reasons": [
+       "boundary:left"
+      ]
+     }
+    },
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "in_front_of",
+     "target": "obj_014",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "unknown",
+      "score": ".02",
+      "reasons": [
+       "boundary:in_front_of"
+      ]
+     }
+    },
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "behind",
+     "target": "obj_014",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "unknown",
+      "score": "-(.02)",
+      "reasons": [
+       "boundary:behind"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "D21",
+   "section": "7.2",
+   "inputs": "B; s=.01; repeated on H with T=(0,s)",
+   "calls": [
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "right",
+     "target": "obj_008",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "unknown",
+      "score": ".01",
+      "reasons": [
+       "boundary:right"
+      ]
+     }
+    },
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "left",
+     "target": "obj_008",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "unknown",
+      "score": "-(.01)",
+      "reasons": [
+       "boundary:left"
+      ]
+     }
+    },
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "in_front_of",
+     "target": "obj_015",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "unknown",
+      "score": ".01",
+      "reasons": [
+       "boundary:in_front_of"
+      ]
+     }
+    },
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "behind",
+     "target": "obj_015",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "unknown",
+      "score": "-(.01)",
+      "reasons": [
+       "boundary:behind"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "D22",
+   "section": "7.2",
+   "inputs": "B; s=0; repeated on H with T=(0,s)",
+   "calls": [
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "right",
+     "target": "obj_009",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "unknown",
+      "score": "0",
+      "reasons": [
+       "boundary:right"
+      ]
+     }
+    },
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "left",
+     "target": "obj_009",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "unknown",
+      "score": "-(0)",
+      "reasons": [
+       "boundary:left"
+      ]
+     }
+    },
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "in_front_of",
+     "target": "obj_009",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "unknown",
+      "score": "0",
+      "reasons": [
+       "boundary:in_front_of"
+      ]
+     }
+    },
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "behind",
+     "target": "obj_009",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "unknown",
+      "score": "-(0)",
+      "reasons": [
+       "boundary:behind"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "D23",
+   "section": "7.2",
+   "inputs": "B; s=-.01; repeated on H with T=(0,s)",
+   "calls": [
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "right",
+     "target": "obj_010",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "unknown",
+      "score": "-.01",
+      "reasons": [
+       "boundary:right"
+      ]
+     }
+    },
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "left",
+     "target": "obj_010",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "unknown",
+      "score": "-(-.01)",
+      "reasons": [
+       "boundary:left"
+      ]
+     }
+    },
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "in_front_of",
+     "target": "obj_016",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "unknown",
+      "score": "-.01",
+      "reasons": [
+       "boundary:in_front_of"
+      ]
+     }
+    },
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "behind",
+     "target": "obj_016",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "unknown",
+      "score": "-(-.01)",
+      "reasons": [
+       "boundary:behind"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "D24",
+   "section": "7.2",
+   "inputs": "B; s=-.02; repeated on H with T=(0,s)",
+   "calls": [
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "right",
+     "target": "obj_011",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "unknown",
+      "score": "-.02",
+      "reasons": [
+       "boundary:right"
+      ]
+     }
+    },
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "left",
+     "target": "obj_011",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "unknown",
+      "score": "-(-.02)",
+      "reasons": [
+       "boundary:left"
+      ]
+     }
+    },
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "in_front_of",
+     "target": "obj_017",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "unknown",
+      "score": "-.02",
+      "reasons": [
+       "boundary:in_front_of"
+      ]
+     }
+    },
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "behind",
+     "target": "obj_017",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "unknown",
+      "score": "-(-.02)",
+      "reasons": [
+       "boundary:behind"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "D25",
+   "section": "7.2",
+   "inputs": "B; s=-.03; repeated on H with T=(0,s)",
+   "calls": [
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "right",
+     "target": "obj_012",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "false",
+      "score": "-.03",
+      "reasons": [
+       "failed:right"
+      ]
+     }
+    },
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "left",
+     "target": "obj_012",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "true",
+      "score": "-(-.03)",
+      "reasons": []
+     }
+    },
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "in_front_of",
+     "target": "obj_018",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "false",
+      "score": "-.03",
+      "reasons": [
+       "failed:in_front_of"
+      ]
+     }
+    },
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "behind",
+     "target": "obj_018",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "true",
+      "score": "-(-.03)",
+      "reasons": []
+     }
+    }
+   ]
+  },
+  {
+   "id": "D26",
+   "section": "7.2",
+   "inputs": "V; T and A distinct IDs, both at (0,2)",
+   "calls": [
+    {
+     "scene": "v",
+     "frame": "user_to_anchor",
+     "relation": "right",
+     "target": "obj_004",
+     "anchor": "obj_001",
+     "command": "v.base",
+     "expect": {
+      "value": "unknown",
+      "score": "0",
+      "reasons": [
+       "boundary:right"
+      ]
+     }
+    },
+    {
+     "scene": "v",
+     "frame": "user_to_anchor",
+     "relation": "left",
+     "target": "obj_004",
+     "anchor": "obj_001",
+     "command": "v.base",
+     "expect": {
+      "value": "unknown",
+      "score": "0",
+      "reasons": [
+       "boundary:left"
+      ]
+     }
+    },
+    {
+     "scene": "v",
+     "frame": "user_to_anchor",
+     "relation": "in_front_of",
+     "target": "obj_004",
+     "anchor": "obj_001",
+     "command": "v.base",
+     "expect": {
+      "value": "unknown",
+      "score": "0",
+      "reasons": [
+       "boundary:in_front_of"
+      ]
+     }
+    },
+    {
+     "scene": "v",
+     "frame": "user_to_anchor",
+     "relation": "behind",
+     "target": "obj_004",
+     "anchor": "obj_001",
+     "command": "v.base",
+     "expect": {
+      "value": "unknown",
+      "score": "0",
+      "reasons": [
+       "boundary:behind"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "D27",
+   "section": "7.2",
+   "inputs": "V and I; target_id = anchor_id, an existing object",
+   "calls": [
+    {
+     "scene": "v",
+     "frame": "user_to_anchor",
+     "relation": "right",
+     "target": "obj_001",
+     "anchor": "obj_001",
+     "command": "v.base",
+     "expect": {
+      "value": "false",
+      "score": null,
+      "reasons": [
+       "not_distinct"
+      ]
+     }
+    },
+    {
+     "scene": "v",
+     "frame": "user_to_anchor",
+     "relation": "left",
+     "target": "obj_001",
+     "anchor": "obj_001",
+     "command": "v.base",
+     "expect": {
+      "value": "false",
+      "score": null,
+      "reasons": [
+       "not_distinct"
+      ]
+     }
+    },
+    {
+     "scene": "v",
+     "frame": "user_to_anchor",
+     "relation": "in_front_of",
+     "target": "obj_001",
+     "anchor": "obj_001",
+     "command": "v.base",
+     "expect": {
+      "value": "false",
+      "score": null,
+      "reasons": [
+       "not_distinct"
+      ]
+     }
+    },
+    {
+     "scene": "v",
+     "frame": "user_to_anchor",
+     "relation": "behind",
+     "target": "obj_001",
+     "anchor": "obj_001",
+     "command": "v.base",
+     "expect": {
+      "value": "false",
+      "score": null,
+      "reasons": [
+       "not_distinct"
+      ]
+     }
+    },
+    {
+     "scene": "i",
+     "frame": "object_intrinsic",
+     "relation": "right",
+     "target": "obj_001",
+     "anchor": "obj_001",
+     "command": null,
+     "expect": {
+      "value": "false",
+      "score": null,
+      "reasons": [
+       "not_distinct"
+      ]
+     }
+    },
+    {
+     "scene": "i",
+     "frame": "object_intrinsic",
+     "relation": "left",
+     "target": "obj_001",
+     "anchor": "obj_001",
+     "command": null,
+     "expect": {
+      "value": "false",
+      "score": null,
+      "reasons": [
+       "not_distinct"
+      ]
+     }
+    },
+    {
+     "scene": "i",
+     "frame": "object_intrinsic",
+     "relation": "in_front_of",
+     "target": "obj_001",
+     "anchor": "obj_001",
+     "command": null,
+     "expect": {
+      "value": "false",
+      "score": null,
+      "reasons": [
+       "not_distinct"
+      ]
+     }
+    },
+    {
+     "scene": "i",
+     "frame": "object_intrinsic",
+     "relation": "behind",
+     "target": "obj_001",
+     "anchor": "obj_001",
+     "command": null,
+     "expect": {
+      "value": "false",
+      "score": null,
+      "reasons": [
+       "not_distinct"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "D28",
+   "section": "7.3",
+   "inputs": "H; T=(1,0), target centre unknown; also missing target centre in V and I",
+   "calls": [
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "right",
+     "target": "obj_019",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "unknown",
+      "score": null,
+      "reasons": [
+       "missing_centre:obj_019"
+      ]
+     }
+    },
+    {
+     "scene": "v",
+     "frame": "user_to_anchor",
+     "relation": "right",
+     "target": "obj_015",
+     "anchor": "obj_001",
+     "command": "v.base",
+     "expect": {
+      "value": "unknown",
+      "score": null,
+      "reasons": [
+       "missing_centre:obj_015"
+      ]
+     }
+    },
+    {
+     "scene": "i",
+     "frame": "object_intrinsic",
+     "relation": "right",
+     "target": "obj_014",
+     "anchor": "obj_001",
+     "command": null,
+     "expect": {
+      "value": "unknown",
+      "score": null,
+      "reasons": [
+       "missing_centre:obj_014"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "D29",
+   "section": "7.3",
+   "inputs": "H; T=(1,0), user position unknown; also missing user position in V",
+   "calls": [
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "right",
+     "target": "obj_001",
+     "anchor": null,
+     "command": "h.nopos",
+     "expect": {
+      "value": "unknown",
+      "score": null,
+      "reasons": [
+       "missing_user_position:fx.dir.h.nopos"
+      ]
+     }
+    },
+    {
+     "scene": "v",
+     "frame": "user_to_anchor",
+     "relation": "right",
+     "target": "obj_002",
+     "anchor": "obj_001",
+     "command": "v.nopos",
+     "expect": {
+      "value": "unknown",
+      "score": null,
+      "reasons": [
+       "missing_user_position:fx.dir.v.nopos"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "D30",
+   "section": "7.3",
+   "inputs": "H; T=(1,0), heading unknown, rotation known",
+   "calls": [
+    {
+     "scene": "h",
+     "frame": "user_heading",
+     "relation": "right",
+     "target": "obj_001",
+     "anchor": null,
+     "command": "h.nohead",
+     "expect": {
+      "value": "unknown",
+      "score": null,
+      "reasons": [
+       "missing_heading:fx.dir.h.nohead"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "D31",
+   "section": "7.3",
+   "inputs": "V; T=(1,2), anchor centre unknown",
+   "calls": [
+    {
+     "scene": "v",
+     "frame": "user_to_anchor",
+     "relation": "right",
+     "target": "obj_002",
+     "anchor": "obj_007",
+     "command": "v.base",
+     "expect": {
+      "value": "unknown",
+      "score": null,
+      "reasons": [
+       "missing_centre:obj_007"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "D32",
+   "section": "7.3",
+   "inputs": "V; T=(1,2), heading and user rotation unknown",
+   "calls": [
+    {
+     "scene": "v",
+     "frame": "user_to_anchor",
+     "relation": "right",
+     "target": "obj_002",
+     "anchor": "obj_001",
+     "command": "v.nohead",
+     "expect": {
+      "value": "true",
+      "score": "1",
+      "reasons": []
+     }
+    }
+   ]
+  },
+  {
+   "id": "D33",
+   "section": "7.3",
+   "inputs": "I; T=(0,3), semantic front unknown, box rotation known",
+   "calls": [
+    {
+     "scene": "i",
+     "frame": "object_intrinsic",
+     "relation": "in_front_of",
+     "target": "obj_002",
+     "anchor": "obj_012",
+     "command": null,
+     "expect": {
+      "value": "unknown",
+      "score": null,
+      "reasons": [
+       "missing_semantic_front:obj_012"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "D34",
+   "section": "7.3",
+   "inputs": "I; T=(0,3), box size and rotation unknown, semantic front known",
+   "calls": [
+    {
+     "scene": "i",
+     "frame": "object_intrinsic",
+     "relation": "in_front_of",
+     "target": "obj_002",
+     "anchor": "obj_013",
+     "command": null,
+     "expect": {
+      "value": "true",
+      "score": "3-2",
+      "reasons": []
+     }
+    }
+   ]
+  },
+  {
+   "id": "D35",
+   "section": "7.3",
+   "inputs": "H; T=(1,0), restricted profile",
+   "calls": [
+    {
+     "scene": "h.r",
+     "frame": "user_heading",
+     "relation": "right",
+     "target": "obj_001",
+     "anchor": null,
+     "command": "h.base",
+     "expect": {
+      "value": "true",
+      "score": "1",
+      "reasons": []
+     }
+    }
+   ]
+  },
+  {
+   "id": "D36",
+   "section": "7.3",
+   "inputs": "V; T=(0,3), restricted profile",
+   "calls": [
+    {
+     "scene": "v.r",
+     "frame": "user_to_anchor",
+     "relation": "behind",
+     "target": "obj_003",
+     "anchor": "obj_001",
+     "command": "v.base",
+     "expect": {
+      "value": "true",
+      "score": "-(2-3)",
+      "reasons": []
+     }
+    }
+   ]
+  },
+  {
+   "id": "D37",
+   "section": "7.3",
+   "inputs": "I; T=(0,3), restricted profile with front withheld",
+   "calls": [
+    {
+     "scene": "i.r",
+     "frame": "object_intrinsic",
+     "relation": "in_front_of",
+     "target": "obj_002",
+     "anchor": "obj_001",
+     "command": null,
+     "expect": {
+      "value": "unknown",
+      "score": null,
+      "reasons": [
+       "missing_semantic_front:obj_001"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "D38",
+   "section": "7.4",
+   "inputs": "V; U=(0,2), A=(0,2), T=(1,2); repeated with user z = 0.3 and anchor z = 1.2",
+   "calls": [
+    {
+     "scene": "v",
+     "frame": "user_to_anchor",
+     "relation": "right",
+     "target": "obj_002",
+     "anchor": "obj_001",
+     "command": "v.at_anchor",
+     "expect": {
+      "value": "unknown",
+      "score": null,
+      "reasons": [
+       "degenerate_viewer_anchor"
+      ],
+      "measures": {
+       "viewer_anchor_horizontal_m": "0"
+      }
+     }
+    },
+    {
+     "scene": "v",
+     "frame": "user_to_anchor",
+     "relation": "right",
+     "target": "obj_002",
+     "anchor": "obj_014",
+     "command": "v.at_anchor_low",
+     "expect": {
+      "value": "unknown",
+      "score": null,
+      "reasons": [
+       "degenerate_viewer_anchor"
+      ],
+      "measures": {
+       "viewer_anchor_horizontal_m": "0"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "D39",
+   "section": "7.4",
+   "inputs": "V; U=(0,0), A=(0,.02), T=(1,.02); plus the strictly-below cutoff L=.01",
+   "calls": [
+    {
+     "scene": "v",
+     "frame": "user_to_anchor",
+     "relation": "right",
+     "target": "obj_009",
+     "anchor": "obj_008",
+     "command": "v.base",
+     "expect": {
+      "value": "unknown",
+      "score": null,
+      "reasons": [
+       "degenerate_viewer_anchor"
+      ],
+      "measures": {
+       "viewer_anchor_horizontal_m": ".02"
+      }
+     }
+    },
+    {
+     "scene": "v",
+     "frame": "user_to_anchor",
+     "relation": "right",
+     "target": "obj_013",
+     "anchor": "obj_012",
+     "command": "v.base",
+     "expect": {
+      "value": "unknown",
+      "score": null,
+      "reasons": [
+       "degenerate_viewer_anchor"
+      ],
+      "measures": {
+       "viewer_anchor_horizontal_m": ".01"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "D40",
+   "section": "7.4",
+   "inputs": "V; U=(0,0), A=(0,.03), T=(1,.03)",
+   "calls": [
+    {
+     "scene": "v",
+     "frame": "user_to_anchor",
+     "relation": "right",
+     "target": "obj_011",
+     "anchor": "obj_010",
+     "command": "v.base",
+     "expect": {
+      "value": "true",
+      "score": "1",
+      "reasons": [],
+      "measures": {
+       "viewer_anchor_horizontal_m": ".03"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "D41",
+   "section": "7.4",
+   "inputs": "I; A=(0,0), F=(0,0,1), T=(1,0)",
+   "calls": [
+    {
+     "scene": "i",
+     "frame": "object_intrinsic",
+     "relation": "in_front_of",
+     "target": "obj_008",
+     "anchor": "obj_007",
+     "command": null,
+     "expect": {
+      "value": "unknown",
+      "score": null,
+      "reasons": [
+       "vertical_semantic_front"
+      ],
+      "measures": {
+       "semantic_front_horizontal_norm": "0"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "D42",
+   "section": "7.4",
+   "inputs": "I; A=(0,0), F=(.1,0,sqrt(.99)), T=(1,0); plus the strictly-below cutoff F=(.06,0,...)",
+   "calls": [
+    {
+     "scene": "i",
+     "frame": "object_intrinsic",
+     "relation": "in_front_of",
+     "target": "obj_008",
+     "anchor": "obj_009",
+     "command": null,
+     "expect": {
+      "value": "unknown",
+      "score": null,
+      "reasons": [
+       "vertical_semantic_front"
+      ],
+      "measures": {
+       "semantic_front_horizontal_norm": ".1"
+      }
+     }
+    },
+    {
+     "scene": "i",
+     "frame": "object_intrinsic",
+     "relation": "in_front_of",
+     "target": "obj_008",
+     "anchor": "obj_011",
+     "command": null,
+     "expect": {
+      "value": "unknown",
+      "score": null,
+      "reasons": [
+       "vertical_semantic_front"
+      ],
+      "measures": {
+       "semantic_front_horizontal_norm": ".06"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "D43",
+   "section": "7.4",
+   "inputs": "I; A=(0,0), F=(.28,0,.96), T=(1,0)",
+   "calls": [
+    {
+     "scene": "i",
+     "frame": "object_intrinsic",
+     "relation": "in_front_of",
+     "target": "obj_008",
+     "anchor": "obj_010",
+     "command": null,
+     "expect": {
+      "value": "true",
+      "score": "1",
+      "reasons": [],
+      "measures": {
+       "semantic_front_horizontal_norm": ".28"
+      }
+     }
+    }
+   ]
+  }
+ ]
+}
