@@ -4,7 +4,7 @@ Test data for `grounding/tests/test_contract.py` (A2.1a, D66). Not training data
 
 `valid/` holds the a17 scene in both evidence profiles, two commands and the category map; every file passes, alone and together. The object centres come from A1's a17 prompts, which add box_1 to the example memory in proposal Revision 3, section 4.3; the user's position and 4 degree heading come from section 4.3. The sizes, rotations, fronts, colours and the unmapped floor lamp are illustrative test values, and the size priors in the restricted scene are made up for the test, not built from data.
 
-`invalid/` holds one file per rule. Each is a valid record with one change, named `<expected code>__<case>.json`, and must fail with exactly that code. Cross-record cases are checked together with the partner file named below. "One-object scene" is `fixture.min`: the a17 table alone, in the profile shown.
+`invalid/` holds one file per rule. Each is a valid record with one change, or for two record-type cases a minimal file, named `<expected code>__<case>.json`, and must fail with exactly that code. Cross-record cases are checked together with the partner file named below. "One-object scene" is `fixture.min`: the a17 table alone, in the profile shown.
 
 | File | Made from | Change | Checked with |
 |---|---|---|---|
@@ -16,6 +16,8 @@ Test data for `grounding/tests/test_contract.py` (A2.1a, D66). Not training data
 | `E_NONFINITE__huge_integer.json` | `valid/command.a17.c001.json` | the position's x is an integer with 400 digits |  |
 | `E_RECORD_TYPE__unknown_record_type.json` | `valid/command.a17.c001.json` | record_type is "command" |  |
 | `E_RECORD_TYPE__future_version.json` | `valid/command.a17.c001.json` | schema_version is 2 |  |
+| `E_RECORD_TYPE__null_file.json` | none | the file holds only `null` (regression, A2.1a correction) |  |
+| `E_RECORD_TYPE__list_record_type.json` | none | `{"record_type": [], "schema_version": 1}` (regression, A2.1a correction) |  |
 | `E_SCHEMA_REQUIRED__missing_user_pose.json` | `valid/command.a17.c001.json` | user_pose is missing |  |
 | `E_SCHEMA_REQUIRED__known_without_value.json` | `valid/command.a17.c001.json` | the known position has no value |  |
 | `E_SCHEMA_REQUIRED__known_without_evidence.json` | `valid/command.a17.c001.json` | the known position has no evidence |  |

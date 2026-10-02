@@ -5,8 +5,9 @@
 Needs only Python 3.9+ and jsonschema (grounding/requirements.txt or tools/requirements.txt). Checks: the schemas are
 valid JSON Schema 2020-12 and share identical common definitions; every valid fixture passes alone and all pass
 together with no warning; every invalid fixture fails with exactly the code in its name, together with its partner
-for cross-record rules; every error code has a fixture; a few cases built in memory pass; the validator never
-changes a file; the command line exits 0 and 1. Prints one line per check and exits 1 if any fails.
+for cross-record rules; every error code has a fixture; a few cases built in memory pass; malformed record types
+fail cleanly (the A2.1a correction); the validator never changes a file; the command line exits 0 and 1. Prints one
+line per check and exits 1 if any fails.
 """
 from __future__ import annotations
 
@@ -48,6 +49,11 @@ def load(name: str):
 
 def digest(paths) -> dict:
     return {p: hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
+
+
+def last_line(text: str) -> str:
+    lines = text.strip().splitlines()
+    return lines[-1] if lines else ""
 
 
 def main() -> int:
@@ -131,17 +137,41 @@ def main() -> int:
     codes = sorted({i.code for i in errors(validate.validate([("in-memory infinity", bad)]))})
     check("an infinite number built in memory fails with E_NONFINITE", codes == ["E_NONFINITE"], f"got {codes}")
 
-    # 6. Read-only
+    # 6. Malformed record types (A2.1a correction): each fails with E_RECORD_TYPE and nothing raises
+    shapes = [None, [], 1, "scene", True, {}, {"schema_version": 1}, {"record_type": "scene"},
+              {"record_type": [], "schema_version": 1}, {"record_type": {}, "schema_version": 1},
+              {"record_type": "scene", "schema_version": True}, {"record_type": "scene", "schema_version": 1.0},
+              {"record_type": "scene", "schema_version": [1]}]
+    wrong = []
+    for shape in shapes:
+        try:
+            codes = sorted({i.code for i in validate.validate([("shape", shape)])})
+        except Exception as e:  # noqa: BLE001  (a crash is exactly what this check looks for)
+            codes = [f"raised {type(e).__name__}"]
+        if codes != ["E_RECORD_TYPE"]:
+            wrong.append(f"{shape!r} gave {codes}")
+    check(f"{len(shapes)} malformed record types fail with E_RECORD_TYPE without raising", not wrong, "; ".join(wrong))
+
+    # 7. Read-only
     check("validation changed no fixture file", digest(valid + invalid) == before)
 
-    # 7. Command line
+    # 8. Command line (details show only the validator's summary line)
     script = REPO / "grounding" / "contract" / "validate.py"
-    ok_run = subprocess.run([sys.executable, str(script)] + [str(p) for p in valid], capture_output=True, text=True)
-    bad_run = subprocess.run([sys.executable, str(script), str(INVALID / "E_QUAT_NORM__scaled.json")],
-                             capture_output=True, text=True)
-    check("the command line exits 0 on the valid fixtures", ok_run.returncode == 0, ok_run.stdout.strip()[-120:])
+
+    def run(*paths):
+        return subprocess.run([sys.executable, str(script)] + [str(p) for p in paths], capture_output=True, text=True)
+
+    ok_run = run(*valid)
+    bad_run = run(INVALID / "E_QUAT_NORM__scaled.json")
+    null_run = run(INVALID / "E_RECORD_TYPE__null_file.json")
+    check("the command line exits 0 on the valid fixtures", ok_run.returncode == 0,
+          f"exit {ok_run.returncode}; {last_line(ok_run.stdout)}")
     check("the command line exits 1 and names the code on an invalid fixture",
-          bad_run.returncode == 1 and "E_QUAT_NORM" in bad_run.stdout, bad_run.stdout.strip()[-120:])
+          bad_run.returncode == 1 and "E_QUAT_NORM" in bad_run.stdout,
+          f"exit {bad_run.returncode}; {last_line(bad_run.stdout)}")
+    check("the command line exits 1 on a file holding only null (A2.1a correction)",
+          null_run.returncode == 1 and "E_RECORD_TYPE" in null_run.stdout,
+          f"exit {null_run.returncode}; {last_line(null_run.stdout)}")
 
     print(f"{'FAILED: ' + ', '.join(FAILED) if FAILED else 'all checks passed'}")
     return 1 if FAILED else 0

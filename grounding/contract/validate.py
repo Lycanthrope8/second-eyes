@@ -71,7 +71,8 @@ def _no_repeats(pairs):
 
 
 def parse(name: str, data: bytes):
-    """Strictly parse one file's bytes. Returns (record, issues); record is None if parsing failed."""
+    """Strictly parse one file's bytes. Returns (record, issues); parsing failed if issues isn't empty. A file
+    holding JSON null parses to None, which is a record value like any other and fails the record-type check."""
     if data.startswith(b"\xef\xbb\xbf"):
         return None, [Issue(name, "$", "E_PARSE_ENCODING", "starts with a UTF-8 byte-order mark")]
     try:
@@ -105,12 +106,13 @@ def check_record(name: str, record) -> list:
     """Record type, schema and semantic rules for one parsed record."""
     if not isinstance(record, dict):
         return [Issue(name, "$", "E_RECORD_TYPE", "the file's value is not a JSON object")]
-    version = record.get("schema_version")
-    key = (record.get("record_type"), version if type(version) is int else None)
-    if key not in SCHEMAS:
-        return [Issue(name, "$", "E_RECORD_TYPE", f"record_type {record.get('record_type')!r} with schema_version "
-                                                  f"{version!r} is not a supported format")]
-    errors = sorted(_validator(SCHEMAS[key]).iter_errors(record), key=lambda e: [str(p) for p in e.absolute_path])
+    record_type, version = record.get("record_type"), record.get("schema_version")
+    # Check the types before the lookup: a list or object can't be part of the key (bool is not an int here).
+    if not isinstance(record_type, str) or type(version) is not int or (record_type, version) not in SCHEMAS:
+        return [Issue(name, "$", "E_RECORD_TYPE", f"record_type {record_type!r} with schema_version {version!r} "
+                                                  f"is not a supported format")]
+    schema_file = SCHEMAS[(record_type, version)]
+    errors = sorted(_validator(schema_file).iter_errors(record), key=lambda e: [str(p) for p in e.absolute_path])
     if errors:
         return [Issue(name, _json_path(e.absolute_path), KEYWORD_CODES.get(e.validator, "E_SCHEMA_OTHER"), e.message)
                 for e in errors]
@@ -135,7 +137,7 @@ def validate_paths(paths: list) -> list:
         name = str(path)
         record, found = parse(name, Path(path).read_bytes())
         issues.extend(found)
-        if record is not None:
+        if not found:
             parsed.append((name, record))
     return issues + validate(parsed)
 
