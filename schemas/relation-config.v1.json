@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "relation-config.v1.json",
+  "title": "Second Eyes relation configuration, format v1",
+  "description": "The relation library's thresholds, uncertainty bands and category lists (A2.1b, D67), shared by the offline and headset implementations. Rules: docs/relations.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "record_type", "config_id", "status", "description", "thresholds", "bands", "categories"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "record_type": {"const": "relation_config"},
+    "config_id": {"$ref": "#/$defs/id"},
+    "status": {
+      "enum": ["provisional", "frozen"],
+      "description": "provisional: initial values, not calibrated; frozen: chosen on development data before an evaluation (specification section 10.1)"
+    },
+    "description": {"type": "string", "minLength": 1},
+    "thresholds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "near_max_m",
+        "above_gap_min_m",
+        "on_gap_max_m",
+        "on_penetration_max_m",
+        "on_support_tilt_max_deg",
+        "footprint_overlap_min",
+        "below_separated_gap_min_m",
+        "below_furniture_bottom_max_m",
+        "below_furniture_top_margin_m",
+        "inside_tolerance_m",
+        "between_lateral_min_m",
+        "between_lateral_ratio",
+        "between_overlap_max",
+        "between_min_separation_m"
+      ],
+      "properties": {
+        "near_max_m": {"$ref": "#/$defs/metres"},
+        "above_gap_min_m": {"$ref": "#/$defs/metres"},
+        "on_gap_max_m": {"$ref": "#/$defs/metres"},
+        "on_penetration_max_m": {"$ref": "#/$defs/metres"},
+        "on_support_tilt_max_deg": {"$ref": "#/$defs/degrees"},
+        "footprint_overlap_min": {"$ref": "#/$defs/ratio"},
+        "below_separated_gap_min_m": {"$ref": "#/$defs/metres"},
+        "below_furniture_bottom_max_m": {"$ref": "#/$defs/metres"},
+        "below_furniture_top_margin_m": {"$ref": "#/$defs/metres"},
+        "inside_tolerance_m": {"$ref": "#/$defs/metres"},
+        "between_lateral_min_m": {"$ref": "#/$defs/metres"},
+        "between_lateral_ratio": {"$ref": "#/$defs/nonnegative"},
+        "between_overlap_max": {"$ref": "#/$defs/ratio"},
+        "between_min_separation_m": {"$ref": "#/$defs/metres"}
+      }
+    },
+    "bands": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rank_tie_m", "distance_band_m", "vertical_band_m", "overlap_band"],
+      "properties": {
+        "rank_tie_m": {"$ref": "#/$defs/metres"},
+        "distance_band_m": {"$ref": "#/$defs/metres"},
+        "vertical_band_m": {"$ref": "#/$defs/metres"},
+        "overlap_band": {"$ref": "#/$defs/ratio"}
+      }
+    },
+    "categories": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["support", "furniture", "container"],
+      "properties": {
+        "support": {"$ref": "#/$defs/labels"},
+        "furniture": {"$ref": "#/$defs/labels"},
+        "container": {"$ref": "#/$defs/labels"}
+      }
+    }
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_.-]{0,127}$"},
+    "metres": {"type": "number", "minimum": 0},
+    "degrees": {"type": "number", "minimum": 0, "maximum": 90},
+    "ratio": {"type": "number", "minimum": 0, "maximum": 1},
+    "nonnegative": {"type": "number", "minimum": 0},
+    "labels": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1, "pattern": "^\\S(.*\\S)?$"}}
+  }
+}

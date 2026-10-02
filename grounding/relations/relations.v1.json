@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "record_type": "relation_config",
+  "config_id": "relations.v1",
+  "status": "provisional",
+  "description": "Initial values (A2.1b, D67): documented starting points, not calibrated. They are to be compared on scene-disjoint development data and frozen before any evaluation (specification section 10.1). Thresholds say what the words mean; bands are operational boundary rules, not measured perception uncertainty. Category lists use model-visible labels and cover only the fixtures' vocabulary until the dataset map exists.",
+  "thresholds": {
+    "near_max_m": 0.5,
+    "above_gap_min_m": 0.05,
+    "on_gap_max_m": 0.05,
+    "on_penetration_max_m": 0.05,
+    "on_support_tilt_max_deg": 5.0,
+    "footprint_overlap_min": 0.5,
+    "below_separated_gap_min_m": 0.0,
+    "below_furniture_bottom_max_m": 0.1,
+    "below_furniture_top_margin_m": 0.0,
+    "inside_tolerance_m": 0.02,
+    "between_lateral_min_m": 0.3,
+    "between_lateral_ratio": 0.2,
+    "between_overlap_max": 0.5,
+    "between_min_separation_m": 0.2
+  },
+  "bands": {"rank_tie_m": 0.05, "distance_band_m": 0.02, "vertical_band_m": 0.01, "overlap_band": 0.05},
+  "categories": {"support": ["table"], "furniture": ["table"], "container": ["box"]}
+}

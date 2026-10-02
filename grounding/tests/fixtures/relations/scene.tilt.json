@@ -1,0 +1,132 @@
+{
+  "schema_version": 1,
+  "record_type": "scene",
+  "scene_id": "fixture.tilt",
+  "scene_revision": 0,
+  "evidence_profile": "annotated",
+  "category_map": "map.fx",
+  "coordinate_frame": {
+    "frame_id": "scene",
+    "units": "m",
+    "handedness": "right",
+    "up_axis": "+z",
+    "origin": "the tilted cube obj_001 is centred at the origin",
+    "conversion": "authored_in_scene_frame"
+  },
+  "sources": [
+    {
+      "source_id": "fx.tilt",
+      "kind": "fixture",
+      "description": "Tilted-box distance test (A2.1b): a unit cube rotated 45 degrees about x, a unit cube above it, and the first cube without its rotation; all values are test values",
+      "release": "fixture-v1"
+    }
+  ],
+  "assumptions": [],
+  "objects": [
+    {
+      "object_id": "obj_001",
+      "source_ref": {"source_id": "fx.tilt", "source_object_id": "cube_tilted_45_about_x", "source_label": "box"},
+      "category": {
+        "state": "known",
+        "value": {"standard": "box", "model": "box"},
+        "evidence": {"kind": "annotated", "source": "fx.tilt", "assumptions": []}
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [0.0, 0.0, 0.0],
+          "evidence": {"kind": "annotated", "source": "fx.tilt", "assumptions": []}
+        },
+        "size_m": {
+          "state": "known",
+          "value": [1.0, 1.0, 1.0],
+          "evidence": {"kind": "annotated", "source": "fx.tilt", "assumptions": []}
+        },
+        "rotation_xyzw": {
+          "state": "known",
+          "value": [0.3826834324, 0.0, 0.0, 0.9238795325],
+          "support": "full",
+          "evidence": {"kind": "annotated", "source": "fx.tilt", "assumptions": []}
+        }
+      },
+      "semantic_front": {"state": "unknown", "reason": "not_in_source", "source": "fx.tilt"},
+      "attributes": {"colours": {"state": "unknown", "reason": "not_in_source", "source": "fx.tilt"}},
+      "observation": {
+        "source": "fx.tilt",
+        "capture_time": {"state": "unknown", "reason": "not_in_source", "source": "fx.tilt"},
+        "detector_confidence": {"state": "unknown", "reason": "not_in_source", "source": "fx.tilt"},
+        "geometry_uncertainty": {"state": "unknown", "reason": "not_in_source", "source": "fx.tilt"}
+      }
+    },
+    {
+      "object_id": "obj_002",
+      "source_ref": {"source_id": "fx.tilt", "source_object_id": "cube_above", "source_label": "box"},
+      "category": {
+        "state": "known",
+        "value": {"standard": "box", "model": "box"},
+        "evidence": {"kind": "annotated", "source": "fx.tilt", "assumptions": []}
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [0.0, 0.0, 1.6],
+          "evidence": {"kind": "annotated", "source": "fx.tilt", "assumptions": []}
+        },
+        "size_m": {
+          "state": "known",
+          "value": [1.0, 1.0, 1.0],
+          "evidence": {"kind": "annotated", "source": "fx.tilt", "assumptions": []}
+        },
+        "rotation_xyzw": {
+          "state": "known",
+          "value": [0.0, 0.0, 0.0, 1.0],
+          "support": "axis_aligned",
+          "evidence": {"kind": "annotated", "source": "fx.tilt", "assumptions": []}
+        }
+      },
+      "semantic_front": {"state": "unknown", "reason": "not_in_source", "source": "fx.tilt"},
+      "attributes": {"colours": {"state": "unknown", "reason": "not_in_source", "source": "fx.tilt"}},
+      "observation": {
+        "source": "fx.tilt",
+        "capture_time": {"state": "unknown", "reason": "not_in_source", "source": "fx.tilt"},
+        "detector_confidence": {"state": "unknown", "reason": "not_in_source", "source": "fx.tilt"},
+        "geometry_uncertainty": {"state": "unknown", "reason": "not_in_source", "source": "fx.tilt"}
+      }
+    },
+    {
+      "object_id": "obj_003",
+      "source_ref": {"source_id": "fx.tilt", "source_object_id": "cube_not_rotated", "source_label": "box"},
+      "category": {
+        "state": "known",
+        "value": {"standard": "box", "model": "box"},
+        "evidence": {"kind": "annotated", "source": "fx.tilt", "assumptions": []}
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [0.0, 0.0, 0.0],
+          "evidence": {"kind": "annotated", "source": "fx.tilt", "assumptions": []}
+        },
+        "size_m": {
+          "state": "known",
+          "value": [1.0, 1.0, 1.0],
+          "evidence": {"kind": "annotated", "source": "fx.tilt", "assumptions": []}
+        },
+        "rotation_xyzw": {
+          "state": "known",
+          "value": [0.0, 0.0, 0.0, 1.0],
+          "support": "axis_aligned",
+          "evidence": {"kind": "annotated", "source": "fx.tilt", "assumptions": []}
+        }
+      },
+      "semantic_front": {"state": "unknown", "reason": "not_in_source", "source": "fx.tilt"},
+      "attributes": {"colours": {"state": "unknown", "reason": "not_in_source", "source": "fx.tilt"}},
+      "observation": {
+        "source": "fx.tilt",
+        "capture_time": {"state": "unknown", "reason": "not_in_source", "source": "fx.tilt"},
+        "detector_confidence": {"state": "unknown", "reason": "not_in_source", "source": "fx.tilt"},
+        "geometry_uncertainty": {"state": "unknown", "reason": "not_in_source", "source": "fx.tilt"}
+      }
+    }
+  ]
+}

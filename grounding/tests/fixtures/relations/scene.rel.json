@@ -1,0 +1,552 @@
+{
+  "schema_version": 1,
+  "record_type": "scene",
+  "scene_id": "fixture.rel",
+  "scene_revision": 0,
+  "evidence_profile": "annotated",
+  "category_map": "map.fx",
+  "coordinate_frame": {
+    "frame_id": "scene",
+    "units": "m",
+    "handedness": "right",
+    "up_axis": "+z",
+    "origin": "the table obj_001 stands on the floor at the origin",
+    "conversion": "authored_in_scene_frame"
+  },
+  "sources": [
+    {
+      "source_id": "fx.rel",
+      "kind": "fixture",
+      "description": "Relation test scene (A2.1b): a table with boxes on, above, under and beside it, a container with three boxes, a 45 degree box and a tilted table; all values are test values",
+      "release": "fixture-v1"
+    }
+  ],
+  "assumptions": [],
+  "objects": [
+    {
+      "object_id": "obj_001",
+      "source_ref": {"source_id": "fx.rel", "source_object_id": "table", "source_label": "table"},
+      "category": {
+        "state": "known",
+        "value": {"standard": "table", "model": "table"},
+        "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [0.0, 0.0, 0.375],
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        },
+        "size_m": {
+          "state": "known",
+          "value": [1.2, 0.8, 0.75],
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        },
+        "rotation_xyzw": {
+          "state": "known",
+          "value": [0.0, 0.0, 0.0, 1.0],
+          "support": "axis_aligned",
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        }
+      },
+      "semantic_front": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+      "attributes": {"colours": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"}},
+      "observation": {
+        "source": "fx.rel",
+        "capture_time": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+        "detector_confidence": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+        "geometry_uncertainty": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"}
+      }
+    },
+    {
+      "object_id": "obj_002",
+      "source_ref": {"source_id": "fx.rel", "source_object_id": "box_on_table", "source_label": "box"},
+      "category": {
+        "state": "known",
+        "value": {"standard": "box", "model": "box"},
+        "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [0.0, 0.0, 0.85],
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        },
+        "size_m": {
+          "state": "known",
+          "value": [0.2, 0.2, 0.2],
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        },
+        "rotation_xyzw": {
+          "state": "known",
+          "value": [0.0, 0.0, 0.0, 1.0],
+          "support": "axis_aligned",
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        }
+      },
+      "semantic_front": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+      "attributes": {"colours": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"}},
+      "observation": {
+        "source": "fx.rel",
+        "capture_time": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+        "detector_confidence": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+        "geometry_uncertainty": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"}
+      }
+    },
+    {
+      "object_id": "obj_003",
+      "source_ref": {"source_id": "fx.rel", "source_object_id": "box_above_table", "source_label": "box"},
+      "category": {
+        "state": "known",
+        "value": {"standard": "box", "model": "box"},
+        "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [0.0, 0.0, 1.25],
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        },
+        "size_m": {
+          "state": "known",
+          "value": [0.2, 0.2, 0.2],
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        },
+        "rotation_xyzw": {
+          "state": "known",
+          "value": [0.0, 0.0, 0.0, 1.0],
+          "support": "axis_aligned",
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        }
+      },
+      "semantic_front": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+      "attributes": {"colours": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"}},
+      "observation": {
+        "source": "fx.rel",
+        "capture_time": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+        "detector_confidence": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+        "geometry_uncertainty": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"}
+      }
+    },
+    {
+      "object_id": "obj_004",
+      "source_ref": {"source_id": "fx.rel", "source_object_id": "box_under_table", "source_label": "box"},
+      "category": {
+        "state": "known",
+        "value": {"standard": "box", "model": "box"},
+        "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [0.0, 0.0, 0.1],
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        },
+        "size_m": {
+          "state": "known",
+          "value": [0.2, 0.2, 0.2],
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        },
+        "rotation_xyzw": {
+          "state": "known",
+          "value": [0.0, 0.0, 0.0, 1.0],
+          "support": "axis_aligned",
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        }
+      },
+      "semantic_front": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+      "attributes": {"colours": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"}},
+      "observation": {
+        "source": "fx.rel",
+        "capture_time": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+        "detector_confidence": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+        "geometry_uncertainty": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"}
+      }
+    },
+    {
+      "object_id": "obj_005",
+      "source_ref": {"source_id": "fx.rel", "source_object_id": "box_at_0.30", "source_label": "box"},
+      "category": {
+        "state": "known",
+        "value": {"standard": "box", "model": "box"},
+        "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [1.0, 0.0, 0.1],
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        },
+        "size_m": {
+          "state": "known",
+          "value": [0.2, 0.2, 0.2],
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        },
+        "rotation_xyzw": {
+          "state": "known",
+          "value": [0.0, 0.0, 0.0, 1.0],
+          "support": "axis_aligned",
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        }
+      },
+      "semantic_front": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+      "attributes": {"colours": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"}},
+      "observation": {
+        "source": "fx.rel",
+        "capture_time": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+        "detector_confidence": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+        "geometry_uncertainty": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"}
+      }
+    },
+    {
+      "object_id": "obj_006",
+      "source_ref": {"source_id": "fx.rel", "source_object_id": "box_at_0.50", "source_label": "box"},
+      "category": {
+        "state": "known",
+        "value": {"standard": "box", "model": "box"},
+        "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [1.2, 0.0, 0.1],
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        },
+        "size_m": {
+          "state": "known",
+          "value": [0.2, 0.2, 0.2],
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        },
+        "rotation_xyzw": {
+          "state": "known",
+          "value": [0.0, 0.0, 0.0, 1.0],
+          "support": "axis_aligned",
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        }
+      },
+      "semantic_front": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+      "attributes": {"colours": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"}},
+      "observation": {
+        "source": "fx.rel",
+        "capture_time": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+        "detector_confidence": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+        "geometry_uncertainty": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"}
+      }
+    },
+    {
+      "object_id": "obj_007",
+      "source_ref": {"source_id": "fx.rel", "source_object_id": "box_at_0.60", "source_label": "box"},
+      "category": {
+        "state": "known",
+        "value": {"standard": "box", "model": "box"},
+        "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [1.3, 0.0, 0.1],
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        },
+        "size_m": {
+          "state": "known",
+          "value": [0.2, 0.2, 0.2],
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        },
+        "rotation_xyzw": {
+          "state": "known",
+          "value": [0.0, 0.0, 0.0, 1.0],
+          "support": "axis_aligned",
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        }
+      },
+      "semantic_front": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+      "attributes": {"colours": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"}},
+      "observation": {
+        "source": "fx.rel",
+        "capture_time": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+        "detector_confidence": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+        "geometry_uncertainty": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"}
+      }
+    },
+    {
+      "object_id": "obj_008",
+      "source_ref": {"source_id": "fx.rel", "source_object_id": "container", "source_label": "box"},
+      "category": {
+        "state": "known",
+        "value": {"standard": "box", "model": "box"},
+        "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [2.0, 0.0, 0.25],
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        },
+        "size_m": {
+          "state": "known",
+          "value": [0.5, 0.5, 0.5],
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        },
+        "rotation_xyzw": {
+          "state": "known",
+          "value": [0.0, 0.0, 0.0, 1.0],
+          "support": "axis_aligned",
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        }
+      },
+      "semantic_front": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+      "attributes": {"colours": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"}},
+      "observation": {
+        "source": "fx.rel",
+        "capture_time": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+        "detector_confidence": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+        "geometry_uncertainty": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"}
+      }
+    },
+    {
+      "object_id": "obj_009",
+      "source_ref": {"source_id": "fx.rel", "source_object_id": "box_inside", "source_label": "box"},
+      "category": {
+        "state": "known",
+        "value": {"standard": "box", "model": "box"},
+        "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [2.0, 0.0, 0.15],
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        },
+        "size_m": {
+          "state": "known",
+          "value": [0.2, 0.2, 0.2],
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        },
+        "rotation_xyzw": {
+          "state": "known",
+          "value": [0.0, 0.0, 0.0, 1.0],
+          "support": "axis_aligned",
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        }
+      },
+      "semantic_front": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+      "attributes": {"colours": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"}},
+      "observation": {
+        "source": "fx.rel",
+        "capture_time": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+        "detector_confidence": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+        "geometry_uncertainty": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"}
+      }
+    },
+    {
+      "object_id": "obj_010",
+      "source_ref": {"source_id": "fx.rel", "source_object_id": "box_at_rim", "source_label": "box"},
+      "category": {
+        "state": "known",
+        "value": {"standard": "box", "model": "box"},
+        "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [2.0, 0.0, 0.42],
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        },
+        "size_m": {
+          "state": "known",
+          "value": [0.2, 0.2, 0.2],
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        },
+        "rotation_xyzw": {
+          "state": "known",
+          "value": [0.0, 0.0, 0.0, 1.0],
+          "support": "axis_aligned",
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        }
+      },
+      "semantic_front": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+      "attributes": {"colours": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"}},
+      "observation": {
+        "source": "fx.rel",
+        "capture_time": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+        "detector_confidence": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+        "geometry_uncertainty": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"}
+      }
+    },
+    {
+      "object_id": "obj_011",
+      "source_ref": {"source_id": "fx.rel", "source_object_id": "box_protruding", "source_label": "box"},
+      "category": {
+        "state": "known",
+        "value": {"standard": "box", "model": "box"},
+        "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [2.0, 0.0, 0.45],
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        },
+        "size_m": {
+          "state": "known",
+          "value": [0.2, 0.2, 0.2],
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        },
+        "rotation_xyzw": {
+          "state": "known",
+          "value": [0.0, 0.0, 0.0, 1.0],
+          "support": "axis_aligned",
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        }
+      },
+      "semantic_front": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+      "attributes": {"colours": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"}},
+      "observation": {
+        "source": "fx.rel",
+        "capture_time": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+        "detector_confidence": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+        "geometry_uncertainty": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"}
+      }
+    },
+    {
+      "object_id": "obj_012",
+      "source_ref": {"source_id": "fx.rel", "source_object_id": "box_yaw_45", "source_label": "box"},
+      "category": {
+        "state": "known",
+        "value": {"standard": "box", "model": "box"},
+        "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [0.0, 1.0, 0.1],
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        },
+        "size_m": {
+          "state": "known",
+          "value": [0.2, 0.2, 0.2],
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        },
+        "rotation_xyzw": {
+          "state": "known",
+          "value": [0.0, 0.0, 0.3826834324, 0.9238795325],
+          "support": "yaw_only",
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        }
+      },
+      "semantic_front": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+      "attributes": {"colours": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"}},
+      "observation": {
+        "source": "fx.rel",
+        "capture_time": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+        "detector_confidence": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+        "geometry_uncertainty": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"}
+      }
+    },
+    {
+      "object_id": "obj_013",
+      "source_ref": {"source_id": "fx.rel", "source_object_id": "table_tilted_10", "source_label": "table"},
+      "category": {
+        "state": "known",
+        "value": {"standard": "table", "model": "table"},
+        "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [0.0, -3.0, 0.375],
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        },
+        "size_m": {
+          "state": "known",
+          "value": [1.2, 0.8, 0.75],
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        },
+        "rotation_xyzw": {
+          "state": "known",
+          "value": [0.0871557427, 0.0, 0.0, 0.9961946981],
+          "support": "full",
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        }
+      },
+      "semantic_front": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+      "attributes": {"colours": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"}},
+      "observation": {
+        "source": "fx.rel",
+        "capture_time": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+        "detector_confidence": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+        "geometry_uncertainty": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"}
+      }
+    },
+    {
+      "object_id": "obj_014",
+      "source_ref": {"source_id": "fx.rel", "source_object_id": "box_on_tilted_table", "source_label": "box"},
+      "category": {
+        "state": "known",
+        "value": {"standard": "box", "model": "box"},
+        "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [0.0, -3.0, 0.9],
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        },
+        "size_m": {
+          "state": "known",
+          "value": [0.2, 0.2, 0.2],
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        },
+        "rotation_xyzw": {
+          "state": "known",
+          "value": [0.0, 0.0, 0.0, 1.0],
+          "support": "axis_aligned",
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        }
+      },
+      "semantic_front": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+      "attributes": {"colours": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"}},
+      "observation": {
+        "source": "fx.rel",
+        "capture_time": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+        "detector_confidence": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+        "geometry_uncertainty": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"}
+      }
+    },
+    {
+      "object_id": "obj_015",
+      "source_ref": {"source_id": "fx.rel", "source_object_id": "box_at_gap_0.05", "source_label": "box"},
+      "category": {
+        "state": "known",
+        "value": {"standard": "box", "model": "box"},
+        "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [0.4, 0.0, 0.9],
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        },
+        "size_m": {
+          "state": "known",
+          "value": [0.2, 0.2, 0.2],
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        },
+        "rotation_xyzw": {
+          "state": "known",
+          "value": [0.0, 0.0, 0.0, 1.0],
+          "support": "axis_aligned",
+          "evidence": {"kind": "annotated", "source": "fx.rel", "assumptions": []}
+        }
+      },
+      "semantic_front": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+      "attributes": {"colours": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"}},
+      "observation": {
+        "source": "fx.rel",
+        "capture_time": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+        "detector_confidence": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"},
+        "geometry_uncertainty": {"state": "unknown", "reason": "not_in_source", "source": "fx.rel"}
+      }
+    }
+  ]
+}

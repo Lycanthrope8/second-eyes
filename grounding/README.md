@@ -18,6 +18,9 @@ Language grounding (proposal §6, with A2 as the Revision 3.1 supplement plans i
 | `copy_to_unity.py` | copies a model's tokenizer files into the Unity app and writes `model.json`, which names the converted file and records the ONNX export for Second Eyes → Convert model (`docs/setup/quest-model.md`) | A1.7c |
 | `contract/validate.py`, `contract/checks.py` | check scene, command-context and category-map records against the scene contract (`docs/scene-contract.md`): strict parsing, the schemas in `schemas/`, then semantic and cross-record rules; `python grounding/contract/validate.py FILE...` | A2.1a |
 | `tests/test_contract.py`, `tests/fixtures/contract/` | the contract's tests and their fixtures: `python grounding/tests/test_contract.py` | A2.1a |
+| `relations/geometry.py`, `relations/predicates.py` | the relation library (`docs/relations.md`): closest and farthest, near, above, below, on, inside and between over validated scene records, with three-valued results and field-level provenance | A2.1b |
+| `relations/relations.v1.json` | the relation library's provisional parameters (format `schemas/relation-config.v1.json`) | A2.1b |
+| `tests/test_relations.py`, `tests/fixtures/relations/` | the relation library's tests and reviewed cases: `python grounding/tests/test_relations.py` | A2.1b |
 
 ## Setup
 
@@ -27,7 +30,7 @@ Python 3.9 or newer, and a few GB of downloads the first time:
 python -m pip install -r grounding/requirements.txt
 ```
 
-The contract's validator and its tests need only `jsonschema` from that list.
+The contract's validator, the relation library and their tests need only `jsonschema` from that list.
 
 ## On the headset
 

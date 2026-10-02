@@ -1,0 +1,486 @@
+{
+  "description": "Reviewed cases of the relation library (A2.1b, D67). Expected values were calculated by hand from the definitions in docs/relations.md, approved before the library existed, and are never produced by it. Measures are compared within the tolerance below.",
+  "tolerance": 1e-06,
+  "scenes": {
+    "a17": "../contract/valid/scene.a17.annotated.json",
+    "a17r": "../contract/valid/scene.a17.restricted.json",
+    "rel": "scene.rel.json",
+    "rank": "scene.rank.json",
+    "tilt": "scene.tilt.json"
+  },
+  "cases": [
+    {
+      "id": "1",
+      "scene": "a17",
+      "call": {"relation": "between", "args": ["obj_001", "obj_004", "obj_005"]},
+      "arithmetic": "L = 1.56; a = 1.2168/1.56 = 0.78 in [0.02, 1.54]; p = sqrt(0.05^2 + 0.08^2) = 0.0943398113 <= 0.292 (w = max(0.30, 0.312)); table y 1.10-1.70 vs chairs y 1.93-2.43 and 0.37-0.87: overlaps 0",
+      "expect": {
+        "value": "true",
+        "measures": {
+          "separation_m": 1.56,
+          "along_m": 0.78,
+          "lateral_m": 0.0943398113,
+          "lateral_limit_m": 0.312,
+          "overlap_a": 0.0,
+          "overlap_b": 0.0
+        }
+      }
+    },
+    {
+      "id": "2",
+      "scene": "a17r",
+      "call": {"relation": "between", "args": ["obj_001", "obj_004", "obj_005"]},
+      "arithmetic": "centre conditions as in case 1; the overlap limit needs rotations, which are withheld",
+      "expect": {
+        "value": "unknown",
+        "reasons_include": ["missing_rotation:obj_001", "missing_rotation:obj_004", "missing_rotation:obj_005"],
+        "measures": {"separation_m": 1.56, "along_m": 0.78, "lateral_m": 0.0943398113}
+      }
+    },
+    {
+      "id": "3",
+      "scene": "a17",
+      "call": {"relation": "between", "args": ["obj_002", "obj_004", "obj_005"]},
+      "arithmetic": "a = 1.248/1.56 = 0.80; p = sqrt(0.65^2 + 0.25^2) = 0.6964194139 > 0.332",
+      "expect": {
+        "value": "false",
+        "reasons_include": ["failed:lateral"],
+        "measures": {"along_m": 0.8, "lateral_m": 0.6964194139, "lateral_limit_m": 0.312}
+      }
+    },
+    {
+      "id": "3r",
+      "scene": "a17r",
+      "call": {"relation": "between", "args": ["obj_002", "obj_004", "obj_005"]},
+      "arithmetic": "the lateral condition is FALSE from centres alone, so withheld rotations don't matter",
+      "expect": {
+        "value": "false",
+        "reasons_include": ["failed:lateral"],
+        "measures": {"along_m": 0.8, "lateral_m": 0.6964194139}
+      }
+    },
+    {
+      "id": "4",
+      "scene": "a17",
+      "call": {"relation": "near", "args": ["obj_002", "obj_001"]},
+      "arithmetic": "box_1's 30 degree footprint vertex at x = 2.173205 crosses the table edge x = 2.00 and the vertical extents overlap, so the boxes intersect: d = 0",
+      "expect": {"value": "true", "measures": {"distance_m": 0.0}}
+    },
+    {
+      "id": "4r",
+      "scene": "a17r",
+      "call": {"relation": "near", "args": ["obj_002", "obj_001"]},
+      "arithmetic": "rotations withheld",
+      "expect": {"value": "unknown", "reasons_include": ["missing_rotation:obj_002", "missing_rotation:obj_001"]}
+    },
+    {
+      "id": "5",
+      "scene": "a17",
+      "call": {"relation": "below", "args": ["obj_002", "obj_001"]},
+      "arithmetic": "separated: s = 0.40 - 0 > 0.01, FALSE; furniture: offset 0, margin 0.40 - 0.74 = -0.34, overlap triangle 0.5 * 0.4 * 0.1732050808 = 0.0346410162 m^2 over 0.16 m^2 = 0.2165063509 < 0.45, FALSE",
+      "expect": {
+        "value": "false",
+        "measures": {"separated_gap_m": 0.4, "bottom_offset_m": 0.0, "top_margin_m": -0.34, "overlap": 0.2165063509}
+      }
+    },
+    {
+      "id": "6",
+      "scene": "a17",
+      "call": {"relation": "near", "args": ["obj_003", "obj_001"]},
+      "arithmetic": "box_2's rotation is not in the source",
+      "expect": {"value": "unknown", "reasons_include": ["missing_rotation:obj_003"]}
+    },
+    {
+      "id": "7",
+      "scene": "a17",
+      "call": {
+        "relation": "closest",
+        "anchor": "obj_001",
+        "candidates": ["obj_004", "obj_005"],
+        "possible": ["obj_006"],
+        "k": 1
+      },
+      "arithmetic": "both chairs at sqrt(0.6173) = 0.7856844150, tied; the lamp at sqrt(4.0749) = 2.0186381548 changes neither combination",
+      "expect": {
+        "status": "ambiguous",
+        "object_ids": ["obj_004", "obj_005"],
+        "reasons_include": ["tie"],
+        "distances_m": {"obj_004": 0.785684415, "obj_005": 0.785684415, "obj_006": 2.0186381548},
+        "possible_count": 1,
+        "combinations_checked": 2
+      }
+    },
+    {
+      "id": "7r",
+      "scene": "a17r",
+      "call": {
+        "relation": "closest",
+        "anchor": "obj_001",
+        "candidates": ["obj_004", "obj_005"],
+        "possible": ["obj_006"],
+        "k": 1
+      },
+      "arithmetic": "centres are oracle in both profiles",
+      "expect": {
+        "status": "ambiguous",
+        "object_ids": ["obj_004", "obj_005"],
+        "reasons_include": ["tie"],
+        "distances_m": {"obj_004": 0.785684415, "obj_005": 0.785684415, "obj_006": 2.0186381548},
+        "possible_count": 1,
+        "combinations_checked": 2
+      }
+    },
+    {
+      "id": "8a",
+      "scene": "rel",
+      "call": {"relation": "near", "args": ["obj_005", "obj_001"]},
+      "arithmetic": "x gap 0.9 - 0.6 = 0.30 <= 0.48",
+      "expect": {"value": "true", "measures": {"distance_m": 0.3}}
+    },
+    {
+      "id": "8b",
+      "scene": "rel",
+      "call": {"relation": "near", "args": ["obj_006", "obj_001"]},
+      "arithmetic": "x gap 1.1 - 0.6 = 0.50, in (0.48, 0.52]",
+      "expect": {"value": "unknown", "reasons_include": ["boundary:distance"], "measures": {"distance_m": 0.5}}
+    },
+    {
+      "id": "8c",
+      "scene": "rel",
+      "call": {"relation": "near", "args": ["obj_007", "obj_001"]},
+      "arithmetic": "x gap 1.2 - 0.6 = 0.60 > 0.52",
+      "expect": {"value": "false", "reasons_include": ["failed:distance"], "measures": {"distance_m": 0.6}}
+    },
+    {
+      "id": "9",
+      "scene": "rel",
+      "call": {"relation": "near", "args": ["obj_012", "obj_001"]},
+      "arithmetic": "diamond vertex at y = 1.0 - 0.1414213562 = 0.8585786438; d = 0.4585786438 <= 0.48 (unrotated: 0.50)",
+      "expect": {"value": "true", "measures": {"distance_m": 0.4585786438}}
+    },
+    {
+      "id": "10",
+      "scene": "rel",
+      "call": {"relation": "above", "args": ["obj_003", "obj_001"]},
+      "arithmetic": "g = 1.15 - 0.75 = 0.40 >= 0.06; o = 0.04/0.04 = 1",
+      "expect": {"value": "true", "measures": {"gap_m": 0.4, "overlap": 1.0}}
+    },
+    {
+      "id": "11a",
+      "scene": "rel",
+      "call": {"relation": "above", "args": ["obj_002", "obj_001"]},
+      "arithmetic": "g = 0.75 - 0.75 = 0 < 0.04",
+      "expect": {"value": "false", "reasons_include": ["failed:vertical_gap"], "measures": {"gap_m": 0.0, "overlap": 1.0}}
+    },
+    {
+      "id": "11b",
+      "scene": "rel",
+      "call": {"relation": "on", "args": ["obj_002", "obj_001"]},
+      "arithmetic": "gate passes (table, tilt 0); -0.04 <= 0 <= 0.04; o = 1",
+      "expect": {"value": "true", "basis": "top_face_support", "measures": {"gap_m": 0.0, "overlap": 1.0, "tilt_deg": 0.0}}
+    },
+    {
+      "id": "12",
+      "scene": "rel",
+      "call": {"relation": "on", "args": ["obj_003", "obj_001"]},
+      "arithmetic": "g = 0.40 > 0.06",
+      "expect": {"value": "false", "reasons_include": ["failed:gap"], "measures": {"gap_m": 0.4}}
+    },
+    {
+      "id": "13a",
+      "scene": "rel",
+      "call": {"relation": "on", "args": ["obj_015", "obj_001"]},
+      "arithmetic": "g = 0.80 - 0.75 = 0.05, in (0.04, 0.06]",
+      "expect": {"value": "unknown", "reasons_include": ["boundary:gap"], "measures": {"gap_m": 0.05, "overlap": 1.0}}
+    },
+    {
+      "id": "13b",
+      "scene": "rel",
+      "call": {"relation": "above", "args": ["obj_015", "obj_001"]},
+      "arithmetic": "g = 0.05, in [0.04, 0.06)",
+      "expect": {"value": "unknown", "reasons_include": ["boundary:vertical_gap"], "measures": {"gap_m": 0.05}}
+    },
+    {
+      "id": "14",
+      "scene": "rel",
+      "call": {"relation": "on", "args": ["obj_002", "obj_004"]},
+      "arithmetic": "a box is not a support; UNKNOWN before geometry",
+      "expect": {"value": "unknown", "reasons_include": ["support_not_represented:obj_004"]}
+    },
+    {
+      "id": "15",
+      "scene": "rel",
+      "call": {"relation": "on", "args": ["obj_014", "obj_013"]},
+      "arithmetic": "tilt 10 degrees > 5",
+      "expect": {"value": "unknown", "reasons_include": ["support_tilted:obj_013"], "measures": {"tilt_deg": 10.0}}
+    },
+    {
+      "id": "16",
+      "scene": "rel",
+      "call": {"relation": "below", "args": ["obj_004", "obj_001"]},
+      "arithmetic": "separated: s = 0.20 > 0.01, FALSE; furniture: offset 0 <= 0.08, margin 0.20 - 0.75 = -0.55, o = 1",
+      "expect": {
+        "value": "true",
+        "basis": "beneath_furniture",
+        "measures": {"separated_gap_m": 0.2, "bottom_offset_m": 0.0, "top_margin_m": -0.55, "overlap": 1.0}
+      }
+    },
+    {
+      "id": "17",
+      "scene": "rel",
+      "call": {"relation": "below", "args": ["obj_001", "obj_003"]},
+      "arithmetic": "separated: s = 0.75 - 1.15 = -0.40; o = 0.04/0.04 = 1",
+      "expect": {"value": "true", "basis": "separated", "measures": {"separated_gap_m": -0.4, "overlap": 1.0}}
+    },
+    {
+      "id": "18",
+      "scene": "rel",
+      "call": {"relation": "below", "args": ["obj_005", "obj_001"]},
+      "arithmetic": "separated: s = 0.20, FALSE; furniture: o = 0, FALSE",
+      "expect": {
+        "value": "false",
+        "reasons_include": ["failed:separated_gap", "failed:overlap"],
+        "measures": {"separated_gap_m": 0.2, "overlap": 0.0}
+      }
+    },
+    {
+      "id": "19a",
+      "scene": "rel",
+      "call": {"relation": "inside", "args": ["obj_009", "obj_008"]},
+      "arithmetic": "z' in [-0.20, 0.00]; e = max(0.10 - 0.25, 0.20 - 0.25) = -0.05",
+      "expect": {"value": "true", "basis": "outer_box_containment", "measures": {"excess_m": -0.05}}
+    },
+    {
+      "id": "19b",
+      "scene": "rel",
+      "call": {"relation": "inside", "args": ["obj_010", "obj_008"]},
+      "arithmetic": "z' max 0.27; e = 0.02, in (0.01, 0.03]",
+      "expect": {"value": "unknown", "reasons_include": ["boundary:containment"], "measures": {"excess_m": 0.02}}
+    },
+    {
+      "id": "19c",
+      "scene": "rel",
+      "call": {"relation": "inside", "args": ["obj_011", "obj_008"]},
+      "arithmetic": "z' max 0.30; e = 0.05 > 0.03",
+      "expect": {"value": "false", "reasons_include": ["failed:containment"], "measures": {"excess_m": 0.05}}
+    },
+    {
+      "id": "20",
+      "scene": "rel",
+      "call": {"relation": "inside", "args": ["obj_004", "obj_001"]},
+      "arithmetic": "a table is not a container; UNKNOWN before geometry",
+      "expect": {"value": "unknown", "reasons_include": ["container_not_represented:obj_001"]}
+    },
+    {
+      "id": "21",
+      "scene": "rel",
+      "call": {"relation": "between", "args": ["obj_001", "obj_002", "obj_004"]},
+      "arithmetic": "L = 0.75; a = 0.35625/0.75 = 0.475; p = 0; vs obj_002 v = 0.75 - 0.75 = 0, not counted; vs obj_004 v = 0.20 > 0 and o = 1 > 0.55",
+      "expect": {
+        "value": "false",
+        "reasons_include": ["failed:overlap_b"],
+        "measures": {"separation_m": 0.75, "along_m": 0.475, "lateral_m": 0.0, "overlap_a": 0.0, "overlap_b": 1.0}
+      }
+    },
+    {
+      "id": "22",
+      "scene": "rel",
+      "call": {"relation": "between", "args": ["obj_003", "obj_002", "obj_004"]},
+      "arithmetic": "a = (0.40 * -0.75)/0.75 = -0.40 < -0.02",
+      "expect": {
+        "value": "false",
+        "reasons_include": ["failed:endpoint_a"],
+        "measures": {"separation_m": 0.75, "along_m": -0.4}
+      }
+    },
+    {
+      "id": "23",
+      "scene": "rel",
+      "call": {"relation": "between", "args": ["obj_008", "obj_010", "obj_011"]},
+      "arithmetic": "L = 0.03, below the 0.22 needed",
+      "expect": {"value": "unknown", "reasons_include": ["degenerate_anchors"], "measures": {"separation_m": 0.03}}
+    },
+    {
+      "id": "24",
+      "scene": "rel",
+      "call": {"relation": "between", "args": ["obj_001", "obj_001", "obj_002"]},
+      "arithmetic": "the IDs are not distinct",
+      "expect": {"value": "false", "reasons_include": ["not_distinct"]}
+    },
+    {
+      "id": "25a",
+      "scene": "rank",
+      "call": {
+        "relation": "closest",
+        "anchor": "obj_001",
+        "candidates": ["obj_002", "obj_003", "obj_004"],
+        "possible": [],
+        "k": 1
+      },
+      "arithmetic": "gaps of 1.00",
+      "expect": {
+        "status": "resolved",
+        "object_ids": ["obj_002"],
+        "distances_m": {"obj_002": 1.0, "obj_003": 2.0, "obj_004": 3.0}
+      }
+    },
+    {
+      "id": "25b",
+      "scene": "rank",
+      "call": {
+        "relation": "closest",
+        "anchor": "obj_001",
+        "candidates": ["obj_002", "obj_003", "obj_004"],
+        "possible": [],
+        "k": 2
+      },
+      "arithmetic": "gaps of 1.00",
+      "expect": {"status": "resolved", "object_ids": ["obj_003"]}
+    },
+    {
+      "id": "25c",
+      "scene": "rank",
+      "call": {
+        "relation": "closest",
+        "anchor": "obj_001",
+        "candidates": ["obj_002", "obj_003", "obj_004"],
+        "possible": [],
+        "k": 3
+      },
+      "arithmetic": "gaps of 1.00",
+      "expect": {"status": "resolved", "object_ids": ["obj_004"]}
+    },
+    {
+      "id": "25d",
+      "scene": "rank",
+      "call": {
+        "relation": "farthest",
+        "anchor": "obj_001",
+        "candidates": ["obj_002", "obj_003", "obj_004"],
+        "possible": [],
+        "k": 1
+      },
+      "arithmetic": "gaps of 1.00",
+      "expect": {"status": "resolved", "object_ids": ["obj_004"]}
+    },
+    {
+      "id": "26",
+      "scene": "rank",
+      "call": {"relation": "closest", "anchor": "obj_001", "candidates": ["obj_002", "obj_005"], "possible": [], "k": 1},
+      "arithmetic": "gap 1.04 - 1.00 = 0.04 <= 0.05",
+      "expect": {
+        "status": "ambiguous",
+        "object_ids": ["obj_002", "obj_005"],
+        "reasons_include": ["tie"],
+        "distances_m": {"obj_002": 1.0, "obj_005": 1.04}
+      }
+    },
+    {
+      "id": "27",
+      "scene": "rank",
+      "call": {"relation": "closest", "anchor": "obj_001", "candidates": ["obj_002"], "possible": [], "k": 2},
+      "arithmetic": "one candidate for rank 2",
+      "expect": {"status": "no_match", "object_ids": [], "reasons_include": ["too_few_candidates"]}
+    },
+    {
+      "id": "28",
+      "scene": "rank",
+      "call": {"relation": "closest", "anchor": "obj_001", "candidates": ["obj_002", "obj_007"], "possible": [], "k": 1},
+      "arithmetic": "obj_007 has no centre",
+      "expect": {"status": "insufficient", "object_ids": [], "reasons_include": ["missing_centre:obj_007"]}
+    },
+    {
+      "id": "29",
+      "scene": "rank",
+      "call": {
+        "relation": "closest",
+        "anchor": "obj_001",
+        "candidates": ["obj_002"],
+        "possible": ["obj_003", "obj_004"],
+        "k": 3
+      },
+      "arithmetic": "{} no_match; {obj_003} no_match; {obj_004} no_match; {obj_003, obj_004} distances 1/2/3, obj_004 resolved; the combinations differ (one-at-a-time checking would wrongly give no_match)",
+      "expect": {
+        "status": "insufficient",
+        "object_ids": [],
+        "reasons_include": ["possible_competitors:obj_003,obj_004"],
+        "possible_count": 2,
+        "combinations_checked": 4
+      }
+    },
+    {
+      "id": "30",
+      "scene": "rank",
+      "call": {
+        "relation": "closest",
+        "anchor": "obj_001",
+        "candidates": ["obj_002"],
+        "possible": ["obj_003", "obj_004"],
+        "k": 1
+      },
+      "arithmetic": "every combination resolves obj_002 (next gap >= 1.00)",
+      "expect": {"status": "resolved", "object_ids": ["obj_002"], "possible_count": 2, "combinations_checked": 4}
+    },
+    {
+      "id": "31",
+      "scene": "rank",
+      "call": {"relation": "closest", "anchor": "obj_001", "candidates": ["obj_002"], "possible": ["obj_006"], "k": 1},
+      "arithmetic": "{} resolves obj_002; {obj_006} gap 0.02, ambiguous",
+      "expect": {
+        "status": "insufficient",
+        "object_ids": [],
+        "reasons_include": ["possible_competitors:obj_006"],
+        "possible_count": 1,
+        "combinations_checked": 2
+      }
+    },
+    {
+      "id": "32",
+      "scene": "rank",
+      "call": {"relation": "closest", "anchor": "obj_008", "candidates": ["obj_002", "obj_003"], "possible": [], "k": 1},
+      "arithmetic": "the anchor has no centre",
+      "expect": {"status": "insufficient", "object_ids": [], "reasons_include": ["missing_centre:obj_008"]}
+    },
+    {
+      "id": "33",
+      "scene": "rank",
+      "call": {"relation": "closest", "anchor": "obj_002", "candidates": ["obj_002", "obj_003"], "possible": [], "k": 1},
+      "arithmetic": "the anchor is excluded; obj_003 at 1.00",
+      "expect": {"status": "resolved", "object_ids": ["obj_003"], "distances_m": {"obj_003": 1.0}}
+    },
+    {
+      "id": "34",
+      "scene": "tilt",
+      "call": {"relation": "near", "args": ["obj_001", "obj_002"]},
+      "arithmetic": "A's top edge at z = sqrt(2)/2 = 0.7071067812; B's bottom at 1.1; d = 1.1 - 0.7071067812 = 0.3928932188 <= 0.48",
+      "expect": {"value": "true", "measures": {"distance_m": 0.3928932188}}
+    },
+    {
+      "id": "34b",
+      "scene": "tilt",
+      "call": {"relation": "near", "args": ["obj_003", "obj_002"]},
+      "arithmetic": "the same cube without its rotation: d = 1.1 - 0.5 = 0.60 > 0.52",
+      "expect": {"value": "false", "reasons_include": ["failed:distance"], "measures": {"distance_m": 0.6}}
+    }
+  ],
+  "geometry": [
+    {
+      "scene": "tilt",
+      "object_id": "obj_001",
+      "arithmetic": "a unit cube turned 45 degrees about x: z from -sqrt(2)/2 to sqrt(2)/2; footprint 1 by sqrt(2); up axis tilted 45 degrees",
+      "expect": {"z_min": -0.7071067812, "z_max": 0.7071067812, "footprint_area": 1.4142135624, "tilt_deg": 45.0}
+    },
+    {
+      "scene": "tilt",
+      "object_id": "obj_002",
+      "arithmetic": "axis-aligned unit cube centred at z = 1.6",
+      "expect": {"z_min": 1.1, "z_max": 2.1, "footprint_area": 1.0, "tilt_deg": 0.0}
+    },
+    {
+      "scene": "rel",
+      "object_id": "obj_013",
+      "arithmetic": "the table turned 10 degrees about x",
+      "expect": {"tilt_deg": 10.0}
+    }
+  ]
+}

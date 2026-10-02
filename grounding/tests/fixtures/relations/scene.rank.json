@@ -1,0 +1,227 @@
+{
+  "schema_version": 1,
+  "record_type": "scene",
+  "scene_id": "fixture.rank",
+  "scene_revision": 0,
+  "evidence_profile": "annotated",
+  "category_map": "map.fx",
+  "coordinate_frame": {
+    "frame_id": "scene",
+    "units": "m",
+    "handedness": "right",
+    "up_axis": "+z",
+    "origin": "the anchor obj_001 is at the origin",
+    "conversion": "authored_in_scene_frame"
+  },
+  "sources": [
+    {
+      "source_id": "fx.rank",
+      "kind": "fixture",
+      "description": "Ranking test scene (A2.1b): an anchor and chairs at known distances, two with unknown centres; all values are test values",
+      "release": "fixture-v1"
+    }
+  ],
+  "assumptions": [],
+  "objects": [
+    {
+      "object_id": "obj_001",
+      "source_ref": {"source_id": "fx.rank", "source_object_id": "anchor", "source_label": "table"},
+      "category": {
+        "state": "known",
+        "value": {"standard": "table", "model": "table"},
+        "evidence": {"kind": "annotated", "source": "fx.rank", "assumptions": []}
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [0.0, 0.0, 0.0],
+          "evidence": {"kind": "annotated", "source": "fx.rank", "assumptions": []}
+        },
+        "size_m": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"},
+        "rotation_xyzw": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"}
+      },
+      "semantic_front": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"},
+      "attributes": {"colours": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"}},
+      "observation": {
+        "source": "fx.rank",
+        "capture_time": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"},
+        "detector_confidence": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"},
+        "geometry_uncertainty": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"}
+      }
+    },
+    {
+      "object_id": "obj_002",
+      "source_ref": {"source_id": "fx.rank", "source_object_id": "chair_1.00", "source_label": "chair"},
+      "category": {
+        "state": "known",
+        "value": {"standard": "chair", "model": "chair"},
+        "evidence": {"kind": "annotated", "source": "fx.rank", "assumptions": []}
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [1.0, 0.0, 0.0],
+          "evidence": {"kind": "annotated", "source": "fx.rank", "assumptions": []}
+        },
+        "size_m": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"},
+        "rotation_xyzw": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"}
+      },
+      "semantic_front": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"},
+      "attributes": {"colours": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"}},
+      "observation": {
+        "source": "fx.rank",
+        "capture_time": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"},
+        "detector_confidence": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"},
+        "geometry_uncertainty": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"}
+      }
+    },
+    {
+      "object_id": "obj_003",
+      "source_ref": {"source_id": "fx.rank", "source_object_id": "chair_2.00", "source_label": "chair"},
+      "category": {
+        "state": "known",
+        "value": {"standard": "chair", "model": "chair"},
+        "evidence": {"kind": "annotated", "source": "fx.rank", "assumptions": []}
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [2.0, 0.0, 0.0],
+          "evidence": {"kind": "annotated", "source": "fx.rank", "assumptions": []}
+        },
+        "size_m": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"},
+        "rotation_xyzw": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"}
+      },
+      "semantic_front": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"},
+      "attributes": {"colours": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"}},
+      "observation": {
+        "source": "fx.rank",
+        "capture_time": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"},
+        "detector_confidence": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"},
+        "geometry_uncertainty": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"}
+      }
+    },
+    {
+      "object_id": "obj_004",
+      "source_ref": {"source_id": "fx.rank", "source_object_id": "chair_3.00", "source_label": "chair"},
+      "category": {
+        "state": "known",
+        "value": {"standard": "chair", "model": "chair"},
+        "evidence": {"kind": "annotated", "source": "fx.rank", "assumptions": []}
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [3.0, 0.0, 0.0],
+          "evidence": {"kind": "annotated", "source": "fx.rank", "assumptions": []}
+        },
+        "size_m": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"},
+        "rotation_xyzw": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"}
+      },
+      "semantic_front": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"},
+      "attributes": {"colours": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"}},
+      "observation": {
+        "source": "fx.rank",
+        "capture_time": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"},
+        "detector_confidence": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"},
+        "geometry_uncertainty": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"}
+      }
+    },
+    {
+      "object_id": "obj_005",
+      "source_ref": {"source_id": "fx.rank", "source_object_id": "chair_1.04", "source_label": "chair"},
+      "category": {
+        "state": "known",
+        "value": {"standard": "chair", "model": "chair"},
+        "evidence": {"kind": "annotated", "source": "fx.rank", "assumptions": []}
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [0.0, 1.04, 0.0],
+          "evidence": {"kind": "annotated", "source": "fx.rank", "assumptions": []}
+        },
+        "size_m": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"},
+        "rotation_xyzw": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"}
+      },
+      "semantic_front": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"},
+      "attributes": {"colours": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"}},
+      "observation": {
+        "source": "fx.rank",
+        "capture_time": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"},
+        "detector_confidence": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"},
+        "geometry_uncertainty": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"}
+      }
+    },
+    {
+      "object_id": "obj_006",
+      "source_ref": {"source_id": "fx.rank", "source_object_id": "chair_1.02", "source_label": "chair"},
+      "category": {
+        "state": "known",
+        "value": {"standard": "chair", "model": "chair"},
+        "evidence": {"kind": "annotated", "source": "fx.rank", "assumptions": []}
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [0.0, -1.02, 0.0],
+          "evidence": {"kind": "annotated", "source": "fx.rank", "assumptions": []}
+        },
+        "size_m": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"},
+        "rotation_xyzw": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"}
+      },
+      "semantic_front": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"},
+      "attributes": {"colours": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"}},
+      "observation": {
+        "source": "fx.rank",
+        "capture_time": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"},
+        "detector_confidence": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"},
+        "geometry_uncertainty": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"}
+      }
+    },
+    {
+      "object_id": "obj_007",
+      "source_ref": {"source_id": "fx.rank", "source_object_id": "chair_no_centre", "source_label": "chair"},
+      "category": {
+        "state": "known",
+        "value": {"standard": "chair", "model": "chair"},
+        "evidence": {"kind": "annotated", "source": "fx.rank", "assumptions": []}
+      },
+      "geometry": {
+        "center_m": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"},
+        "size_m": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"},
+        "rotation_xyzw": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"}
+      },
+      "semantic_front": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"},
+      "attributes": {"colours": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"}},
+      "observation": {
+        "source": "fx.rank",
+        "capture_time": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"},
+        "detector_confidence": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"},
+        "geometry_uncertainty": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"}
+      }
+    },
+    {
+      "object_id": "obj_008",
+      "source_ref": {"source_id": "fx.rank", "source_object_id": "chair_no_centre_2", "source_label": "chair"},
+      "category": {
+        "state": "known",
+        "value": {"standard": "chair", "model": "chair"},
+        "evidence": {"kind": "annotated", "source": "fx.rank", "assumptions": []}
+      },
+      "geometry": {
+        "center_m": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"},
+        "size_m": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"},
+        "rotation_xyzw": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"}
+      },
+      "semantic_front": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"},
+      "attributes": {"colours": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"}},
+      "observation": {
+        "source": "fx.rank",
+        "capture_time": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"},
+        "detector_confidence": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"},
+        "geometry_uncertainty": {"state": "unknown", "reason": "not_in_source", "source": "fx.rank"}
+      }
+    }
+  ]
+}

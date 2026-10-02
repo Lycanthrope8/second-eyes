@@ -9,3 +9,4 @@ File formats that every component follows, kept in one place so the headset app 
 | `scene.v1.json` | one scene record (`docs/scene-contract.md`) | A2.1a |
 | `command-context.v1.json` | one typed command with the user's pose (`docs/scene-contract.md`) | A2.1a |
 | `category-map.v1.json` | one category map (`docs/scene-contract.md`) | A2.1a |
+| `relation-config.v1.json` | the relation library's thresholds, bands and category lists (`docs/relations.md`) | A2.1b |
