@@ -6,3 +6,6 @@ File formats that every component follows, kept in one place so the headset app 
 |---|---|---|
 | `run-config.v1.json` | `runs/<run ID>/config.yaml` | S0.2 |
 | `log-event.v1.json` | one line of a session log (see `docs/logging.md`) | S0.3 |
+| `scene.v1.json` | one scene record (`docs/scene-contract.md`) | A2.1a |
+| `command-context.v1.json` | one typed command with the user's pose (`docs/scene-contract.md`) | A2.1a |
+| `category-map.v1.json` | one category map (`docs/scene-contract.md`) | A2.1a |

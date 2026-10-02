@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "record_type": "category_map",
+  "map_id": "map.fx",
+  "description": "Category map of the a17 fixture; 'floor lamp' is deliberately unmapped",
+  "release": "fixture-v1",
+  "model_vocabulary": ["box", "chair", "table"],
+  "entries": [
+    {"source_label": "table", "standard": "table", "model": "table"},
+    {"source_label": "box", "standard": "box", "model": "box"},
+    {"source_label": "chair", "standard": "chair", "model": "chair"}
+  ]
+}

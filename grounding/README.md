@@ -1,6 +1,6 @@
 # grounding
 
-Language grounding (proposal §6): the scene schema, the relation library for user, drone and object frames, synthetic scenes and commands, the rule-based parser, and fine-tuning and evaluation of the language models. Everything here runs on a PC; on the headset, the model runs inside Meta's provider (docs/meta-ai.md).
+Language grounding (proposal §6, with A2 as the Revision 3.1 supplement plans it, D63): the scene contract and its validator, the relation library, the rule-based parser, and fine-tuning and evaluation of the language models, trained mainly on published datasets. Everything here runs on a PC; since D60 the headset runs the model with llama.cpp (On the headset, below).
 
 | Path | What it is | Since |
 |---|---|---|
@@ -16,6 +16,8 @@ Language grounding (proposal §6): the scene schema, the relation library for us
 | `check_headset.py` | compares the sends in a run's logs (headset, or the editor's Play mode) with the PC reference: the prompt's token IDs, and the answer text token by token, even if the answer didn't finish | A1.7c |
 | `debug_values.py` | saves onnxruntime's intermediate values for the fixed prompt, and a copy of the export that exposes them (`onnx/model_debug.onnx`), for check 7 of Second Eyes → Test model on the PC | A1.7c |
 | `copy_to_unity.py` | copies a model's tokenizer files into the Unity app and writes `model.json`, which names the converted file and records the ONNX export for Second Eyes → Convert model (`docs/setup/quest-model.md`) | A1.7c |
+| `contract/validate.py`, `contract/checks.py` | check scene, command-context and category-map records against the scene contract (`docs/scene-contract.md`): strict parsing, the schemas in `schemas/`, then semantic and cross-record rules; `python grounding/contract/validate.py FILE...` | A2.1a |
+| `tests/test_contract.py`, `tests/fixtures/contract/` | the contract's tests and their fixtures: `python grounding/tests/test_contract.py` | A2.1a |
 
 ## Setup
 
@@ -24,6 +26,8 @@ Python 3.9 or newer, and a few GB of downloads the first time:
 ```
 python -m pip install -r grounding/requirements.txt
 ```
+
+The contract's validator and its tests need only `jsonschema` from that list.
 
 ## On the headset
 

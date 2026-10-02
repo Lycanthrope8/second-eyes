@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "record_type": "command_context",
+  "command_id": "fx.a17.c001",
+  "text": "Inspect the box behind the table.",
+  "scene_id": "fixture.a17",
+  "scene_revision": 0,
+  "sources": [
+    {
+      "source_id": "fx",
+      "kind": "fixture",
+      "description": "The a17 scene: object centres from A1's a17 prompts, which add box_1 to the example memory in proposal Revision 3, section 4.3; the user's position and 4 degree heading from section 4.3. Sizes, rotations, fronts, colours and floor_lamp_1 are illustrative test values",
+      "release": "fixture-v1"
+    }
+  ],
+  "assumptions": [],
+  "user_pose": {
+    "pose_kind": "authored",
+    "frame_id": "scene",
+    "scene_revision": 0,
+    "position_m": {"state": "known", "value": [0.4, 1.0, 1.62], "evidence": {"kind": "measured", "source": "fx", "assumptions": []}},
+    "rotation_xyzw": {"state": "unknown", "reason": "not_in_source", "source": "fx"},
+    "heading_xy": {
+      "state": "known",
+      "value": [0.9975641, 0.0697565],
+      "heading_source": "authored",
+      "evidence": {"kind": "annotated", "source": "fx", "assumptions": []}
+    },
+    "snapshot_time": {"state": "unknown", "reason": "not_in_source", "source": "fx"}
+  }
+}

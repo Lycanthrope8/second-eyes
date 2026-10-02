@@ -9,3 +9,5 @@ optimum~=2.1.0
 optimum-onnx==0.1.0
 onnx>=1.16
 onnxruntime>=1.18
+# The scene contract's validator and tests (A2.1a, D66) need only this:
+jsonschema>=4.0

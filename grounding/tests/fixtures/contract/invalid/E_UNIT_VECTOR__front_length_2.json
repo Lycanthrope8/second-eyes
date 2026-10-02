@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "record_type": "scene",
+  "scene_id": "fixture.min",
+  "scene_revision": 0,
+  "evidence_profile": "annotated",
+  "category_map": "map.fx",
+  "coordinate_frame": {
+    "frame_id": "scene",
+    "units": "m",
+    "handedness": "right",
+    "up_axis": "+z",
+    "origin": "as authored for the a17 scene (proposal Revision 3, section 4.3)",
+    "conversion": "authored_in_scene_frame"
+  },
+  "sources": [
+    {
+      "source_id": "fx",
+      "kind": "fixture",
+      "description": "The a17 scene: object centres from A1's a17 prompts, which add box_1 to the example memory in proposal Revision 3, section 4.3; the user's position and 4 degree heading from section 4.3. Sizes, rotations, fronts, colours and floor_lamp_1 are illustrative test values",
+      "release": "fixture-v1"
+    }
+  ],
+  "assumptions": [],
+  "objects": [
+    {
+      "object_id": "obj_001",
+      "source_ref": {"source_id": "fx", "source_object_id": "table_1", "source_label": "table"},
+      "category": {
+        "state": "known",
+        "value": {"standard": "table", "model": "table"},
+        "evidence": {"kind": "annotated", "source": "fx", "assumptions": []}
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [2.6, 1.4, 0.37],
+          "evidence": {"kind": "annotated", "source": "fx", "assumptions": []}
+        },
+        "size_m": {
+          "state": "known",
+          "value": [1.2, 0.6, 0.74],
+          "evidence": {"kind": "annotated", "source": "fx", "assumptions": []}
+        },
+        "rotation_xyzw": {
+          "state": "known",
+          "value": [0.0, 0.0, 0.0, 1.0],
+          "support": "axis_aligned",
+          "evidence": {"kind": "annotated", "source": "fx", "assumptions": []}
+        }
+      },
+      "semantic_front": {
+        "state": "known",
+        "value": [0.0, 2.0, 0.0],
+        "evidence": {"kind": "annotated", "source": "fx", "assumptions": []}
+      },
+      "attributes": {
+        "colours": {"state": "known", "value": ["brown"], "evidence": {"kind": "annotated", "source": "fx", "assumptions": []}}
+      },
+      "observation": {
+        "source": "fx",
+        "capture_time": {"state": "unknown", "reason": "not_in_source", "source": "fx"},
+        "detector_confidence": {"state": "unknown", "reason": "not_in_source", "source": "fx"},
+        "geometry_uncertainty": {"state": "unknown", "reason": "not_in_source", "source": "fx"}
+      }
+    }
+  ]
+}

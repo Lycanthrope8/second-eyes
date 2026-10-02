@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "category-map.v1.json",
+  "title": "Second Eyes category map, format v1",
+  "description": "How one source vocabulary's raw labels map to standardized and model-visible labels. Checked by 'python grounding/contract/validate.py'. Rules: docs/scene-contract.md (D66).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "record_type", "map_id", "description", "release", "model_vocabulary", "entries"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "record_type": {"const": "category_map"},
+    "map_id": {"$ref": "#/$defs/id"},
+    "description": {"$ref": "#/$defs/text"},
+    "release": {"$ref": "#/$defs/text"},
+    "model_vocabulary": {"type": "array", "items": {"$ref": "#/$defs/label"}, "minItems": 1, "uniqueItems": true},
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source_label", "standard", "model"],
+        "properties": {
+          "source_label": {"$ref": "#/$defs/label"},
+          "standard": {"$ref": "#/$defs/label"},
+          "model": {"$ref": "#/$defs/label"}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "label": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^\\S(.*\\S)?$",
+      "description": "A non-empty label without leading or trailing whitespace."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_.-]{0,127}$",
+      "description": "Lower-case identifier: letters, digits, '_', '.', '-'; starts with a letter or digit."
+    },
+    "text": {"type": "string", "minLength": 1}
+  }
+}

@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "command-context.v1.json",
+  "title": "Second Eyes command context, format v1",
+  "description": "One typed command, the scene snapshot it refers to, and the user's pose at submission. Checked by 'python grounding/contract/validate.py'. Rules: docs/scene-contract.md (D66).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "record_type",
+    "command_id",
+    "text",
+    "scene_id",
+    "scene_revision",
+    "sources",
+    "assumptions",
+    "user_pose"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "record_type": {"const": "command_context"},
+    "command_id": {"$ref": "#/$defs/id"},
+    "text": {"$ref": "#/$defs/text"},
+    "scene_id": {"$ref": "#/$defs/id"},
+    "scene_revision": {"type": "integer", "minimum": 0},
+    "sources": {"type": "array", "items": {"$ref": "#/$defs/source"}},
+    "assumptions": {"type": "array", "items": {"$ref": "#/$defs/assumption"}},
+    "user_pose": {"$ref": "#/$defs/userPose"}
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_.-]{0,127}$",
+      "description": "Lower-case identifier: letters, digits, '_', '.', '-'; starts with a letter or digit."
+    },
+    "label": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^\\S(.*\\S)?$",
+      "description": "A non-empty label without leading or trailing whitespace."
+    },
+    "text": {"type": "string", "minLength": 1},
+    "source": {
+      "description": "An entry of the record's sources list. Evidence names sources by source_id.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_id", "kind", "description", "release"],
+      "properties": {
+        "source_id": {"$ref": "#/$defs/id"},
+        "kind": {"enum": ["dataset", "fixture", "prior_table", "profile"]},
+        "description": {"$ref": "#/$defs/text"},
+        "release": {"$ref": "#/$defs/text"}
+      }
+    },
+    "assumption": {
+      "description": "An entry of the record's assumptions list. Evidence names assumptions by assumption_id.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["assumption_id", "description"],
+      "properties": {"assumption_id": {"$ref": "#/$defs/id"}, "description": {"$ref": "#/$defs/text"}}
+    },
+    "evidence": {
+      "description": "Where a known value comes from. annotated: a dataset's or fixture's value; measured, inferred, assumed: see docs/scene-contract.md.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "source", "assumptions"],
+      "properties": {
+        "kind": {"enum": ["annotated", "measured", "inferred", "assumed"]},
+        "source": {"$ref": "#/$defs/id"},
+        "assumptions": {"type": "array", "items": {"$ref": "#/$defs/id"}, "uniqueItems": true}
+      }
+    },
+    "unknown": {
+      "description": "A value that is explicitly unknown, why, and which source the absence comes from.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "reason", "source"],
+      "properties": {
+        "state": {"const": "unknown"},
+        "reason": {
+          "enum": [
+            "not_in_source",
+            "withheld_by_profile",
+            "no_permitted_prior",
+            "unmapped_label",
+            "source_invalid",
+            "not_estimated"
+          ]
+        },
+        "source": {"$ref": "#/$defs/id"}
+      }
+    },
+    "vec3": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
+    "quat": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4},
+    "time": {
+      "description": "A time on one clock, in integer microseconds, like the event log's mono_us and utc_us.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["clock", "value_us"],
+      "properties": {"clock": {"enum": ["headset_mono", "utc"]}, "value_us": {"type": "integer", "minimum": 0}}
+    },
+    "vec3Field": {
+      "description": "A known or unknown 3-vector in the scene frame.",
+      "type": "object",
+      "required": ["state"],
+      "properties": {"state": {"enum": ["known", "unknown"]}},
+      "if": {"required": ["state"], "properties": {"state": {"const": "known"}}},
+      "then": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["state", "value", "evidence"],
+        "properties": {"state": {"const": "known"}, "value": {"$ref": "#/$defs/vec3"}, "evidence": {"$ref": "#/$defs/evidence"}}
+      },
+      "else": {"$ref": "#/$defs/unknown"}
+    },
+    "timeField": {
+      "description": "A known or unknown time.",
+      "type": "object",
+      "required": ["state"],
+      "properties": {"state": {"enum": ["known", "unknown"]}},
+      "if": {"required": ["state"], "properties": {"state": {"const": "known"}}},
+      "then": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["state", "value", "evidence"],
+        "properties": {"state": {"const": "known"}, "value": {"$ref": "#/$defs/time"}, "evidence": {"$ref": "#/$defs/evidence"}}
+      },
+      "else": {"$ref": "#/$defs/unknown"}
+    },
+    "poseRotationField": {
+      "description": "Normalized quaternion [x, y, z, w] of the pose, local axes to scene axes.",
+      "type": "object",
+      "required": ["state"],
+      "properties": {"state": {"enum": ["known", "unknown"]}},
+      "if": {"required": ["state"], "properties": {"state": {"const": "known"}}},
+      "then": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["state", "value", "support", "evidence"],
+        "properties": {
+          "state": {"const": "known"},
+          "value": {"$ref": "#/$defs/quat"},
+          "support": {"enum": ["yaw_only", "full"]},
+          "evidence": {"$ref": "#/$defs/evidence"}
+        }
+      },
+      "else": {"$ref": "#/$defs/unknown"}
+    },
+    "headingField": {
+      "description": "Horizontal unit vector [x, y] in the scene frame, and what it was taken from.",
+      "type": "object",
+      "required": ["state"],
+      "properties": {"state": {"enum": ["known", "unknown"]}},
+      "if": {"required": ["state"], "properties": {"state": {"const": "known"}}},
+      "then": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["state", "value", "heading_source", "evidence"],
+        "properties": {
+          "state": {"const": "known"},
+          "value": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
+          "heading_source": {"enum": ["authored", "camera_yaw", "head_yaw", "pointing", "body"]},
+          "evidence": {"$ref": "#/$defs/evidence"}
+        }
+      },
+      "else": {"$ref": "#/$defs/unknown"}
+    },
+    "userPose": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pose_kind", "frame_id", "scene_revision", "position_m", "rotation_xyzw", "heading_xy", "snapshot_time"],
+      "properties": {
+        "pose_kind": {"enum": ["none", "authored", "dataset_camera", "dataset_viewpoint", "quest_head"]},
+        "frame_id": {"$ref": "#/$defs/id"},
+        "scene_revision": {"type": "integer", "minimum": 0},
+        "position_m": {"$ref": "#/$defs/vec3Field"},
+        "rotation_xyzw": {"$ref": "#/$defs/poseRotationField"},
+        "heading_xy": {"$ref": "#/$defs/headingField"},
+        "snapshot_time": {"$ref": "#/$defs/timeField"}
+      }
+    }
+  }
+}
