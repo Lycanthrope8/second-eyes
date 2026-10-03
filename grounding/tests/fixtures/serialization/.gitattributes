@@ -1,0 +1,2 @@
+# Exact bytes: the goldens are compared byte for byte, so Git must not convert their line endings.
+* -text

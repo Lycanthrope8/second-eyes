@@ -1,0 +1,179 @@
+{
+ "description": "Literal codec examples and their stated mappings, copied from Second_Eyes_A2_1d_Indexed_Audit_Brief.md section 4 (O = [A, B, C], indices 0, 1, 2). Encoding unit cases, not scenes.",
+ "blocks": [
+  {
+   "text": "{\"relation\":\"right\",\"frame\":\"user_heading\",\"domain\":\"objects\",\"states\":\"TFU\",\"conditional\":false}",
+   "n": 3,
+   "cells": [
+    [
+     [
+      0
+     ],
+     "T",
+     false
+    ],
+    [
+     [
+      1
+     ],
+     "F",
+     false
+    ],
+    [
+     [
+      2
+     ],
+     "U",
+     false
+    ]
+   ]
+  },
+  {
+   "text": "{\"relation\":\"right\",\"frame\":\"user_to_anchor\",\"domain\":\"ordered_pairs\",\"states\":[\"-TU\",\"F-T\",\"UF-\"],\"conditional\":[\"-10\",\"0-0\",\"10-\"]}",
+   "n": 3,
+   "cells": [
+    [
+     [
+      0,
+      1
+     ],
+     "T",
+     true
+    ],
+    [
+     [
+      0,
+      2
+     ],
+     "U",
+     false
+    ],
+    [
+     [
+      1,
+      0
+     ],
+     "F",
+     false
+    ],
+    [
+     [
+      1,
+      2
+     ],
+     "T",
+     false
+    ],
+    [
+     [
+      2,
+      0
+     ],
+     "U",
+     true
+    ],
+    [
+     [
+      2,
+      1
+     ],
+     "F",
+     false
+    ]
+   ]
+  },
+  {
+   "text": "{\"relation\":\"near\",\"frame\":null,\"domain\":\"unordered_pairs\",\"states\":[\"TU\",\"F\"],\"conditional\":[\"01\",\"0\"]}",
+   "n": 3,
+   "cells": [
+    [
+     [
+      0,
+      1
+     ],
+     "T",
+     false
+    ],
+    [
+     [
+      0,
+      2
+     ],
+     "U",
+     true
+    ],
+    [
+     [
+      1,
+      2
+     ],
+     "F",
+     false
+    ]
+   ]
+  },
+  {
+   "text": "{\"relation\":\"between\",\"frame\":null,\"domain\":\"target_anchor_pairs\",\"states\":[[0,1,\"--T\"],[0,2,\"-U-\"],[1,2,\"F--\"]],\"conditional\":[[0,1,\"--0\"],[0,2,\"-1-\"],[1,2,\"0--\"]]}",
+   "n": 3,
+   "cells": [
+    [
+     [
+      2,
+      0,
+      1
+     ],
+     "T",
+     false
+    ],
+    [
+     [
+      1,
+      0,
+      2
+     ],
+     "U",
+     true
+    ],
+    [
+     [
+      0,
+      1,
+      2
+     ],
+     "F",
+     false
+    ]
+   ]
+  }
+ ],
+ "distances": {
+  "text": "{\"measure\":\"center_distance_m\",\"domain\":\"unordered_pairs\",\"values\":[[0.1006,0.1508],[null]],\"conditional\":false}",
+  "n": 3,
+  "cells": [
+   [
+    [
+     0,
+     1
+    ],
+    0.1006,
+    false
+   ],
+   [
+    [
+     0,
+     2
+    ],
+    0.1508,
+    false
+   ],
+   [
+    [
+     1,
+     2
+    ],
+    null,
+    false
+   ]
+  ]
+ }
+}
