@@ -14,10 +14,15 @@ content, so it is the same on every platform; every result records it. Category 
 cover only the fixtures' vocabulary (support and furniture: `table`; container: `box`) until the dataset map exists.
 
 ```
-rel = Relations(scene_record)        # in grounding/relations/predicates.py
+from grounding.relations.predicates import Relations
+rel = Relations(scene_record)
 rel.near("obj_005", "obj_001")       # -> RelationResult
 rel.rank("closest", "obj_001", ["obj_004", "obj_005"], possible=["obj_006"], k=1)   # -> RankResult
 ```
+
+The modules are imported through the package, with the repository root on the import path. They import each other
+relatively, so there is one `Truth` for every module; importing one by its bare name, such as `import predicates`,
+fails instead of loading a second copy (A2.1c correction).
 
 ## Results
 

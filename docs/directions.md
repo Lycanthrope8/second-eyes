@@ -8,6 +8,7 @@ filtering, ASK decision, resolver, serializer, dataset adapter, training, Unity 
 ## Interface
 
 ```
+from grounding.relations.directions import DirectionalRelations
 d = DirectionalRelations(scene_record, config=None)    # config: a DirectionConfig; default directions.v1.json
 d.evaluate(relation, target_id, *, frame, anchor_id=None, command=None)   # -> DirectionResult
 ```
@@ -124,12 +125,15 @@ to A2.5.
 ## Tests
 
 ```
-python grounding/tests/test_directions.py
+python grounding/tests/test_directions.py        # or: python -m grounding.tests.test_directions
 ```
 
 `grounding/tests/fixtures/directions/cases.json` holds the brief's 43 fixed rows, as 90 predicate calls, transcribed
 before the code existed; expected scores are the brief's own arithmetic expressions. The cross-cutting checks follow
-Section 8 of the brief. The accepted suites, `test_relations.py` and `test_contract.py`, run unchanged.
+Section 8 of the brief. Ten package-import checks, from the A2.1c correction, run fresh interpreters that import the
+two modules through the package in both orders. They check that directional and relation results share one `Truth`,
+and combine correctly under `AND` and `OR`. The accepted suites, `test_relations.py` and `test_contract.py`, also
+run.
 
 ## Limitations
 

@@ -35,6 +35,8 @@ python -m pip install -r grounding/requirements.txt
 
 The contract's validator, the relation library, the directional relations and their tests need only `jsonschema` from that list.
 
+The relation modules are imported through the package (`from grounding.relations import predicates`), with the repository root on the import path; they don't change the import path themselves. Their test scripts add the root, so from the repository root both `python grounding/tests/test_relations.py` and `python -m grounding.tests.test_relations` work, and likewise for `test_directions`.
+
 ## On the headset
 
 Since D60 the headset runs the model with llama.cpp: `export_gguf.py` makes the 8-bit GGUF from the download

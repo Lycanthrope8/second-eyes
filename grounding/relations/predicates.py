@@ -1,6 +1,7 @@
 """The relation library, v1 (A2.1b, D67): closest and farthest (ranks 1-3), near, above, below, on, inside and
 between, over a scene record that has passed the contract validator (grounding/contract/validate.py).
 
+    from grounding.relations.predicates import Relations   # through the package, from the repository root
     rel = Relations(scene_record)                 # loads relations.v1.json unless a Config is given
     rel.near("obj_005", "obj_001").value          # Truth.TRUE, Truth.FALSE or Truth.UNKNOWN
     rel.rank("closest", "obj_001", ["obj_004", "obj_005"], possible=["obj_006"], k=1).status
@@ -18,15 +19,13 @@ import hashlib
 import itertools
 import json
 import math
-import sys
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
 import jsonschema
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import geometry as g  # noqa: E402  (geometry.py sits next to this file)
+from . import geometry as g
 
 REPO = Path(__file__).resolve().parents[2]
 CONFIG_FILE = Path(__file__).resolve().parent / "relations.v1.json"

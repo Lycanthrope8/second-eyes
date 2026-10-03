@@ -15,24 +15,78 @@ import dataclasses
 import json
 import math
 import operator
+import os
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO / "grounding" / "relations"))
-sys.path.insert(0, str(REPO / "grounding" / "contract"))
-import directions as D  # noqa: E402
-import geometry as g  # noqa: E402
-import predicates as P  # noqa: E402
-import validate  # noqa: E402
+if str(REPO) not in sys.path:
+    sys.path.insert(0, str(REPO))  # the repository root only, so the file also runs directly
+from grounding.contract import validate  # noqa: E402
+from grounding.relations import directions as D  # noqa: E402
+from grounding.relations import geometry as g  # noqa: E402
+from grounding.relations import predicates as P  # noqa: E402
 
 FIXTURES = REPO / "grounding" / "tests" / "fixtures" / "directions"
 MAP = REPO / "grounding" / "tests" / "fixtures" / "contract" / "valid" / "category-map.fx.json"
 T, F, U = P.TRUE, P.FALSE, P.UNKNOWN
 VALUES = {"true": T, "false": F, "unknown": U}
 OPPOSITE = {"right": "left", "left": "right", "in_front_of": "behind", "behind": "in_front_of"}
+
+# Package-import regression (A2.1c correction). Each probe runs in a fresh interpreter whose import path gains only
+# the repository root, imports the two relation modules in the order given, and reports what it finds.
+IMPORT_PROBE = r"""
+import json, sys
+from pathlib import Path
+repo = sys.argv[1]
+relations_dir = str(Path(repo) / "grounding" / "relations")
+sys.path.insert(0, repo)
+started_clean = relations_dir not in sys.path
+if sys.argv[2] == "predicates, then directions":
+    from grounding.relations import predicates as P
+    from grounding.relations import directions as D
+else:
+    from grounding.relations import directions as D
+    from grounding.relations import predicates as P
+
+
+def load(name):
+    return json.loads((Path(repo) / "grounding" / "tests" / "fixtures" / name).read_text(encoding="utf-8"))
+
+
+h = D.DirectionalRelations(load("directions/scene.h.annotated.json"))
+command = load("directions/command.h.base.json")
+directional = {"T": h.evaluate("right", "obj_001", frame="user_heading", command=command),
+               "F": h.evaluate("left", "obj_001", frame="user_heading", command=command),
+               "U": h.evaluate("right", "obj_019", frame="user_heading", command=command)}
+rel = P.Relations(load("relations/scene.rel.json"))
+a17 = P.Relations(load("contract/valid/scene.a17.annotated.json"))
+relational = {"T": rel.near("obj_005", "obj_001"), "F": rel.near("obj_007", "obj_001"),
+              "U": a17.near("obj_003", "obj_001")}
+combos = {}
+for name, op in (("AND", P.AND), ("OR", P.OR)):
+    for a in "TFU":
+        for b in "TFU":
+            combos[f"{name} {a}{b} directional first"] = op(directional[a].value, relational[b].value).name
+            combos[f"{name} {a}{b} relational first"] = op(relational[a].value, directional[b].value).name
+print(json.dumps({
+    "started_clean": started_clean,
+    "relations_dir_added": relations_dir in sys.path,
+    "same_module": D.P is P,
+    "same_members": D.TRUE is P.TRUE and D.FALSE is P.FALSE and D.UNKNOWN is P.UNKNOWN and D.P.Truth is P.Truth,
+    "directional": {k: [type(r.value) is P.Truth, r.value.name, list(r.reasons)] for k, r in directional.items()},
+    "relational": {k: [type(r.value) is P.Truth, r.value.name, list(r.reasons)] for k, r in relational.items()},
+    "combos": combos,
+}))
+"""
+# Written out by hand, not computed with predicates.AND or OR.
+AND_TABLE = {"TT": "TRUE", "TF": "FALSE", "TU": "UNKNOWN", "FT": "FALSE", "FF": "FALSE", "FU": "FALSE",
+             "UT": "UNKNOWN", "UF": "FALSE", "UU": "UNKNOWN"}
+OR_TABLE = {"TT": "TRUE", "TF": "TRUE", "TU": "TRUE", "FT": "TRUE", "FF": "FALSE", "FU": "UNKNOWN",
+            "UT": "TRUE", "UF": "UNKNOWN", "UU": "UNKNOWN"}
+NAMES = {"T": "TRUE", "F": "FALSE", "U": "UNKNOWN"}
 FAILED = []
 COUNT = {"checks": 0}
 
@@ -437,8 +491,38 @@ def main() -> int:
               f"exit {out.returncode}; {passed} checks passed")
 
     cross = COUNT["checks"] - cases_checks
+
+    print("-- A2.1c correction: package imports")
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+    for order in ("predicates, then directions", "directions, then predicates"):
+        out = subprocess.run([sys.executable, "-c", IMPORT_PROBE, str(REPO), order], capture_output=True, text=True,
+                             cwd=str(REPO), env=env)
+        try:
+            rep = json.loads(out.stdout)
+        except ValueError:
+            rep = None
+        label = f"imports ({order})"
+        if rep is None:
+            check(f"{label}: the probe runs", False, (out.stderr.strip().splitlines() or ["no output"])[-1])
+            continue
+        check(f"{label}: only the repository root is on the path, and no relation module adds a directory",
+              rep["started_clean"] and not rep["relations_dir_added"])
+        check(f"{label}: D.P is P, and TRUE, FALSE and UNKNOWN are the same objects in both modules",
+              rep["same_module"] and rep["same_members"], f"same module {rep['same_module']}")
+        values_ok = all(rep[lib][k][:2] == [True, NAMES[k]] for lib in ("directional", "relational") for k in "TFU")
+        missing_ok = ("missing_centre:obj_019" in rep["directional"]["U"][2]
+                      and "missing_rotation:obj_003" in rep["relational"]["U"][2])
+        check(f"{label}: real directional and relational results are P.Truth members, with missing-evidence "
+              f"UNKNOWNs", values_ok and missing_ok,
+              f"directional {[v[:2] for v in rep['directional'].values()]}")
+        for name, table in (("AND", AND_TABLE), ("OR", OR_TABLE)):
+            wrong = [f"{key} gave {got}" for key, got in rep["combos"].items() if key.startswith(name + " ")
+                     and got != table[key.split()[1]]]
+            check(f"{label}: P.{name} matches the hand-written table for all 9 ordered pairs, in both operand "
+                  f"orders across the two libraries", not wrong, "; ".join(wrong[:3]) or "18 combinations")
+    imports = COUNT["checks"] - cases_checks - cross
     print(f"{len(rows)} fixed rows, {len(calls)} predicate calls in them ({cases_checks} checks); {cross} "
-          f"cross-cutting checks; {COUNT['checks']} checks in all")
+          f"cross-cutting checks; {imports} package-import checks; {COUNT['checks']} checks in all")
     print(f"{'FAILED: ' + ', '.join(FAILED) if FAILED else 'all checks passed'}")
     return 1 if FAILED else 0
 

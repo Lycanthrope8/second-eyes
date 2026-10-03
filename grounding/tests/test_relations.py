@@ -21,11 +21,11 @@ import tempfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO / "grounding" / "relations"))
-sys.path.insert(0, str(REPO / "grounding" / "contract"))
-import geometry as g  # noqa: E402
-import predicates as P  # noqa: E402
-import validate  # noqa: E402
+if str(REPO) not in sys.path:
+    sys.path.insert(0, str(REPO))  # the repository root only, so the file also runs directly
+from grounding.contract import validate  # noqa: E402
+from grounding.relations import geometry as g  # noqa: E402
+from grounding.relations import predicates as P  # noqa: E402
 
 FIXTURES = REPO / "grounding" / "tests" / "fixtures" / "relations"
 MAP = REPO / "grounding" / "tests" / "fixtures" / "contract" / "valid" / "category-map.fx.json"

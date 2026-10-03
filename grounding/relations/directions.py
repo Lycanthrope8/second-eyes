@@ -2,6 +2,7 @@
 user_heading, user_to_anchor or object_intrinsic. Offline Python over scene and command records that have passed
 the contract validator (grounding/contract/validate.py).
 
+    from grounding.relations.directions import DirectionalRelations   # through the package, from the repository root
     d = DirectionalRelations(scene_record)            # loads directions.v1.json unless a config is given
     d.evaluate("right", "obj_002", frame="user_to_anchor", anchor_id="obj_001", command=command_record)
 
@@ -16,14 +17,12 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 import jsonschema
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import predicates as P  # noqa: E402  (the Truth enum and the strict JSON parser; no box geometry is used here)
+from . import predicates as P  # the Truth enum and the strict JSON parser; no box geometry is used here
 
 REPO = Path(__file__).resolve().parents[2]
 CONFIG_FILE = Path(__file__).resolve().parent / "directions.v1.json"
