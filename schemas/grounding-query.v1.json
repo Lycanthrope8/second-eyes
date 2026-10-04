@@ -18,8 +18,8 @@
     "interpretations": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/interpretation"}}
   },
   "$defs": {
-    "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_.-]{0,127}$"},
-    "label": {"type": "string", "pattern": "^\\S(.*\\S)?$"},
+    "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_.-]{0,127}(?![\\s\\S])"},
+    "label": {"type": "string", "pattern": "^\\S(.*\\S)?(?![\\s\\S])"},
     "local_id": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$"},
     "action": {"enum": ["GO_TO", "INSPECT"]},
     "nullable_action": {"enum": ["GO_TO", "INSPECT", null]},

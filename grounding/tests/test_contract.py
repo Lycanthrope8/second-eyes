@@ -56,6 +56,160 @@ def last_line(text: str) -> str:
     return lines[-1] if lines else ""
 
 
+# 9. O23 (D73): IDs, labels and object IDs match as whole strings. Written and run against the unchanged schemas first.
+OLD = {"id": r"^[a-z0-9][a-z0-9_.-]{0,127}$", "label": r"^\S(.*\S)?$", "object_id": r"^obj_[0-9]{3,}$"}
+NEW = {"id": r"^[a-z0-9][a-z0-9_.-]{0,127}(?![\s\S])", "label": r"^\S(.*\S)?(?![\s\S])",
+       "object_id": r"^obj_[0-9]{3,}(?![\s\S])"}
+OCCURRENCES = (  # schema file, path to the definition, kind, a valid value
+    ("scene.v1.json", ("$defs", "id"), "id", "fixture.a17"),
+    ("scene.v1.json", ("$defs", "label"), "label", "office chair"),
+    ("scene.v1.json", ("$defs", "object", "properties", "object_id"), "object_id", "obj_001"),
+    ("command-context.v1.json", ("$defs", "id"), "id", "fx.a17.c001"),
+    ("command-context.v1.json", ("$defs", "label"), "label", "chair"),
+    ("category-map.v1.json", ("$defs", "id"), "id", "map.fx"),
+    ("category-map.v1.json", ("$defs", "label"), "label", "floor lamp"),
+    ("grounding-query.v1.json", ("$defs", "id"), "id", "fx.r08.query"),
+    ("grounding-query.v1.json", ("$defs", "label"), "label", "box"),
+)
+
+
+def check_o23(fixture_paths, before) -> None:
+    """O23 (D73): a final LF no longer passes an ID, label or object-ID pattern.
+
+    Python's $ also matches before a final newline, and jsonschema applies patterns with re.search. The inputs are
+    small mutations of the valid fixtures, in memory or in a temporary file; no fixture file changes.
+    """
+    import itertools
+    import re
+    import tempfile
+
+    def node(doc, path):
+        for part in path:
+            doc = doc[part]
+        return doc
+
+    schemas = {}
+    for name, path, kind, value in OCCURRENCES:
+        schemas.setdefault(name, json.loads((REPO / "schemas" / name).read_text(encoding="utf-8")))
+        definition = node(schemas[name], path)
+        v = jsonschema.Draft202012Validator(definition)
+        check(f"O23: {name} {'.'.join(path)} is the corrected pattern, accepts {value!r} and rejects it with a final LF",
+              definition.get("pattern") == NEW[kind] and v.is_valid(value) and not v.is_valid(value + "\n"),
+              f"pattern {definition.get('pattern')!r}; {value!r} + LF valid: {v.is_valid(value + chr(10))}")
+    scene_defs = schemas["scene.v1.json"]["$defs"]
+    same = all(schemas[n]["$defs"][k] == scene_defs[k] for n in ("command-context.v1.json", "category-map.v1.json")
+               for k in ("id", "label"))
+    same = same and all(schemas["grounding-query.v1.json"]["$defs"][k]["pattern"] == scene_defs[k]["pattern"]
+                        for k in ("id", "label"))
+    check("O23: the id and label definitions stay identical in the scene, command and map schemas, and the query's "
+          "copies carry the same patterns", same)
+
+    current = {"id": scene_defs["id"]["pattern"], "label": scene_defs["label"]["pattern"],
+               "object_id": scene_defs["object"]["properties"]["object_id"]["pattern"]}
+    alphabets = {"id": ("a", "z", "0", "_", ".", "-", "A", " ", "\t", "\n", "\r", "\u00e9", "\u00a0"),
+                 "label": ("a", "Z", "0", "_", "/", " ", "\t", "\n", "\r", "\u00e9", "\u00a0", "\u2028", "\u6905"),
+                 "object_id": ("0", "9", "a", "_", " ", "\t", "\n", "\r", "\u00a0")}
+    for kind in ("id", "label", "object_id"):
+        prefix, longest = ("obj_", 4) if kind == "object_id" else ("", 3)
+        strings = [prefix + "".join(t) for n in range(longest + 1) for t in itertools.product(alphabets[kind], repeat=n)]
+        body = OLD[kind][1:-1]  # the old pattern without its anchors, matched as a whole string
+        differ = [s for s in strings if bool(re.search(current[kind], s)) != bool(re.fullmatch(body, s))]
+        check(f"O23: the {kind} pattern accepts exactly the old pattern's whole-string matches, over {len(strings)} "
+              f"short strings", not differ, f"{len(differ)} differ, e.g. {differ[:3]!r}")
+
+    scene, restricted = load("scene.a17.annotated.json"), load("scene.a17.restricted.json")
+    command, cmap = load("command.a17.c001.json"), load("category-map.fx.json")
+    originals = copy.deepcopy([scene, restricted, command, cmap])
+    designated = (  # validated one record at a time: a missing partner would only add warnings
+        ("scene", scene, ["scene_id"]), ("command", command, ["command_id"]), ("category_map", cmap, ["map_id"]),
+        ("scene", scene, ["objects", 0, "object_id"]),
+        ("scene", scene, ["objects", 0, "source_ref", "source_id"]),
+        ("scene", scene, ["coordinate_frame", "frame_id"]), ("command", command, ["user_pose", "frame_id"]),
+        ("scene", restricted, ["objects", 0, "geometry", "size_m", "evidence", "assumptions", 0]),
+        ("scene", scene, ["objects", 0, "category", "value", "model"]),
+        ("scene", scene, ["objects", 0, "attributes", "colours", "value", 0]),
+        ("category_map", cmap, ["entries", 0, "source_label"]), ("category_map", cmap, ["entries", 0, "model"]),
+    )
+    for label, base, path in designated:
+        rec = copy.deepcopy(base)
+        node(rec, path[:-1])[path[-1]] += "\n"
+        where = validate._json_path(path)
+        found = [(i.code, i.path) for i in validate.validate([(label, rec)])]
+        check(f"O23: a {label} with a final LF at {where} fails with exactly E_SCHEMA_PATTERN there",
+              found == [("E_SCHEMA_PATTERN", where)], f"got {found}")
+
+    rec, changed = copy.deepcopy(scene), []
+
+    def relabel(x, path):  # the source registry ID and every reference to it, all changed alike
+        for key, value in (x.items() if isinstance(x, dict) else enumerate(x)):
+            if value == "fx":
+                x[key] = "fx\n"
+                changed.append(validate._json_path(path + [key]))
+            elif isinstance(value, (dict, list)):
+                relabel(value, path + [key])
+    relabel(rec, [])
+    found = validate.validate([("scene", rec)])
+    check(f"O23: source ID 'fx' and all {len(changed) - 1} references changed alike to 'fx' + LF still fail, with "
+          f"E_SCHEMA_PATTERN at each of the {len(changed)} strings",
+          "$.sources[0].source_id" in changed and sorted((i.code, i.path) for i in found)
+          == sorted(("E_SCHEMA_PATTERN", c) for c in changed), f"{len(found)} issues: {[i.code for i in found][:3]}")
+
+    controls = {"id": "fixture.a17", "label": "chair", "object_id": "obj_001"}
+    for kind, value in controls.items():
+        v = jsonschema.Draft202012Validator({"type": "string", "pattern": current[kind]})
+        cases = [(value + s, s == "\n") for s in ("\n", "\r\n", "\r", "\t", " ")] + \
+                [(s + value, False) for s in (" ", "\t", "\n")]
+        cases += {"id": [("Fixture.a17", False), ("fixture a17", False), ("fixture/a17", False)],
+                  "object_id": [("OBJ_001", False), ("obj_01", False)]}.get(kind, [])
+        wrong = [f"old pattern {'accepted' if not new else 'rejected'} {s!r}" for s, new in cases
+                 if bool(re.search(OLD[kind], s)) != new]
+        wrong += [f"{s!r} is accepted" for s, _ in cases if v.is_valid(s)]
+        check(f"O23: {kind} with an LF, CRLF, CR, tab or space after it, or whitespace before it, or bad characters, is "
+              f"rejected; the old pattern rejected all but the final LF", not wrong, "; ".join(wrong[:4]))
+
+    v_id = jsonschema.Draft202012Validator({"type": "string", "pattern": current["id"]})
+    v_obj = jsonschema.Draft202012Validator({"type": "string", "pattern": current["object_id"]})
+    v_label = jsonschema.Draft202012Validator({"type": "string", "pattern": current["label"]})
+    ids = ["fixture.a17", "map.fx", "fx", "a", "0", "x" * 128]
+    check("O23: ordinary IDs and a 128-character ID stay valid, as before; 129 characters stay invalid",
+          all(v_id.is_valid(s) and re.search(OLD["id"], s) for s in ids) and not v_id.is_valid("x" * 129)
+          and not re.search(OLD["id"], "x" * 129))
+    objs = ["obj_000", "obj_999", "obj_1000", "obj_12345"]
+    check("O23: obj_999, obj_1000 and longer object IDs stay valid, as before; obj_01 stays invalid",
+          all(v_obj.is_valid(s) and re.search(OLD["object_id"], s) for s in objs) and not v_obj.is_valid("obj_01"))
+    labels = ["a", "office chair", "caf\u00e9", "\u6905\u5b50", "chair (blue)", "lamp/2", "K\u00fchlschrank"]
+    check("O23: one-character, multiword, Unicode and punctuated labels stay valid, as before",
+          all(v_label.is_valid(s) and re.search(OLD["label"], s) for s in labels),
+          str([s for s in labels if not v_label.is_valid(s)]))
+
+    free = copy.deepcopy(command)
+    free["text"] = "Inspect the box\nnext to the table\n"
+    snapshot = copy.deepcopy(free)
+    found = validate.validate([("scene", scene), ("command", free), ("category_map", cmap)])
+    check("O23: command text is free text, so an embedded and a final newline stay valid (no issue with its scene and "
+          "map), and validation leaves the record unchanged", not found and free == snapshot, f"got {found[:2]}")
+
+    script = REPO / "grounding" / "contract" / "validate.py"
+    with tempfile.TemporaryDirectory() as tmp:
+        bad, good = Path(tmp) / "scene.final_lf.json", Path(tmp) / "scene.json"
+        rec = copy.deepcopy(scene)
+        rec["scene_id"] += "\n"
+        bad.write_text(json.dumps(rec), encoding="utf-8")
+        good.write_text(json.dumps(scene), encoding="utf-8")
+        escaped = '"scene_id": "fixture.a17\\n"' in bad.read_text(encoding="utf-8")
+        bad_run = subprocess.run([sys.executable, str(script), str(bad)], capture_output=True, text=True)
+        good_run = subprocess.run([sys.executable, str(script), str(good)], capture_output=True, text=True)
+    check("O23: the command line on a well-formed file whose scene_id holds an escaped final newline exits 1 with "
+          "E_SCHEMA_PATTERN at $.scene_id, not a parse error",
+          escaped and bad_run.returncode == 1 and f"{bad}: $.scene_id: E_SCHEMA_PATTERN" in bad_run.stdout
+          and "E_PARSE" not in bad_run.stdout, f"exit {bad_run.returncode}; {last_line(bad_run.stdout)}")
+    check("O23: the same file without the newline still exits 0 (with only its missing-map warning)",
+          good_run.returncode == 0 and "W_NOT_CROSS_CHECKED" in good_run.stdout,
+          f"exit {good_run.returncode}; {last_line(good_run.stdout)}")
+    check("O23: no record and no fixture file was changed by any of these validations",
+          [scene, restricted, command, cmap] == originals and digest(fixture_paths) == before)
+
+
 def main() -> int:
     valid = sorted(VALID.glob("*.json"))
     invalid = sorted(INVALID.glob("*.json"))
@@ -172,6 +326,9 @@ def main() -> int:
     check("the command line exits 1 on a file holding only null (A2.1a correction)",
           null_run.returncode == 1 and "E_RECORD_TYPE" in null_run.stdout,
           f"exit {null_run.returncode}; {last_line(null_run.stdout)}")
+
+    # 9. O23 (D73)
+    check_o23(valid + invalid, before)
 
     print(f"{'FAILED: ' + ', '.join(FAILED) if FAILED else 'all checks passed'}")
     return 1 if FAILED else 0

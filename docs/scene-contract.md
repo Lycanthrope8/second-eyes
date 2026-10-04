@@ -68,7 +68,7 @@ Which source kinds may stand behind which evidence (v1):
 
 | Field | Known value | Rules |
 |---|---|---|
-| `scene_id` | ID: `^[a-z0-9][a-z0-9_.-]{0,127}$` | a scene's identity is its ID, revision and profile |
+| `scene_id` | ID: `^[a-z0-9][a-z0-9_.-]{0,127}(?![\s\S])` | a scene's identity is its ID, revision and profile |
 | `scene_revision` | integer ≥ 0 | |
 | `evidence_profile` | `annotated` or `restricted` | see Evidence profiles |
 | `category_map` | the `map_id` of its category map | |
@@ -79,7 +79,7 @@ Each object:
 
 | Field | Known value | Rules |
 |---|---|---|
-| `object_id` | `^obj_[0-9]{3,}$` | unique in the scene; see Identities |
+| `object_id` | `^obj_[0-9]{3,}(?![\s\S])` | unique in the scene; see Identities |
 | `source_ref` | `source_id`, `source_object_id`, `source_label` (the raw label) | from a dataset or fixture source |
 | `category` | `{standard, model}`: the source's standardized label and the model-visible label | may be unknown, for example `unmapped_label`; the object stays in the scene |
 | `geometry.center_m` | 3 numbers: the bounding-box centre in the scene frame, metres | |
@@ -175,6 +175,16 @@ has an error. Layers run in order, and a record goes on to the next only if it p
    its revision and in its frame; a scene's categories in its map. A referenced record that isn't given gives a
    warning, not an error.
 
+IDs, labels and object IDs match as whole strings (D73). Their patterns end in `(?![\s\S])`, not `$`: jsonschema
+applies a pattern with Python's `re.search`, where `$` also matches just before a final newline, so `fixture.a17\n`,
+`chair\n` and `obj_001\n` (each ending in a real line feed) used to pass. A value with a final LF now fails as
+`E_SCHEMA_PATTERN` at its path, as a final CR, tab or space already did, so the record goes no further than the schema
+layer. Nothing is trimmed or rewritten. The generic ID is `^[a-z0-9][a-z0-9_.-]{0,127}(?![\s\S])` and a label
+`^\S(.*\S)?(?![\s\S])`. Both are defined alike in `scene.v1.json`, `command-context.v1.json` and
+`category-map.v1.json`, and copied into `grounding-query.v1.json`. They cover every field that refers to them,
+nested ones included. Free text keeps its own rule: `command.text`, descriptions, `release`, `origin` and
+`source_object_id` may contain line breaks.
+
 | Code | Layer | Meaning |
 |---|---|---|
 | `E_PARSE_ENCODING`, `E_PARSE_JSON`, `E_PARSE_DUPLICATE_KEY` | parsing | not UTF-8 without a byte-order mark; not well-formed JSON; a repeated key |
@@ -219,3 +229,5 @@ two don't compute identically.
 - `quest_head` poses are reserved.
 - No grounding-result or annotation schema yet; they come with the resolver and the adapters.
 - One record per `.json` file.
+- A label with an internal CR, U+2028 or U+2029 passes here, because Python's `.` matches them. It would fail in a
+  validator using ECMAScript regular expressions, whose `.` doesn't (O24).

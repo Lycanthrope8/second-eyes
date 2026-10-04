@@ -117,6 +117,34 @@ def direct(scene, command, name, ids, cell):
     return STATE[drel.evaluate(relation, args[0], frame=frame, anchor_id=args[1], command=command).value]
 
 
+def check_o23_boundary():
+    """O23 (D73): the serializer meets the corrected contract boundary through its existing validation path.
+
+    A map ID and the scene's reference to it, changed alike, still agree, so only the pattern can reject them.
+    Configuration loading, which comes after validation and before any rendering, is made to raise.
+    """
+    from grounding.serialization import serializer as S
+    scene, command = load("contract/valid/scene.a17.annotated.json"), load("contract/valid/command.a17.c001.json")
+    bad_scene, bad_map = copy.deepcopy(scene), copy.deepcopy(MAP)
+    bad_scene["category_map"] = bad_map["map_id"] = MAP["map_id"] + "\n"
+    real = S._load_configs
+
+    def refuse(*a, **k):
+        raise AssertionError("configuration loading began: validation let the malformed map through")
+
+    S._load_configs = refuse
+    try:
+        err = raises(lambda: render(bad_scene, command, category_maps=[bad_map]), SerializationInputError)
+    finally:
+        S._load_configs = real
+    got = sorted((i["label"], i["code"], i["path"]) for i in err.issues) \
+        if isinstance(err, SerializationInputError) else str(err)
+    check("O23 (D73): a map ID and its scene reference both ending in LF fail with the shared E_SCHEMA_PATTERN before "
+          "any configuration is loaded, so no model document is rendered",
+          got == [("category_map[0]", "E_SCHEMA_PATTERN", "$.map_id"), ("scene", "E_SCHEMA_PATTERN", "$.category_map")],
+          str(got)[:200])
+
+
 def main() -> int:
     a17, a17r = load("contract/valid/scene.a17.annotated.json"), load("contract/valid/scene.a17.restricted.json")
     c001, c002 = load("contract/valid/command.a17.c001.json"), load("contract/valid/command.a17.c002.json")
@@ -833,6 +861,7 @@ def main() -> int:
               "model document (approved in D70)", code == 3 and "Traceback" in stderr.getvalue()
               and "controlled test exception" in stderr.getvalue() and not boom_dir.exists(), f"exit {code}")
 
+    check_o23_boundary()
     print(f"{COUNT[0]} checks; {'FAILED: ' + ', '.join(FAILED) if FAILED else 'all checks passed'}")
     return 1 if FAILED else 0
 

@@ -96,8 +96,10 @@ These are rejected as structural errors (`E_QUERY_SCHEMA`):
 - a Boolean `k`, or a `k` written as a float (D72);
 - any unknown field, including answer fields.
 
-Every ID and label is also checked as a full-string match, because Python's `$` would let a final newline through
-the schema's patterns.
+Every ID and label is also checked as a full-string match. Since D73, the query's ID and label patterns reject a
+final newline themselves, as the contract's do. The check stays as a safeguard. It still matters for the query's
+`local_id` and the resolver configuration, whose patterns end in `$`, which Python's `re` also matches before a final
+newline.
 
 **Normalization.** Interpretations are sorted by ID and colours are sorted. Constraints are evaluated in the order of
 their compact JSON `[relation, frame, anchors]`, with `between`'s anchors sorted and directed arguments never

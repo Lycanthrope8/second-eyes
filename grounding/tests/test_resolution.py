@@ -843,6 +843,49 @@ def check_integer_representation():
               and res.get("status") == "resolved" and res.get("target_id") == "obj_006", f"exit {ctl.returncode}")
 
 
+def check_o23_boundary():
+    """O23 (D73): the resolver meets the corrected contract boundary through its existing validation path.
+
+    R15's scene with its source registry ID and every reference to it changed alike to 'fx' + LF: the references still
+    resolve, so only the pattern can reject them. Configuration loaders and evaluators are made to raise.
+    """
+    print("-- O23 (D73): the shared contract's whole-string boundary, at the resolver")
+    from grounding.relations import directions as D
+    from grounding.relations import predicates as P
+    from grounding.resolution import resolve
+    scene, command, query, maps, config, rel = build(CASES["R15"])
+    changed = []
+
+    def relabel(x, path):
+        for key, value in (x.items() if isinstance(x, dict) else enumerate(x)):
+            if value == "fx":
+                x[key] = "fx\n"
+                changed.append("$" + "".join(f"[{p}]" if isinstance(p, int) else f".{p}" for p in path + [key]))
+            elif isinstance(value, (dict, list)):
+                relabel(value, path + [key])
+    relabel(scene, [])
+    saved = (P.load_config, D.load_direction_config, P.Relations.__init__, D.DirectionalRelations.__init__)
+
+    def refuse(*a, **k):
+        raise AssertionError("a configuration loader or evaluator was reached")
+
+    P.load_config = D.load_direction_config = refuse
+    P.Relations.__init__ = D.DirectionalRelations.__init__ = refuse
+    try:
+        rec = resolve(scene, command, query, resolver_config=config, relation_config_path=rel,
+                      direction_config_path=DIR_CFG, category_maps=maps)
+    except AssertionError as e:  # the boundary failed: reported, never expected
+        rec = {"processing_status": f"raised: {e}", "result": None, "issues": []}
+    finally:
+        (P.load_config, D.load_direction_config, P.Relations.__init__, D.DirectionalRelations.__init__) = saved
+    got = sorted((i["label"], i["code"], i["path"]) for i in rec["issues"])
+    check(f"O23 (D73): a scene whose source ID and all its references end in LF is invalid_input, with the shared "
+          f"E_SCHEMA_PATTERN at each of the {len(changed)} strings, before any configuration loader or evaluator",
+          rec["processing_status"] == "invalid_input" and rec["result"] is None
+          and got == sorted(("scene", "E_SCHEMA_PATTERN", c) for c in changed),
+          f"{rec['processing_status']}; {len(got)} issues")
+
+
 def main() -> int:
     check_fixtures()
     try:
@@ -865,6 +908,7 @@ def main() -> int:
     check_cli()
     check_after_first_run()
     check_integer_representation()
+    check_o23_boundary()
     print(f"{COUNT[0]} checks; {'FAILED: ' + ', '.join(FAILED) if FAILED else 'all checks passed'}")
     return 1 if FAILED else 0
 

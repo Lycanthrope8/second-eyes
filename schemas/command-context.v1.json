@@ -30,13 +30,13 @@
   "$defs": {
     "id": {
       "type": "string",
-      "pattern": "^[a-z0-9][a-z0-9_.-]{0,127}$",
+      "pattern": "^[a-z0-9][a-z0-9_.-]{0,127}(?![\\s\\S])",
       "description": "Lower-case identifier: letters, digits, '_', '.', '-'; starts with a letter or digit."
     },
     "label": {
       "type": "string",
       "minLength": 1,
-      "pattern": "^\\S(.*\\S)?$",
+      "pattern": "^\\S(.*\\S)?(?![\\s\\S])",
       "description": "A non-empty label without leading or trailing whitespace."
     },
     "text": {"type": "string", "minLength": 1},
