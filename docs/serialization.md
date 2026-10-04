@@ -45,8 +45,16 @@ passed: no target, anchor, frame, benchmark label or candidate list. A command c
    - Its warnings go to `metadata["validation"]["warnings"]`.
    - The scene and command must agree on scene ID, revision and frame, even for coordinates. The validator itself only
      warns when the scene IDs differ, so the serializer reports that as `E_SCENE_MISMATCH`.
-   - A missing category map keeps the validator's `W_NOT_CROSS_CHECKED` warning. A supplied map with the scene's map ID
-     that conflicts with it is an error.
+   - Category maps, in both formats (D70):
+     - **None supplied:** it renders, keeping the validator's `W_NOT_CROSS_CHECKED` warning.
+     - **Some supplied, without the scene's map:** `E_CATEGORY_MAP_MISMATCH` at `$.category_map`, naming the required
+       map ID and the supplied ones, sorted. Nothing is loaded or rendered.
+     - **Some supplied, with the scene's map:** the contract checks apply to every supplied map, and it renders only
+       without errors. Other valid maps may accompany the scene's, and a matching ID doesn't excuse conflicting entries
+       (`E_CATEGORY_UNMAPPED`).
+     - **Duplicate or malformed maps** keep the validator's own errors: the new check runs only on records the
+       validator accepted.
+     - **Before D70,** a collection without the scene's map counted as no map, with only the warning.
    - Category maps never fill or replace a value.
 3. **Configurations.** Both configuration files are loaded with the accepted loaders, for this call only. The same
    loaded values feed the semantics line, the computations and the metadata. A file that won't load, or that changes
@@ -206,9 +214,12 @@ says `not_checked`.
 |---|---|---|
 | Success | `document.jsonl`, `static_prefix.jsonl`, `dynamic_suffix.jsonl`, `metadata.json` | 0 |
 | Work-budget failure | `metadata.json` only | 1 |
-| Rejected options, records or configuration, issues printed | none | 2 |
+| Rejected options, records or configuration, issues printed (`E_CATEGORY_MAP_MISMATCH` included) | none | 2 |
 | `--out` already holds any of the four files | none, and the old files are untouched | 2 |
-| Unexpected internal error, traceback printed | none | 3 |
+| An unexpected exception escaping the rendering call, traceback printed | none | 3 |
+
+Exit 3 is approved (D70) for that guarded rendering path. It is not a promise about every filesystem or process
+failure.
 
 ## Error codes
 
@@ -219,6 +230,7 @@ The contract validator's codes pass through unchanged (`docs/scene-contract.md`)
 | `E_OPTION_FORMAT`, `E_OPTION_WORK_CAP`, `E_OPTION_TOKEN_CHECK`, `E_OPTION_CATEGORY_MAPS`, `E_OPTION_CONFIG_PATH` | an option is unsupported or malformed |
 | `E_RECORD_ROLE` | a scene, command or category-map argument holds another record type |
 | `E_SCENE_MISMATCH`, `E_FRAME_MISMATCH` | the existing codes, also raised when the scene IDs differ, which the validator alone only warns about |
+| `E_CATEGORY_MAP_MISMATCH` | category maps were supplied, but none is the scene's map (D70) |
 | `E_CONFIG` | a configuration file is missing, invalid or fails its schema |
 | `E_INPUT_FILE` | the CLI couldn't read a record file |
 
@@ -240,7 +252,6 @@ Acceptance also needs the contract, relation and direction suites, with relation
   open.
 - **Commands needing excluded attributes are unsupported.** Times, confidence or source identities are not model text,
   so no command can use them.
-- **Per-tuple evidence makes metadata large.** Measured as `metadata.json`: 0.66 MB for a17 (n = 6, 342 entries)
-  and 11.7 MB for scene.h (n = 19, 6,023 entries). Callers keep what they need.
-- **Open questions flagged in D69:** whether a supplied category map with a different map ID should be an error rather
-  than the validator's warning, and the CLI's exit code 3 for internal errors.
+- **Per-tuple evidence makes metadata large.** This offline implementation builds it in memory. Measured as
+  `metadata.json`: 0.66 MB for a17 (n = 6, 342 entries) and 11.7 MB for scene.h (n = 19, 6,023 entries). A file size
+  is not a peak-memory measurement, nor any Quest budget. Callers keep what they need.

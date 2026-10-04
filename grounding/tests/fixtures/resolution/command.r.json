@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "record_type": "command_context",
+  "command_id": "fx.r.command",
+  "text": "Resolver unit case R",
+  "scene_id": "fixture.resolver.r",
+  "scene_revision": 0,
+  "sources": [
+    {
+      "source_id": "fx",
+      "kind": "fixture",
+      "description": "Resolver fixture R (A2.1e brief, section 12.1): hand-authored centres, sizes, fronts, categories and colours for resolver unit tests. Not a lab command or dataset scene",
+      "release": "fixture-v1"
+    }
+  ],
+  "assumptions": [],
+  "user_pose": {
+    "pose_kind": "authored",
+    "frame_id": "scene",
+    "scene_revision": 0,
+    "position_m": {
+      "state": "known",
+      "value": [
+        -2.0,
+        -2.0,
+        1.6
+      ],
+      "evidence": {
+        "kind": "annotated",
+        "source": "fx",
+        "assumptions": []
+      }
+    },
+    "rotation_xyzw": {
+      "state": "unknown",
+      "reason": "not_in_source",
+      "source": "fx"
+    },
+    "heading_xy": {
+      "state": "known",
+      "value": [
+        0.0,
+        1.0
+      ],
+      "heading_source": "authored",
+      "evidence": {
+        "kind": "annotated",
+        "source": "fx",
+        "assumptions": []
+      }
+    },
+    "snapshot_time": {
+      "state": "unknown",
+      "reason": "not_in_source",
+      "source": "fx"
+    }
+  }
+}

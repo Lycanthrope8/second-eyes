@@ -1,0 +1,704 @@
+{
+  "schema_version": 1,
+  "record_type": "scene",
+  "scene_id": "fixture.resolver.r",
+  "scene_revision": 0,
+  "evidence_profile": "annotated",
+  "category_map": "map.fx",
+  "coordinate_frame": {
+    "frame_id": "scene",
+    "units": "m",
+    "handedness": "right",
+    "up_axis": "+z",
+    "origin": "as authored for resolver fixture R (A2.1e brief, section 12.1)",
+    "conversion": "authored_in_scene_frame"
+  },
+  "sources": [
+    {
+      "source_id": "fx",
+      "kind": "fixture",
+      "description": "Resolver fixture R (A2.1e brief, section 12.1): hand-authored centres, sizes, fronts, categories and colours for resolver unit tests. Not a lab command or dataset scene",
+      "release": "fixture-v1"
+    }
+  ],
+  "assumptions": [],
+  "objects": [
+    {
+      "object_id": "obj_001",
+      "source_ref": {
+        "source_id": "fx",
+        "source_object_id": "r_table_green",
+        "source_label": "table"
+      },
+      "category": {
+        "state": "known",
+        "value": {
+          "standard": "table",
+          "model": "table"
+        },
+        "evidence": {
+          "kind": "annotated",
+          "source": "fx",
+          "assumptions": []
+        }
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "evidence": {
+            "kind": "annotated",
+            "source": "fx",
+            "assumptions": []
+          }
+        },
+        "size_m": {
+          "state": "known",
+          "value": [
+            0.2,
+            0.2,
+            0.2
+          ],
+          "evidence": {
+            "kind": "annotated",
+            "source": "fx",
+            "assumptions": []
+          }
+        },
+        "rotation_xyzw": {
+          "state": "unknown",
+          "reason": "not_in_source",
+          "source": "fx"
+        }
+      },
+      "semantic_front": {
+        "state": "known",
+        "value": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "evidence": {
+          "kind": "annotated",
+          "source": "fx",
+          "assumptions": []
+        }
+      },
+      "attributes": {
+        "colours": {
+          "state": "known",
+          "value": [
+            "green"
+          ],
+          "evidence": {
+            "kind": "annotated",
+            "source": "fx",
+            "assumptions": []
+          }
+        }
+      },
+      "observation": {
+        "source": "fx",
+        "capture_time": {
+          "state": "unknown",
+          "reason": "not_in_source",
+          "source": "fx"
+        },
+        "detector_confidence": {
+          "state": "unknown",
+          "reason": "not_in_source",
+          "source": "fx"
+        },
+        "geometry_uncertainty": {
+          "state": "unknown",
+          "reason": "not_in_source",
+          "source": "fx"
+        }
+      }
+    },
+    {
+      "object_id": "obj_002",
+      "source_ref": {
+        "source_id": "fx",
+        "source_object_id": "r_table_blue",
+        "source_label": "table"
+      },
+      "category": {
+        "state": "known",
+        "value": {
+          "standard": "table",
+          "model": "table"
+        },
+        "evidence": {
+          "kind": "annotated",
+          "source": "fx",
+          "assumptions": []
+        }
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [
+            0.0,
+            4.0,
+            0.0
+          ],
+          "evidence": {
+            "kind": "annotated",
+            "source": "fx",
+            "assumptions": []
+          }
+        },
+        "size_m": {
+          "state": "known",
+          "value": [
+            0.2,
+            0.2,
+            0.2
+          ],
+          "evidence": {
+            "kind": "annotated",
+            "source": "fx",
+            "assumptions": []
+          }
+        },
+        "rotation_xyzw": {
+          "state": "unknown",
+          "reason": "not_in_source",
+          "source": "fx"
+        }
+      },
+      "semantic_front": {
+        "state": "known",
+        "value": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "evidence": {
+          "kind": "annotated",
+          "source": "fx",
+          "assumptions": []
+        }
+      },
+      "attributes": {
+        "colours": {
+          "state": "known",
+          "value": [
+            "blue"
+          ],
+          "evidence": {
+            "kind": "annotated",
+            "source": "fx",
+            "assumptions": []
+          }
+        }
+      },
+      "observation": {
+        "source": "fx",
+        "capture_time": {
+          "state": "unknown",
+          "reason": "not_in_source",
+          "source": "fx"
+        },
+        "detector_confidence": {
+          "state": "unknown",
+          "reason": "not_in_source",
+          "source": "fx"
+        },
+        "geometry_uncertainty": {
+          "state": "unknown",
+          "reason": "not_in_source",
+          "source": "fx"
+        }
+      }
+    },
+    {
+      "object_id": "obj_003",
+      "source_ref": {
+        "source_id": "fx",
+        "source_object_id": "r_box_red",
+        "source_label": "box"
+      },
+      "category": {
+        "state": "known",
+        "value": {
+          "standard": "box",
+          "model": "box"
+        },
+        "evidence": {
+          "kind": "annotated",
+          "source": "fx",
+          "assumptions": []
+        }
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [
+            1.0,
+            2.0,
+            0.0
+          ],
+          "evidence": {
+            "kind": "annotated",
+            "source": "fx",
+            "assumptions": []
+          }
+        },
+        "size_m": {
+          "state": "known",
+          "value": [
+            0.2,
+            0.2,
+            0.2
+          ],
+          "evidence": {
+            "kind": "annotated",
+            "source": "fx",
+            "assumptions": []
+          }
+        },
+        "rotation_xyzw": {
+          "state": "unknown",
+          "reason": "not_in_source",
+          "source": "fx"
+        }
+      },
+      "semantic_front": {
+        "state": "known",
+        "value": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "evidence": {
+          "kind": "annotated",
+          "source": "fx",
+          "assumptions": []
+        }
+      },
+      "attributes": {
+        "colours": {
+          "state": "known",
+          "value": [
+            "red"
+          ],
+          "evidence": {
+            "kind": "annotated",
+            "source": "fx",
+            "assumptions": []
+          }
+        }
+      },
+      "observation": {
+        "source": "fx",
+        "capture_time": {
+          "state": "unknown",
+          "reason": "not_in_source",
+          "source": "fx"
+        },
+        "detector_confidence": {
+          "state": "unknown",
+          "reason": "not_in_source",
+          "source": "fx"
+        },
+        "geometry_uncertainty": {
+          "state": "unknown",
+          "reason": "not_in_source",
+          "source": "fx"
+        }
+      }
+    },
+    {
+      "object_id": "obj_004",
+      "source_ref": {
+        "source_id": "fx",
+        "source_object_id": "r_box_blue",
+        "source_label": "box"
+      },
+      "category": {
+        "state": "known",
+        "value": {
+          "standard": "box",
+          "model": "box"
+        },
+        "evidence": {
+          "kind": "annotated",
+          "source": "fx",
+          "assumptions": []
+        }
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [
+            -1.0,
+            2.0,
+            0.0
+          ],
+          "evidence": {
+            "kind": "annotated",
+            "source": "fx",
+            "assumptions": []
+          }
+        },
+        "size_m": {
+          "state": "known",
+          "value": [
+            0.2,
+            0.2,
+            0.2
+          ],
+          "evidence": {
+            "kind": "annotated",
+            "source": "fx",
+            "assumptions": []
+          }
+        },
+        "rotation_xyzw": {
+          "state": "unknown",
+          "reason": "not_in_source",
+          "source": "fx"
+        }
+      },
+      "semantic_front": {
+        "state": "known",
+        "value": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "evidence": {
+          "kind": "annotated",
+          "source": "fx",
+          "assumptions": []
+        }
+      },
+      "attributes": {
+        "colours": {
+          "state": "known",
+          "value": [
+            "blue"
+          ],
+          "evidence": {
+            "kind": "annotated",
+            "source": "fx",
+            "assumptions": []
+          }
+        }
+      },
+      "observation": {
+        "source": "fx",
+        "capture_time": {
+          "state": "unknown",
+          "reason": "not_in_source",
+          "source": "fx"
+        },
+        "detector_confidence": {
+          "state": "unknown",
+          "reason": "not_in_source",
+          "source": "fx"
+        },
+        "geometry_uncertainty": {
+          "state": "unknown",
+          "reason": "not_in_source",
+          "source": "fx"
+        }
+      }
+    },
+    {
+      "object_id": "obj_005",
+      "source_ref": {
+        "source_id": "fx",
+        "source_object_id": "r_chair_red",
+        "source_label": "chair"
+      },
+      "category": {
+        "state": "known",
+        "value": {
+          "standard": "chair",
+          "model": "chair"
+        },
+        "evidence": {
+          "kind": "annotated",
+          "source": "fx",
+          "assumptions": []
+        }
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [
+            2.0,
+            0.0,
+            0.0
+          ],
+          "evidence": {
+            "kind": "annotated",
+            "source": "fx",
+            "assumptions": []
+          }
+        },
+        "size_m": {
+          "state": "known",
+          "value": [
+            0.2,
+            0.2,
+            0.2
+          ],
+          "evidence": {
+            "kind": "annotated",
+            "source": "fx",
+            "assumptions": []
+          }
+        },
+        "rotation_xyzw": {
+          "state": "unknown",
+          "reason": "not_in_source",
+          "source": "fx"
+        }
+      },
+      "semantic_front": {
+        "state": "known",
+        "value": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "evidence": {
+          "kind": "annotated",
+          "source": "fx",
+          "assumptions": []
+        }
+      },
+      "attributes": {
+        "colours": {
+          "state": "known",
+          "value": [
+            "red"
+          ],
+          "evidence": {
+            "kind": "annotated",
+            "source": "fx",
+            "assumptions": []
+          }
+        }
+      },
+      "observation": {
+        "source": "fx",
+        "capture_time": {
+          "state": "unknown",
+          "reason": "not_in_source",
+          "source": "fx"
+        },
+        "detector_confidence": {
+          "state": "unknown",
+          "reason": "not_in_source",
+          "source": "fx"
+        },
+        "geometry_uncertainty": {
+          "state": "unknown",
+          "reason": "not_in_source",
+          "source": "fx"
+        }
+      }
+    },
+    {
+      "object_id": "obj_006",
+      "source_ref": {
+        "source_id": "fx",
+        "source_object_id": "r_chair_blue",
+        "source_label": "chair"
+      },
+      "category": {
+        "state": "known",
+        "value": {
+          "standard": "chair",
+          "model": "chair"
+        },
+        "evidence": {
+          "kind": "annotated",
+          "source": "fx",
+          "assumptions": []
+        }
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [
+            4.0,
+            0.0,
+            0.0
+          ],
+          "evidence": {
+            "kind": "annotated",
+            "source": "fx",
+            "assumptions": []
+          }
+        },
+        "size_m": {
+          "state": "known",
+          "value": [
+            0.2,
+            0.2,
+            0.2
+          ],
+          "evidence": {
+            "kind": "annotated",
+            "source": "fx",
+            "assumptions": []
+          }
+        },
+        "rotation_xyzw": {
+          "state": "unknown",
+          "reason": "not_in_source",
+          "source": "fx"
+        }
+      },
+      "semantic_front": {
+        "state": "known",
+        "value": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "evidence": {
+          "kind": "annotated",
+          "source": "fx",
+          "assumptions": []
+        }
+      },
+      "attributes": {
+        "colours": {
+          "state": "known",
+          "value": [
+            "blue"
+          ],
+          "evidence": {
+            "kind": "annotated",
+            "source": "fx",
+            "assumptions": []
+          }
+        }
+      },
+      "observation": {
+        "source": "fx",
+        "capture_time": {
+          "state": "unknown",
+          "reason": "not_in_source",
+          "source": "fx"
+        },
+        "detector_confidence": {
+          "state": "unknown",
+          "reason": "not_in_source",
+          "source": "fx"
+        },
+        "geometry_uncertainty": {
+          "state": "unknown",
+          "reason": "not_in_source",
+          "source": "fx"
+        }
+      }
+    },
+    {
+      "object_id": "obj_007",
+      "source_ref": {
+        "source_id": "fx",
+        "source_object_id": "r_chair_plain",
+        "source_label": "chair"
+      },
+      "category": {
+        "state": "known",
+        "value": {
+          "standard": "chair",
+          "model": "chair"
+        },
+        "evidence": {
+          "kind": "annotated",
+          "source": "fx",
+          "assumptions": []
+        }
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [
+            6.0,
+            0.0,
+            0.0
+          ],
+          "evidence": {
+            "kind": "annotated",
+            "source": "fx",
+            "assumptions": []
+          }
+        },
+        "size_m": {
+          "state": "known",
+          "value": [
+            0.2,
+            0.2,
+            0.2
+          ],
+          "evidence": {
+            "kind": "annotated",
+            "source": "fx",
+            "assumptions": []
+          }
+        },
+        "rotation_xyzw": {
+          "state": "unknown",
+          "reason": "not_in_source",
+          "source": "fx"
+        }
+      },
+      "semantic_front": {
+        "state": "known",
+        "value": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "evidence": {
+          "kind": "annotated",
+          "source": "fx",
+          "assumptions": []
+        }
+      },
+      "attributes": {
+        "colours": {
+          "state": "known",
+          "value": [],
+          "evidence": {
+            "kind": "annotated",
+            "source": "fx",
+            "assumptions": []
+          }
+        }
+      },
+      "observation": {
+        "source": "fx",
+        "capture_time": {
+          "state": "unknown",
+          "reason": "not_in_source",
+          "source": "fx"
+        },
+        "detector_confidence": {
+          "state": "unknown",
+          "reason": "not_in_source",
+          "source": "fx"
+        },
+        "geometry_uncertainty": {
+          "state": "unknown",
+          "reason": "not_in_source",
+          "source": "fx"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "resolver-config.v1.json",
+  "title": "Resolver configuration v1 (A2.1e, D71)",
+  "description": "The caller's vocabulary and work limits for one resolver call. No defaults: every limit is required, an integer and nonnegative (Booleans are not integers here), with no unlimited sentinel. The fixture values in grounding/tests/fixtures/resolution are generous unit-test settings, not deployment defaults or measured Quest allowances. Labels follow scene.v1.json's label rule; the resolver also checks full-string matches. The resolver also requires every limit to be a JSON integer: a whole-valued float such as 10000.0, which this schema's integer type admits, is invalid input (D72).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "record_type", "config_id", "vocabulary_id", "category_labels", "colour_labels",
+               "limits"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "record_type": {"const": "resolver_config"},
+    "config_id": {"$ref": "#/$defs/id"},
+    "vocabulary_id": {"$ref": "#/$defs/id"},
+    "category_labels": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/label"}},
+    "colour_labels": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/label"}},
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_interpretations", "max_nodes", "max_constraints", "max_candidate_checks",
+                   "max_binding_attempts", "max_predicate_calls", "max_rank_subset_evaluations", "max_trace_events",
+                   "max_trace_bytes"],
+      "properties": {
+        "max_interpretations": {"$ref": "#/$defs/limit"},
+        "max_nodes": {"$ref": "#/$defs/limit"},
+        "max_constraints": {"$ref": "#/$defs/limit"},
+        "max_candidate_checks": {"$ref": "#/$defs/limit"},
+        "max_binding_attempts": {"$ref": "#/$defs/limit"},
+        "max_predicate_calls": {"$ref": "#/$defs/limit"},
+        "max_rank_subset_evaluations": {"$ref": "#/$defs/limit"},
+        "max_trace_events": {"$ref": "#/$defs/limit"},
+        "max_trace_bytes": {"$ref": "#/$defs/limit"}
+      }
+    }
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_.-]{0,127}$"},
+    "label": {"type": "string", "pattern": "^\\S(.*\\S)?$"},
+    "limit": {"type": "integer", "minimum": 0}
+  }
+}

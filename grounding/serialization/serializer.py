@@ -138,7 +138,8 @@ def _validate(scene, command, maps):
     found = contract.validate(records)
     errors = [_issue(i.file, i.path, i.code, i.message) for i in found if i.is_error]
     warnings = [_issue(i.file, i.path, i.code, i.message) for i in found if not i.is_error]
-    if not errors:  # the validator only warns when a command names another scene; here the two must match
+    if not errors:  # serializer-level checks, run only on records the validator accepted
+        # The validator only warns when a command names another scene; here the two must match.
         if command["scene_id"] != scene["scene_id"] or command["scene_revision"] != scene["scene_revision"]:
             errors.append(_issue("command", "$.scene_id", "E_SCENE_MISMATCH",
                                  f"command is for {command['scene_id']} revision {command['scene_revision']}, "
@@ -147,6 +148,13 @@ def _validate(scene, command, maps):
             errors.append(_issue("command", "$.user_pose.frame_id", "E_FRAME_MISMATCH",
                                  f"pose frame {command['user_pose']['frame_id']} is not the scene's "
                                  f"{scene['coordinate_frame']['frame_id']}"))
+        # D70: supplying maps means asking for cross-validation, so the scene's own map must be among them.
+        # No maps at all keeps the validator's W_NOT_CROSS_CHECKED warning.
+        supplied = sorted(m["map_id"] for m in maps)
+        if maps and scene["category_map"] not in supplied:
+            errors.append(_issue("scene", "$.category_map", "E_CATEGORY_MAP_MISMATCH",
+                                 f"the scene needs category map {scene['category_map']}; supplied: "
+                                 f"{', '.join(supplied)}"))
     if errors:
         raise SerializationInputError(errors)
     return warnings

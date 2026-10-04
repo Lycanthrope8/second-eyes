@@ -1,0 +1,4519 @@
+{
+ "description": "Resolver expectations (A2.1e, D71), fixed before any resolver code existed. R01-R36 are the brief's section 12.2 cases; V, B and M cases are section 12.3; P cases are provenance on accepted fixtures. Hand-worked arithmetic is in each note. Each case gets its own scene ID fixture.resolver.<id>, command fx.<id>.command and query fx.<id>.query, so no evidence-changing variant shares a geometry-cache key. See README.md for the variant operations and expectation keys.",
+ "base": {
+  "scene": "scene.r.json",
+  "command": "command.r.json",
+  "resolver_config": "resolver-config.fixture.json",
+  "category_map": "../contract/valid/category-map.fx.json"
+ },
+ "cases": [
+  {
+   "id": "R01",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "resolved",
+    "target_id": "obj_003",
+    "action": "INSPECT",
+    "target_ids": [
+     "obj_003"
+    ],
+    "uncertain_match_ids": [],
+    "coverage": "evaluated_branch_union",
+    "conditional": false,
+    "assumptions": []
+   }
+  },
+  {
+   "id": "R02",
+   "variant": {
+    "objects": {
+     "obj_003": {
+      "colours": "unknown"
+     }
+    }
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "insufficient_information",
+    "target_id": null,
+    "target_ids": [],
+    "uncertain_match_ids": [
+     "obj_003"
+    ],
+    "reason_codes_include": [
+     "unknown_colour"
+    ]
+   }
+  },
+  {
+   "id": "R03",
+   "variant": {
+    "objects": {
+     "obj_003": {
+      "colours": []
+     }
+    }
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "no_match",
+    "target_id": null,
+    "target_ids": [],
+    "uncertain_match_ids": [],
+    "reason_codes_include": [
+     "target_not_found"
+    ]
+   }
+  },
+  {
+   "id": "R04",
+   "variant": {
+    "keep": [
+     "obj_005",
+     "obj_006"
+    ],
+    "objects": {
+     "obj_006": {
+      "category": "unknown"
+     }
+    }
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "chair",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "insufficient_information",
+    "target_id": null,
+    "target_ids": [
+     "obj_005"
+    ],
+    "uncertain_match_ids": [
+     "obj_006"
+    ],
+    "reason_codes_include": [
+     "unknown_category"
+    ]
+   }
+  },
+  {
+   "id": "R05",
+   "variant": {
+    "keep": [
+     "obj_005",
+     "obj_006",
+     "obj_007"
+    ],
+    "objects": {
+     "obj_007": {
+      "category": "unknown"
+     }
+    }
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "chair",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "ambiguous",
+    "target_id": null,
+    "target_ids": [
+     "obj_005",
+     "obj_006"
+    ],
+    "uncertain_match_ids": [
+     "obj_007"
+    ],
+    "reason_codes_include": [
+     "multiple_definite_matches"
+    ]
+   }
+  },
+  {
+   "id": "R06",
+   "variant": {
+    "keep": [
+     "obj_001"
+    ],
+    "objects": {
+     "obj_001": {
+      "colours": "unknown"
+     }
+    }
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "chair",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "no_match",
+    "target_ids": [],
+    "uncertain_match_ids": []
+   }
+  },
+  {
+   "id": "R07",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "table",
+       "colours_all": [
+        "green",
+        "blue"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "no_match",
+    "target_ids": [],
+    "uncertain_match_ids": []
+   }
+  },
+  {
+   "id": "R08",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [],
+       "constraints": [
+        {
+         "relation": "right",
+         "frame": "object_intrinsic",
+         "anchors": [
+          "table_ref"
+         ]
+        }
+       ],
+       "rank": null
+      },
+      {
+       "node_id": "table_ref",
+       "category": "table",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "resolved",
+    "target_id": "obj_003",
+    "action": "INSPECT",
+    "target_ids": [
+     "obj_003"
+    ],
+    "work": {
+     "binding_attempts": 2,
+     "candidate_checks": 21,
+     "predicate_calls": 4,
+     "terminal_outcomes": 2
+    },
+    "outcome_counts": {
+     "resolved": 2
+    }
+   }
+  },
+  {
+   "id": "R09",
+   "variant": {
+    "objects": {
+     "obj_002": {
+      "front": [
+       0.0,
+       -1.0,
+       0.0
+      ]
+     }
+    }
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [],
+       "constraints": [
+        {
+         "relation": "right",
+         "frame": "object_intrinsic",
+         "anchors": [
+          "table_ref"
+         ]
+        }
+       ],
+       "rank": null
+      },
+      {
+       "node_id": "table_ref",
+       "category": "table",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "ambiguous",
+    "target_id": null,
+    "target_ids": [
+     "obj_003",
+     "obj_004"
+    ],
+    "reason_codes_include": [
+     "divergent_targets"
+    ]
+   }
+  },
+  {
+   "id": "R10",
+   "variant": {
+    "objects": {
+     "obj_002": {
+      "front": [
+       0.0,
+       -1.0,
+       0.0
+      ]
+     }
+    }
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [
+        {
+         "relation": "right",
+         "frame": "object_intrinsic",
+         "anchors": [
+          "table_ref"
+         ]
+        }
+       ],
+       "rank": null
+      },
+      {
+       "node_id": "table_ref",
+       "category": "table",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "ambiguous",
+    "target_id": null,
+    "target_ids": [
+     "obj_003"
+    ],
+    "reason_codes_include": [
+     "resolved_vs_no_match"
+    ],
+    "outcome_counts": {
+     "resolved": 1,
+     "no_match": 1
+    }
+   }
+  },
+  {
+   "id": "R11",
+   "variant": {
+    "objects": {
+     "obj_002": {
+      "front": "unknown"
+     }
+    }
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [],
+       "constraints": [
+        {
+         "relation": "right",
+         "frame": "object_intrinsic",
+         "anchors": [
+          "table_ref"
+         ]
+        }
+       ],
+       "rank": null
+      },
+      {
+       "node_id": "table_ref",
+       "category": "table",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "insufficient_information",
+    "target_id": null,
+    "target_ids": [
+     "obj_003"
+    ],
+    "uncertain_match_ids": [
+     "obj_003",
+     "obj_004"
+    ],
+    "reason_codes_include": [
+     "missing_semantic_front"
+    ],
+    "outcome_counts": {
+     "resolved": 1,
+     "insufficient_information": 1
+    }
+   }
+  },
+  {
+   "id": "R12",
+   "variant": {
+    "objects": {
+     "obj_002": {
+      "category": "unknown"
+     }
+    }
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [],
+       "constraints": [
+        {
+         "relation": "right",
+         "frame": "object_intrinsic",
+         "anchors": [
+          "table_ref"
+         ]
+        }
+       ],
+       "rank": null
+      },
+      {
+       "node_id": "table_ref",
+       "category": "table",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "insufficient_information",
+    "target_id": null,
+    "target_ids": [],
+    "reason_codes_include": [
+     "uncertain_anchor"
+    ],
+    "coverage": "incomplete_due_to_unresolved_reference",
+    "work": {
+     "binding_attempts": 0
+    }
+   }
+  },
+  {
+   "id": "R13",
+   "variant": {
+    "objects": {
+     "obj_002": {
+      "front": [
+       0.0,
+       -1.0,
+       0.0
+      ]
+     }
+    }
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [],
+       "constraints": [
+        {
+         "relation": "right",
+         "frame": "object_intrinsic",
+         "anchors": [
+          "table_ref"
+         ]
+        },
+        {
+         "relation": "left",
+         "frame": "object_intrinsic",
+         "anchors": [
+          "table_ref"
+         ]
+        }
+       ],
+       "rank": null
+      },
+      {
+       "node_id": "table_ref",
+       "category": "table",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "no_match",
+    "target_ids": [],
+    "outcome_counts": {
+     "no_match": 2
+    }
+   }
+  },
+  {
+   "id": "R14",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "chair_ref",
+       "category": "chair",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": null
+      },
+      {
+       "node_id": "table_ref",
+       "category": "table",
+       "colours_all": [],
+       "constraints": [
+        {
+         "relation": "left",
+         "frame": "object_intrinsic",
+         "anchors": [
+          "chair_ref"
+         ]
+        }
+       ],
+       "rank": null
+      },
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [],
+       "constraints": [
+        {
+         "relation": "right",
+         "frame": "object_intrinsic",
+         "anchors": [
+          "table_ref"
+         ]
+        }
+       ],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "resolved",
+    "target_id": "obj_003",
+    "action": "INSPECT"
+   }
+  },
+  {
+   "id": "R15",
+   "variant": {
+    "objects": {
+     "obj_005": {
+      "colours": [
+       "blue"
+      ]
+     },
+     "obj_006": {
+      "colours": [
+       "red"
+      ]
+     },
+     "obj_007": {
+      "colours": [
+       "red"
+      ]
+     }
+    }
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "anchor",
+       "category": "table",
+       "colours_all": [
+        "green"
+       ],
+       "constraints": [],
+       "rank": null
+      },
+      {
+       "node_id": "target",
+       "category": "chair",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": {
+        "relation": "closest",
+        "anchor": "anchor",
+        "k": 1
+       }
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "resolved",
+    "target_id": "obj_006",
+    "target_ids": [
+     "obj_006"
+    ],
+    "rank_definite_eligible_ids": [
+     "obj_006",
+     "obj_007"
+    ],
+    "rank_possible_eligible_ids": []
+   }
+  },
+  {
+   "id": "R16",
+   "variant": {
+    "keep": [
+     "obj_001",
+     "obj_005",
+     "obj_006"
+    ],
+    "objects": {
+     "obj_005": {
+      "colours": "unknown"
+     },
+     "obj_006": {
+      "colours": "unknown"
+     }
+    }
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "anchor",
+       "category": "table",
+       "colours_all": [
+        "green"
+       ],
+       "constraints": [],
+       "rank": null
+      },
+      {
+       "node_id": "target",
+       "category": "chair",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": {
+        "relation": "closest",
+        "anchor": "anchor",
+        "k": 2
+       }
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "insufficient_information",
+    "target_id": null,
+    "rank_definite_eligible_ids": [],
+    "rank_possible_eligible_ids": [
+     "obj_005",
+     "obj_006"
+    ],
+    "reason_codes_include": [
+     "possible_rank_competitors"
+    ],
+    "work": {
+     "rank_calls": 1,
+     "rank_subsets": 4
+    }
+   }
+  },
+  {
+   "id": "R17",
+   "variant": {
+    "keep": [
+     "obj_001",
+     "obj_005",
+     "obj_006"
+    ],
+    "objects": {
+     "obj_006": {
+      "colours": "unknown"
+     }
+    }
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "anchor",
+       "category": "table",
+       "colours_all": [
+        "green"
+       ],
+       "constraints": [],
+       "rank": null
+      },
+      {
+       "node_id": "target",
+       "category": "chair",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": {
+        "relation": "closest",
+        "anchor": "anchor",
+        "k": 1
+       }
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "resolved",
+    "target_id": "obj_005",
+    "rank_definite_eligible_ids": [
+     "obj_005"
+    ],
+    "rank_possible_eligible_ids": [
+     "obj_006"
+    ],
+    "work": {
+     "rank_calls": 1,
+     "rank_subsets": 2
+    }
+   }
+  },
+  {
+   "id": "R18",
+   "variant": {
+    "keep": [
+     "obj_001",
+     "obj_005",
+     "obj_006"
+    ],
+    "objects": {
+     "obj_006": {
+      "colours": "unknown",
+      "centre": "unknown"
+     }
+    }
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "anchor",
+       "category": "table",
+       "colours_all": [
+        "green"
+       ],
+       "constraints": [],
+       "rank": null
+      },
+      {
+       "node_id": "target",
+       "category": "chair",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": {
+        "relation": "closest",
+        "anchor": "anchor",
+        "k": 1
+       }
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "insufficient_information",
+    "target_id": null,
+    "reason_codes_include": [
+     "missing_centre"
+    ],
+    "work": {
+     "rank_calls": 1,
+     "rank_subsets": 0
+    }
+   }
+  },
+  {
+   "id": "R19",
+   "variant": {
+    "keep": [
+     "obj_001",
+     "obj_005",
+     "obj_006"
+    ]
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "anchor",
+       "category": "table",
+       "colours_all": [
+        "green"
+       ],
+       "constraints": [],
+       "rank": null
+      },
+      {
+       "node_id": "target",
+       "category": "chair",
+       "colours_all": [],
+       "constraints": [],
+       "rank": {
+        "relation": "closest",
+        "anchor": "anchor",
+        "k": 3
+       }
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "no_match",
+    "rank_definite_eligible_ids": [
+     "obj_005",
+     "obj_006"
+    ],
+    "reason_codes_include": [
+     "too_few_rank_candidates"
+    ]
+   }
+  },
+  {
+   "id": "R20",
+   "variant": {
+    "objects": {
+     "obj_005": {
+      "centre": [
+       2.0,
+       0.0,
+       0.0
+      ]
+     },
+     "obj_006": {
+      "centre": [
+       2.03,
+       0.0,
+       0.0
+      ]
+     },
+     "obj_007": {
+      "centre": [
+       2.06,
+       0.0,
+       0.0
+      ]
+     }
+    }
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "anchor",
+       "category": "table",
+       "colours_all": [
+        "green"
+       ],
+       "constraints": [],
+       "rank": null
+      },
+      {
+       "node_id": "target",
+       "category": "chair",
+       "colours_all": [],
+       "constraints": [],
+       "rank": {
+        "relation": "closest",
+        "anchor": "anchor",
+        "k": 1
+       }
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "ambiguous",
+    "target_id": null,
+    "target_ids": [
+     "obj_005",
+     "obj_006",
+     "obj_007"
+    ],
+    "reason_codes_include": [
+     "rank_tie"
+    ]
+   }
+  },
+  {
+   "id": "R21",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "anchor",
+       "category": "table",
+       "colours_all": [
+        "green"
+       ],
+       "constraints": [],
+       "rank": null
+      },
+      {
+       "node_id": "target",
+       "category": "chair",
+       "colours_all": [],
+       "constraints": [],
+       "rank": {
+        "relation": "farthest",
+        "anchor": "anchor",
+        "k": 1
+       }
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "resolved",
+    "target_id": "obj_007"
+   }
+  },
+  {
+   "id": "R22",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "anchor",
+       "category": "table",
+       "colours_all": [
+        "green"
+       ],
+       "constraints": [],
+       "rank": null
+      },
+      {
+       "node_id": "target",
+       "category": "table",
+       "colours_all": [],
+       "constraints": [],
+       "rank": {
+        "relation": "closest",
+        "anchor": "anchor",
+        "k": 1
+       }
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "resolved",
+    "target_id": "obj_002",
+    "rank_definite_eligible_ids": [
+     "obj_002"
+    ]
+   }
+  },
+  {
+   "id": "R23",
+   "variant": {
+    "keep": [
+     "obj_001"
+    ]
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "left_ref",
+       "category": "table",
+       "colours_all": [
+        "green"
+       ],
+       "constraints": [],
+       "rank": null
+      },
+      {
+       "node_id": "right_ref",
+       "category": "table",
+       "colours_all": [
+        "green"
+       ],
+       "constraints": [],
+       "rank": null
+      },
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [],
+       "constraints": [
+        {
+         "relation": "between",
+         "frame": null,
+         "anchors": [
+          "left_ref",
+          "right_ref"
+         ]
+        }
+       ],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "no_match",
+    "target_id": null,
+    "reason_codes_include": [
+     "no_legal_anchor_binding"
+    ],
+    "work": {
+     "binding_attempts": 2,
+     "pruned_bindings": 1,
+     "terminal_outcomes": 1
+    },
+    "outcome_counts": {
+     "no_match": 1
+    }
+   }
+  },
+  {
+   "id": "R24",
+   "variant": {
+    "objects": {
+     "obj_003": {
+      "centre": [
+       0.0,
+       2.0,
+       0.0
+      ]
+     }
+    }
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "green_ref",
+       "category": "table",
+       "colours_all": [
+        "green"
+       ],
+       "constraints": [],
+       "rank": null
+      },
+      {
+       "node_id": "blue_ref",
+       "category": "table",
+       "colours_all": [
+        "blue"
+       ],
+       "constraints": [],
+       "rank": null
+      },
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [
+        {
+         "relation": "between",
+         "frame": null,
+         "anchors": [
+          "green_ref",
+          "blue_ref"
+         ]
+        }
+       ],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "insufficient_information",
+    "target_id": null,
+    "uncertain_match_ids": [
+     "obj_003"
+    ],
+    "reason_codes_include": [
+     "missing_rotation"
+    ]
+   }
+  },
+  {
+   "id": "R25",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    },
+    {
+     "interpretation_id": "i1",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "blue"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "ambiguous",
+    "target_id": null,
+    "target_ids": [
+     "obj_003",
+     "obj_004"
+    ],
+    "reason_codes_include": [
+     "divergent_targets"
+    ]
+   }
+  },
+  {
+   "id": "R26",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    },
+    {
+     "interpretation_id": "i1",
+     "kind": "query",
+     "action": "GO_TO",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "ambiguous",
+    "target_id": null,
+    "action": null,
+    "target_ids": [
+     "obj_003"
+    ],
+    "reason_codes_include": [
+     "divergent_actions"
+    ]
+   }
+  },
+  {
+   "id": "R27",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    },
+    {
+     "interpretation_id": "i1",
+     "kind": "unavailable",
+     "action": "INSPECT",
+     "reason": "frame_interpretation_unavailable"
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "insufficient_information",
+    "target_id": null,
+    "coverage": "incomplete_due_to_unresolved_reference",
+    "reason_codes_include": [
+     "frame_interpretation_unavailable"
+    ]
+   }
+  },
+  {
+   "id": "R28",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "green"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    },
+    {
+     "interpretation_id": "i1",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "table",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "no_match",
+    "target_id": null,
+    "outcome_counts": {
+     "no_match": 2
+    }
+   }
+  },
+  {
+   "id": "R29",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    },
+    {
+     "interpretation_id": "i1",
+     "kind": "unsupported",
+     "action": "INSPECT",
+     "reason": "unsupported_negation"
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "unsupported",
+    "target_id": null,
+    "reason_codes_include": [
+     "unsupported_negation"
+    ],
+    "coverage": "incomplete_due_to_unresolved_reference"
+   }
+  },
+  {
+   "id": "R30",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "stool",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "unsupported",
+    "target_id": null,
+    "reason_codes_include": [
+     "unsupported_category_label"
+    ],
+    "work": {
+     "candidate_checks": 0
+    }
+   }
+  },
+  {
+   "id": "R31",
+   "variant": {
+    "keep": [
+     "obj_001",
+     "obj_002"
+    ]
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "chair",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "no_match",
+    "target_id": null
+   }
+  },
+  {
+   "id": "R32",
+   "variant": {
+    "keep": []
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "no_match",
+    "target_id": null,
+    "work": {
+     "candidate_checks": 0
+    }
+   }
+  },
+  {
+   "id": "R33",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [
+        {
+         "relation": "right",
+         "frame": "user_heading",
+         "anchors": []
+        }
+       ],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "resolved",
+    "target_id": "obj_003"
+   }
+  },
+  {
+   "id": "R34",
+   "variant": {
+    "command": {
+     "heading": "unknown"
+    }
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [
+        {
+         "relation": "right",
+         "frame": "user_heading",
+         "anchors": []
+        }
+       ],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "insufficient_information",
+    "target_id": null,
+    "reason_codes_include": [
+     "missing_pose"
+    ]
+   }
+  },
+  {
+   "id": "R35",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "anchor",
+       "category": "table",
+       "colours_all": [
+        "green"
+       ],
+       "constraints": [],
+       "rank": null
+      },
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [
+        {
+         "relation": "right",
+         "frame": "user_to_anchor",
+         "anchors": [
+          "anchor"
+         ]
+        }
+       ],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "no_match",
+    "target_id": null
+   }
+  },
+  {
+   "id": "R36",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "anchor",
+       "category": "table",
+       "colours_all": [
+        "green"
+       ],
+       "constraints": [],
+       "rank": null
+      },
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [
+        {
+         "relation": "left",
+         "frame": "user_to_anchor",
+         "anchors": [
+          "anchor"
+         ]
+        }
+       ],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "resolved",
+    "target_id": "obj_003"
+   }
+  },
+  {
+   "id": "V01",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "envelope_patch": {
+    "target_id": "obj_003"
+   },
+   "note": "an answer field in the envelope",
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_QUERY_SCHEMA"
+    ]
+   }
+  },
+  {
+   "id": "V02",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": null,
+       "target": "obj_003"
+      }
+     ]
+    }
+   ],
+   "envelope_patch": {},
+   "note": "an answer field in a node",
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_QUERY_SCHEMA"
+    ]
+   }
+  },
+  {
+   "id": "V03",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [],
+       "constraints": [
+        {
+         "relation": "not_near",
+         "frame": null,
+         "anchors": [
+          "a"
+         ]
+        }
+       ],
+       "rank": null
+      },
+      {
+       "node_id": "a",
+       "category": "table",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "envelope_patch": {},
+   "note": "an unsupported operator spelled as a QUERY relation",
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_QUERY_SCHEMA"
+    ]
+   }
+  },
+  {
+   "id": "V04",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      },
+      {
+       "node_id": "target",
+       "category": "table",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "envelope_patch": {},
+   "note": "a duplicate node ID",
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_QUERY_GRAPH"
+    ]
+   }
+  },
+  {
+   "id": "V05",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [],
+       "constraints": [
+        {
+         "relation": "near",
+         "frame": null,
+         "anchors": [
+          "ghost"
+         ]
+        }
+       ],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "envelope_patch": {},
+   "note": "a missing dependency",
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_QUERY_GRAPH"
+    ]
+   }
+  },
+  {
+   "id": "V06",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "ghost",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "envelope_patch": {},
+   "note": "a missing root",
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_QUERY_GRAPH"
+    ]
+   }
+  },
+  {
+   "id": "V07",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [],
+       "constraints": [
+        {
+         "relation": "near",
+         "frame": null,
+         "anchors": [
+          "target"
+         ]
+        }
+       ],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "envelope_patch": {},
+   "note": "a self-loop",
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_QUERY_GRAPH"
+    ]
+   }
+  },
+  {
+   "id": "V08",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [],
+       "constraints": [
+        {
+         "relation": "near",
+         "frame": null,
+         "anchors": [
+          "a"
+         ]
+        }
+       ],
+       "rank": null
+      },
+      {
+       "node_id": "a",
+       "category": "table",
+       "colours_all": [],
+       "constraints": [
+        {
+         "relation": "near",
+         "frame": null,
+         "anchors": [
+          "b"
+         ]
+        }
+       ],
+       "rank": null
+      },
+      {
+       "node_id": "b",
+       "category": "chair",
+       "colours_all": [],
+       "constraints": [
+        {
+         "relation": "near",
+         "frame": null,
+         "anchors": [
+          "a"
+         ]
+        }
+       ],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "envelope_patch": {},
+   "note": "a longer cycle",
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_QUERY_GRAPH"
+    ]
+   }
+  },
+  {
+   "id": "V09",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      },
+      {
+       "node_id": "orphan",
+       "category": "table",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "envelope_patch": {},
+   "note": "an unreachable node",
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_QUERY_GRAPH"
+    ]
+   }
+  },
+  {
+   "id": "V10",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "obj_003",
+     "nodes": [
+      {
+       "node_id": "obj_003",
+       "category": "box",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "envelope_patch": {},
+   "note": "a reserved obj_ node ID",
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_QUERY_GRAPH"
+    ]
+   }
+  },
+  {
+   "id": "V11",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [],
+       "constraints": [
+        {
+         "relation": "near",
+         "frame": "user_heading",
+         "anchors": [
+          "a"
+         ]
+        }
+       ],
+       "rank": null
+      },
+      {
+       "node_id": "a",
+       "category": "table",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "envelope_patch": {},
+   "note": "a wrong frame",
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_QUERY_SCHEMA"
+    ]
+   }
+  },
+  {
+   "id": "V12",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [],
+       "constraints": [
+        {
+         "relation": "between",
+         "frame": null,
+         "anchors": [
+          "a"
+         ]
+        }
+       ],
+       "rank": null
+      },
+      {
+       "node_id": "a",
+       "category": "table",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "envelope_patch": {},
+   "note": "a wrong arity: between with one anchor",
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_QUERY_SCHEMA"
+    ]
+   }
+  },
+  {
+   "id": "V13",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [],
+       "constraints": [
+        {
+         "relation": "right",
+         "frame": "user_heading",
+         "anchors": [
+          "a"
+         ]
+        }
+       ],
+       "rank": null
+      },
+      {
+       "node_id": "a",
+       "category": "table",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "envelope_patch": {},
+   "note": "a wrong arity: user_heading with an anchor",
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_QUERY_SCHEMA"
+    ]
+   }
+  },
+  {
+   "id": "V14",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [],
+       "constraints": [
+        {
+         "relation": "right",
+         "frame": null,
+         "anchors": [
+          "a"
+         ]
+        }
+       ],
+       "rank": null
+      },
+      {
+       "node_id": "a",
+       "category": "table",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "envelope_patch": {},
+   "note": "a direction with frame null",
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_QUERY_SCHEMA"
+    ]
+   }
+  },
+  {
+   "id": "V15",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "a",
+       "category": "table",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      },
+      {
+       "node_id": "target",
+       "category": "chair",
+       "colours_all": [],
+       "constraints": [],
+       "rank": {
+        "relation": "closest",
+        "anchor": "a",
+        "k": true
+       }
+      }
+     ]
+    }
+   ],
+   "envelope_patch": {},
+   "note": "a Boolean k",
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_QUERY_SCHEMA"
+    ]
+   }
+  },
+  {
+   "id": "V16",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box ",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "envelope_patch": {},
+   "note": "a label with trailing whitespace",
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_QUERY_SCHEMA"
+    ]
+   }
+  },
+  {
+   "id": "V17",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box\n",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "envelope_patch": {},
+   "note": "a label with a trailing newline, which Python's $ would let through",
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_QUERY_SCHEMA"
+    ]
+   }
+  },
+  {
+   "id": "V18",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    },
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "blue"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "envelope_patch": {},
+   "note": "a duplicate interpretation ID",
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_QUERY_SCHEMA"
+    ]
+   }
+  },
+  {
+   "id": "V19",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "envelope_patch": {
+    "scene_id": "fixture.resolver.other"
+   },
+   "note": "a wrong scene ID",
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_QUERY_CONTEXT"
+    ]
+   }
+  },
+  {
+   "id": "V20",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "envelope_patch": {
+    "scene_revision": 1
+   },
+   "note": "a wrong revision",
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_QUERY_CONTEXT"
+    ]
+   }
+  },
+  {
+   "id": "V21",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "envelope_patch": {
+    "evidence_profile": "restricted"
+   },
+   "note": "a wrong profile",
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_QUERY_CONTEXT"
+    ]
+   }
+  },
+  {
+   "id": "V22",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "envelope_patch": {
+    "command_id": "fx.other.command"
+   },
+   "note": "a wrong command ID",
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_QUERY_CONTEXT"
+    ]
+   }
+  },
+  {
+   "id": "V23",
+   "variant": {},
+   "interpretations": [],
+   "envelope_patch": {},
+   "note": "no interpretations",
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_QUERY_SCHEMA"
+    ]
+   }
+  },
+  {
+   "id": "V24",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [],
+       "constraints": [
+        {
+         "relation": "near",
+         "frame": null,
+         "anchors": [
+          "a"
+         ]
+        },
+        {
+         "relation": "near",
+         "frame": null,
+         "anchors": [
+          "a"
+         ]
+        }
+       ],
+       "rank": null
+      },
+      {
+       "node_id": "a",
+       "category": "table",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "envelope_patch": {},
+   "note": "a duplicate identical constraint",
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_QUERY_SCHEMA"
+    ]
+   }
+  },
+  {
+   "id": "V25",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red",
+        "red"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "envelope_patch": {},
+   "note": "a duplicate colour",
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_QUERY_SCHEMA"
+    ]
+   }
+  },
+  {
+   "id": "V26",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "chair",
+       "colours_all": [],
+       "constraints": [],
+       "rank": {
+        "relation": "closest",
+        "anchor": "target",
+        "k": 1
+       }
+      }
+     ]
+    }
+   ],
+   "envelope_patch": {},
+   "note": "a rank anchored on its own node",
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_QUERY_GRAPH"
+    ]
+   }
+  },
+  {
+   "id": "V27",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [],
+       "constraints": [
+        {
+         "relation": "between",
+         "frame": null,
+         "anchors": [
+          "a",
+          "a"
+         ]
+        }
+       ],
+       "rank": null
+      },
+      {
+       "node_id": "a",
+       "category": "table",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "envelope_patch": {},
+   "note": "between naming one anchor node twice",
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_QUERY_SCHEMA"
+    ]
+   }
+  },
+  {
+   "id": "V28",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": null,
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "envelope_patch": {},
+   "note": "a QUERY with a null action",
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_QUERY_SCHEMA"
+    ]
+   }
+  },
+  {
+   "id": "V29",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "unsupported",
+     "action": null,
+     "reason": "unsupported_sarcasm"
+    }
+   ],
+   "envelope_patch": {},
+   "note": "an unknown unsupported reason",
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_QUERY_SCHEMA"
+    ]
+   }
+  },
+  {
+   "id": "V30",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "envelope_patch": {
+    "interpretations": null
+   },
+   "note": "interpretations not an array",
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_QUERY_SCHEMA"
+    ]
+   }
+  },
+  {
+   "id": "V31",
+   "variant": {
+    "category_maps": "omit"
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "resolved",
+    "target_id": "obj_003",
+    "warning_codes": [
+     "W_NOT_CROSS_CHECKED"
+    ]
+   },
+   "note": "omitted maps keep the warning"
+  },
+  {
+   "id": "V32",
+   "variant": {
+    "category_maps": "other_only"
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_CATEGORY_MAP_MISMATCH"
+    ]
+   },
+   "note": "D70's wrong-only map"
+  },
+  {
+   "id": "V33",
+   "variant": {
+    "category_maps": "incompatible"
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_CATEGORY_UNMAPPED"
+    ]
+   },
+   "note": "a matching map with an unmapped label"
+  },
+  {
+   "id": "V34",
+   "variant": {
+    "category_maps": "matching_plus_other"
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "resolved",
+    "target_id": "obj_003",
+    "warning_codes": []
+   },
+   "note": "a valid extra map changes nothing"
+  },
+  {
+   "id": "V35",
+   "variant": {
+    "category_maps": "duplicate"
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_DUPLICATE_RECORD"
+    ]
+   },
+   "note": "two copies of the scene's map"
+  },
+  {
+   "id": "V36",
+   "variant": {
+    "command": {
+     "scene_id": "fixture.resolver.elsewhere"
+    }
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_QUERY_CONTEXT"
+    ]
+   },
+   "note": "a command for another scene ID"
+  },
+  {
+   "id": "V37",
+   "variant": {
+    "command": {
+     "frame_id": "elsewhere"
+    }
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_FRAME_MISMATCH"
+    ]
+   },
+   "note": "a pose in another frame"
+  },
+  {
+   "id": "V38",
+   "variant": {
+    "relation_config": "missing"
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_CONFIG"
+    ]
+   },
+   "note": "a missing relation configuration file"
+  },
+  {
+   "id": "V39",
+   "variant": {
+    "resolver_config": {
+     "limits.max_nodes": true
+    }
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_RESOLVER_CONFIG"
+    ]
+   },
+   "note": "a Boolean limit"
+  },
+  {
+   "id": "V40",
+   "variant": {
+    "resolver_config": {
+     "limits.max_nodes": -1
+    }
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_RESOLVER_CONFIG"
+    ]
+   },
+   "note": "a negative limit"
+  },
+  {
+   "id": "V41",
+   "variant": {
+    "resolver_config": {
+     "extra": 1
+    }
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_RESOLVER_CONFIG"
+    ]
+   },
+   "note": "an unknown configuration key"
+  },
+  {
+   "id": "V42",
+   "variant": {
+    "resolver_config": {
+     "category_labels": [
+      "box",
+      "box"
+     ]
+    }
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "invalid_input",
+    "issue_codes_include": [
+     "E_RESOLVER_CONFIG"
+    ]
+   },
+   "note": "a repeated vocabulary label"
+  },
+  {
+   "id": "B01a",
+   "base_case": "R08",
+   "variant": {
+    "limits": {
+     "max_candidate_checks": 21
+    }
+   },
+   "expect": {
+    "processing_status": "completed",
+    "status": "resolved",
+    "target_id": "obj_003"
+   }
+  },
+  {
+   "id": "B01b",
+   "base_case": "R08",
+   "variant": {
+    "limits": {
+     "max_candidate_checks": 20
+    }
+   },
+   "expect": {
+    "processing_status": "budget_exceeded",
+    "budget": {
+     "name": "max_candidate_checks",
+     "limit": 20,
+     "used": 20,
+     "next_required": 1
+    }
+   }
+  },
+  {
+   "id": "B02a",
+   "base_case": "R08",
+   "variant": {
+    "limits": {
+     "max_binding_attempts": 2
+    }
+   },
+   "expect": {
+    "processing_status": "completed",
+    "status": "resolved",
+    "target_id": "obj_003"
+   }
+  },
+  {
+   "id": "B02b",
+   "base_case": "R08",
+   "variant": {
+    "limits": {
+     "max_binding_attempts": 1
+    }
+   },
+   "expect": {
+    "processing_status": "budget_exceeded",
+    "budget": {
+     "name": "max_binding_attempts",
+     "limit": 1,
+     "used": 1,
+     "next_required": 1
+    }
+   }
+  },
+  {
+   "id": "B03a",
+   "base_case": "R08",
+   "variant": {
+    "limits": {
+     "max_predicate_calls": 4
+    }
+   },
+   "expect": {
+    "processing_status": "completed",
+    "status": "resolved",
+    "target_id": "obj_003"
+   }
+  },
+  {
+   "id": "B03b",
+   "base_case": "R08",
+   "variant": {
+    "limits": {
+     "max_predicate_calls": 3
+    }
+   },
+   "expect": {
+    "processing_status": "budget_exceeded",
+    "budget": {
+     "name": "max_predicate_calls",
+     "limit": 3,
+     "used": 3,
+     "next_required": 1
+    }
+   }
+  },
+  {
+   "id": "B04a",
+   "base_case": "R16",
+   "variant": {
+    "keep": [
+     "obj_001",
+     "obj_005",
+     "obj_006"
+    ],
+    "objects": {
+     "obj_005": {
+      "colours": "unknown"
+     },
+     "obj_006": {
+      "colours": "unknown"
+     }
+    },
+    "limits": {
+     "max_rank_subset_evaluations": 4
+    }
+   },
+   "expect": {
+    "processing_status": "completed",
+    "status": "insufficient_information",
+    "work": {
+     "rank_calls": 1,
+     "rank_subsets": 4
+    }
+   }
+  },
+  {
+   "id": "B04b",
+   "base_case": "R16",
+   "variant": {
+    "keep": [
+     "obj_001",
+     "obj_005",
+     "obj_006"
+    ],
+    "objects": {
+     "obj_005": {
+      "colours": "unknown"
+     },
+     "obj_006": {
+      "colours": "unknown"
+     }
+    },
+    "limits": {
+     "max_rank_subset_evaluations": 3
+    }
+   },
+   "expect": {
+    "processing_status": "budget_exceeded",
+    "budget": {
+     "name": "max_rank_subset_evaluations",
+     "limit": 3,
+     "used": 0,
+     "next_required": 4
+    },
+    "work": {
+     "rank_calls": 0,
+     "rank_subsets": 0,
+     "max_rank_preflight_subsets": 0
+    }
+   }
+  },
+  {
+   "id": "B05",
+   "base_case": "R01",
+   "variant": {
+    "limits": {
+     "max_predicate_calls": 0,
+     "max_rank_subset_evaluations": 0,
+     "max_binding_attempts": 0
+    }
+   },
+   "expect": {
+    "processing_status": "completed",
+    "status": "resolved",
+    "target_id": "obj_003"
+   }
+  },
+  {
+   "id": "B06",
+   "base_case": "R32",
+   "variant": {
+    "keep": [],
+    "limits": {
+     "max_candidate_checks": 0
+    }
+   },
+   "expect": {
+    "processing_status": "completed",
+    "status": "no_match"
+   }
+  },
+  {
+   "id": "B07a",
+   "base_case": "R08",
+   "variant": {
+    "limits": {
+     "max_interpretations": 1,
+     "max_nodes": 2,
+     "max_constraints": 1
+    }
+   },
+   "expect": {
+    "processing_status": "completed",
+    "status": "resolved",
+    "target_id": "obj_003"
+   }
+  },
+  {
+   "id": "B07b",
+   "base_case": "R08",
+   "variant": {
+    "limits": {
+     "max_interpretations": 0
+    }
+   },
+   "expect": {
+    "processing_status": "budget_exceeded",
+    "budget": {
+     "name": "max_interpretations",
+     "limit": 0,
+     "used": 0,
+     "next_required": 1
+    },
+    "work": {
+     "candidate_checks": 0,
+     "predicate_calls": 0
+    }
+   }
+  },
+  {
+   "id": "B07c",
+   "base_case": "R08",
+   "variant": {
+    "limits": {
+     "max_nodes": 1
+    }
+   },
+   "expect": {
+    "processing_status": "budget_exceeded",
+    "budget": {
+     "name": "max_nodes",
+     "limit": 1,
+     "used": 0,
+     "next_required": 2
+    },
+    "work": {
+     "candidate_checks": 0,
+     "predicate_calls": 0
+    }
+   }
+  },
+  {
+   "id": "B07d",
+   "base_case": "R08",
+   "variant": {
+    "limits": {
+     "max_constraints": 0
+    }
+   },
+   "expect": {
+    "processing_status": "budget_exceeded",
+    "budget": {
+     "name": "max_constraints",
+     "limit": 0,
+     "used": 0,
+     "next_required": 1
+    },
+    "work": {
+     "candidate_checks": 0,
+     "predicate_calls": 0
+    }
+   }
+  },
+  {
+   "id": "M01a",
+   "base_case": "R08",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "table_ref",
+       "category": "table",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      },
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [],
+       "constraints": [
+        {
+         "relation": "right",
+         "frame": "object_intrinsic",
+         "anchors": [
+          "table_ref"
+         ]
+        }
+       ],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "same_as": "R08",
+    "same_trace": true
+   },
+   "note": "node order reversed"
+  },
+  {
+   "id": "M01b",
+   "base_case": "R25",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i1",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "blue"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    },
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "same_as": "R25",
+    "same_trace": true
+   },
+   "note": "interpretation order reversed"
+  },
+  {
+   "id": "M01c",
+   "base_case": "R13",
+   "variant": {
+    "objects": {
+     "obj_002": {
+      "front": [
+       0.0,
+       -1.0,
+       0.0
+      ]
+     }
+    }
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [],
+       "constraints": [
+        {
+         "relation": "left",
+         "frame": "object_intrinsic",
+         "anchors": [
+          "table_ref"
+         ]
+        },
+        {
+         "relation": "right",
+         "frame": "object_intrinsic",
+         "anchors": [
+          "table_ref"
+         ]
+        }
+       ],
+       "rank": null
+      },
+      {
+       "node_id": "table_ref",
+       "category": "table",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "same_as": "R13",
+    "same_trace": true
+   },
+   "note": "conjunction order reversed"
+  },
+  {
+   "id": "M01d",
+   "base_case": "R07",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "table",
+       "colours_all": [
+        "blue",
+        "green"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "same_as": "R07",
+    "same_trace": true
+   },
+   "note": "colour order reversed"
+  },
+  {
+   "id": "M01e",
+   "base_case": "R08",
+   "variant": {
+    "reverse_objects": true
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [],
+       "constraints": [
+        {
+         "relation": "right",
+         "frame": "object_intrinsic",
+         "anchors": [
+          "table_ref"
+         ]
+        }
+       ],
+       "rank": null
+      },
+      {
+       "node_id": "table_ref",
+       "category": "table",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "same_as": "R08",
+    "same_trace": true
+   },
+   "note": "scene object order reversed"
+  },
+  {
+   "id": "M02a",
+   "base_case": "R08",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [],
+       "constraints": [
+        {
+         "relation": "right",
+         "frame": "object_intrinsic",
+         "anchors": [
+          "table_ref"
+         ]
+        }
+       ],
+       "rank": null
+      },
+      {
+       "node_id": "table_ref",
+       "category": "table",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    },
+    {
+     "interpretation_id": "i1",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [],
+       "constraints": [
+        {
+         "relation": "right",
+         "frame": "object_intrinsic",
+         "anchors": [
+          "table_ref"
+         ]
+        }
+       ],
+       "rank": null
+      },
+      {
+       "node_id": "table_ref",
+       "category": "table",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "resolved",
+    "target_id": "obj_003",
+    "work": {
+     "predicate_calls": 4,
+     "predicate_cache_hits": 4
+    }
+   },
+   "note": "an identical second reading reuses every predicate"
+  },
+  {
+   "id": "M02b",
+   "base_case": "R08",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [],
+       "constraints": [
+        {
+         "relation": "right",
+         "frame": "object_intrinsic",
+         "anchors": [
+          "table_ref"
+         ]
+        }
+       ],
+       "rank": null
+      },
+      {
+       "node_id": "table_ref",
+       "category": "table",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    },
+    {
+     "interpretation_id": "i1",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [],
+       "constraints": [
+        {
+         "relation": "right",
+         "frame": "user_to_anchor",
+         "anchors": [
+          "table_ref"
+         ]
+        }
+       ],
+       "rank": null
+      },
+      {
+       "node_id": "table_ref",
+       "category": "table",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "ambiguous",
+    "target_id": null,
+    "work": {
+     "predicate_calls": 8,
+     "predicate_cache_hits": 0
+    },
+    "outcome_counts": {
+     "resolved": 3,
+     "no_match": 1
+    }
+   },
+   "note": "another frame never aliases. By hand, user at (-2,-2): anchor obj_001, v=(2,2)/sqrt8, right=(1,-1)/sqrt2; obj_003 (1,2): -0.707 F, obj_004 (-1,2): -2.121 F -> no_match. Anchor obj_002, v=(2,6)/sqrt40, right=(0.9487,-0.3162); obj_003 (1,-2): 1.581 T, obj_004 (-1,-2): -0.316 F -> resolved obj_003"
+  },
+  {
+   "id": "M02c",
+   "base_case": "R17",
+   "variant": {
+    "keep": [
+     "obj_001",
+     "obj_005",
+     "obj_006"
+    ],
+    "objects": {
+     "obj_006": {
+      "colours": "unknown"
+     }
+    }
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "anchor",
+       "category": "table",
+       "colours_all": [
+        "green"
+       ],
+       "constraints": [],
+       "rank": null
+      },
+      {
+       "node_id": "target",
+       "category": "chair",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": {
+        "relation": "closest",
+        "anchor": "anchor",
+        "k": 1
+       }
+      }
+     ]
+    },
+    {
+     "interpretation_id": "i1",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "anchor",
+       "category": "table",
+       "colours_all": [
+        "green"
+       ],
+       "constraints": [],
+       "rank": null
+      },
+      {
+       "node_id": "target",
+       "category": "chair",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": {
+        "relation": "closest",
+        "anchor": "anchor",
+        "k": 1
+       }
+      }
+     ]
+    },
+    {
+     "interpretation_id": "i2",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "anchor",
+       "category": "table",
+       "colours_all": [
+        "green"
+       ],
+       "constraints": [],
+       "rank": null
+      },
+      {
+       "node_id": "target",
+       "category": "chair",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": {
+        "relation": "closest",
+        "anchor": "anchor",
+        "k": 2
+       }
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "insufficient_information",
+    "work": {
+     "rank_calls": 2,
+     "rank_cache_hits": 1
+    }
+   },
+   "note": "an identical rank reuses its entry; k=2 is a new key. By hand, k=2 with D={005}, P={006}: subset {} gives no_match, {006} gives obj_006 -> insufficient"
+  },
+  {
+   "id": "M03",
+   "base_case": "R08",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [],
+       "constraints": [
+        {
+         "relation": "right",
+         "frame": "object_intrinsic",
+         "anchors": [
+          "table_ref"
+         ]
+        }
+       ],
+       "rank": null
+      },
+      {
+       "node_id": "table_ref",
+       "category": "table",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "trace_invariance": true
+   },
+   "note": "trace on/off and small trace caps"
+  },
+  {
+   "id": "M04a",
+   "base_case": "R05",
+   "variant": {
+    "keep": [
+     "obj_005",
+     "obj_006",
+     "obj_007"
+    ],
+    "objects": {
+     "obj_007": {
+      "category": "unknown"
+     }
+    }
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "chair",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    },
+    {
+     "interpretation_id": "i1",
+     "kind": "unavailable",
+     "action": "INSPECT",
+     "reason": "frame_interpretation_unavailable"
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "insufficient_information"
+   },
+   "note": "an ambiguous branch plus a missing-evidence reading is insufficient"
+  },
+  {
+   "id": "M04b",
+   "base_case": "R02",
+   "variant": {
+    "objects": {
+     "obj_003": {
+      "colours": "unknown"
+     }
+    }
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    },
+    {
+     "interpretation_id": "i1",
+     "kind": "unsupported",
+     "action": null,
+     "reason": "unsupported_plural"
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "unsupported"
+   },
+   "note": "unsupported outranks insufficient"
+  },
+  {
+   "id": "M04c",
+   "base_case": "R28",
+   "variant": {},
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "GO_TO",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "green"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    },
+    {
+     "interpretation_id": "i1",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "table",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "no_match",
+    "action": null
+   },
+   "note": "all no_match with different actions"
+  },
+  {
+   "id": "M05a",
+   "base_case": "R33",
+   "variant": {
+    "command": {
+     "text": "Take the box on the left, not the right one."
+    }
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [
+        {
+         "relation": "right",
+         "frame": "user_heading",
+         "anchors": []
+        }
+       ],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "same_as": "R33"
+   },
+   "note": "command text is never read"
+  },
+  {
+   "id": "M05b",
+   "base_case": "R33",
+   "variant": {
+    "command": {
+     "position": [
+      3.0,
+      -2.0,
+      1.6
+     ]
+    }
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [
+        {
+         "relation": "right",
+         "frame": "user_heading",
+         "anchors": []
+        }
+       ],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "no_match"
+   },
+   "note": "by hand: user at x=3 faces +y; obj_003 offset (-2,4), right score -2 -> F"
+  },
+  {
+   "id": "P01",
+   "records": {
+    "scene": "contract/valid/scene.a17.restricted.json",
+    "command": "contract/valid/command.a17.c001.json",
+    "keep": [
+     "obj_001",
+     "obj_002",
+     "obj_003",
+     "obj_004",
+     "obj_005"
+    ]
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "table_ref",
+       "category": "table",
+       "colours_all": [],
+       "constraints": [],
+       "rank": null
+      },
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [],
+       "constraints": [
+        {
+         "relation": "near",
+         "frame": null,
+         "anchors": [
+          "table_ref"
+         ]
+        }
+       ],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "insufficient_information",
+    "conditional": true,
+    "assumptions_include": [
+     [
+      "scene",
+      [
+       "fixture.a17",
+       "0",
+       "restricted"
+      ],
+      "class_size_prior"
+     ]
+    ]
+   },
+   "note": "restricted a17 without the unknown-category lamp: near consults the assumed sizes; rotations are withheld so near is UNKNOWN"
+  },
+  {
+   "id": "P02",
+   "records": {
+    "scene": "contract/valid/scene.a17.restricted.json",
+    "command": "contract/valid/command.a17.c001.json",
+    "keep": [
+     "obj_001",
+     "obj_002",
+     "obj_003",
+     "obj_004",
+     "obj_005"
+    ]
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [],
+       "constraints": [
+        {
+         "relation": "right",
+         "frame": "user_heading",
+         "anchors": []
+        }
+       ],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "no_match",
+    "conditional": false,
+    "assumptions": []
+   },
+   "note": "centre-only: no size assumption. By hand, user (0.4,1.0), right axis (0.0698,-0.9976): obj_002 offset (1.5,0.38) scores -0.274 F; obj_003 offset (2.7,0.42) scores -0.231 F"
+  },
+  {
+   "id": "P03",
+   "records": {
+    "scene": "directions/scene.scope.annotated.json",
+    "command": "directions/command.scope.c001.json"
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [],
+       "constraints": [
+        {
+         "relation": "right",
+         "frame": "user_heading",
+         "anchors": []
+        }
+       ],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "resolved",
+    "target_id": "obj_001",
+    "conditional": true,
+    "assumptions": [
+     [
+      "command_context",
+      [
+       "fx.dir.scope.c001"
+      ],
+      "local_note"
+     ],
+     [
+      "scene",
+      [
+       "fixture.dir.scope",
+       "0",
+       "annotated"
+      ],
+      "local_note"
+     ]
+    ]
+   },
+   "note": "by hand: user at the origin facing +y, box at (1,0): right score 1 -> T; the two local_note assumptions stay separately scoped"
+  },
+  {
+   "id": "P04",
+   "variant": {
+    "scene_assumptions": [
+     {
+      "assumption_id": "colour_from_label",
+      "description": "The red box's colour is inferred from its label (resolver test variant)."
+     }
+    ],
+    "objects": {
+     "obj_003": {
+      "colours_evidence": {
+       "kind": "inferred",
+       "source": "fx",
+       "assumptions": [
+        "colour_from_label"
+       ]
+      }
+     }
+    }
+   },
+   "interpretations": [
+    {
+     "interpretation_id": "i0",
+     "kind": "query",
+     "action": "INSPECT",
+     "root": "target",
+     "nodes": [
+      {
+       "node_id": "target",
+       "category": "box",
+       "colours_all": [
+        "red"
+       ],
+       "constraints": [],
+       "rank": null
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "processing_status": "completed",
+    "status": "resolved",
+    "target_id": "obj_003",
+    "conditional": true,
+    "assumptions": [
+     [
+      "scene",
+      [
+       "fixture.resolver.p04",
+       "0",
+       "annotated"
+      ],
+      "colour_from_label"
+     ]
+    ]
+   },
+   "note": "an inferred value carrying an assumption keeps its provenance"
+  }
+ ]
+}

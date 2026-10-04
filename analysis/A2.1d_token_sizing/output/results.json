@@ -1,0 +1,1079 @@
+{
+ "identity": {
+  "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+  "hf_revision": "7ae557604adf67be50417f59c2c2f167def9a775",
+  "tokenizer_files_revision": "7ae557604adf67be50417f59c2c2f167def9a775",
+  "tokenizer_files": {
+   "vocab.json": {
+    "sha256": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910",
+    "matches_model_json_fingerprint": true
+   },
+   "merges.txt": {
+    "sha256": "599bab54075088774b1733fde865d5bd747cbcc7a547c5bc12610e874e26f5e3",
+    "matches_model_json_fingerprint": true
+   },
+   "tokenizer_config.json": {
+    "sha256": "5b5d4f65d0acd3b2d56a35b56d374a36cbc1c8fa5cf3b3febbbfabf22f359583",
+    "matches_model_json_fingerprint": true
+   }
+  },
+  "tokenizer_config": {
+   "add_bos_token": false,
+   "add_prefix_space": false,
+   "bos_token": null,
+   "eos_token": "<|im_end|>",
+   "pad_token": "<|endoftext|>",
+   "split_special_tokens": false,
+   "tokenizer_class": "Qwen2Tokenizer"
+  },
+  "chat_template": "<|im_start|>system\n{1}<|im_end|>\n<|im_start|>user\n{0}<|im_end|>\n<|im_start|>assistant\n",
+  "chat_template_sha256": "1274542348d33a771187be37a35d830b47ffc98ee8ac8397f9d6e4b9939c3aaf",
+  "model_description_sha256": "bf1e8db809382f42d9ed70f4a42bd972b7ee4bcc25f34bef0864f9d3fe5e7c15",
+  "wrapper_source": "grounding/scene.py formatted(): template with {1} = system, {0} = user (A1 headset jobs); Meta's OnDeviceLlmConfig.ApplyChatTemplate is template.format(user, system)",
+  "llama_cpp_pin": [
+   "b11277",
+   "eae11d2217fe9225d1aaba48773b6cca45ae4de9"
+  ],
+  "tokenizers": [
+   "Hugging Face Qwen2TokenizerFast from quest-app/Assets/SecondEyes/Models/qwen2.5-0.5b-instruct",
+   "llama.cpp b11277 (eae11d22) se_tokenize with tiny-qwen2-tokenizer.gguf"
+  ],
+  "special_token_handling": "special tokens in the text are parsed; no BOS or EOS is added (se_tokenize add_special=false, parse_special=true; HF add_special_tokens=False)",
+  "assistant_prefix": "<|im_start|>assistant\\n, once, from the template; no answer prefix",
+  "python": "3.12.3",
+  "libraries": {
+   "transformers": "4.57.6",
+   "tokenizers": "0.22.2"
+  },
+  "provider_asset_has_template": true
+ },
+ "configs": {
+  "relations": "relations.v1@d922fe902669",
+  "directions": "directions.v1@73590e939d4f"
+ },
+ "calibration": {
+  "a17-fixed": {
+   "recorded_tokens": 230,
+   "recorded_scene_tokens": 191,
+   "measured": {
+    "Hugging Face Qwen2TokenizerFast from quest-app/Assets/SecondEyes/Models/qwen2.5-0.5b-instruct": {
+     "tokens": 230,
+     "scene_tokens": 191,
+     "ids_sha256": "cbee5eb5627fd64293a64112930cdc9c0832ca7b212aede83011453cb3c761ee",
+     "scene_is_prefix": true
+    },
+    "llama.cpp b11277 (eae11d22) se_tokenize with tiny-qwen2-tokenizer.gguf": {
+     "tokens": 230,
+     "scene_tokens": 191,
+     "ids_sha256": "cbee5eb5627fd64293a64112930cdc9c0832ca7b212aede83011453cb3c761ee",
+     "scene_is_prefix": true
+    }
+   },
+   "formatted_sha256": "3c1ed099e1e4e0cdc80cd326e8628b030f05fcbc518d685584e60c67a93b006f"
+  },
+  "a17-front": {
+   "recorded_tokens": 232,
+   "recorded_scene_tokens": 191,
+   "measured": {
+    "Hugging Face Qwen2TokenizerFast from quest-app/Assets/SecondEyes/Models/qwen2.5-0.5b-instruct": {
+     "tokens": 232,
+     "scene_tokens": 191,
+     "ids_sha256": "8638b4d64cadab54e26bb9e6d089facb8deafa39d8a29303a61b1dd3b9a1b1eb",
+     "scene_is_prefix": true
+    },
+    "llama.cpp b11277 (eae11d22) se_tokenize with tiny-qwen2-tokenizer.gguf": {
+     "tokens": 232,
+     "scene_tokens": 191,
+     "ids_sha256": "8638b4d64cadab54e26bb9e6d089facb8deafa39d8a29303a61b1dd3b9a1b1eb",
+     "scene_is_prefix": true
+    }
+   },
+   "formatted_sha256": "679b3ec88640f167b9feae1d58ca1e45691a35806333ad32b29d2ec545c570b9"
+  },
+  "a17-left": {
+   "recorded_tokens": 230,
+   "recorded_scene_tokens": 191,
+   "measured": {
+    "Hugging Face Qwen2TokenizerFast from quest-app/Assets/SecondEyes/Models/qwen2.5-0.5b-instruct": {
+     "tokens": 230,
+     "scene_tokens": 191,
+     "ids_sha256": "404b9420ec40e47a0345ebad44acf019aef1a81a2c77808db1eab5a8c65cbd82",
+     "scene_is_prefix": true
+    },
+    "llama.cpp b11277 (eae11d22) se_tokenize with tiny-qwen2-tokenizer.gguf": {
+     "tokens": 230,
+     "scene_tokens": 191,
+     "ids_sha256": "404b9420ec40e47a0345ebad44acf019aef1a81a2c77808db1eab5a8c65cbd82",
+     "scene_is_prefix": true
+    }
+   },
+   "formatted_sha256": "451426cd827e50910a075da978b94805eb30c76cb20011e12f78ccc92ce84ecc"
+  },
+  "a17-table": {
+   "recorded_tokens": 227,
+   "recorded_scene_tokens": 191,
+   "measured": {
+    "Hugging Face Qwen2TokenizerFast from quest-app/Assets/SecondEyes/Models/qwen2.5-0.5b-instruct": {
+     "tokens": 227,
+     "scene_tokens": 191,
+     "ids_sha256": "a38667166bb11cbde1dd3f6852f8d7711dc017f806aa175814a91aa9c9327c04",
+     "scene_is_prefix": true
+    },
+    "llama.cpp b11277 (eae11d22) se_tokenize with tiny-qwen2-tokenizer.gguf": {
+     "tokens": 227,
+     "scene_tokens": 191,
+     "ids_sha256": "a38667166bb11cbde1dd3f6852f8d7711dc017f806aa175814a91aa9c9327c04",
+     "scene_is_prefix": true
+    }
+   },
+   "formatted_sha256": "984aa0c0faf72912a1220ce66da19cc80f1f0c5c263c018d85b979ee3bba895e"
+  }
+ },
+ "inputs": {
+  "a17.annotated.coordinates_v1": {
+   "case": "a17.annotated",
+   "format": "coordinates_v1",
+   "scene": "contract/valid/scene.a17.annotated.json",
+   "command": "contract/valid/command.a17.c001.json",
+   "objects": [
+    "obj_001",
+    "obj_002",
+    "obj_003",
+    "obj_004",
+    "obj_005",
+    "obj_006"
+   ],
+   "scene_id": "fixture.a17",
+   "scene_revision": 0,
+   "evidence_profile": "annotated",
+   "command_id": "fx.a17.c001",
+   "bytes": {
+    "wrapped": 4309,
+    "document": 3994,
+    "static_prefix": 3799,
+    "dynamic_suffix": 195,
+    "wrapper_head": 282,
+    "wrapper_tail": 33,
+    "by_block": {
+     "header": 675,
+     "semantics": 2578,
+     "objects": 546,
+     "pose": 147,
+     "command": 48
+    }
+   },
+   "tokens": {
+    "wrapped": 1218,
+    "document_alone": 1164,
+    "static_lines": 1096,
+    "dynamic_lines": 68,
+    "marginal": {
+     "wrapper_head": 49,
+     "header": 137,
+     "semantics": 613,
+     "objects": 346,
+     "pose": 57,
+     "command": 11,
+     "wrapper_tail": 5
+    },
+    "marginal_sum_equals_total": true
+   },
+   "warm_prefix": {
+    "candidate_prefix": "wrapper head (system turn and '<|im_start|>user\\n') + static prefix lines",
+    "candidate_prefix_tokens": 1145,
+    "wrapper_head_tokens": 49,
+    "common_prefix_tokens": 1145,
+    "tokens_after_reusable_prefix": 73
+   },
+   "conditional_diagnostic": {
+    "tokens_without_block_conditional_maps": 1218,
+    "block_conditional_tokens": 0,
+    "block_conditional_bytes": 0,
+    "tokens_without_row_and_pose_conditional_fields": 1201,
+    "row_and_pose_conditional_tokens": 17,
+    "row_and_pose_conditional_bytes": 42
+   },
+   "work": {
+    "n_objects": 6,
+    "formula_units": 0,
+    "serializer_calls_and_distances": 0,
+    "by_block": {},
+    "verification_calls_not_serialized": 0
+   },
+   "seconds_linear_extrapolation": {
+    "cold": 7.36095652173913,
+    "warm_best_case": 0.4411739130434782
+   },
+   "ids_sha256": {
+    "wrapped": "d30c82e8cc9f71b9350196aa2e32c84e031757d19176a5e5b89e6b6160286e8e",
+    "document": "ba9d2a027e68fbf289d30ebc0ee64b8583eebbc32415dce8404ce49072327a74"
+   },
+   "text_sha256": {
+    "wrapped": "1a46ebcd7f2f990e5abfe9b6ee5df9aedc0f47ddcb7721b158186bc6da33f445",
+    "document": "9b450c328733fc3db42df18563e5db556b353d13ee662c1439f97873a33ac09a"
+   },
+   "self_checks": [
+    "all passed"
+   ]
+  },
+  "a17.annotated.coordinates_relations_v1": {
+   "case": "a17.annotated",
+   "format": "coordinates_relations_v1",
+   "scene": "contract/valid/scene.a17.annotated.json",
+   "command": "contract/valid/command.a17.c001.json",
+   "objects": [
+    "obj_001",
+    "obj_002",
+    "obj_003",
+    "obj_004",
+    "obj_005",
+    "obj_006"
+   ],
+   "scene_id": "fixture.a17",
+   "scene_revision": 0,
+   "evidence_profile": "annotated",
+   "command_id": "fx.a17.c001",
+   "bytes": {
+    "wrapped": 8789,
+    "document": 8474,
+    "static_prefix": 7098,
+    "dynamic_suffix": 1376,
+    "wrapper_head": 282,
+    "wrapper_tail": 33,
+    "by_block": {
+     "header": 685,
+     "semantics": 2578,
+     "objects": 546,
+     "near": 281,
+     "above": 413,
+     "below": 413,
+     "on": 212,
+     "inside": 216,
+     "between": 316,
+     "intrinsic.right": 338,
+     "intrinsic.in_front_of": 388,
+     "center_distance_m": 712,
+     "pose": 147,
+     "user_heading.right": 165,
+     "user_heading.in_front_of": 160,
+     "user_to_anchor.right": 491,
+     "user_to_anchor.in_front_of": 365,
+     "command": 48
+    }
+   },
+   "tokens": {
+    "wrapped": 3209,
+    "document_alone": 3155,
+    "static_lines": 2634,
+    "dynamic_lines": 521,
+    "marginal": {
+     "wrapper_head": 49,
+     "header": 138,
+     "semantics": 613,
+     "objects": 346,
+     "near": 111,
+     "above": 182,
+     "below": 182,
+     "on": 74,
+     "inside": 74,
+     "between": 130,
+     "intrinsic.right": 137,
+     "intrinsic.in_front_of": 163,
+     "center_distance_m": 484,
+     "pose": 57,
+     "user_heading.right": 44,
+     "user_heading.in_front_of": 39,
+     "user_to_anchor.right": 220,
+     "user_to_anchor.in_front_of": 150,
+     "command": 11,
+     "wrapper_tail": 5
+    },
+    "marginal_sum_equals_total": true
+   },
+   "warm_prefix": {
+    "candidate_prefix": "wrapper head (system turn and '<|im_start|>user\\n') + static prefix lines",
+    "candidate_prefix_tokens": 2683,
+    "wrapper_head_tokens": 49,
+    "common_prefix_tokens": 2683,
+    "tokens_after_reusable_prefix": 526
+   },
+   "conditional_diagnostic": {
+    "tokens_without_block_conditional_maps": 3071,
+    "block_conditional_tokens": 138,
+    "block_conditional_bytes": 624,
+    "tokens_without_row_and_pose_conditional_fields": 3192,
+    "row_and_pose_conditional_tokens": 17,
+    "row_and_pose_conditional_bytes": 42
+   },
+   "work": {
+    "n_objects": 6,
+    "formula_units": 342,
+    "serializer_calls_and_distances": 342,
+    "by_block": {
+     "near": 15,
+     "above": 30,
+     "below": 30,
+     "on": 30,
+     "inside": 30,
+     "between": 60,
+     "intrinsic.right": 30,
+     "verification_only": 132,
+     "intrinsic.in_front_of": 30,
+     "center_distance": 15,
+     "user_heading.right": 6,
+     "user_heading.in_front_of": 6,
+     "user_to_anchor.right": 30,
+     "user_to_anchor.in_front_of": 30
+    },
+    "verification_calls_not_serialized": 132
+   },
+   "seconds_linear_extrapolation": {
+    "cold": 19.39352173913043,
+    "warm_best_case": 3.178869565217391
+   },
+   "ids_sha256": {
+    "wrapped": "8944d64df10ed039f6161c211897df2968b2d68950a11c7ca72e8d122f7076b5",
+    "document": "a930620e67b1c65f782830803a8b8c3bd060aabc6b163dcc0dcc746a8f3ab782"
+   },
+   "text_sha256": {
+    "wrapped": "c6a7a320a3444ff8b98c2c59f170f29d6269bbc22c595d9e75eca876fba5be51",
+    "document": "b554ad204f223bf0c3e75306e1fc9f17c54016c6185b72af026d2a35cfbfcbc2"
+   },
+   "self_checks": [
+    "all passed"
+   ]
+  },
+  "a17.restricted.coordinates_v1": {
+   "case": "a17.restricted",
+   "format": "coordinates_v1",
+   "scene": "contract/valid/scene.a17.restricted.json",
+   "command": "contract/valid/command.a17.c001.json",
+   "objects": [
+    "obj_001",
+    "obj_002",
+    "obj_003",
+    "obj_004",
+    "obj_005",
+    "obj_006"
+   ],
+   "scene_id": "fixture.a17",
+   "scene_revision": 0,
+   "evidence_profile": "restricted",
+   "command_id": "fx.a17.c001",
+   "bytes": {
+    "wrapped": 4249,
+    "document": 3934,
+    "static_prefix": 3739,
+    "dynamic_suffix": 195,
+    "wrapper_head": 282,
+    "wrapper_tail": 33,
+    "by_block": {
+     "header": 675,
+     "semantics": 2578,
+     "objects": 486,
+     "pose": 147,
+     "command": 48
+    }
+   },
+   "tokens": {
+    "wrapped": 1147,
+    "document_alone": 1093,
+    "static_lines": 1025,
+    "dynamic_lines": 68,
+    "marginal": {
+     "wrapper_head": 49,
+     "header": 137,
+     "semantics": 613,
+     "objects": 275,
+     "pose": 57,
+     "command": 11,
+     "wrapper_tail": 5
+    },
+    "marginal_sum_equals_total": true
+   },
+   "warm_prefix": {
+    "candidate_prefix": "wrapper head (system turn and '<|im_start|>user\\n') + static prefix lines",
+    "candidate_prefix_tokens": 1074,
+    "wrapper_head_tokens": 49,
+    "common_prefix_tokens": 1074,
+    "tokens_after_reusable_prefix": 73
+   },
+   "conditional_diagnostic": {
+    "tokens_without_block_conditional_maps": 1147,
+    "block_conditional_tokens": 0,
+    "block_conditional_bytes": 0,
+    "tokens_without_row_and_pose_conditional_fields": 1115,
+    "row_and_pose_conditional_tokens": 32,
+    "row_and_pose_conditional_bytes": 82
+   },
+   "work": {
+    "n_objects": 6,
+    "formula_units": 0,
+    "serializer_calls_and_distances": 0,
+    "by_block": {},
+    "verification_calls_not_serialized": 0
+   },
+   "seconds_linear_extrapolation": {
+    "cold": 6.931869565217391,
+    "warm_best_case": 0.4411739130434782
+   },
+   "ids_sha256": {
+    "wrapped": "c0a895fd8720cfa1be0457697856f893a9a94eef5a73b141c8c09d30416bd0f0",
+    "document": "df47cad7bc705c36deef66919d9b2cf37b4d73520dbc5bb4f4ecebabcf7ae83c"
+   },
+   "text_sha256": {
+    "wrapped": "a7d48e2897c25e8da34b147789f48526a14a285d15dd122412b8e93be616a9ce",
+    "document": "60329ba2a646b88a3bdf8f1036703618984a74dd8d0f3c11cde66fe9ce8e1bd7"
+   },
+   "self_checks": [
+    "all passed"
+   ]
+  },
+  "a17.restricted.coordinates_relations_v1": {
+   "case": "a17.restricted",
+   "format": "coordinates_relations_v1",
+   "scene": "contract/valid/scene.a17.restricted.json",
+   "command": "contract/valid/command.a17.c001.json",
+   "objects": [
+    "obj_001",
+    "obj_002",
+    "obj_003",
+    "obj_004",
+    "obj_005",
+    "obj_006"
+   ],
+   "scene_id": "fixture.a17",
+   "scene_revision": 0,
+   "evidence_profile": "restricted",
+   "command_id": "fx.a17.c001",
+   "bytes": {
+    "wrapped": 7876,
+    "document": 7561,
+    "static_prefix": 6185,
+    "dynamic_suffix": 1376,
+    "wrapper_head": 282,
+    "wrapper_tail": 33,
+    "by_block": {
+     "header": 685,
+     "semantics": 2578,
+     "objects": 486,
+     "near": 150,
+     "above": 149,
+     "below": 149,
+     "on": 256,
+     "inside": 370,
+     "between": 316,
+     "intrinsic.right": 164,
+     "intrinsic.in_front_of": 170,
+     "center_distance_m": 712,
+     "pose": 147,
+     "user_heading.right": 165,
+     "user_heading.in_front_of": 160,
+     "user_to_anchor.right": 491,
+     "user_to_anchor.in_front_of": 365,
+     "command": 48
+    }
+   },
+   "tokens": {
+    "wrapped": 2659,
+    "document_alone": 2605,
+    "static_lines": 2084,
+    "dynamic_lines": 521,
+    "marginal": {
+     "wrapper_head": 49,
+     "header": 138,
+     "semantics": 613,
+     "objects": 275,
+     "near": 37,
+     "above": 37,
+     "below": 37,
+     "on": 97,
+     "inside": 157,
+     "between": 129,
+     "intrinsic.right": 39,
+     "intrinsic.in_front_of": 41,
+     "center_distance_m": 484,
+     "pose": 57,
+     "user_heading.right": 44,
+     "user_heading.in_front_of": 39,
+     "user_to_anchor.right": 220,
+     "user_to_anchor.in_front_of": 150,
+     "command": 11,
+     "wrapper_tail": 5
+    },
+    "marginal_sum_equals_total": true
+   },
+   "warm_prefix": {
+    "candidate_prefix": "wrapper head (system turn and '<|im_start|>user\\n') + static prefix lines",
+    "candidate_prefix_tokens": 2133,
+    "wrapper_head_tokens": 49,
+    "common_prefix_tokens": 2133,
+    "tokens_after_reusable_prefix": 526
+   },
+   "conditional_diagnostic": {
+    "tokens_without_block_conditional_maps": 2348,
+    "block_conditional_tokens": 311,
+    "block_conditional_bytes": 948,
+    "tokens_without_row_and_pose_conditional_fields": 2627,
+    "row_and_pose_conditional_tokens": 32,
+    "row_and_pose_conditional_bytes": 82
+   },
+   "work": {
+    "n_objects": 6,
+    "formula_units": 342,
+    "serializer_calls_and_distances": 342,
+    "by_block": {
+     "near": 15,
+     "above": 30,
+     "below": 30,
+     "on": 30,
+     "inside": 30,
+     "between": 60,
+     "intrinsic.right": 30,
+     "verification_only": 132,
+     "intrinsic.in_front_of": 30,
+     "center_distance": 15,
+     "user_heading.right": 6,
+     "user_heading.in_front_of": 6,
+     "user_to_anchor.right": 30,
+     "user_to_anchor.in_front_of": 30
+    },
+    "verification_calls_not_serialized": 132
+   },
+   "seconds_linear_extrapolation": {
+    "cold": 16.06960869565217,
+    "warm_best_case": 3.178869565217391
+   },
+   "ids_sha256": {
+    "wrapped": "972a735d286d4ccbffa2f3d5389d245a3830b6ebb3847cc7cb53134858f5c737",
+    "document": "15388b9e1c468b081748f72291844e675edf7f675a0c9cd22bc8450dec2815cb"
+   },
+   "text_sha256": {
+    "wrapped": "5aae08f5b070fcea97040120015d0a02758ecb4590d43187f4d00de00a533e55",
+    "document": "63d5babd634845f0d4215910b928441e75a7f04602614af74fbf57cd0c3b4092"
+   },
+   "self_checks": [
+    "all passed"
+   ]
+  },
+  "dirh10.annotated.coordinates_v1": {
+   "case": "dirh10.annotated",
+   "format": "coordinates_v1",
+   "scene": "directions/scene.h.annotated.json",
+   "command": "directions/command.h.base.json",
+   "objects": [
+    "obj_001",
+    "obj_002",
+    "obj_003",
+    "obj_004",
+    "obj_005",
+    "obj_006",
+    "obj_007",
+    "obj_008",
+    "obj_009",
+    "obj_010"
+   ],
+   "scene_id": "fixture.dir.h",
+   "scene_revision": 0,
+   "evidence_profile": "annotated",
+   "command_id": "fx.dir.h.base",
+   "bytes": {
+    "wrapped": 4572,
+    "document": 4257,
+    "static_prefix": 4066,
+    "dynamic_suffix": 191,
+    "wrapper_head": 282,
+    "wrapper_tail": 33,
+    "by_block": {
+     "header": 675,
+     "semantics": 2578,
+     "objects": 813,
+     "pose": 128,
+     "command": 63
+    }
+   },
+   "tokens": {
+    "wrapped": 1318,
+    "document_alone": 1264,
+    "static_lines": 1211,
+    "dynamic_lines": 53,
+    "marginal": {
+     "wrapper_head": 49,
+     "header": 137,
+     "semantics": 613,
+     "objects": 461,
+     "pose": 38,
+     "command": 15,
+     "wrapper_tail": 5
+    },
+    "marginal_sum_equals_total": true
+   },
+   "warm_prefix": {
+    "candidate_prefix": "wrapper head (system turn and '<|im_start|>user\\n') + static prefix lines",
+    "candidate_prefix_tokens": 1260,
+    "wrapper_head_tokens": 49,
+    "common_prefix_tokens": 1260,
+    "tokens_after_reusable_prefix": 58
+   },
+   "conditional_diagnostic": {
+    "tokens_without_block_conditional_maps": 1318,
+    "block_conditional_tokens": 0,
+    "block_conditional_bytes": 0,
+    "tokens_without_row_and_pose_conditional_fields": 1293,
+    "row_and_pose_conditional_tokens": 25,
+    "row_and_pose_conditional_bytes": 54
+   },
+   "work": {
+    "n_objects": 10,
+    "formula_units": 0,
+    "serializer_calls_and_distances": 0,
+    "by_block": {},
+    "verification_calls_not_serialized": 0
+   },
+   "seconds_linear_extrapolation": {
+    "cold": 7.965304347826086,
+    "warm_best_case": 0.3505217391304348
+   },
+   "ids_sha256": {
+    "wrapped": "64622e47cb0adcc28b6f0237db0ca71dbc5b727ad3eacd1f1040ee41c0451284",
+    "document": "acb673051100edba16f414a4496ff12b39b1e335557b6aa12a7cb6358e812119"
+   },
+   "text_sha256": {
+    "wrapped": "012f0f63d7d4b35bad56dba23c2872988b99f650739cce5b7ad246c83171bc41",
+    "document": "1b2785c5d0ced7297081cc89226d43ff82d22df4ef90dabbfb5330db2ae8c552"
+   },
+   "self_checks": [
+    "all passed"
+   ]
+  },
+  "dirh10.annotated.coordinates_relations_v1": {
+   "case": "dirh10.annotated",
+   "format": "coordinates_relations_v1",
+   "scene": "directions/scene.h.annotated.json",
+   "command": "directions/command.h.base.json",
+   "objects": [
+    "obj_001",
+    "obj_002",
+    "obj_003",
+    "obj_004",
+    "obj_005",
+    "obj_006",
+    "obj_007",
+    "obj_008",
+    "obj_009",
+    "obj_010"
+   ],
+   "scene_id": "fixture.dir.h",
+   "scene_revision": 0,
+   "evidence_profile": "annotated",
+   "command_id": "fx.dir.h.base",
+   "bytes": {
+    "wrapped": 13332,
+    "document": 13017,
+    "static_prefix": 10597,
+    "dynamic_suffix": 2420,
+    "wrapper_head": 282,
+    "wrapper_tail": 33,
+    "by_block": {
+     "header": 685,
+     "semantics": 2578,
+     "objects": 813,
+     "near": 392,
+     "above": 150,
+     "below": 150,
+     "on": 147,
+     "inside": 545,
+     "between": 3132,
+     "intrinsic.right": 164,
+     "intrinsic.in_front_of": 170,
+     "center_distance_m": 1671,
+     "pose": 128,
+     "user_heading.right": 201,
+     "user_heading.in_front_of": 206,
+     "user_to_anchor.right": 710,
+     "user_to_anchor.in_front_of": 1112,
+     "command": 63
+    }
+   },
+   "tokens": {
+    "wrapped": 5849,
+    "document_alone": 5795,
+    "static_lines": 4715,
+    "dynamic_lines": 1080,
+    "marginal": {
+     "wrapper_head": 49,
+     "header": 138,
+     "semantics": 613,
+     "objects": 461,
+     "near": 170,
+     "above": 37,
+     "below": 37,
+     "on": 37,
+     "inside": 255,
+     "between": 1714,
+     "intrinsic.right": 39,
+     "intrinsic.in_front_of": 41,
+     "center_distance_m": 1173,
+     "pose": 38,
+     "user_heading.right": 62,
+     "user_heading.in_front_of": 65,
+     "user_to_anchor.right": 341,
+     "user_to_anchor.in_front_of": 559,
+     "command": 15,
+     "wrapper_tail": 5
+    },
+    "marginal_sum_equals_total": true
+   },
+   "warm_prefix": {
+    "candidate_prefix": "wrapper head (system turn and '<|im_start|>user\\n') + static prefix lines",
+    "candidate_prefix_tokens": 4764,
+    "wrapper_head_tokens": 49,
+    "common_prefix_tokens": 4764,
+    "tokens_after_reusable_prefix": 1085
+   },
+   "conditional_diagnostic": {
+    "tokens_without_block_conditional_maps": 5714,
+    "block_conditional_tokens": 135,
+    "block_conditional_bytes": 624,
+    "tokens_without_row_and_pose_conditional_fields": 5824,
+    "row_and_pose_conditional_tokens": 25,
+    "row_and_pose_conditional_bytes": 54
+   },
+   "work": {
+    "n_objects": 10,
+    "formula_units": 1190,
+    "serializer_calls_and_distances": 1190,
+    "by_block": {
+     "near": 45,
+     "above": 90,
+     "below": 90,
+     "on": 90,
+     "inside": 90,
+     "between": 360,
+     "intrinsic.right": 90,
+     "verification_only": 380,
+     "intrinsic.in_front_of": 90,
+     "center_distance": 45,
+     "user_heading.right": 10,
+     "user_heading.in_front_of": 10,
+     "user_to_anchor.right": 90,
+     "user_to_anchor.in_front_of": 90
+    },
+    "verification_calls_not_serialized": 380
+   },
+   "seconds_linear_extrapolation": {
+    "cold": 35.34830434782609,
+    "warm_best_case": 6.557173913043478
+   },
+   "ids_sha256": {
+    "wrapped": "e28b25c19e8c5231d032c7c8f8549ee90b1b426b753a7518a4fcdfc82691322b",
+    "document": "e0add3f23c809660d4a3a59c24993f0ee51ce848dd743b22c6680685d5707006"
+   },
+   "text_sha256": {
+    "wrapped": "881cb8c7010a8f08f0edfbb5fd08537f3bab58b262eb4a177fc0538c13f366fe",
+    "document": "27258893f112f6911b5b5954d604607a8b160e482d12316550b2ea06e91a3992"
+   },
+   "self_checks": [
+    "all passed"
+   ]
+  },
+  "dirh10.restricted.coordinates_v1": {
+   "case": "dirh10.restricted",
+   "format": "coordinates_v1",
+   "scene": "directions/scene.h.restricted.json",
+   "command": "directions/command.h.base.json",
+   "objects": [
+    "obj_001",
+    "obj_002",
+    "obj_003",
+    "obj_004",
+    "obj_005",
+    "obj_006",
+    "obj_007",
+    "obj_008",
+    "obj_009",
+    "obj_010"
+   ],
+   "scene_id": "fixture.dir.h",
+   "scene_revision": 0,
+   "evidence_profile": "restricted",
+   "command_id": "fx.dir.h.base",
+   "bytes": {
+    "wrapped": 4532,
+    "document": 4217,
+    "static_prefix": 4026,
+    "dynamic_suffix": 191,
+    "wrapper_head": 282,
+    "wrapper_tail": 33,
+    "by_block": {
+     "header": 675,
+     "semantics": 2578,
+     "objects": 773,
+     "pose": 128,
+     "command": 63
+    }
+   },
+   "tokens": {
+    "wrapped": 1288,
+    "document_alone": 1234,
+    "static_lines": 1181,
+    "dynamic_lines": 53,
+    "marginal": {
+     "wrapper_head": 49,
+     "header": 137,
+     "semantics": 613,
+     "objects": 431,
+     "pose": 38,
+     "command": 15,
+     "wrapper_tail": 5
+    },
+    "marginal_sum_equals_total": true
+   },
+   "warm_prefix": {
+    "candidate_prefix": "wrapper head (system turn and '<|im_start|>user\\n') + static prefix lines",
+    "candidate_prefix_tokens": 1230,
+    "wrapper_head_tokens": 49,
+    "common_prefix_tokens": 1230,
+    "tokens_after_reusable_prefix": 58
+   },
+   "conditional_diagnostic": {
+    "tokens_without_block_conditional_maps": 1288,
+    "block_conditional_tokens": 0,
+    "block_conditional_bytes": 0,
+    "tokens_without_row_and_pose_conditional_fields": 1233,
+    "row_and_pose_conditional_tokens": 55,
+    "row_and_pose_conditional_bytes": 134
+   },
+   "work": {
+    "n_objects": 10,
+    "formula_units": 0,
+    "serializer_calls_and_distances": 0,
+    "by_block": {},
+    "verification_calls_not_serialized": 0
+   },
+   "seconds_linear_extrapolation": {
+    "cold": 7.783999999999999,
+    "warm_best_case": 0.3505217391304348
+   },
+   "ids_sha256": {
+    "wrapped": "c224d4fba6a75e3e4e9a9d547074fbe47a00cd59e52ec4f89e18f731bbdb41be",
+    "document": "4c2cf8b28c923a027c257904d99313ae31d74660a52222dcd86fe71adf593117"
+   },
+   "text_sha256": {
+    "wrapped": "254c2e8f51c3758c08e10df7f13c7d1729b2b70f402206bb818001012ec0682e",
+    "document": "d9ce832836d077c74cd559b8cc075d6f526cad40e5195d79156a938872e2e931"
+   },
+   "self_checks": [
+    "all passed"
+   ]
+  },
+  "dirh10.restricted.coordinates_relations_v1": {
+   "case": "dirh10.restricted",
+   "format": "coordinates_relations_v1",
+   "scene": "directions/scene.h.restricted.json",
+   "command": "directions/command.h.base.json",
+   "objects": [
+    "obj_001",
+    "obj_002",
+    "obj_003",
+    "obj_004",
+    "obj_005",
+    "obj_006",
+    "obj_007",
+    "obj_008",
+    "obj_009",
+    "obj_010"
+   ],
+   "scene_id": "fixture.dir.h",
+   "scene_revision": 0,
+   "evidence_profile": "restricted",
+   "command_id": "fx.dir.h.base",
+   "bytes": {
+    "wrapped": 17868,
+    "document": 17553,
+    "static_prefix": 15133,
+    "dynamic_suffix": 2420,
+    "wrapper_head": 282,
+    "wrapper_tail": 33,
+    "by_block": {
+     "header": 685,
+     "semantics": 2578,
+     "objects": 773,
+     "near": 150,
+     "above": 149,
+     "below": 149,
+     "on": 147,
+     "inside": 150,
+     "between": 8347,
+     "intrinsic.right": 164,
+     "intrinsic.in_front_of": 170,
+     "center_distance_m": 1671,
+     "pose": 128,
+     "user_heading.right": 201,
+     "user_heading.in_front_of": 206,
+     "user_to_anchor.right": 710,
+     "user_to_anchor.in_front_of": 1112,
+     "command": 63
+    }
+   },
+   "tokens": {
+    "wrapped": 8401,
+    "document_alone": 8347,
+    "static_lines": 7267,
+    "dynamic_lines": 1080,
+    "marginal": {
+     "wrapper_head": 49,
+     "header": 138,
+     "semantics": 613,
+     "objects": 431,
+     "near": 37,
+     "above": 37,
+     "below": 37,
+     "on": 37,
+     "inside": 37,
+     "between": 4647,
+     "intrinsic.right": 39,
+     "intrinsic.in_front_of": 41,
+     "center_distance_m": 1173,
+     "pose": 38,
+     "user_heading.right": 62,
+     "user_heading.in_front_of": 65,
+     "user_to_anchor.right": 341,
+     "user_to_anchor.in_front_of": 559,
+     "command": 15,
+     "wrapper_tail": 5
+    },
+    "marginal_sum_equals_total": true
+   },
+   "warm_prefix": {
+    "candidate_prefix": "wrapper head (system turn and '<|im_start|>user\\n') + static prefix lines",
+    "candidate_prefix_tokens": 7316,
+    "wrapper_head_tokens": 49,
+    "common_prefix_tokens": 7316,
+    "tokens_after_reusable_prefix": 1085
+   },
+   "conditional_diagnostic": {
+    "tokens_without_block_conditional_maps": 6827,
+    "block_conditional_tokens": 1574,
+    "block_conditional_bytes": 3178,
+    "tokens_without_row_and_pose_conditional_fields": 8346,
+    "row_and_pose_conditional_tokens": 55,
+    "row_and_pose_conditional_bytes": 134
+   },
+   "work": {
+    "n_objects": 10,
+    "formula_units": 1190,
+    "serializer_calls_and_distances": 1190,
+    "by_block": {
+     "near": 45,
+     "above": 90,
+     "below": 90,
+     "on": 90,
+     "inside": 90,
+     "between": 360,
+     "intrinsic.right": 90,
+     "verification_only": 380,
+     "intrinsic.in_front_of": 90,
+     "center_distance": 45,
+     "user_heading.right": 10,
+     "user_heading.in_front_of": 10,
+     "user_to_anchor.right": 90,
+     "user_to_anchor.in_front_of": 90
+    },
+    "verification_calls_not_serialized": 380
+   },
+   "seconds_linear_extrapolation": {
+    "cold": 50.77126086956521,
+    "warm_best_case": 6.557173913043478
+   },
+   "ids_sha256": {
+    "wrapped": "81c621f792adf06f9670e26a76e6c2706166082f0e7601ab244c8b1281e1d2ec",
+    "document": "b864f31a93be9ec89afa0f7d8f02326d8fe79dea62bd84713c21015a57bab9c0"
+   },
+   "text_sha256": {
+    "wrapped": "ec690b413a77d8d4f1eebd2d47e192b8015e6efe7530b087d4c8a9de6313e1df",
+    "document": "9e145b7c37d1cf3bd649a06ab4a0f11d60eb1392e22a7856a2c7965d29cd21cc"
+   },
+   "self_checks": [
+    "all passed"
+   ]
+  }
+ },
+ "self_checks": [],
+ "parity": {
+  "llama.cpp b11277 (eae11d22) se_tokenize with tiny-qwen2-tokenizer.gguf": {
+   "texts": 53,
+   "identical": 51,
+   "differences": [
+    {
+     "text": "representative[22]",
+     "primary": 6,
+     "other": 7,
+     "first_difference": 1
+    },
+    {
+     "text": "representative[24]",
+     "primary": 4,
+     "other": 8,
+     "first_difference": 0
+    }
+   ]
+  }
+ },
+ "extrapolation": {
+  "context": "A1.8b run 20260930_A1_r027: median uncached whole-prompt time of the four A1 prompts (227-232 tokens) through se_llama_cli from adb shell, Q8_0, 2 threads, plugged in; llama-bench pp230 at 2 threads gave 170 tokens/s",
+  "tokens_per_second": 165.4676258992806,
+  "label": "linear extrapolation from A1, NOT measured Quest latency"
+ },
+ "skipped": {},
+ "matched_profile_ids": {
+  "a17.annotated": [
+   "obj_001",
+   "obj_002",
+   "obj_003",
+   "obj_004",
+   "obj_005",
+   "obj_006"
+  ],
+  "a17.restricted": [
+   "obj_001",
+   "obj_002",
+   "obj_003",
+   "obj_004",
+   "obj_005",
+   "obj_006"
+  ],
+  "dirh10.annotated": [
+   "obj_001",
+   "obj_002",
+   "obj_003",
+   "obj_004",
+   "obj_005",
+   "obj_006",
+   "obj_007",
+   "obj_008",
+   "obj_009",
+   "obj_010"
+  ],
+  "dirh10.restricted": [
+   "obj_001",
+   "obj_002",
+   "obj_003",
+   "obj_004",
+   "obj_005",
+   "obj_006",
+   "obj_007",
+   "obj_008",
+   "obj_009",
+   "obj_010"
+  ]
+ },
+ "added_token_strings_in_texts": [],
+ "nfc_note": {
+  "Inspect the café’s box — 2 m “left” 東京 😀": true,
+  "café (NFC)": true,
+  "café (NFD)": false,
+  "Ångström": true,
+  "Ångström": false
+ }
+}

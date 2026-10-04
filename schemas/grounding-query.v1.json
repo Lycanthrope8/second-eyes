@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "grounding-query.v1.json",
+  "title": "Grounding query v1 (A2.1e, D71)",
+  "description": "A structured request for the offline resolver: complete alternative readings of one command over one scene. Structure only; the resolver's validator also enforces graph rules, exact full-string matches of every pattern, unique interpretation IDs, non-redundant constraints and identities against the supplied records. The id, label, revision and profile definitions are copied unchanged from scene.v1.json. A rank's k must also be a JSON integer: a whole-valued float such as 1.0, which this schema's integer type admits, is invalid input (D72).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "record_type", "query_id", "scene_id", "scene_revision", "evidence_profile",
+               "command_id", "interpretations"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "record_type": {"const": "grounding_query"},
+    "query_id": {"$ref": "#/$defs/id"},
+    "scene_id": {"$ref": "#/$defs/id"},
+    "scene_revision": {"type": "integer", "minimum": 0},
+    "evidence_profile": {"enum": ["annotated", "restricted"]},
+    "command_id": {"$ref": "#/$defs/id"},
+    "interpretations": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/interpretation"}}
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_.-]{0,127}$"},
+    "label": {"type": "string", "pattern": "^\\S(.*\\S)?$"},
+    "local_id": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$"},
+    "action": {"enum": ["GO_TO", "INSPECT"]},
+    "nullable_action": {"enum": ["GO_TO", "INSPECT", null]},
+    "interpretation": {
+      "oneOf": [{"$ref": "#/$defs/query"}, {"$ref": "#/$defs/unavailable"}, {"$ref": "#/$defs/unsupported"}]
+    },
+    "query": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["interpretation_id", "kind", "action", "root", "nodes"],
+      "properties": {
+        "interpretation_id": {"$ref": "#/$defs/local_id"},
+        "kind": {"const": "query"},
+        "action": {"$ref": "#/$defs/action"},
+        "root": {"$ref": "#/$defs/local_id"},
+        "nodes": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/node"}}
+      }
+    },
+    "unavailable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["interpretation_id", "kind", "action", "reason"],
+      "properties": {
+        "interpretation_id": {"$ref": "#/$defs/local_id"},
+        "kind": {"const": "unavailable"},
+        "action": {"$ref": "#/$defs/nullable_action"},
+        "reason": {"const": "frame_interpretation_unavailable"}
+      }
+    },
+    "unsupported": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["interpretation_id", "kind", "action", "reason"],
+      "properties": {
+        "interpretation_id": {"$ref": "#/$defs/local_id"},
+        "kind": {"const": "unsupported"},
+        "action": {"$ref": "#/$defs/nullable_action"},
+        "reason": {"enum": ["unsupported_action", "unsupported_negation", "unsupported_disjunction",
+                            "unsupported_plural", "unsupported_temporal", "unsupported_coreference",
+                            "unsupported_visibility", "unsupported_size_comparison",
+                            "unsupported_numeric_comparison", "unsupported_composition"]}
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node_id", "category", "colours_all", "constraints", "rank"],
+      "properties": {
+        "node_id": {"$ref": "#/$defs/local_id"},
+        "category": {"oneOf": [{"$ref": "#/$defs/label"}, {"type": "null"}]},
+        "colours_all": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/label"}},
+        "constraints": {"type": "array", "items": {"$ref": "#/$defs/constraint"}},
+        "rank": {"oneOf": [{"$ref": "#/$defs/rank"}, {"type": "null"}]}
+      }
+    },
+    "constraint": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["relation", "frame", "anchors"],
+          "properties": {
+            "relation": {"enum": ["near", "above", "below", "on", "inside"]},
+            "frame": {"type": "null"},
+            "anchors": {"type": "array", "minItems": 1, "maxItems": 1, "items": {"$ref": "#/$defs/local_id"}}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["relation", "frame", "anchors"],
+          "properties": {
+            "relation": {"const": "between"},
+            "frame": {"type": "null"},
+            "anchors": {"type": "array", "minItems": 2, "maxItems": 2, "uniqueItems": true,
+                        "items": {"$ref": "#/$defs/local_id"}}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["relation", "frame", "anchors"],
+          "properties": {
+            "relation": {"enum": ["left", "right", "in_front_of", "behind"]},
+            "frame": {"const": "user_heading"},
+            "anchors": {"type": "array", "maxItems": 0}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["relation", "frame", "anchors"],
+          "properties": {
+            "relation": {"enum": ["left", "right", "in_front_of", "behind"]},
+            "frame": {"enum": ["user_to_anchor", "object_intrinsic"]},
+            "anchors": {"type": "array", "minItems": 1, "maxItems": 1, "items": {"$ref": "#/$defs/local_id"}}
+          }
+        }
+      ]
+    },
+    "rank": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["relation", "anchor", "k"],
+      "properties": {
+        "relation": {"enum": ["closest", "farthest"]},
+        "anchor": {"$ref": "#/$defs/local_id"},
+        "k": {"type": "integer", "minimum": 1, "maximum": 3}
+      }
+    }
+  }
+}

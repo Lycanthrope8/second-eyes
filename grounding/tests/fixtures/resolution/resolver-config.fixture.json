@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "record_type": "resolver_config",
+  "config_id": "resolver.fixture.v1",
+  "vocabulary_id": "resolver.fixture.labels.v1",
+  "category_labels": [
+    "box",
+    "chair",
+    "table"
+  ],
+  "colour_labels": [
+    "blue",
+    "green",
+    "red"
+  ],
+  "limits": {
+    "max_interpretations": 8,
+    "max_nodes": 64,
+    "max_constraints": 128,
+    "max_candidate_checks": 10000,
+    "max_binding_attempts": 1000,
+    "max_predicate_calls": 10000,
+    "max_rank_subset_evaluations": 10000,
+    "max_trace_events": 10000,
+    "max_trace_bytes": 2000000
+  }
+}

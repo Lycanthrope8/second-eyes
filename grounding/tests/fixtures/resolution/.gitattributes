@@ -1,0 +1,3 @@
+# Exact bytes: the expectation record in notes/phases/A2.1e_resolution.md lists these files' SHA-256 hashes, so
+# Git must not convert their line endings.
+* -text

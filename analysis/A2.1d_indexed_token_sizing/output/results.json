@@ -1,0 +1,1864 @@
+{
+ "successful": true,
+ "verification": [
+  {
+   "check": "8.1 literal objects example decodes to the brief's mapping and re-encodes to its exact text",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "8.1 literal ordered_pairs example decodes to the brief's mapping and re-encodes to its exact text",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "8.1 literal unordered_pairs example decodes to the brief's mapping and re-encodes to its exact text",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "8.1 literal target_anchor_pairs example decodes to the brief's mapping and re-encodes to its exact text",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "8.1/8.4 literal distances: 0.1006 and 0.1508 exact, B/C null, re-encoded to the exact text",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "8.4 a zero distance and a null distance stay distinct",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "8.2 312 unit cases over every domain at n = 0, 1, 2, 3, 6, 10 round-trip in canonical form",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "8.5 near, distances and between's anchors read the same in either order; ordered pairs are not symmetrized (right(A,B)=T, right(B,A)=F)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "8.6 a uniform T doesn't reach the diagonal (A,A)",
+   "ok": true,
+   "detail": "('A', 'A') has no truth value in this ordered_pairs block"
+  },
+  {
+   "check": "8.6 mirroring doesn't create the diagonal",
+   "ok": true,
+   "detail": "('B', 'B') has no truth value in this ordered_pairs block"
+  },
+  {
+   "check": "8.6 between with a repeated object has no value",
+   "ok": true,
+   "detail": "('A', 'A', 'B') has no truth value in this target_anchor_pairs block"
+  },
+  {
+   "check": "8.6 an empty domain has no tuples",
+   "ok": true,
+   "detail": "('A', 'A') has no truth value in this unordered_pairs block"
+  },
+  {
+   "check": "8.6 an ID outside objects has no value",
+   "ok": true,
+   "detail": "('A', 'D') has an ID that isn't in objects"
+  },
+  {
+   "check": "8.6 mirroring maps T<->F, keeps U and membership, and only over legal tuples",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "8.7 literal directed example: row = target, column = anchor (right(A,B)=T conditional, right(C,A)=U conditional)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "8.8 rejects: wrong row length",
+   "ok": true,
+   "detail": "right: row 0 must be a string of 3 symbols"
+  },
+  {
+   "check": "8.8 rejects: wrong diagonal",
+   "ok": true,
+   "detail": "right: diagonal cell 0 is 'T', not '-'"
+  },
+  {
+   "check": "8.8 rejects: '-' off the diagonal",
+   "ok": true,
+   "detail": "right: symbol '-' at row 0, column 1"
+  },
+  {
+   "check": "8.8 rejects: illegal truth symbol",
+   "ok": true,
+   "detail": "right: symbol 'X' at row 0, column 2"
+  },
+  {
+   "check": "8.8 rejects: missing row",
+   "ok": true,
+   "detail": "right: 2 rows, expected 3"
+  },
+  {
+   "check": "8.8 rejects: illegal conditional symbol",
+   "ok": true,
+   "detail": "right: symbol 'X' at row 0, column 2"
+  },
+  {
+   "check": "8.8 rejects: conditional diagonal not '-'",
+   "ok": true,
+   "detail": "right: diagonal cell 0 is '1', not '-'"
+  },
+  {
+   "check": "8.8 rejects: uniform conditional as a string",
+   "ok": true,
+   "detail": "right: a uniform conditional must be a JSON Boolean"
+  },
+  {
+   "check": "8.8 rejects: objects row too short",
+   "ok": true,
+   "detail": "right: objects row must be a string of 3 symbols"
+  },
+  {
+   "check": "8.8 rejects: triangle row too long",
+   "ok": true,
+   "detail": "near: row 0 must hold 2 symbols"
+  },
+  {
+   "check": "8.8 rejects: [] for a nonempty domain",
+   "ok": true,
+   "detail": "right: [] for a nonempty domain"
+  },
+  {
+   "check": "8.8 rejects: unknown field",
+   "ok": true,
+   "detail": "block fields ['relation', 'frame', 'domain', 'states', 'conditional', 'extra']"
+  },
+  {
+   "check": "8.8 rejects: unknown domain",
+   "ok": true,
+   "detail": "unknown domain 'pairs'"
+  },
+  {
+   "check": "8.8 rejects: duplicate between row",
+   "ok": true,
+   "detail": "block fields ['relation', 'frame', 'domain', 'conditional', 'states']"
+  },
+  {
+   "check": "8.8 rejects: missing between row",
+   "ok": true,
+   "detail": "block fields ['relation', 'frame', 'domain', 'conditional', 'states']"
+  },
+  {
+   "check": "8.8 rejects: between rows out of order",
+   "ok": true,
+   "detail": "block fields ['relation', 'frame', 'domain', 'conditional', 'states']"
+  },
+  {
+   "check": "8.8 rejects: between index out of range",
+   "ok": true,
+   "detail": "block fields ['relation', 'frame', 'domain', 'conditional', 'states']"
+  },
+  {
+   "check": "8.8 rejects: between anchors reversed",
+   "ok": true,
+   "detail": "block fields ['relation', 'frame', 'domain', 'conditional', 'states']"
+  },
+  {
+   "check": "8.8 rejects: between anchor not '-'",
+   "ok": true,
+   "detail": "block fields ['relation', 'frame', 'domain', 'conditional', 'states']"
+  },
+  {
+   "check": "8.8 rejects: between target as '-'",
+   "ok": true,
+   "detail": "block fields ['relation', 'frame', 'domain', 'conditional', 'states']"
+  },
+  {
+   "check": "8.8 rejects: between index not an integer",
+   "ok": true,
+   "detail": "block fields ['relation', 'frame', 'domain', 'conditional', 'states']"
+  },
+  {
+   "check": "8.8 rejects: between index a Boolean",
+   "ok": true,
+   "detail": "block fields ['relation', 'frame', 'domain', 'conditional', 'states']"
+  },
+  {
+   "check": "8.8 rejects: true conditional for an empty domain (one object, no pairs)",
+   "ok": true,
+   "detail": "near: an empty domain's conditional must be false"
+  },
+  {
+   "check": "8.8 rejects: distance row too short",
+   "ok": true,
+   "detail": "distance block fields ['measure', 'domain', 'conditional', 'values']"
+  },
+  {
+   "check": "8.8 rejects: distance as a string",
+   "ok": true,
+   "detail": "distance block fields ['measure', 'domain', 'conditional', 'values']"
+  },
+  {
+   "check": "8.8 rejects: distance as a Boolean",
+   "ok": true,
+   "detail": "distance block fields ['measure', 'domain', 'conditional', 'values']"
+  },
+  {
+   "check": "8.8 rejects: missing distance row",
+   "ok": true,
+   "detail": "distance block fields ['measure', 'domain', 'conditional', 'values']"
+  },
+  {
+   "check": "8.11 O=[obj_001,obj_1000,obj_999] reads T,F,U through O; suffix indices 999/998 don't exist, and numeric suffix order would read obj_999 as F instead of U",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "saved input a17.annotated.coordinates_v1 is the delivered one (hash in the original results.json)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "saved input a17.annotated.coordinates_relations_v1 is the delivered one (hash in the original results.json)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "saved input a17.restricted.coordinates_v1 is the delivered one (hash in the original results.json)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "saved input a17.restricted.coordinates_relations_v1 is the delivered one (hash in the original results.json)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "saved input dirh10.annotated.coordinates_v1 is the delivered one (hash in the original results.json)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "saved input dirh10.annotated.coordinates_relations_v1 is the delivered one (hash in the original results.json)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "saved input dirh10.restricted.coordinates_v1 is the delivered one (hash in the original results.json)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "saved input dirh10.restricted.coordinates_relations_v1 is the delivered one (hash in the original results.json)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "8.3/8.4 a17.annotated: all 13 derived blocks decode to exactly the original truth, conditional and distance maps, in canonical form",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "8.9 a17.annotated: semantics, objects, pose and command are byte-identical to the originals; the two new headers differ only in format; both formats share the same evidence",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "8.10 a17.annotated: the static/dynamic boundary is where it was; viewer-relative blocks stay after pose",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "8.3/8.4 a17.restricted: all 13 derived blocks decode to exactly the original truth, conditional and distance maps, in canonical form",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "8.9 a17.restricted: semantics, objects, pose and command are byte-identical to the originals; the two new headers differ only in format; both formats share the same evidence",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "8.10 a17.restricted: the static/dynamic boundary is where it was; viewer-relative blocks stay after pose",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "8.3/8.4 dirh10.annotated: all 13 derived blocks decode to exactly the original truth, conditional and distance maps, in canonical form",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "8.9 dirh10.annotated: semantics, objects, pose and command are byte-identical to the originals; the two new headers differ only in format; both formats share the same evidence",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "8.10 dirh10.annotated: the static/dynamic boundary is where it was; viewer-relative blocks stay after pose",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "8.3/8.4 dirh10.restricted: all 13 derived blocks decode to exactly the original truth, conditional and distance maps, in canonical form",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "8.9 dirh10.restricted: semantics, objects, pose and command are byte-identical to the originals; the two new headers differ only in format; both formats share the same evidence",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "8.10 dirh10.restricted: the static/dynamic boundary is where it was; viewer-relative blocks stay after pose",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "8.7 a17 user-to-anchor right: row obj_005 / column obj_001 is T and the transposed cell F, as worked by hand (D07/D10 themselves are not among the four audited inputs, which hold one pose each)",
+   "ok": true,
+   "detail": "{('obj_005', 'obj_001'): 'T', ('obj_004', 'obj_001'): 'F', ('obj_001', 'obj_005'): 'F'}"
+  }
+ ],
+ "tokenizers": [
+  "Hugging Face Qwen2TokenizerFast from quest-app/Assets/SecondEyes/Models/qwen2.5-0.5b-instruct",
+  "llama.cpp b11277 (eae11d22) se_tokenize with tiny-qwen2-tokenizer.gguf"
+ ],
+ "calibration": {
+  "a17-fixed": {
+   "recorded_tokens": 230,
+   "recorded_scene_tokens": 191,
+   "measured": {
+    "Hugging Face Qwen2TokenizerFast from quest-app/Assets/SecondEyes/Models/qwen2.5-0.5b-instruct": {
+     "tokens": 230,
+     "scene_tokens": 191,
+     "ids_sha256": "cbee5eb5627fd64293a64112930cdc9c0832ca7b212aede83011453cb3c761ee",
+     "scene_is_prefix": true
+    },
+    "llama.cpp b11277 (eae11d22) se_tokenize with tiny-qwen2-tokenizer.gguf": {
+     "tokens": 230,
+     "scene_tokens": 191,
+     "ids_sha256": "cbee5eb5627fd64293a64112930cdc9c0832ca7b212aede83011453cb3c761ee",
+     "scene_is_prefix": true
+    }
+   },
+   "formatted_sha256": "3c1ed099e1e4e0cdc80cd326e8628b030f05fcbc518d685584e60c67a93b006f"
+  },
+  "a17-front": {
+   "recorded_tokens": 232,
+   "recorded_scene_tokens": 191,
+   "measured": {
+    "Hugging Face Qwen2TokenizerFast from quest-app/Assets/SecondEyes/Models/qwen2.5-0.5b-instruct": {
+     "tokens": 232,
+     "scene_tokens": 191,
+     "ids_sha256": "8638b4d64cadab54e26bb9e6d089facb8deafa39d8a29303a61b1dd3b9a1b1eb",
+     "scene_is_prefix": true
+    },
+    "llama.cpp b11277 (eae11d22) se_tokenize with tiny-qwen2-tokenizer.gguf": {
+     "tokens": 232,
+     "scene_tokens": 191,
+     "ids_sha256": "8638b4d64cadab54e26bb9e6d089facb8deafa39d8a29303a61b1dd3b9a1b1eb",
+     "scene_is_prefix": true
+    }
+   },
+   "formatted_sha256": "679b3ec88640f167b9feae1d58ca1e45691a35806333ad32b29d2ec545c570b9"
+  },
+  "a17-left": {
+   "recorded_tokens": 230,
+   "recorded_scene_tokens": 191,
+   "measured": {
+    "Hugging Face Qwen2TokenizerFast from quest-app/Assets/SecondEyes/Models/qwen2.5-0.5b-instruct": {
+     "tokens": 230,
+     "scene_tokens": 191,
+     "ids_sha256": "404b9420ec40e47a0345ebad44acf019aef1a81a2c77808db1eab5a8c65cbd82",
+     "scene_is_prefix": true
+    },
+    "llama.cpp b11277 (eae11d22) se_tokenize with tiny-qwen2-tokenizer.gguf": {
+     "tokens": 230,
+     "scene_tokens": 191,
+     "ids_sha256": "404b9420ec40e47a0345ebad44acf019aef1a81a2c77808db1eab5a8c65cbd82",
+     "scene_is_prefix": true
+    }
+   },
+   "formatted_sha256": "451426cd827e50910a075da978b94805eb30c76cb20011e12f78ccc92ce84ecc"
+  },
+  "a17-table": {
+   "recorded_tokens": 227,
+   "recorded_scene_tokens": 191,
+   "measured": {
+    "Hugging Face Qwen2TokenizerFast from quest-app/Assets/SecondEyes/Models/qwen2.5-0.5b-instruct": {
+     "tokens": 227,
+     "scene_tokens": 191,
+     "ids_sha256": "a38667166bb11cbde1dd3f6852f8d7711dc017f806aa175814a91aa9c9327c04",
+     "scene_is_prefix": true
+    },
+    "llama.cpp b11277 (eae11d22) se_tokenize with tiny-qwen2-tokenizer.gguf": {
+     "tokens": 227,
+     "scene_tokens": 191,
+     "ids_sha256": "a38667166bb11cbde1dd3f6852f8d7711dc017f806aa175814a91aa9c9327c04",
+     "scene_is_prefix": true
+    }
+   },
+   "formatted_sha256": "984aa0c0faf72912a1220ce66da19cc80f1f0c5c263c018d85b979ee3bba895e"
+  }
+ },
+ "inputs": {
+  "a17.annotated.coordinates_v2": {
+   "bytes": {
+    "wrapped": 4846,
+    "document": 4531,
+    "static_prefix": 4336,
+    "dynamic_suffix": 195,
+    "wrapper_head": 282,
+    "wrapper_tail": 33,
+    "by_block": {
+     "header": 1212,
+     "semantics": 2578,
+     "objects": 546,
+     "pose": 147,
+     "command": 48
+    }
+   },
+   "tokens": {
+    "wrapped": 1343,
+    "document_alone": 1289,
+    "static_lines": 1221,
+    "dynamic_lines": 68,
+    "marginal": {
+     "wrapper_head": 49,
+     "header": 262,
+     "semantics": 613,
+     "objects": 346,
+     "pose": 57,
+     "command": 11,
+     "wrapper_tail": 5
+    },
+    "marginal_sum_equals_total": true
+   },
+   "warm_prefix": {
+    "candidate_prefix_tokens": 1270,
+    "common_prefix_tokens": 1270,
+    "tokens_after_reusable_prefix": 73,
+    "wrapper_head_tokens": 49
+   },
+   "conditional_diagnostic_overlapping": {
+    "block_conditional_tokens": 0,
+    "note": "overlaps the relation blocks' tokens; not additive"
+   },
+   "seconds_linear_extrapolation_illustration": {
+    "cold": 8.116391304347825,
+    "warm_best_case": 0.4411739130434782
+   },
+   "text_sha256": {
+    "wrapped": "c25f7d680ff42815c060b91607978e53234d5a86e6839613666bb3da318cfb3a",
+    "document": "1b01e0862a412fff7dec31a355ead9e55d353393e801f71e141c186a8896c99c"
+   },
+   "ids_sha256": {
+    "wrapped": "2882be9a673cbeea383fd96a8f63498097b5326dc583fe95cf43dbefeebb814e"
+   },
+   "facts": {}
+  },
+  "a17.annotated.coordinates_relations_v2": {
+   "bytes": {
+    "wrapped": 7081,
+    "document": 6766,
+    "static_prefix": 6050,
+    "dynamic_suffix": 716,
+    "wrapper_head": 282,
+    "wrapper_tail": 33,
+    "by_block": {
+     "header": 1222,
+     "semantics": 2578,
+     "objects": 546,
+     "near": 121,
+     "above": 144,
+     "below": 144,
+     "on": 141,
+     "inside": 145,
+     "between": 323,
+     "intrinsic.right": 158,
+     "intrinsic.in_front_of": 164,
+     "center_distance_m": 364,
+     "pose": 147,
+     "user_heading.right": 101,
+     "user_heading.in_front_of": 102,
+     "user_to_anchor.right": 156,
+     "user_to_anchor.in_front_of": 162,
+     "command": 48
+    }
+   },
+   "tokens": {
+    "wrapped": 2266,
+    "document_alone": 2212,
+    "static_lines": 1997,
+    "dynamic_lines": 215,
+    "marginal": {
+     "wrapper_head": 49,
+     "header": 263,
+     "semantics": 613,
+     "objects": 346,
+     "near": 34,
+     "above": 48,
+     "below": 48,
+     "on": 48,
+     "inside": 48,
+     "between": 163,
+     "intrinsic.right": 50,
+     "intrinsic.in_front_of": 52,
+     "center_distance_m": 284,
+     "pose": 57,
+     "user_heading.right": 23,
+     "user_heading.in_front_of": 24,
+     "user_to_anchor.right": 48,
+     "user_to_anchor.in_front_of": 52,
+     "command": 11,
+     "wrapper_tail": 5
+    },
+    "marginal_sum_equals_total": true
+   },
+   "warm_prefix": {
+    "candidate_prefix_tokens": 2046,
+    "common_prefix_tokens": 2046,
+    "tokens_after_reusable_prefix": 220,
+    "wrapper_head_tokens": 49
+   },
+   "conditional_diagnostic_overlapping": {
+    "block_conditional_tokens": 52,
+    "note": "overlaps the relation blocks' tokens; not additive"
+   },
+   "seconds_linear_extrapolation_illustration": {
+    "cold": 13.694521739130433,
+    "warm_best_case": 1.3295652173913042
+   },
+   "text_sha256": {
+    "wrapped": "eb939c0f7463f4460b6abfb5351caa80cb0810a5f2032bf4a676793327cc8b4a",
+    "document": "1328066f30c970d8de56a369f0d31320f1eacb4bce71391f982d25848db31f33"
+   },
+   "ids_sha256": {
+    "wrapped": "6b9a4fb4c5a6c70142b21c96ec49243e125faeb88cffd8f3b7e19aa4145fb325"
+   },
+   "facts": {
+    "near": {
+     "tuples": 15,
+     "equal": true,
+     "canonical": true,
+     "unknown": 9,
+     "conditional": 0
+    },
+    "above": {
+     "tuples": 30,
+     "equal": true,
+     "canonical": true,
+     "unknown": 18,
+     "conditional": 0
+    },
+    "below": {
+     "tuples": 30,
+     "equal": true,
+     "canonical": true,
+     "unknown": 18,
+     "conditional": 0
+    },
+    "on": {
+     "tuples": 30,
+     "equal": true,
+     "canonical": true,
+     "unknown": 27,
+     "conditional": 0
+    },
+    "inside": {
+     "tuples": 30,
+     "equal": true,
+     "canonical": true,
+     "unknown": 27,
+     "conditional": 0
+    },
+    "between": {
+     "tuples": 60,
+     "equal": true,
+     "canonical": true,
+     "unknown": 4,
+     "conditional": 0
+    },
+    "intrinsic.right": {
+     "tuples": 30,
+     "equal": true,
+     "canonical": true,
+     "unknown": 22,
+     "conditional": 0
+    },
+    "intrinsic.in_front_of": {
+     "tuples": 30,
+     "equal": true,
+     "canonical": true,
+     "unknown": 20,
+     "conditional": 0
+    },
+    "center_distance_m": {
+     "tuples": 15,
+     "equal": true,
+     "canonical": true,
+     "null": 0,
+     "conditional": 0
+    },
+    "user_heading.right": {
+     "tuples": 6,
+     "equal": true,
+     "canonical": true,
+     "unknown": 0,
+     "conditional": 0
+    },
+    "user_heading.in_front_of": {
+     "tuples": 6,
+     "equal": true,
+     "canonical": true,
+     "unknown": 0,
+     "conditional": 0
+    },
+    "user_to_anchor.right": {
+     "tuples": 30,
+     "equal": true,
+     "canonical": true,
+     "unknown": 0,
+     "conditional": 0
+    },
+    "user_to_anchor.in_front_of": {
+     "tuples": 30,
+     "equal": true,
+     "canonical": true,
+     "unknown": 0,
+     "conditional": 0
+    }
+   }
+  },
+  "a17.restricted.coordinates_v2": {
+   "bytes": {
+    "wrapped": 4786,
+    "document": 4471,
+    "static_prefix": 4276,
+    "dynamic_suffix": 195,
+    "wrapper_head": 282,
+    "wrapper_tail": 33,
+    "by_block": {
+     "header": 1212,
+     "semantics": 2578,
+     "objects": 486,
+     "pose": 147,
+     "command": 48
+    }
+   },
+   "tokens": {
+    "wrapped": 1272,
+    "document_alone": 1218,
+    "static_lines": 1150,
+    "dynamic_lines": 68,
+    "marginal": {
+     "wrapper_head": 49,
+     "header": 262,
+     "semantics": 613,
+     "objects": 275,
+     "pose": 57,
+     "command": 11,
+     "wrapper_tail": 5
+    },
+    "marginal_sum_equals_total": true
+   },
+   "warm_prefix": {
+    "candidate_prefix_tokens": 1199,
+    "common_prefix_tokens": 1199,
+    "tokens_after_reusable_prefix": 73,
+    "wrapper_head_tokens": 49
+   },
+   "conditional_diagnostic_overlapping": {
+    "block_conditional_tokens": 0,
+    "note": "overlaps the relation blocks' tokens; not additive"
+   },
+   "seconds_linear_extrapolation_illustration": {
+    "cold": 7.687304347826086,
+    "warm_best_case": 0.4411739130434782
+   },
+   "text_sha256": {
+    "wrapped": "fd9dd8373f99678aff3b228694754b98260258e2d7ca977a9857fb56231d5990",
+    "document": "68361a6c518dc00fa1c69827cb55ef4b304cadf1b4dd332a8b7cdc34eeb36174"
+   },
+   "ids_sha256": {
+    "wrapped": "623da5b55ab29f6cc0741c1a9994092e5d1b95b4b637685d9c24e4c42c702686"
+   },
+   "facts": {}
+  },
+  "a17.restricted.coordinates_relations_v2": {
+   "bytes": {
+    "wrapped": 6777,
+    "document": 6462,
+    "static_prefix": 5746,
+    "dynamic_suffix": 716,
+    "wrapper_head": 282,
+    "wrapper_tail": 33,
+    "by_block": {
+     "header": 1222,
+     "semantics": 2578,
+     "objects": 486,
+     "near": 92,
+     "above": 91,
+     "below": 91,
+     "on": 139,
+     "inside": 143,
+     "between": 322,
+     "intrinsic.right": 106,
+     "intrinsic.in_front_of": 112,
+     "center_distance_m": 364,
+     "pose": 147,
+     "user_heading.right": 101,
+     "user_heading.in_front_of": 102,
+     "user_to_anchor.right": 156,
+     "user_to_anchor.in_front_of": 162,
+     "command": 48
+    }
+   },
+   "tokens": {
+    "wrapped": 2106,
+    "document_alone": 2052,
+    "static_lines": 1837,
+    "dynamic_lines": 215,
+    "marginal": {
+     "wrapper_head": 49,
+     "header": 263,
+     "semantics": 613,
+     "objects": 275,
+     "near": 22,
+     "above": 22,
+     "below": 22,
+     "on": 62,
+     "inside": 62,
+     "between": 162,
+     "intrinsic.right": 24,
+     "intrinsic.in_front_of": 26,
+     "center_distance_m": 284,
+     "pose": 57,
+     "user_heading.right": 23,
+     "user_heading.in_front_of": 24,
+     "user_to_anchor.right": 48,
+     "user_to_anchor.in_front_of": 52,
+     "command": 11,
+     "wrapper_tail": 5
+    },
+    "marginal_sum_equals_total": true
+   },
+   "warm_prefix": {
+    "candidate_prefix_tokens": 1886,
+    "common_prefix_tokens": 1886,
+    "tokens_after_reusable_prefix": 220,
+    "wrapper_head_tokens": 49
+   },
+   "conditional_diagnostic_overlapping": {
+    "block_conditional_tokens": 132,
+    "note": "overlaps the relation blocks' tokens; not additive"
+   },
+   "seconds_linear_extrapolation_illustration": {
+    "cold": 12.727565217391303,
+    "warm_best_case": 1.3295652173913042
+   },
+   "text_sha256": {
+    "wrapped": "d3203c6df998f73e7a5809e6284d9721377168d4e0ec0bee1a31c37f95d9879f",
+    "document": "5f6eef37eb73a651dafe9c8e26458ae9ce95a09b0d765df3a4b576cae1b64917"
+   },
+   "ids_sha256": {
+    "wrapped": "5fc1ae73229201b1479f10f624733cd71653709c9df9adc18a1eabe0528d3d79"
+   },
+   "facts": {
+    "near": {
+     "tuples": 15,
+     "equal": true,
+     "canonical": true,
+     "unknown": 15,
+     "conditional": 15
+    },
+    "above": {
+     "tuples": 30,
+     "equal": true,
+     "canonical": true,
+     "unknown": 30,
+     "conditional": 30
+    },
+    "below": {
+     "tuples": 30,
+     "equal": true,
+     "canonical": true,
+     "unknown": 30,
+     "conditional": 30
+    },
+    "on": {
+     "tuples": 30,
+     "equal": true,
+     "canonical": true,
+     "unknown": 30,
+     "conditional": 5
+    },
+    "inside": {
+     "tuples": 30,
+     "equal": true,
+     "canonical": true,
+     "unknown": 30,
+     "conditional": 10
+    },
+    "between": {
+     "tuples": 60,
+     "equal": true,
+     "canonical": true,
+     "unknown": 5,
+     "conditional": 60
+    },
+    "intrinsic.right": {
+     "tuples": 30,
+     "equal": true,
+     "canonical": true,
+     "unknown": 30,
+     "conditional": 0
+    },
+    "intrinsic.in_front_of": {
+     "tuples": 30,
+     "equal": true,
+     "canonical": true,
+     "unknown": 30,
+     "conditional": 0
+    },
+    "center_distance_m": {
+     "tuples": 15,
+     "equal": true,
+     "canonical": true,
+     "null": 0,
+     "conditional": 0
+    },
+    "user_heading.right": {
+     "tuples": 6,
+     "equal": true,
+     "canonical": true,
+     "unknown": 0,
+     "conditional": 0
+    },
+    "user_heading.in_front_of": {
+     "tuples": 6,
+     "equal": true,
+     "canonical": true,
+     "unknown": 0,
+     "conditional": 0
+    },
+    "user_to_anchor.right": {
+     "tuples": 30,
+     "equal": true,
+     "canonical": true,
+     "unknown": 0,
+     "conditional": 0
+    },
+    "user_to_anchor.in_front_of": {
+     "tuples": 30,
+     "equal": true,
+     "canonical": true,
+     "unknown": 0,
+     "conditional": 0
+    }
+   }
+  },
+  "dirh10.annotated.coordinates_v2": {
+   "bytes": {
+    "wrapped": 5109,
+    "document": 4794,
+    "static_prefix": 4603,
+    "dynamic_suffix": 191,
+    "wrapper_head": 282,
+    "wrapper_tail": 33,
+    "by_block": {
+     "header": 1212,
+     "semantics": 2578,
+     "objects": 813,
+     "pose": 128,
+     "command": 63
+    }
+   },
+   "tokens": {
+    "wrapped": 1443,
+    "document_alone": 1389,
+    "static_lines": 1336,
+    "dynamic_lines": 53,
+    "marginal": {
+     "wrapper_head": 49,
+     "header": 262,
+     "semantics": 613,
+     "objects": 461,
+     "pose": 38,
+     "command": 15,
+     "wrapper_tail": 5
+    },
+    "marginal_sum_equals_total": true
+   },
+   "warm_prefix": {
+    "candidate_prefix_tokens": 1385,
+    "common_prefix_tokens": 1385,
+    "tokens_after_reusable_prefix": 58,
+    "wrapper_head_tokens": 49
+   },
+   "conditional_diagnostic_overlapping": {
+    "block_conditional_tokens": 0,
+    "note": "overlaps the relation blocks' tokens; not additive"
+   },
+   "seconds_linear_extrapolation_illustration": {
+    "cold": 8.720739130434781,
+    "warm_best_case": 0.3505217391304348
+   },
+   "text_sha256": {
+    "wrapped": "c259fc988ab1276d49f22279637979077e25cf19794bdfc651e2ac0e26b0f8db",
+    "document": "687a826f383715d7fb4ea1f48a5ad0d7e00b36386c4e6da322b99e86eb3981b7"
+   },
+   "ids_sha256": {
+    "wrapped": "671af6a68b89eead6b490283862d19d4f07528ec1f36e51aeba88327d409fba8"
+   },
+   "facts": {}
+  },
+  "dirh10.annotated.coordinates_relations_v2": {
+   "bytes": {
+    "wrapped": 8304,
+    "document": 7989,
+    "static_prefix": 7112,
+    "dynamic_suffix": 877,
+    "wrapper_head": 282,
+    "wrapper_tail": 33,
+    "by_block": {
+     "header": 1222,
+     "semantics": 2578,
+     "objects": 813,
+     "near": 163,
+     "above": 92,
+     "below": 92,
+     "on": 89,
+     "inside": 221,
+     "between": 953,
+     "intrinsic.right": 106,
+     "intrinsic.in_front_of": 112,
+     "center_distance_m": 671,
+     "pose": 128,
+     "user_heading.right": 105,
+     "user_heading.in_front_of": 111,
+     "user_to_anchor.right": 232,
+     "user_to_anchor.in_front_of": 238,
+     "command": 63
+    }
+   },
+   "tokens": {
+    "wrapped": 2998,
+    "document_alone": 2944,
+    "static_lines": 2659,
+    "dynamic_lines": 285,
+    "marginal": {
+     "wrapper_head": 49,
+     "header": 263,
+     "semantics": 613,
+     "objects": 461,
+     "near": 45,
+     "above": 22,
+     "below": 22,
+     "on": 22,
+     "inside": 69,
+     "between": 509,
+     "intrinsic.right": 24,
+     "intrinsic.in_front_of": 26,
+     "center_distance_m": 583,
+     "pose": 38,
+     "user_heading.right": 26,
+     "user_heading.in_front_of": 28,
+     "user_to_anchor.right": 88,
+     "user_to_anchor.in_front_of": 90,
+     "command": 15,
+     "wrapper_tail": 5
+    },
+    "marginal_sum_equals_total": true
+   },
+   "warm_prefix": {
+    "candidate_prefix_tokens": 2708,
+    "common_prefix_tokens": 2708,
+    "tokens_after_reusable_prefix": 290,
+    "wrapper_head_tokens": 49
+   },
+   "conditional_diagnostic_overlapping": {
+    "block_conditional_tokens": 52,
+    "note": "overlaps the relation blocks' tokens; not additive"
+   },
+   "seconds_linear_extrapolation_illustration": {
+    "cold": 18.118347826086953,
+    "warm_best_case": 1.7526086956521738
+   },
+   "text_sha256": {
+    "wrapped": "bc9ed0393aae70225a58fad03eb278f1d15cd2836eed6032d040ecbfb24edd1c",
+    "document": "d02d1678628122943dceaa4157cc78cb3ad887b4c9bf426f6f2311e27ff77866"
+   },
+   "ids_sha256": {
+    "wrapped": "2c6cc28ebdb81fc9b706d4e4703890563b2749c73332280d2e53db6c85f9e85f"
+   },
+   "facts": {
+    "near": {
+     "tuples": 45,
+     "equal": true,
+     "canonical": true,
+     "unknown": 0,
+     "conditional": 0
+    },
+    "above": {
+     "tuples": 90,
+     "equal": true,
+     "canonical": true,
+     "unknown": 0,
+     "conditional": 0
+    },
+    "below": {
+     "tuples": 90,
+     "equal": true,
+     "canonical": true,
+     "unknown": 0,
+     "conditional": 0
+    },
+    "on": {
+     "tuples": 90,
+     "equal": true,
+     "canonical": true,
+     "unknown": 90,
+     "conditional": 0
+    },
+    "inside": {
+     "tuples": 90,
+     "equal": true,
+     "canonical": true,
+     "unknown": 12,
+     "conditional": 0
+    },
+    "between": {
+     "tuples": 360,
+     "equal": true,
+     "canonical": true,
+     "unknown": 86,
+     "conditional": 0
+    },
+    "intrinsic.right": {
+     "tuples": 90,
+     "equal": true,
+     "canonical": true,
+     "unknown": 90,
+     "conditional": 0
+    },
+    "intrinsic.in_front_of": {
+     "tuples": 90,
+     "equal": true,
+     "canonical": true,
+     "unknown": 90,
+     "conditional": 0
+    },
+    "center_distance_m": {
+     "tuples": 45,
+     "equal": true,
+     "canonical": true,
+     "null": 0,
+     "conditional": 0
+    },
+    "user_heading.right": {
+     "tuples": 10,
+     "equal": true,
+     "canonical": true,
+     "unknown": 6,
+     "conditional": 0
+    },
+    "user_heading.in_front_of": {
+     "tuples": 10,
+     "equal": true,
+     "canonical": true,
+     "unknown": 6,
+     "conditional": 0
+    },
+    "user_to_anchor.right": {
+     "tuples": 90,
+     "equal": true,
+     "canonical": true,
+     "unknown": 65,
+     "conditional": 0
+    },
+    "user_to_anchor.in_front_of": {
+     "tuples": 90,
+     "equal": true,
+     "canonical": true,
+     "unknown": 40,
+     "conditional": 0
+    }
+   }
+  },
+  "dirh10.restricted.coordinates_v2": {
+   "bytes": {
+    "wrapped": 5069,
+    "document": 4754,
+    "static_prefix": 4563,
+    "dynamic_suffix": 191,
+    "wrapper_head": 282,
+    "wrapper_tail": 33,
+    "by_block": {
+     "header": 1212,
+     "semantics": 2578,
+     "objects": 773,
+     "pose": 128,
+     "command": 63
+    }
+   },
+   "tokens": {
+    "wrapped": 1413,
+    "document_alone": 1359,
+    "static_lines": 1306,
+    "dynamic_lines": 53,
+    "marginal": {
+     "wrapper_head": 49,
+     "header": 262,
+     "semantics": 613,
+     "objects": 431,
+     "pose": 38,
+     "command": 15,
+     "wrapper_tail": 5
+    },
+    "marginal_sum_equals_total": true
+   },
+   "warm_prefix": {
+    "candidate_prefix_tokens": 1355,
+    "common_prefix_tokens": 1355,
+    "tokens_after_reusable_prefix": 58,
+    "wrapper_head_tokens": 49
+   },
+   "conditional_diagnostic_overlapping": {
+    "block_conditional_tokens": 0,
+    "note": "overlaps the relation blocks' tokens; not additive"
+   },
+   "seconds_linear_extrapolation_illustration": {
+    "cold": 8.539434782608694,
+    "warm_best_case": 0.3505217391304348
+   },
+   "text_sha256": {
+    "wrapped": "182d96666e66afd9195fac310e08c418e999a1f451ed44cdde98071b7a7d4b67",
+    "document": "69fa973c15ba005f7cb4854a2565748725495e63e8d695b76c01fcb250443af9"
+   },
+   "ids_sha256": {
+    "wrapped": "aafff6b3cc618f73b859167a9a6cda0d1ba0ec7911df41f0d78acb4f491f11f8"
+   },
+   "facts": {}
+  },
+  "dirh10.restricted.coordinates_relations_v2": {
+   "bytes": {
+    "wrapped": 8913,
+    "document": 8598,
+    "static_prefix": 7721,
+    "dynamic_suffix": 877,
+    "wrapper_head": 282,
+    "wrapper_tail": 33,
+    "by_block": {
+     "header": 1222,
+     "semantics": 2578,
+     "objects": 773,
+     "near": 92,
+     "above": 91,
+     "below": 91,
+     "on": 89,
+     "inside": 92,
+     "between": 1804,
+     "intrinsic.right": 106,
+     "intrinsic.in_front_of": 112,
+     "center_distance_m": 671,
+     "pose": 128,
+     "user_heading.right": 105,
+     "user_heading.in_front_of": 111,
+     "user_to_anchor.right": 232,
+     "user_to_anchor.in_front_of": 238,
+     "command": 63
+    }
+   },
+   "tokens": {
+    "wrapped": 3625,
+    "document_alone": 3571,
+    "static_lines": 3286,
+    "dynamic_lines": 285,
+    "marginal": {
+     "wrapper_head": 49,
+     "header": 263,
+     "semantics": 613,
+     "objects": 431,
+     "near": 22,
+     "above": 22,
+     "below": 22,
+     "on": 22,
+     "inside": 22,
+     "between": 1236,
+     "intrinsic.right": 24,
+     "intrinsic.in_front_of": 26,
+     "center_distance_m": 583,
+     "pose": 38,
+     "user_heading.right": 26,
+     "user_heading.in_front_of": 28,
+     "user_to_anchor.right": 88,
+     "user_to_anchor.in_front_of": 90,
+     "command": 15,
+     "wrapper_tail": 5
+    },
+    "marginal_sum_equals_total": true
+   },
+   "warm_prefix": {
+    "candidate_prefix_tokens": 3335,
+    "common_prefix_tokens": 3335,
+    "tokens_after_reusable_prefix": 290,
+    "wrapper_head_tokens": 49
+   },
+   "conditional_diagnostic_overlapping": {
+    "block_conditional_tokens": 762,
+    "note": "overlaps the relation blocks' tokens; not additive"
+   },
+   "seconds_linear_extrapolation_illustration": {
+    "cold": 21.907608695652172,
+    "warm_best_case": 1.7526086956521738
+   },
+   "text_sha256": {
+    "wrapped": "70167c443b5c988f3db4cf877230fdfd115ef15c1a22c06c211c4fcaabf01d0b",
+    "document": "855ac322b7829d47b29157ab8da3f5d3644439244f058624ffec1ec12d24f3c5"
+   },
+   "ids_sha256": {
+    "wrapped": "326bb0a8e7e0887677a2971b9d77556518433f18b8fc4af6486a2dc071bf7115"
+   },
+   "facts": {
+    "near": {
+     "tuples": 45,
+     "equal": true,
+     "canonical": true,
+     "unknown": 45,
+     "conditional": 45
+    },
+    "above": {
+     "tuples": 90,
+     "equal": true,
+     "canonical": true,
+     "unknown": 90,
+     "conditional": 90
+    },
+    "below": {
+     "tuples": 90,
+     "equal": true,
+     "canonical": true,
+     "unknown": 90,
+     "conditional": 90
+    },
+    "on": {
+     "tuples": 90,
+     "equal": true,
+     "canonical": true,
+     "unknown": 90,
+     "conditional": 0
+    },
+    "inside": {
+     "tuples": 90,
+     "equal": true,
+     "canonical": true,
+     "unknown": 90,
+     "conditional": 90
+    },
+    "between": {
+     "tuples": 360,
+     "equal": true,
+     "canonical": true,
+     "unknown": 184,
+     "conditional": 280
+    },
+    "intrinsic.right": {
+     "tuples": 90,
+     "equal": true,
+     "canonical": true,
+     "unknown": 90,
+     "conditional": 0
+    },
+    "intrinsic.in_front_of": {
+     "tuples": 90,
+     "equal": true,
+     "canonical": true,
+     "unknown": 90,
+     "conditional": 0
+    },
+    "center_distance_m": {
+     "tuples": 45,
+     "equal": true,
+     "canonical": true,
+     "null": 0,
+     "conditional": 0
+    },
+    "user_heading.right": {
+     "tuples": 10,
+     "equal": true,
+     "canonical": true,
+     "unknown": 6,
+     "conditional": 0
+    },
+    "user_heading.in_front_of": {
+     "tuples": 10,
+     "equal": true,
+     "canonical": true,
+     "unknown": 6,
+     "conditional": 0
+    },
+    "user_to_anchor.right": {
+     "tuples": 90,
+     "equal": true,
+     "canonical": true,
+     "unknown": 65,
+     "conditional": 0
+    },
+    "user_to_anchor.in_front_of": {
+     "tuples": 90,
+     "equal": true,
+     "canonical": true,
+     "unknown": 40,
+     "conditional": 0
+    }
+   }
+  }
+ },
+ "comparison_old_new": {
+  "a17.annotated.coordinates_v2": {
+   "old_input": "a17.annotated.coordinates_v1",
+   "old_tokens": 1218,
+   "new_tokens": 1343,
+   "change": 125,
+   "old_after_prefix": 73,
+   "new_after_prefix": 73,
+   "old_bytes": 4309,
+   "new_bytes": 4846,
+   "blocks": {
+    "wrapper_head": {
+     "old": 49,
+     "new": 49
+    },
+    "header": {
+     "old": 137,
+     "new": 262
+    },
+    "semantics": {
+     "old": 613,
+     "new": 613
+    },
+    "objects": {
+     "old": 346,
+     "new": 346
+    },
+    "pose": {
+     "old": 57,
+     "new": 57
+    },
+    "command": {
+     "old": 11,
+     "new": 11
+    },
+    "wrapper_tail": {
+     "old": 5,
+     "new": 5
+    }
+   }
+  },
+  "a17.annotated.coordinates_relations_v2": {
+   "old_input": "a17.annotated.coordinates_relations_v1",
+   "old_tokens": 3209,
+   "new_tokens": 2266,
+   "change": -943,
+   "old_after_prefix": 526,
+   "new_after_prefix": 220,
+   "old_bytes": 8789,
+   "new_bytes": 7081,
+   "blocks": {
+    "wrapper_head": {
+     "old": 49,
+     "new": 49
+    },
+    "header": {
+     "old": 138,
+     "new": 263
+    },
+    "semantics": {
+     "old": 613,
+     "new": 613
+    },
+    "objects": {
+     "old": 346,
+     "new": 346
+    },
+    "near": {
+     "old": 111,
+     "new": 34
+    },
+    "above": {
+     "old": 182,
+     "new": 48
+    },
+    "below": {
+     "old": 182,
+     "new": 48
+    },
+    "on": {
+     "old": 74,
+     "new": 48
+    },
+    "inside": {
+     "old": 74,
+     "new": 48
+    },
+    "between": {
+     "old": 130,
+     "new": 163
+    },
+    "intrinsic.right": {
+     "old": 137,
+     "new": 50
+    },
+    "intrinsic.in_front_of": {
+     "old": 163,
+     "new": 52
+    },
+    "center_distance_m": {
+     "old": 484,
+     "new": 284
+    },
+    "pose": {
+     "old": 57,
+     "new": 57
+    },
+    "user_heading.right": {
+     "old": 44,
+     "new": 23
+    },
+    "user_heading.in_front_of": {
+     "old": 39,
+     "new": 24
+    },
+    "user_to_anchor.right": {
+     "old": 220,
+     "new": 48
+    },
+    "user_to_anchor.in_front_of": {
+     "old": 150,
+     "new": 52
+    },
+    "command": {
+     "old": 11,
+     "new": 11
+    },
+    "wrapper_tail": {
+     "old": 5,
+     "new": 5
+    }
+   }
+  },
+  "a17.restricted.coordinates_v2": {
+   "old_input": "a17.restricted.coordinates_v1",
+   "old_tokens": 1147,
+   "new_tokens": 1272,
+   "change": 125,
+   "old_after_prefix": 73,
+   "new_after_prefix": 73,
+   "old_bytes": 4249,
+   "new_bytes": 4786,
+   "blocks": {
+    "wrapper_head": {
+     "old": 49,
+     "new": 49
+    },
+    "header": {
+     "old": 137,
+     "new": 262
+    },
+    "semantics": {
+     "old": 613,
+     "new": 613
+    },
+    "objects": {
+     "old": 275,
+     "new": 275
+    },
+    "pose": {
+     "old": 57,
+     "new": 57
+    },
+    "command": {
+     "old": 11,
+     "new": 11
+    },
+    "wrapper_tail": {
+     "old": 5,
+     "new": 5
+    }
+   }
+  },
+  "a17.restricted.coordinates_relations_v2": {
+   "old_input": "a17.restricted.coordinates_relations_v1",
+   "old_tokens": 2659,
+   "new_tokens": 2106,
+   "change": -553,
+   "old_after_prefix": 526,
+   "new_after_prefix": 220,
+   "old_bytes": 7876,
+   "new_bytes": 6777,
+   "blocks": {
+    "wrapper_head": {
+     "old": 49,
+     "new": 49
+    },
+    "header": {
+     "old": 138,
+     "new": 263
+    },
+    "semantics": {
+     "old": 613,
+     "new": 613
+    },
+    "objects": {
+     "old": 275,
+     "new": 275
+    },
+    "near": {
+     "old": 37,
+     "new": 22
+    },
+    "above": {
+     "old": 37,
+     "new": 22
+    },
+    "below": {
+     "old": 37,
+     "new": 22
+    },
+    "on": {
+     "old": 97,
+     "new": 62
+    },
+    "inside": {
+     "old": 157,
+     "new": 62
+    },
+    "between": {
+     "old": 129,
+     "new": 162
+    },
+    "intrinsic.right": {
+     "old": 39,
+     "new": 24
+    },
+    "intrinsic.in_front_of": {
+     "old": 41,
+     "new": 26
+    },
+    "center_distance_m": {
+     "old": 484,
+     "new": 284
+    },
+    "pose": {
+     "old": 57,
+     "new": 57
+    },
+    "user_heading.right": {
+     "old": 44,
+     "new": 23
+    },
+    "user_heading.in_front_of": {
+     "old": 39,
+     "new": 24
+    },
+    "user_to_anchor.right": {
+     "old": 220,
+     "new": 48
+    },
+    "user_to_anchor.in_front_of": {
+     "old": 150,
+     "new": 52
+    },
+    "command": {
+     "old": 11,
+     "new": 11
+    },
+    "wrapper_tail": {
+     "old": 5,
+     "new": 5
+    }
+   }
+  },
+  "dirh10.annotated.coordinates_v2": {
+   "old_input": "dirh10.annotated.coordinates_v1",
+   "old_tokens": 1318,
+   "new_tokens": 1443,
+   "change": 125,
+   "old_after_prefix": 58,
+   "new_after_prefix": 58,
+   "old_bytes": 4572,
+   "new_bytes": 5109,
+   "blocks": {
+    "wrapper_head": {
+     "old": 49,
+     "new": 49
+    },
+    "header": {
+     "old": 137,
+     "new": 262
+    },
+    "semantics": {
+     "old": 613,
+     "new": 613
+    },
+    "objects": {
+     "old": 461,
+     "new": 461
+    },
+    "pose": {
+     "old": 38,
+     "new": 38
+    },
+    "command": {
+     "old": 15,
+     "new": 15
+    },
+    "wrapper_tail": {
+     "old": 5,
+     "new": 5
+    }
+   }
+  },
+  "dirh10.annotated.coordinates_relations_v2": {
+   "old_input": "dirh10.annotated.coordinates_relations_v1",
+   "old_tokens": 5849,
+   "new_tokens": 2998,
+   "change": -2851,
+   "old_after_prefix": 1085,
+   "new_after_prefix": 290,
+   "old_bytes": 13332,
+   "new_bytes": 8304,
+   "blocks": {
+    "wrapper_head": {
+     "old": 49,
+     "new": 49
+    },
+    "header": {
+     "old": 138,
+     "new": 263
+    },
+    "semantics": {
+     "old": 613,
+     "new": 613
+    },
+    "objects": {
+     "old": 461,
+     "new": 461
+    },
+    "near": {
+     "old": 170,
+     "new": 45
+    },
+    "above": {
+     "old": 37,
+     "new": 22
+    },
+    "below": {
+     "old": 37,
+     "new": 22
+    },
+    "on": {
+     "old": 37,
+     "new": 22
+    },
+    "inside": {
+     "old": 255,
+     "new": 69
+    },
+    "between": {
+     "old": 1714,
+     "new": 509
+    },
+    "intrinsic.right": {
+     "old": 39,
+     "new": 24
+    },
+    "intrinsic.in_front_of": {
+     "old": 41,
+     "new": 26
+    },
+    "center_distance_m": {
+     "old": 1173,
+     "new": 583
+    },
+    "pose": {
+     "old": 38,
+     "new": 38
+    },
+    "user_heading.right": {
+     "old": 62,
+     "new": 26
+    },
+    "user_heading.in_front_of": {
+     "old": 65,
+     "new": 28
+    },
+    "user_to_anchor.right": {
+     "old": 341,
+     "new": 88
+    },
+    "user_to_anchor.in_front_of": {
+     "old": 559,
+     "new": 90
+    },
+    "command": {
+     "old": 15,
+     "new": 15
+    },
+    "wrapper_tail": {
+     "old": 5,
+     "new": 5
+    }
+   }
+  },
+  "dirh10.restricted.coordinates_v2": {
+   "old_input": "dirh10.restricted.coordinates_v1",
+   "old_tokens": 1288,
+   "new_tokens": 1413,
+   "change": 125,
+   "old_after_prefix": 58,
+   "new_after_prefix": 58,
+   "old_bytes": 4532,
+   "new_bytes": 5069,
+   "blocks": {
+    "wrapper_head": {
+     "old": 49,
+     "new": 49
+    },
+    "header": {
+     "old": 137,
+     "new": 262
+    },
+    "semantics": {
+     "old": 613,
+     "new": 613
+    },
+    "objects": {
+     "old": 431,
+     "new": 431
+    },
+    "pose": {
+     "old": 38,
+     "new": 38
+    },
+    "command": {
+     "old": 15,
+     "new": 15
+    },
+    "wrapper_tail": {
+     "old": 5,
+     "new": 5
+    }
+   }
+  },
+  "dirh10.restricted.coordinates_relations_v2": {
+   "old_input": "dirh10.restricted.coordinates_relations_v1",
+   "old_tokens": 8401,
+   "new_tokens": 3625,
+   "change": -4776,
+   "old_after_prefix": 1085,
+   "new_after_prefix": 290,
+   "old_bytes": 17868,
+   "new_bytes": 8913,
+   "blocks": {
+    "wrapper_head": {
+     "old": 49,
+     "new": 49
+    },
+    "header": {
+     "old": 138,
+     "new": 263
+    },
+    "semantics": {
+     "old": 613,
+     "new": 613
+    },
+    "objects": {
+     "old": 431,
+     "new": 431
+    },
+    "near": {
+     "old": 37,
+     "new": 22
+    },
+    "above": {
+     "old": 37,
+     "new": 22
+    },
+    "below": {
+     "old": 37,
+     "new": 22
+    },
+    "on": {
+     "old": 37,
+     "new": 22
+    },
+    "inside": {
+     "old": 37,
+     "new": 22
+    },
+    "between": {
+     "old": 4647,
+     "new": 1236
+    },
+    "intrinsic.right": {
+     "old": 39,
+     "new": 24
+    },
+    "intrinsic.in_front_of": {
+     "old": 41,
+     "new": 26
+    },
+    "center_distance_m": {
+     "old": 1173,
+     "new": 583
+    },
+    "pose": {
+     "old": 38,
+     "new": 38
+    },
+    "user_heading.right": {
+     "old": 62,
+     "new": 26
+    },
+    "user_heading.in_front_of": {
+     "old": 65,
+     "new": 28
+    },
+    "user_to_anchor.right": {
+     "old": 341,
+     "new": 88
+    },
+    "user_to_anchor.in_front_of": {
+     "old": 559,
+     "new": 90
+    },
+    "command": {
+     "old": 15,
+     "new": 15
+    },
+    "wrapper_tail": {
+     "old": 5,
+     "new": 5
+    }
+   }
+  }
+ },
+ "skipped": {},
+ "extrapolation": {
+  "context": "A1.8b run 20260930_A1_r027: median uncached whole-prompt time of the four A1 prompts (227-232 tokens) through se_llama_cli from adb shell, Q8_0, 2 threads, plugged in; llama-bench pp230 at 2 threads gave 170 tokens/s",
+  "tokens_per_second": 165.4676258992806,
+  "label": "linear extrapolation from A1, NOT measured Quest latency"
+ },
+ "parity": {
+  "llama.cpp b11277 (eae11d22) se_tokenize with tiny-qwen2-tokenizer.gguf": {
+   "texts": 24,
+   "identical": 24,
+   "differences": []
+  }
+ }
+}

@@ -1,0 +1,2 @@
+# Exact bytes: these files are measured inputs, so Git must not convert their line endings.
+* -text

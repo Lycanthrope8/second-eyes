@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "record_type": "grounding_query",
+  "query_id": "fx.r08.query",
+  "scene_id": "fixture.resolver.r",
+  "scene_revision": 0,
+  "evidence_profile": "annotated",
+  "command_id": "fx.r.command",
+  "interpretations": [
+    {
+      "interpretation_id": "i0",
+      "kind": "query",
+      "action": "INSPECT",
+      "root": "target",
+      "nodes": [
+        {
+          "node_id": "target",
+          "category": "box",
+          "colours_all": [],
+          "constraints": [
+            {
+              "relation": "right",
+              "frame": "object_intrinsic",
+              "anchors": [
+                "table_ref"
+              ]
+            }
+          ],
+          "rank": null
+        },
+        {
+          "node_id": "table_ref",
+          "category": "table",
+          "colours_all": [],
+          "constraints": [],
+          "rank": null
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,228 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "grounding-result.v1.json",
+  "title": "Resolution run v1 (A2.1e, D71)",
+  "description": "The complete record the offline resolver returns: a technical processing status, a semantic grounding result when processing completed, and compact diagnostics. The resolver also checks semantic invariants this schema can't express (candidate IDs belong to the scene, arrays are sorted, the trace respects its caps).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "record_type", "processing_status", "result", "issues", "budget", "diagnostics"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "record_type": {"const": "resolution_run"},
+    "processing_status": {"enum": ["completed", "invalid_input", "budget_exceeded"]},
+    "result": {"oneOf": [{"$ref": "#/$defs/grounding_result"}, {"type": "null"}]},
+    "issues": {"type": "array", "items": {"$ref": "#/$defs/issue"}},
+    "budget": {"oneOf": [{"$ref": "#/$defs/budget"}, {"type": "null"}]},
+    "diagnostics": {"$ref": "#/$defs/diagnostics"}
+  },
+  "allOf": [
+    {"if": {"properties": {"processing_status": {"const": "completed"}}},
+     "then": {"properties": {"result": {"type": "object"}, "issues": {"maxItems": 0}, "budget": {"type": "null"}}}},
+    {"if": {"properties": {"processing_status": {"const": "invalid_input"}}},
+     "then": {"properties": {"result": {"type": "null"}, "issues": {"minItems": 1}, "budget": {"type": "null"}}}},
+    {"if": {"properties": {"processing_status": {"const": "budget_exceeded"}}},
+     "then": {"properties": {"result": {"type": "null"}, "issues": {"maxItems": 0}, "budget": {"type": "object"}}}}
+  ],
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_.-]{0,127}$"},
+    "local_id": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$"},
+    "object_id": {"type": "string", "pattern": "^obj_[0-9]{3,}$"},
+    "object_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/object_id"}},
+    "count": {"type": "integer", "minimum": 0},
+    "issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "path", "code", "message"],
+      "properties": {"label": {"type": "string"}, "path": {"type": "string"}, "code": {"type": "string"},
+                     "message": {"type": "string"}}
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "limit", "used", "next_required"],
+      "properties": {
+        "name": {"enum": ["max_interpretations", "max_nodes", "max_constraints", "max_candidate_checks",
+                          "max_binding_attempts", "max_predicate_calls", "max_rank_subset_evaluations"]},
+        "limit": {"$ref": "#/$defs/count"},
+        "used": {"$ref": "#/$defs/count"},
+        "next_required": {"$ref": "#/$defs/count"}
+      }
+    },
+    "detail_code": {
+      "enum": ["multiple_definite_matches", "divergent_targets", "divergent_actions", "resolved_vs_no_match",
+               "anchor_not_found", "target_not_found", "no_legal_anchor_binding", "uncertain_anchor",
+               "unknown_category", "unknown_colour", "missing_centre", "missing_size", "missing_rotation",
+               "missing_semantic_front", "missing_pose", "degenerate_frame", "boundary_relation", "rank_tie",
+               "possible_rank_competitors", "too_few_rank_candidates", "relation_unknown", "conditional_evidence",
+               "frame_interpretation_unavailable", "unsupported_action", "unsupported_negation",
+               "unsupported_disjunction", "unsupported_plural", "unsupported_temporal", "unsupported_coreference",
+               "unsupported_visibility", "unsupported_size_comparison", "unsupported_numeric_comparison",
+               "unsupported_composition", "unsupported_category_label", "unsupported_colour_label"]
+    },
+    "assumption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["record_type", "record_id", "assumption_id"],
+      "properties": {
+        "record_type": {"enum": ["scene", "command_context"]},
+        "record_id": {"type": "array", "minItems": 1, "maxItems": 3, "items": {"type": "string"}},
+        "assumption_id": {"type": "string"}
+      }
+    },
+    "grounding_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["query_id", "scene_id", "command_id", "scene_revision", "evidence_profile", "status", "action",
+                   "target_id", "reason_code", "reason_codes", "candidates", "assumptions", "conditional"],
+      "properties": {
+        "query_id": {"$ref": "#/$defs/id"},
+        "scene_id": {"$ref": "#/$defs/id"},
+        "command_id": {"$ref": "#/$defs/id"},
+        "scene_revision": {"type": "integer", "minimum": 0},
+        "evidence_profile": {"enum": ["annotated", "restricted"]},
+        "status": {"enum": ["resolved", "ambiguous", "no_match", "insufficient_information", "unsupported"]},
+        "action": {"enum": ["GO_TO", "INSPECT", null]},
+        "target_id": {"oneOf": [{"$ref": "#/$defs/object_id"}, {"type": "null"}]},
+        "reason_code": {"enum": ["unique_target_consensus", "nonunique_target_or_interpretation",
+                                 "no_matching_reference", "required_information_unavailable",
+                                 "unsupported_interpretation"]},
+        "reason_codes": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/detail_code"}},
+        "candidates": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["target_ids", "uncertain_match_ids", "rank_definite_eligible_ids",
+                       "rank_possible_eligible_ids", "coverage"],
+          "properties": {
+            "target_ids": {"$ref": "#/$defs/object_ids"},
+            "uncertain_match_ids": {"$ref": "#/$defs/object_ids"},
+            "rank_definite_eligible_ids": {"$ref": "#/$defs/object_ids"},
+            "rank_possible_eligible_ids": {"$ref": "#/$defs/object_ids"},
+            "coverage": {"enum": ["evaluated_branch_union", "incomplete_due_to_unresolved_reference"]}
+          }
+        },
+        "assumptions": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/assumption"}},
+        "conditional": {"type": "boolean"}
+      }
+    },
+    "trace_event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "interpretation_id", "node_id", "bindings", "object_ids", "relation", "frame", "outcome",
+                   "reasons"],
+      "properties": {
+        "kind": {"enum": ["node", "binding", "prune", "predicate", "rank", "terminal"]},
+        "interpretation_id": {"$ref": "#/$defs/local_id"},
+        "node_id": {"oneOf": [{"$ref": "#/$defs/local_id"}, {"type": "null"}]},
+        "bindings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["node_id", "object_id"],
+            "properties": {"node_id": {"$ref": "#/$defs/local_id"}, "object_id": {"$ref": "#/$defs/object_id"}}
+          }
+        },
+        "object_ids": {"type": "array", "items": {"$ref": "#/$defs/object_id"}},
+        "relation": {"enum": ["near", "above", "below", "on", "inside", "between", "left", "right", "in_front_of",
+                              "behind", "closest", "farthest", null]},
+        "frame": {"enum": ["user_heading", "user_to_anchor", "object_intrinsic", null]},
+        "outcome": {"enum": ["TRUE", "FALSE", "UNKNOWN", "resolved", "ambiguous", "no_match",
+                             "insufficient_information", "unsupported", "bound", "pruned"]},
+        "reasons": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}
+      }
+    },
+    "diagnostics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evaluator_version", "context", "identities", "warnings", "work", "outcome_counts", "timings_s",
+                   "trace", "trace_truncated", "trace_bytes"],
+      "properties": {
+        "evaluator_version": {"const": "resolver.v1"},
+        "context": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["query_id", "scene_id", "scene_revision", "evidence_profile", "command_id"],
+              "properties": {
+                "query_id": {"$ref": "#/$defs/id"},
+                "scene_id": {"$ref": "#/$defs/id"},
+                "scene_revision": {"type": "integer", "minimum": 0},
+                "evidence_profile": {"enum": ["annotated", "restricted"]},
+                "command_id": {"$ref": "#/$defs/id"}
+              }
+            },
+            {"type": "null"}
+          ]
+        },
+        "identities": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["scene_sha256", "command_sha256", "query_sha256", "resolver_config_sha256",
+                           "relation_config_identity", "direction_config_identity"],
+              "properties": {
+                "scene_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                "command_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                "query_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                "resolver_config_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                "relation_config_identity": {"type": "string", "minLength": 1},
+                "direction_config_identity": {"type": "string", "minLength": 1}
+              }
+            },
+            {"type": "null"}
+          ]
+        },
+        "warnings": {"type": "array", "items": {"$ref": "#/$defs/issue"}},
+        "work": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["interpretations", "nodes", "constraints", "candidate_checks", "binding_attempts",
+                       "pruned_bindings", "predicate_calls", "predicate_cache_hits", "rank_calls", "rank_cache_hits",
+                       "rank_subsets", "max_rank_preflight_subsets", "terminal_outcomes"],
+          "properties": {
+            "interpretations": {"$ref": "#/$defs/count"},
+            "nodes": {"$ref": "#/$defs/count"},
+            "constraints": {"$ref": "#/$defs/count"},
+            "candidate_checks": {"$ref": "#/$defs/count"},
+            "binding_attempts": {"$ref": "#/$defs/count"},
+            "pruned_bindings": {"$ref": "#/$defs/count"},
+            "predicate_calls": {"$ref": "#/$defs/count"},
+            "predicate_cache_hits": {"$ref": "#/$defs/count"},
+            "rank_calls": {"$ref": "#/$defs/count"},
+            "rank_cache_hits": {"$ref": "#/$defs/count"},
+            "rank_subsets": {"$ref": "#/$defs/count"},
+            "max_rank_preflight_subsets": {"$ref": "#/$defs/count"},
+            "terminal_outcomes": {"$ref": "#/$defs/count"}
+          }
+        },
+        "outcome_counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["resolved", "ambiguous", "no_match", "insufficient_information", "unsupported"],
+          "properties": {
+            "resolved": {"$ref": "#/$defs/count"},
+            "ambiguous": {"$ref": "#/$defs/count"},
+            "no_match": {"$ref": "#/$defs/count"},
+            "insufficient_information": {"$ref": "#/$defs/count"},
+            "unsupported": {"$ref": "#/$defs/count"}
+          }
+        },
+        "timings_s": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["validation", "evaluation", "result_validation"],
+          "properties": {
+            "validation": {"type": "number", "minimum": 0},
+            "evaluation": {"type": "number", "minimum": 0},
+            "result_validation": {"type": "number", "minimum": 0}
+          }
+        },
+        "trace": {"type": "array", "items": {"$ref": "#/$defs/trace_event"}},
+        "trace_truncated": {"type": "boolean"},
+        "trace_bytes": {"$ref": "#/$defs/count"}
+      }
+    }
+  }
+}

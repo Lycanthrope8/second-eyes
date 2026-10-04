@@ -210,14 +210,70 @@ def main() -> int:
             err = raises(fn, SerializationInputError)
             check(f"rejects {name} with {code}, and no result", isinstance(err, SerializationInputError)
                   and code in codes(err), str(codes(err)) if err is not None else "accepted")
-    absent = render(a17, c001)
-    elsewhere = render(a17, c001, category_maps=[other_map])
-    check("an absent category map renders with the existing W_NOT_CROSS_CHECKED warning kept in metadata",
-          absent.status == "ok" and [w["code"] for w in absent.metadata["validation"]["warnings"]] == [
-              "W_NOT_CROSS_CHECKED"])
-    check("current behaviour, flagged: a map with another map ID counts as absent (warning), as the validator decides",
-          elsewhere.status == "ok" and "W_NOT_CROSS_CHECKED" in [w["code"] for w in
-                                                                 elsewhere.metadata["validation"]["warnings"]])
+
+    # 2b. Category maps (D70): no maps keeps the warning; a nonempty collection must hold the scene's map
+    print("-- 2b. category maps (D70)")
+    other_z = copy.deepcopy(MAP)
+    other_z["map_id"] = "map.zzz"
+    no_id = copy.deepcopy(MAP)
+    del no_id["map_id"]
+    off_vocab = copy.deepcopy(MAP)
+    off_vocab["entries"][0]["model"] = "not_in_vocabulary"
+    reached = []
+    real_load, real_row = serializer._load_configs, serializer._object_row
+
+    def spy_load(*a, **k):
+        reached.append("config loading")
+        return real_load(*a, **k)
+
+    def spy_row(*a, **k):
+        reached.append("rendering")
+        return real_row(*a, **k)
+
+    for fmt in ("coordinates_v2", "coordinates_relations_v2"):
+        golden = (SER / "golden" / f"a17.annotated.{fmt}.jsonl").read_bytes()
+        none_r = render(a17, c001, fmt, category_maps=[])
+        check(f"{fmt}: no maps supplied renders the golden, keeping the existing W_NOT_CROSS_CHECKED warning",
+              none_r.status == "ok" and none_r.document.encode("utf-8") == golden
+              and [w["code"] for w in none_r.metadata["validation"]["warnings"]] == ["W_NOT_CROSS_CHECKED"])
+        serializer._load_configs, serializer._object_row = spy_load, spy_row
+        reached.clear()
+        try:
+            err = raises(lambda f=fmt: render(a17, c001, f, category_maps=[other_map]), SerializationInputError)
+            err2 = raises(lambda f=fmt: render(a17, c001, f, category_maps=[other_z, other_map]),
+                          SerializationInputError)
+        finally:
+            serializer._load_configs, serializer._object_row = real_load, real_row
+        one = err.issues[0] if isinstance(err, SerializationInputError) and len(err.issues) == 1 else {}
+        check(f"{fmt}: only a map with another ID raises E_CATEGORY_MAP_MISMATCH (scene, $.category_map) naming the "
+              "required and supplied IDs, before configuration loading or rendering",
+              one.get("code") == "E_CATEGORY_MAP_MISMATCH" and one.get("label") == "scene"
+              and one.get("path") == "$.category_map" and "map.fx" in one.get("message", "")
+              and "map.other" in one.get("message", "") and reached == [],
+              f"{codes(err) if err is not None else 'accepted'}; reached {reached}")
+        msg = err2.issues[0]["message"] if isinstance(err2, SerializationInputError) else ""
+        check(f"{fmt}: the supplied IDs appear sorted in the message", "map.other, map.zzz" in msg, msg or "accepted")
+        match = render(a17, c001, fmt, category_maps=[MAP])
+        check(f"{fmt}: the matching map renders the unchanged golden with no missing-map warning",
+              match.status == "ok" and match.document.encode("utf-8") == golden
+              and match.metadata["validation"]["warnings"] == [])
+        pair = [render(a17, c001, fmt, category_maps=maps) for maps in ([MAP, other_map], [other_map, MAP])]
+        check(f"{fmt}: the matching map plus another valid map renders the same bytes in either order",
+              all(r.status == "ok" and r.document.encode("utf-8") == golden
+                  and r.metadata["validation"]["warnings"] == [] for r in pair))
+        err = raises(lambda f=fmt: render(a17, c001, f, category_maps=[unmapped]), SerializationInputError)
+        check(f"{fmt}: a matching map with incompatible entries keeps E_CATEGORY_UNMAPPED, and nothing else",
+              isinstance(err, SerializationInputError) and codes(err) == ["E_CATEGORY_UNMAPPED"],
+              str(codes(err)) if err is not None else "accepted")
+        for name, maps, code in (("two copies of the scene's map", [MAP, copy.deepcopy(MAP)], "E_DUPLICATE_RECORD"),
+                                 ("two copies of a map with another ID", [other_map, copy.deepcopy(other_map)],
+                                  "E_DUPLICATE_RECORD"),
+                                 ("a map without map_id", [no_id], "E_SCHEMA_REQUIRED"),
+                                 ("a map entry outside its vocabulary", [off_vocab], "E_MAP_VOCAB")):
+            err = raises(lambda f=fmt, m=maps: render(a17, c001, f, category_maps=m), SerializationInputError)
+            check(f"{fmt}: {name} keeps the validator's {code}, with no crash and no mismatch error",
+                  isinstance(err, SerializationInputError) and codes(err) == [code],
+                  str(codes(err)) if err is not None else "accepted")
 
     # 3. Field projection
     print("-- 3. field projection")
@@ -747,6 +803,35 @@ def main() -> int:
         r_nocap = subprocess.run(args[:-1] + [str(nocap)], capture_output=True, text=True, cwd=str(REPO))
         check("CLI augmented without a cap exits 2 and writes no files", r_nocap.returncode == 2 and not nocap.exists()
               and "E_OPTION_WORK_CAP" in r_nocap.stderr)
+        wrong_map = Path(tmp) / "map.other.json"
+        wrong_map.write_text(json.dumps(other_map), encoding="utf-8")
+        wrong_dir = Path(tmp) / "wrong_map"
+        i_map = args.index("--category-map")
+        wrong_args = args[:i_map + 1] + [str(wrong_map)] + args[i_map + 2:-1] + [str(wrong_dir),
+                                                                             "--max-relation-work-units", "342"]
+        r_wrong = subprocess.run(wrong_args, capture_output=True, text=True, cwd=str(REPO))
+        check("CLI with only a map of another ID exits 2, names E_CATEGORY_MAP_MISMATCH, and writes no files (D70)",
+              r_wrong.returncode == 2 and "E_CATEGORY_MAP_MISMATCH" in r_wrong.stderr and not wrong_dir.exists(),
+              f"exit {r_wrong.returncode}; {r_wrong.stderr.strip()[-160:]}")
+        import contextlib
+        import importlib
+        import io
+        cli = importlib.import_module("grounding.serialization.__main__")
+        boom_dir = Path(tmp) / "boom"
+
+        def controlled_failure(*a, **k):
+            raise RuntimeError("controlled test exception")
+
+        real_serialize, stderr = cli.serialize, io.StringIO()
+        cli.serialize = controlled_failure  # test-only substitution; the CLI has no fault-injection option
+        try:
+            with contextlib.redirect_stderr(stderr):
+                code = cli.main(args[3:-1] + [str(boom_dir), "--max-relation-work-units", "342"])
+        finally:
+            cli.serialize = real_serialize
+        check("CLI: an unexpected exception from the rendering call prints its traceback and returns 3, with no "
+              "model document (approved in D70)", code == 3 and "Traceback" in stderr.getvalue()
+              and "controlled test exception" in stderr.getvalue() and not boom_dir.exists(), f"exit {code}")
 
     print(f"{COUNT[0]} checks; {'FAILED: ' + ', '.join(FAILED) if FAILED else 'all checks passed'}")
     return 1 if FAILED else 0
