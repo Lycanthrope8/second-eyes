@@ -210,6 +210,35 @@ def check_o23(fixture_paths, before) -> None:
           [scene, restricted, command, cmap] == originals and digest(fixture_paths) == before)
 
 
+def check_scene_v2() -> None:
+    """Scene format v2 (D74): v1 with one change, the dataset-frame representation."""
+    v1, v2 = (json.loads((REPO / "schemas" / n).read_text(encoding="utf-8")) for n in ("scene.v1.json", "scene.v2.json"))
+
+    def without_v2_changes(s):
+        s = copy.deepcopy(s)
+        for key in ("$id", "title", "description"):
+            s.pop(key)
+        s["properties"].pop("schema_version")
+        s["$defs"]["coordinateFrame"].pop("description")
+        s["$defs"]["coordinateFrame"]["properties"].pop("conversion")
+        return s
+    check("scene.v2.json equals scene.v1.json except its identity text, schema_version and the frame's conversion "
+          "(every field, rule and D73 pattern unchanged)", without_v2_changes(v1) == without_v2_changes(v2))
+    conversion = v2["$defs"]["coordinateFrame"]["properties"]["conversion"]
+    check("scene v2: schema_version 2; conversion is a closed dataset_identity object with the identity matrix as a constant",
+          v2["properties"]["schema_version"] == {"const": 2} and conversion["additionalProperties"] is False
+          and conversion["properties"]["kind"] == {"const": "dataset_identity"}
+          and conversion["properties"]["source_to_scene"]["const"] == [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0],
+                                                                         [0, 0, 0, 1]])
+    scene = load("scene.a17.dataset_v2.json")
+    as_v1 = dict(copy.deepcopy(scene), schema_version=1)
+    found = [(i.code, i.path) for i in validate.validate([("scene", as_v1)])]
+    check("v1 still rejects a dataset conversion: the same record as schema_version 1 fails at the conversion",
+          found == [("E_SCHEMA_CONST", "$.coordinate_frame.conversion")], str(found))
+    v3 = [i.code for i in validate.validate([("scene", dict(copy.deepcopy(scene), schema_version=3))])]
+    check("an unsupported scene version still fails cleanly with E_RECORD_TYPE", v3 == ["E_RECORD_TYPE"], str(v3))
+
+
 def main() -> int:
     valid = sorted(VALID.glob("*.json"))
     invalid = sorted(INVALID.glob("*.json"))
@@ -329,6 +358,9 @@ def main() -> int:
 
     # 9. O23 (D73)
     check_o23(valid + invalid, before)
+
+    # 10. Scene format v2 (D74)
+    check_scene_v2()
 
     print(f"{'FAILED: ' + ', '.join(FAILED) if FAILED else 'all checks passed'}")
     return 1 if FAILED else 0

@@ -1,0 +1,3 @@
+# Exact bytes: these source-format fixtures use the source's CRLF CSVs, and the expectation record lists
+# their SHA-256 hashes, so Git must not convert their line endings.
+* -text

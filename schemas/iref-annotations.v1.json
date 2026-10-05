@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "iref-annotations.v1.json",
+  "title": "IRef-VLA annotation bundle v1 (A2.2a, D74)",
+  "description": "Reference-only: the pinned IRef-VLA sample's answer annotations, kept apart from model inputs. Validated by the IRef-VLA adapter, never registered in the shared contract's dispatcher. source_payload is the source's own annotation object, retained opaquely; the adapter checks its pinned fields, types and references. Never pass this record to a serializer, model or parser.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "record_type",
+    "scene_id",
+    "source_id",
+    "source_commit",
+    "statement_sha256",
+    "entries"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "record_type": {
+      "const": "iref_annotations"
+    },
+    "scene_id": {
+      "$ref": "#/$defs/id"
+    },
+    "source_id": {
+      "$ref": "#/$defs/id"
+    },
+    "source_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}(?![\\s\\S])"
+    },
+    "statement_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}(?![\\s\\S])"
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/entry"
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_.-]{0,127}(?![\\s\\S])"
+    },
+    "object_id": {
+      "type": "string",
+      "pattern": "^obj_[0-9]{3,}(?![\\s\\S])"
+    },
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "annotation_id",
+        "command_id",
+        "source_region_id",
+        "source_annotation_index",
+        "source_payload",
+        "mapped_references"
+      ],
+      "properties": {
+        "annotation_id": {
+          "$ref": "#/$defs/id"
+        },
+        "command_id": {
+          "$ref": "#/$defs/id"
+        },
+        "source_region_id": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)(?![\\s\\S])"
+        },
+        "source_annotation_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source_payload": {
+          "description": "The source annotation object, unchanged: the bundle's only opaque value.",
+          "type": "object"
+        },
+        "mapped_references": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "target",
+            "anchors",
+            "distractors"
+          ],
+          "properties": {
+            "target": {
+              "$ref": "#/$defs/object_id"
+            },
+            "anchors": {
+              "type": "object",
+              "minProperties": 1,
+              "additionalProperties": {
+                "$ref": "#/$defs/object_id"
+              }
+            },
+            "distractors": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/object_id"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

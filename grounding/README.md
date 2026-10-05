@@ -28,6 +28,8 @@ Language grounding (proposal §6, with A2 as the Revision 3.1 supplement plans i
 | `tests/test_serialization.py`, `tests/fixtures/serialization/` | its tests and fixed goldens: `python grounding/tests/test_serialization.py` | A2.1d |
 | `resolution/` | the offline structured resolver (`docs/resolution.md`): structured grounding queries to scene-object IDs through the accepted relation libraries, and its CLI, `python -m grounding.resolution` | A2.1e |
 | `tests/test_resolution.py`, `tests/fixtures/resolution/` | its tests and the cases fixed before code: `python grounding/tests/test_resolution.py` | A2.1e |
+| `adapters/iref_vla/` | the IRef-VLA metadata adapter (`docs/iref-vla-adapter.md`): the pinned public ScanNet sample into a scene v2, commands and a reference-only annotation bundle, and its CLI, `python -m grounding.adapters.iref_vla` | A2.2a |
+| `tests/test_iref_vla_adapter.py`, `tests/fixtures/iref_vla/` | its tests, the expectations fixed before code and hand-written source-format fixtures: `python grounding/tests/test_iref_vla_adapter.py --sample DIR` | A2.2a |
 
 ## Setup
 
@@ -37,7 +39,7 @@ Python 3.9 or newer, and a few GB of downloads the first time:
 python -m pip install -r grounding/requirements.txt
 ```
 
-The contract's validator, the relation library, the directional relations, the serializer, the resolver and their tests need only `jsonschema` from that list.
+The contract's validator, the relation library, the directional relations, the serializer, the resolver, the IRef-VLA adapter and their tests need only `jsonschema` from that list.
 
 The relation modules are imported through the package (`from grounding.relations import predicates`), with the repository root on the import path; they don't change the import path themselves. Their test scripts add the root, so from the repository root both `python grounding/tests/test_relations.py` and `python -m grounding.tests.test_relations` work, and likewise for `test_directions`.
 

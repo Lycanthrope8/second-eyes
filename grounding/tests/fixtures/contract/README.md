@@ -2,7 +2,7 @@
 
 Test data for `grounding/tests/test_contract.py` (A2.1a, D66). Not training data.
 
-`valid/` holds the a17 scene in both evidence profiles, two commands and the category map; every file passes, alone and together. The object centres come from A1's a17 prompts, which add box_1 to the example memory in proposal Revision 3, section 4.3; the user's position and 4 degree heading come from section 4.3. The sizes, rotations, fronts, colours and the unmapped floor lamp are illustrative test values, and the size priors in the restricted scene are made up for the test, not built from data.
+`valid/` holds the a17 scene in both evidence profiles, the a17 scene again as a format-v2 dataset scene (D74), two commands and the category map; every file passes, alone and together. The object centres come from A1's a17 prompts, which add box_1 to the example memory in proposal Revision 3, section 4.3; the user's position and 4 degree heading come from section 4.3. The sizes, rotations, fronts, colours and the unmapped floor lamp are illustrative test values, and the size priors in the restricted scene are made up for the test, not built from data.
 
 `invalid/` holds one file per rule. Each is a valid record with one change, or for two record-type cases a minimal file, named `<expected code>__<case>.json`, and must fail with exactly that code. Cross-record cases are checked together with the partner file named below. "One-object scene" is `fixture.min`: the a17 table alone, in the profile shown.
 
@@ -55,5 +55,8 @@ Test data for `grounding/tests/test_contract.py` (A2.1a, D66). Not training data
 | `E_MAP_DUPLICATE__repeated_label.json` | `valid/category-map.fx.json` | chair is listed twice |  |
 | `E_SCENE_MISMATCH__revision.json` | `valid/command.a17.c001.json` | the command refers to revision 1 of fixture.a17 | `valid/scene.a17.annotated.json` |
 | `E_FRAME_MISMATCH__frame.json` | `valid/command.a17.c001.json` | the pose's frame is room | `valid/scene.a17.annotated.json` |
+| `E_FRAME_SOURCE__fixture_kind_source.json` | `valid/scene.a17.dataset_v2.json` | the conversion's source `fx` is a fixture source, not a dataset |  |
+| `E_FRAME_SOURCE__unresolved_source.json` | `valid/scene.a17.dataset_v2.json` | the conversion names source `dataset_a`, which isn't in sources |  |
+| `E_FRAME_CONVERSION__other_source_frame.json` | `valid/scene.a17.dataset_v2.json` | the conversion's source frame is `dataset.native`, not the scene frame `scene` |  |
 | `E_CATEGORY_UNMAPPED__standard_label.json` | one-object scene (annotated) | the table's standard label is desk | `valid/category-map.fx.json` |
 | `E_DUPLICATE_RECORD__same_scene.json` | `valid/scene.a17.annotated.json` | a second copy of scene.a17.annotated.json | `valid/scene.a17.annotated.json` |

@@ -1,0 +1,775 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "scene.v2.json",
+  "title": "Second Eyes scene record, format v2",
+  "description": "One scene: its frame, sources, assumptions and objects. Format v2 is v1 with one change, the dataset-frame representation (D74): coordinate_frame.conversion records that published dataset coordinates are used as the scene frame unchanged. Checked by 'python grounding/contract/validate.py'. Rules: docs/scene-contract.md (D66, D74).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "record_type",
+    "scene_id",
+    "scene_revision",
+    "evidence_profile",
+    "category_map",
+    "coordinate_frame",
+    "sources",
+    "assumptions",
+    "objects"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 2
+    },
+    "record_type": {
+      "const": "scene"
+    },
+    "scene_id": {
+      "$ref": "#/$defs/id"
+    },
+    "scene_revision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "evidence_profile": {
+      "enum": [
+        "annotated",
+        "restricted"
+      ]
+    },
+    "category_map": {
+      "$ref": "#/$defs/id"
+    },
+    "coordinate_frame": {
+      "$ref": "#/$defs/coordinateFrame"
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/source"
+      }
+    },
+    "assumptions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/assumption"
+      }
+    },
+    "objects": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/object"
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_.-]{0,127}(?![\\s\\S])",
+      "description": "Lower-case identifier: letters, digits, '_', '.', '-'; starts with a letter or digit."
+    },
+    "label": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^\\S(.*\\S)?(?![\\s\\S])",
+      "description": "A non-empty label without leading or trailing whitespace."
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "description": "An entry of the record's sources list. Evidence names sources by source_id.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_id",
+        "kind",
+        "description",
+        "release"
+      ],
+      "properties": {
+        "source_id": {
+          "$ref": "#/$defs/id"
+        },
+        "kind": {
+          "enum": [
+            "dataset",
+            "fixture",
+            "prior_table",
+            "profile"
+          ]
+        },
+        "description": {
+          "$ref": "#/$defs/text"
+        },
+        "release": {
+          "$ref": "#/$defs/text"
+        }
+      }
+    },
+    "assumption": {
+      "description": "An entry of the record's assumptions list. Evidence names assumptions by assumption_id.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "assumption_id",
+        "description"
+      ],
+      "properties": {
+        "assumption_id": {
+          "$ref": "#/$defs/id"
+        },
+        "description": {
+          "$ref": "#/$defs/text"
+        }
+      }
+    },
+    "evidence": {
+      "description": "Where a known value comes from. annotated: a dataset's or fixture's value; measured, inferred, assumed: see docs/scene-contract.md.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "source",
+        "assumptions"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "annotated",
+            "measured",
+            "inferred",
+            "assumed"
+          ]
+        },
+        "source": {
+          "$ref": "#/$defs/id"
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "unknown": {
+      "description": "A value that is explicitly unknown, why, and which source the absence comes from.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "reason",
+        "source"
+      ],
+      "properties": {
+        "state": {
+          "const": "unknown"
+        },
+        "reason": {
+          "enum": [
+            "not_in_source",
+            "withheld_by_profile",
+            "no_permitted_prior",
+            "unmapped_label",
+            "source_invalid",
+            "not_estimated"
+          ]
+        },
+        "source": {
+          "$ref": "#/$defs/id"
+        }
+      }
+    },
+    "vec3": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "quat": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "time": {
+      "description": "A time on one clock, in integer microseconds, like the event log's mono_us and utc_us.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "clock",
+        "value_us"
+      ],
+      "properties": {
+        "clock": {
+          "enum": [
+            "headset_mono",
+            "utc"
+          ]
+        },
+        "value_us": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "vec3Field": {
+      "description": "A known or unknown 3-vector in the scene frame.",
+      "type": "object",
+      "required": [
+        "state"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "known",
+            "unknown"
+          ]
+        }
+      },
+      "if": {
+        "required": [
+          "state"
+        ],
+        "properties": {
+          "state": {
+            "const": "known"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "state",
+          "value",
+          "evidence"
+        ],
+        "properties": {
+          "state": {
+            "const": "known"
+          },
+          "value": {
+            "$ref": "#/$defs/vec3"
+          },
+          "evidence": {
+            "$ref": "#/$defs/evidence"
+          }
+        }
+      },
+      "else": {
+        "$ref": "#/$defs/unknown"
+      }
+    },
+    "timeField": {
+      "description": "A known or unknown time.",
+      "type": "object",
+      "required": [
+        "state"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "known",
+            "unknown"
+          ]
+        }
+      },
+      "if": {
+        "required": [
+          "state"
+        ],
+        "properties": {
+          "state": {
+            "const": "known"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "state",
+          "value",
+          "evidence"
+        ],
+        "properties": {
+          "state": {
+            "const": "known"
+          },
+          "value": {
+            "$ref": "#/$defs/time"
+          },
+          "evidence": {
+            "$ref": "#/$defs/evidence"
+          }
+        }
+      },
+      "else": {
+        "$ref": "#/$defs/unknown"
+      }
+    },
+    "sizeField": {
+      "description": "Full side lengths along the box's local x, y and z axes, in metres.",
+      "type": "object",
+      "required": [
+        "state"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "known",
+            "unknown"
+          ]
+        }
+      },
+      "if": {
+        "required": [
+          "state"
+        ],
+        "properties": {
+          "state": {
+            "const": "known"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "state",
+          "value",
+          "evidence"
+        ],
+        "properties": {
+          "state": {
+            "const": "known"
+          },
+          "value": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "minItems": 3,
+            "maxItems": 3
+          },
+          "evidence": {
+            "$ref": "#/$defs/evidence"
+          }
+        }
+      },
+      "else": {
+        "$ref": "#/$defs/unknown"
+      }
+    },
+    "objectRotationField": {
+      "description": "Normalized quaternion [x, y, z, w] from the box's local axes to the scene axes. support: axis_aligned (identity), yaw_only (about +z; pitch and roll not observed) or full.",
+      "type": "object",
+      "required": [
+        "state"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "known",
+            "unknown"
+          ]
+        }
+      },
+      "if": {
+        "required": [
+          "state"
+        ],
+        "properties": {
+          "state": {
+            "const": "known"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "state",
+          "value",
+          "support",
+          "evidence"
+        ],
+        "properties": {
+          "state": {
+            "const": "known"
+          },
+          "value": {
+            "$ref": "#/$defs/quat"
+          },
+          "support": {
+            "enum": [
+              "axis_aligned",
+              "yaw_only",
+              "full"
+            ]
+          },
+          "evidence": {
+            "$ref": "#/$defs/evidence"
+          }
+        }
+      },
+      "else": {
+        "$ref": "#/$defs/unknown"
+      }
+    },
+    "categoryField": {
+      "description": "The source's standardized label and the model-visible label; the raw label is in source_ref.",
+      "type": "object",
+      "required": [
+        "state"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "known",
+            "unknown"
+          ]
+        }
+      },
+      "if": {
+        "required": [
+          "state"
+        ],
+        "properties": {
+          "state": {
+            "const": "known"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "state",
+          "value",
+          "evidence"
+        ],
+        "properties": {
+          "state": {
+            "const": "known"
+          },
+          "value": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "standard",
+              "model"
+            ],
+            "properties": {
+              "standard": {
+                "$ref": "#/$defs/label"
+              },
+              "model": {
+                "$ref": "#/$defs/label"
+              }
+            }
+          },
+          "evidence": {
+            "$ref": "#/$defs/evidence"
+          }
+        }
+      },
+      "else": {
+        "$ref": "#/$defs/unknown"
+      }
+    },
+    "coloursField": {
+      "description": "Colour labels; a known empty list means known to have none.",
+      "type": "object",
+      "required": [
+        "state"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "known",
+            "unknown"
+          ]
+        }
+      },
+      "if": {
+        "required": [
+          "state"
+        ],
+        "properties": {
+          "state": {
+            "const": "known"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "state",
+          "value",
+          "evidence"
+        ],
+        "properties": {
+          "state": {
+            "const": "known"
+          },
+          "value": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/label"
+            },
+            "uniqueItems": true
+          },
+          "evidence": {
+            "$ref": "#/$defs/evidence"
+          }
+        }
+      },
+      "else": {
+        "$ref": "#/$defs/unknown"
+      }
+    },
+    "confidenceField": {
+      "description": "A detector's category confidence; not positional accuracy.",
+      "type": "object",
+      "required": [
+        "state"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "known",
+            "unknown"
+          ]
+        }
+      },
+      "if": {
+        "required": [
+          "state"
+        ],
+        "properties": {
+          "state": {
+            "const": "known"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "state",
+          "value",
+          "evidence"
+        ],
+        "properties": {
+          "state": {
+            "const": "known"
+          },
+          "value": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "evidence": {
+            "$ref": "#/$defs/evidence"
+          }
+        }
+      },
+      "else": {
+        "$ref": "#/$defs/unknown"
+      }
+    },
+    "coordinateFrame": {
+      "description": "The scene frame (S07). v2 accepts only a published dataset's coordinates taken as the scene frame unchanged: an identity conversion from a dataset source whose frame is this frame.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "frame_id",
+        "units",
+        "handedness",
+        "up_axis",
+        "origin",
+        "conversion"
+      ],
+      "properties": {
+        "frame_id": {
+          "$ref": "#/$defs/id"
+        },
+        "units": {
+          "const": "m"
+        },
+        "handedness": {
+          "const": "right"
+        },
+        "up_axis": {
+          "const": "+z"
+        },
+        "origin": {
+          "$ref": "#/$defs/text"
+        },
+        "conversion": {
+          "description": "Published dataset coordinates to scene coordinates. In v2 only the identity: non-identity transforms are not implemented. source_id must name a dataset source and source_frame_id must equal frame_id (checks.py).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "source_id",
+            "source_frame_id",
+            "source_to_scene"
+          ],
+          "properties": {
+            "kind": {
+              "const": "dataset_identity"
+            },
+            "source_id": {
+              "$ref": "#/$defs/id"
+            },
+            "source_frame_id": {
+              "$ref": "#/$defs/id"
+            },
+            "source_to_scene": {
+              "const": [
+                [
+                  1,
+                  0,
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  1,
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0,
+                  1,
+                  0
+                ],
+                [
+                  0,
+                  0,
+                  0,
+                  1
+                ]
+              ]
+            }
+          }
+        }
+      }
+    },
+    "object": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "object_id",
+        "source_ref",
+        "category",
+        "geometry",
+        "semantic_front",
+        "attributes",
+        "observation"
+      ],
+      "properties": {
+        "object_id": {
+          "type": "string",
+          "pattern": "^obj_[0-9]{3,}(?![\\s\\S])",
+          "description": "Internal contract ID; model-facing spelling is decided elsewhere."
+        },
+        "source_ref": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source_id",
+            "source_object_id",
+            "source_label"
+          ],
+          "properties": {
+            "source_id": {
+              "$ref": "#/$defs/id"
+            },
+            "source_object_id": {
+              "$ref": "#/$defs/text"
+            },
+            "source_label": {
+              "$ref": "#/$defs/label"
+            }
+          }
+        },
+        "category": {
+          "$ref": "#/$defs/categoryField"
+        },
+        "geometry": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "center_m",
+            "size_m",
+            "rotation_xyzw"
+          ],
+          "properties": {
+            "center_m": {
+              "$ref": "#/$defs/vec3Field"
+            },
+            "size_m": {
+              "$ref": "#/$defs/sizeField"
+            },
+            "rotation_xyzw": {
+              "$ref": "#/$defs/objectRotationField"
+            }
+          }
+        },
+        "semantic_front": {
+          "$ref": "#/$defs/vec3Field"
+        },
+        "attributes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "colours"
+          ],
+          "properties": {
+            "colours": {
+              "$ref": "#/$defs/coloursField"
+            }
+          }
+        },
+        "observation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source",
+            "capture_time",
+            "detector_confidence",
+            "geometry_uncertainty"
+          ],
+          "properties": {
+            "source": {
+              "$ref": "#/$defs/id"
+            },
+            "capture_time": {
+              "$ref": "#/$defs/timeField"
+            },
+            "detector_confidence": {
+              "$ref": "#/$defs/confidenceField"
+            },
+            "geometry_uncertainty": {
+              "$ref": "#/$defs/unknown"
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -8,12 +8,12 @@ it. The relation library, resolver, serializer and dataset adapters come in late
 
 | Record | Schema | Holds |
 |---|---|---|
-| Scene | `schemas/scene.v1.json` | the frame, sources, assumptions and objects of one scene snapshot, in one evidence profile |
+| Scene | `schemas/scene.v1.json`; `schemas/scene.v2.json` (D74) | the frame, sources, assumptions and objects of one scene snapshot, in one evidence profile |
 | Command context | `schemas/command-context.v1.json` | one typed command, the scene snapshot it refers to, and the user's pose at submission |
 | Category map | `schemas/category-map.v1.json` | how one source vocabulary's raw labels map to standardized and model-visible labels |
 
-One record per `.json` file, UTF-8 without a byte-order mark. Every record carries `schema_version` (1) and
-`record_type`. Records are closed: every field the format defines is present, and no other field is allowed, so an
+One record per `.json` file, UTF-8 without a byte-order mark. Every record carries `schema_version` (1, or 2 for a
+scene in format v2) and `record_type`. Records are closed: every field the format defines is present, and no other field is allowed, so an
 answer field such as a target ID can't slip into a scene or command. An incompatible change gets a new version
 (`scene.v2.json`) and an entry in `notes/decisions.md`; files are regenerated, not migrated.
 
@@ -72,7 +72,7 @@ Which source kinds may stand behind which evidence (v1):
 | `scene_revision` | integer ≥ 0 | |
 | `evidence_profile` | `annotated` or `restricted` | see Evidence profiles |
 | `category_map` | the `map_id` of its category map | |
-| `coordinate_frame` | `frame_id`; `units` `m`; `handedness` `right`; `up_axis` `+z`; `origin` (how it was established); `conversion` | right-handed, z up, metres (S07); v1 accepts only `authored_in_scene_frame` |
+| `coordinate_frame` | `frame_id`; `units` `m`; `handedness` `right`; `up_axis` `+z`; `origin` (how it was established); `conversion` | right-handed, z up, metres (S07); v1 accepts only `authored_in_scene_frame`, v2 only a dataset identity (see Scene format v2) |
 | `objects` | a list of objects; may be empty | |
 
 Each object:
@@ -122,7 +122,8 @@ headset uses is still open (A2.5).
 `{source_label, standard, model}`. Each entry's model label is in the vocabulary, and each source label appears once.
 An object's known category, together with its `source_label`, must be an entry of its scene's map. The raw label
 stays in `source_ref`, so an unmapped object keeps it while its category is unknown. The real tables come with the
-dataset adapters; v1 has only the fixture's map.
+dataset adapters: the IRef-VLA adapter (A2.2a) generates one for its pinned sample, and the repository keeps only the
+fixture's map.
 
 ## Identities
 
@@ -130,6 +131,25 @@ dataset adapters; v1 has only the fixture's map.
 another object in the same scene. How objects are spelled, tokenized and ordered for a model stays open; the
 serializer decides that later, and it may map these IDs to other spellings. Source IDs stay in `source_ref`. A
 single file can't show that an ID was never reused across revisions; that needs two revisions and isn't checked.
+
+## Scene format v2
+
+`schemas/scene.v2.json` (D74) is v1 with one change: `coordinate_frame.conversion` is a closed object recording that a
+published dataset's coordinates are the scene frame, unchanged:
+
+```json
+{"kind": "dataset_identity", "source_id": "iref_scannet", "source_frame_id": "iref.scannet.scene0010_01.native",
+ "source_to_scene": [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]}
+```
+
+- **Source:** `source_id` must name a source of kind `dataset` in `sources` (`E_FRAME_SOURCE`, which also covers an
+  unresolved ID).
+- **Frame:** `source_frame_id` must equal `frame_id` (`E_FRAME_CONVERSION`).
+- **Matrix:** any other matrix fails the schema (`E_SCHEMA_CONST`). Non-identity transforms are not implemented.
+
+Every other field, rule, profile and pattern is v1's, and a test keeps the two schemas identical elsewhere. v1 is
+unchanged and still rejects a dataset conversion. Command contexts, category maps, queries and results keep their
+versions: they name a scene by ID, revision, profile and frame, not by its schema version. Nothing is down-converted.
 
 ## Geometry
 
@@ -198,6 +218,7 @@ nested ones included. Free text keeps its own rule: `command.text`, descriptions
 | `E_PROFILE_WITHHELD`, `E_PROFILE_SIZE`, `E_PROFILE_ANNOTATED` | semantic | the profile rules above |
 | `E_POSE_RESERVED`, `E_POSE_NONE_KNOWN`, `E_POSE_EVIDENCE`, `E_HEADING_SOURCE`, `E_POSE_REVISION` | semantic | the pose rules above |
 | `E_MAP_VOCAB`, `E_MAP_DUPLICATE` | semantic | the category map rules above |
+| `E_FRAME_SOURCE`, `E_FRAME_CONVERSION` | semantic | scene v2 only: a conversion source that isn't a dataset source in `sources`; a conversion source frame that isn't the scene frame |
 | `E_DUPLICATE_RECORD`, `E_SCENE_MISMATCH`, `E_FRAME_MISMATCH`, `E_CATEGORY_UNMAPPED` | cross-record | the cross-record rules above |
 | `W_NOT_CROSS_CHECKED` | cross-record | a warning: a referenced scene or map wasn't given |
 
@@ -219,15 +240,17 @@ two don't compute identically.
 
 ## Limitations of v1
 
-- Conversions: only frames authored in scene coordinates. Dataset conversions, with their numerical mapping, come
-  in a later version alongside the adapter, defined before the code that applies them.
+- Conversions: v1 accepts only frames authored in scene coordinates, and v2 (D74) adds only the identity for
+  published dataset coordinates. Non-identity dataset conversions, with their numerical mapping, need a later
+  version, defined before the code that applies them.
 - Evidence: no source can supply `measured` values, and authored and dataset poses accept only `annotated` evidence.
   These are limits of this increment, not of the contract: a later version can let dataset transformations and
   derived headings, such as a heading computed from a dataset camera's rotation, carry `inferred` evidence. A
   dataset pose is never `measured`.
 - Geometry uncertainty is unknown-only; its known form waits for an estimator.
 - `quest_head` poses are reserved.
-- No grounding-result or annotation schema yet; they come with the resolver and the adapters.
+- Grounding results (`schemas/grounding-result.v1.json`, A2.1e) and IRef-VLA annotation bundles
+  (`schemas/iref-annotations.v1.json`, A2.2a) have their own schemas, outside the contract's dispatch.
 - One record per `.json` file.
 - A label with an internal CR, U+2028 or U+2029 passes here, because Python's `.` matches them. It would fail in a
   validator using ECMAScript regular expressions, whose `.` doesn't (O24).

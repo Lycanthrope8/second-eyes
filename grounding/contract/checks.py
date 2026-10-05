@@ -56,6 +56,8 @@ CODES = {
     "E_DUPLICATE_RECORD": "two records have the same identity",
     "E_SCENE_MISMATCH": "a command's scene is present, but not at the command's revision",
     "E_FRAME_MISMATCH": "a command's pose frame differs from its scene's frame",
+    "E_FRAME_SOURCE": "a scene v2 conversion's source_id doesn't name a dataset source in sources",
+    "E_FRAME_CONVERSION": "a scene v2 identity conversion's source_frame_id isn't the scene's frame_id",
     "E_CATEGORY_UNMAPPED": "an object's raw label, standard and model labels are not an entry of the scene's map",
     "W_NOT_CROSS_CHECKED": "warning: a referenced scene or map was not among the records, so that check didn't run",
 }
@@ -214,6 +216,16 @@ def _object_values(obj: dict, base: str):
 def _scene(r: _Record) -> None:
     scene, seen = r.record, {}
     profile = scene["evidence_profile"]
+    if scene["schema_version"] == 2:  # the dataset-frame representation (D74); v1 frames carry no conversion record
+        frame = scene["coordinate_frame"]
+        conversion = frame["conversion"]
+        if r.sources.get(conversion["source_id"]) != "dataset":  # read directly: an unresolved ID gives only this code
+            r.add("$.coordinate_frame.conversion.source_id", "E_FRAME_SOURCE",
+                  f"conversion source {conversion['source_id']!r} is not a dataset source in sources")
+        if conversion["source_frame_id"] != frame["frame_id"]:
+            r.add("$.coordinate_frame.conversion.source_frame_id", "E_FRAME_CONVERSION",
+                  f"an identity conversion's source frame {conversion['source_frame_id']!r} must be the scene frame "
+                  f"{frame['frame_id']!r}")
     for i, obj in enumerate(scene["objects"]):
         base = f"$.objects[{i}]"
         if obj["object_id"] in seen:

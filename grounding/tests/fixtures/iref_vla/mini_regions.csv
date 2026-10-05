@@ -1,0 +1,2 @@
+region_id,region_label,region_bbox_cx,region_bbox_cy,region_bbox_cz,region_bbox_xlength,region_bbox_ylength,region_bbox_zlength,region_bbox_heading
+0,Office,1.5,1.5,0.5,4.0,4.0,1.0,0

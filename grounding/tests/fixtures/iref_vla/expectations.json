@@ -1,0 +1,371 @@
+{
+ "description": "A2.2a acceptance expectations, frozen before any adapter code (D74). 'pinned' and 'pinned_sample' are the brief's Appendix A and section 10; every pinned value was independently recomputed from the pinned bytes before this file was written. 'mini' holds hand-derived values for the hand-written source-format fixtures in this folder. 'errors' and 'frames' fix which code each malformed case must raise; the brief names the adapter codes but not their assignment, so this file records that choice before implementation.",
+ "pinned": {
+  "repository": "https://github.com/HaochenZ11/IRef-VLA",
+  "commit": "741cf0289a6ee7c8f0763058f40bb3788b76f8e0",
+  "url_prefix": "https://raw.githubusercontent.com/HaochenZ11/IRef-VLA/741cf0289a6ee7c8f0763058f40bb3788b76f8e0/",
+  "files": {
+   "objects": {
+    "name": "scene0010_01_object_result.csv",
+    "path": "sample_data/Scannet/scene0010_01/scene0010_01_object_result.csv",
+    "bytes": 18654,
+    "sha256": "3bd5f282abf5cf5c6abe5d106a2fd87ad6090ec810d50b9e66e4d1e17aaf2996"
+   },
+   "regions": {
+    "name": "scene0010_01_region_result.csv",
+    "path": "sample_data/Scannet/scene0010_01/scene0010_01_region_result.csv",
+    "bytes": 224,
+    "sha256": "1b77150f1e65bb5c377457bdfdb944575864bd04ab88fb94a24cc40510ee0091"
+   },
+   "graph": {
+    "name": "scene0010_01_scene_graph.json",
+    "path": "sample_data/Scannet/scene0010_01/scene0010_01_scene_graph.json",
+    "bytes": 317449,
+    "sha256": "59eea627704d46b3028989c7eef418804f987955695697fa62c474dd53f27817"
+   },
+   "statements": {
+    "name": "scene0010_01_referential_statements.json",
+    "path": "sample_data/Scannet/scene0010_01/scene0010_01_referential_statements.json",
+    "bytes": 4716682,
+    "sha256": "0c077963bcdb0e7f19aa0885ddb547689dfe106da622d8d4b58d4e894d143d08"
+   },
+   "vocabulary": {
+    "name": "NYU_Object_Classes.csv",
+    "path": "data/NYU_Object_Classes.csv",
+    "bytes": 14241,
+    "sha256": "3c65ff2e4ad3a60a0a4ad87f01ef864f6848cdff8b8c7792e43e2389d9585f91"
+   }
+  }
+ },
+ "identity": {
+  "schema_version": 2,
+  "scene_id": "iref.scannet.scene0010_01.full",
+  "scene_revision": 0,
+  "evidence_profile": "annotated",
+  "frame_id": "iref.scannet.scene0010_01.native",
+  "source_id": "iref_scannet",
+  "source_kind": "dataset",
+  "category_map": "iref.scannet.nyu.sample.v1",
+  "conversion_kind": "dataset_identity",
+  "command_id_prefix": "iref.scannet.scene0010_01.r0.e.",
+  "annotation_id_rule": "command_id + '.a' + zero-padded index, at least 3 digits"
+ },
+ "pinned_sample": {
+  "object_ids": [
+   "obj_000",
+   "obj_001",
+   "obj_002",
+   "obj_003",
+   "obj_004",
+   "obj_005",
+   "obj_006",
+   "obj_007",
+   "obj_008",
+   "obj_009",
+   "obj_010",
+   "obj_011",
+   "obj_012",
+   "obj_013",
+   "obj_014",
+   "obj_015",
+   "obj_016",
+   "obj_017",
+   "obj_018",
+   "obj_019",
+   "obj_020",
+   "obj_021",
+   "obj_022",
+   "obj_023",
+   "obj_024",
+   "obj_025",
+   "obj_026",
+   "obj_027",
+   "obj_028",
+   "obj_029",
+   "obj_030",
+   "obj_031",
+   "obj_032",
+   "obj_033",
+   "obj_034",
+   "obj_035",
+   "obj_036",
+   "obj_037",
+   "obj_038",
+   "obj_039",
+   "obj_040",
+   "obj_041",
+   "obj_042",
+   "obj_043",
+   "obj_044",
+   "obj_045",
+   "obj_046",
+   "obj_047",
+   "obj_048",
+   "obj_049",
+   "obj_050",
+   "obj_051",
+   "obj_052",
+   "obj_053",
+   "obj_054",
+   "obj_055",
+   "obj_056",
+   "obj_057",
+   "obj_058",
+   "obj_059",
+   "obj_060"
+  ],
+  "unknown_category": {
+   "obj_055": "55",
+   "obj_058": "58"
+  },
+  "unknown_reason": "unmapped_label",
+  "unknown_source_label": "object",
+  "known_categories": 59,
+  "map_entries": 24,
+  "model_vocabulary": 893,
+  "vocabulary_rows": 894,
+  "map_examples": {
+   "books": "book",
+   "doorframe": "door",
+   "book": "book",
+   "door": "door"
+  },
+  "unmapped_raw_labels": [
+   "object"
+  ],
+  "centres": 61,
+  "sizes": 61,
+  "rotations": 61,
+  "rotation_support": "yaw_only",
+  "fronts_known": 14,
+  "fronts_unknown": 47,
+  "front_unknown_reason": "not_in_source",
+  "colour_lists_known": 61,
+  "short_rows": {
+   "35": 27,
+   "42": 27,
+   "43": 21
+  },
+  "views": {
+   "full_inventory": {
+    "included": 61,
+    "excluded": []
+   },
+   "source_known_nyu": {
+    "included": 59,
+    "excluded": [
+     [
+      "obj_055",
+      "source_unknown_category"
+     ],
+     [
+      "obj_058",
+      "source_unknown_category"
+     ]
+    ]
+   }
+  },
+  "commands": 1936,
+  "annotations": 1951,
+  "repeated_expression_groups": 12,
+  "relations": {
+   "below": 12,
+   "between": 138,
+   "closest": 336,
+   "second_closest": 336,
+   "third_closest": 202,
+   "farthest": 338,
+   "second_farthest": 338,
+   "third_farthest": 204,
+   "near": 40,
+   "on": 7
+  },
+  "size": {
+   "entries": 703,
+   "occurrences": 706,
+   "big": 584,
+   "small": 122,
+   "anchor_occurrences": 703,
+   "target_occurrences": 3
+  },
+  "anchor_occurrences": 2089,
+  "graph_objects": 59,
+  "graph_omitted": {
+   "obj_055": "55",
+   "obj_058": "58"
+  },
+  "concrete": {
+   "object_id": "obj_002",
+   "front": [
+    0.761115914727216,
+    -0.648615883515778,
+    0.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.6235975951206895,
+    0.7817455080521363
+   ],
+   "tolerance": 1e-12
+  },
+  "corner_tolerance_m": 1e-09
+ },
+ "mini": {
+  "object_ids": [
+   "obj_000",
+   "obj_001",
+   "obj_002",
+   "obj_003"
+  ],
+  "unknown_category": [
+   "obj_002"
+  ],
+  "map_entries": [
+   [
+    "chair",
+    "chair",
+    "chair"
+   ],
+   [
+    "table",
+    "table",
+    "table"
+   ]
+  ],
+  "model_vocabulary": [
+   "book",
+   "chair",
+   "desk",
+   "table"
+  ],
+  "rotations": {
+   "obj_000": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "obj_001": [
+    0.0,
+    0.0,
+    0.7071067811865475,
+    0.7071067811865476
+   ]
+  },
+  "obj_001_local_x_in_scene": [
+   0.0,
+   1.0,
+   0.0
+  ],
+  "obj_001_front": [
+   0.0,
+   -1.0,
+   0.0
+  ],
+  "fronts_unknown": [
+   "obj_000",
+   "obj_002"
+  ],
+  "colours": {
+   "obj_000": [
+    "black"
+   ],
+   "obj_001": [
+    "brown",
+    "white"
+   ],
+   "obj_002": null,
+   "obj_003": [
+    "gray"
+   ]
+  },
+  "short_rows": {
+   "0": 21,
+   "1": 27,
+   "3": 27
+  },
+  "views": {
+   "full_inventory": 4,
+   "source_known_nyu": 3,
+   "excluded": [
+    [
+     "obj_002",
+     "source_unknown_category"
+    ]
+   ]
+  },
+  "commands": 2,
+  "annotations": 3,
+  "repeated_expression_groups": 1,
+  "graph_objects": 3,
+  "graph_omitted": {
+   "obj_002": "2"
+  },
+  "tolerance": 1e-12
+ },
+ "errors": {
+  "duplicate_object_id": "E_IREF_SOURCE_VALUE",
+  "noncanonical_object_id": "E_IREF_SOURCE_VALUE",
+  "empty_field": "E_IREF_SOURCE_VALUE",
+  "nyu_id_label_mismatch": "E_IREF_SOURCE_MISMATCH",
+  "unrecognized_nyu_label": "E_IREF_SOURCE_MISMATCH",
+  "raw_label_conflict": "E_IREF_SOURCE_MISMATCH",
+  "zero_size": "E_IREF_SOURCE_VALUE",
+  "nonfinite_heading": "E_IREF_SOURCE_VALUE",
+  "invalid_front": "E_IREF_SOURCE_VALUE",
+  "nonfinite_front": "E_IREF_SOURCE_VALUE",
+  "label_with_trailing_space": "E_IREF_SOURCE_VALUE",
+  "colour_group_inconsistent": "E_IREF_SOURCE_VALUE",
+  "partial_colour_group": "E_IREF_SOURCE_SHAPE",
+  "extra_column": "E_IREF_SOURCE_SHAPE",
+  "renamed_header": "E_IREF_SOURCE_SHAPE",
+  "duplicate_header": "E_IREF_SOURCE_SHAPE",
+  "byte_order_mark": "E_IREF_SOURCE_SHAPE",
+  "duplicate_json_key": "E_IREF_SOURCE_SHAPE",
+  "unexpected_annotation_key": "E_IREF_SOURCE_SHAPE",
+  "dangling_region": "E_IREF_REFERENCE",
+  "dangling_annotation_target": "E_IREF_REFERENCE",
+  "second_region": "E_IREF_UNSUPPORTED_SOURCE",
+  "other_scene_name": "E_IREF_UNSUPPORTED_SOURCE",
+  "annotation_position_mismatch": "E_IREF_SOURCE_MISMATCH",
+  "graph_centre_mismatch": "E_IREF_SOURCE_MISMATCH",
+  "pinned_hash_mismatch": "E_IREF_SOURCE_MISMATCH",
+  "output_exists": "E_IREF_OUTPUT_EXISTS",
+  "output_write_failure": "E_IREF_OUTPUT_IO"
+ },
+ "frames": {
+  "nonidentity_matrix": [
+   "E_SCHEMA_CONST",
+   "$.coordinate_frame.conversion.source_to_scene"
+  ],
+  "wrong_source_kind": [
+   "E_FRAME_SOURCE",
+   "$.coordinate_frame.conversion.source_id"
+  ],
+  "unresolved_source": [
+   "E_FRAME_SOURCE",
+   "$.coordinate_frame.conversion.source_id"
+  ],
+  "inconsistent_frame_ids": [
+   "E_FRAME_CONVERSION",
+   "$.coordinate_frame.conversion.source_frame_id"
+  ],
+  "v1_with_dataset_conversion": [
+   "E_SCHEMA_CONST",
+   "$.coordinate_frame.conversion"
+  ],
+  "unsupported_version_3": [
+   "E_RECORD_TYPE",
+   "$"
+  ]
+ },
+ "exit_codes": {
+  "success": 0,
+  "invalid_input": 2,
+  "unsupported_source": 2,
+  "output_exists": 2,
+  "internal": 3,
+  "output_io": 3
+ }
+}

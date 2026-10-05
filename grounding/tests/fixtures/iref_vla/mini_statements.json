@@ -1,0 +1,164 @@
+{
+ "scene_name": "scene0010_01",
+ "regions": {
+  "0": {
+   "the chair that is near the table": [
+    {
+     "target_index": "0",
+     "target_class": "chair",
+     "target_position": [
+      1.0,
+      2.0,
+      0.5
+     ],
+     "target_colors": [
+      "black",
+      "N/A",
+      "N/A"
+     ],
+     "target_size": 0.27,
+     "target_color_used": "",
+     "target_size_used": "",
+     "distractor_ids": [
+      "3"
+     ],
+     "relation": "near",
+     "relation_type": "binary",
+     "anchors": {
+      "anchor_1": {
+       "index": "1",
+       "class": "table",
+       "position": [
+        3.0,
+        2.0,
+        0.4
+       ],
+       "color": [
+        "brown",
+        "white",
+        "N/A"
+       ],
+       "size": 0.768,
+       "color_used": "",
+       "size_used": ""
+      }
+     },
+     "false_statements": {
+      "false_target_color": "the purple chair that is near the table",
+      "false_target_class": "the crib that is near the table",
+      "false_anchors": {
+       "anchor1": {
+        "false_anchor_color": "the chair that is near the red table",
+        "false_anchor_class": "the chair that is near the stick"
+       }
+      }
+     }
+    }
+   ],
+   "the chair that is closest to the big table": [
+    {
+     "target_index": "0",
+     "target_class": "chair",
+     "target_position": [
+      1.0,
+      2.0,
+      0.5
+     ],
+     "target_colors": [
+      "black",
+      "N/A",
+      "N/A"
+     ],
+     "target_size": 0.27,
+     "target_color_used": "",
+     "target_size_used": "",
+     "distractor_ids": [
+      "3"
+     ],
+     "relation": "closest",
+     "relation_type": "binary",
+     "anchors": {
+      "anchor_1": {
+       "index": "1",
+       "class": "table",
+       "position": [
+        3.0,
+        2.0,
+        0.4
+       ],
+       "color": [
+        "brown",
+        "white",
+        "N/A"
+       ],
+       "size": 0.768,
+       "color_used": "",
+       "size_used": "big"
+      }
+     },
+     "false_statements": {
+      "false_target_color": "the purple chair that is near the table",
+      "false_target_class": "the crib that is near the table",
+      "false_anchors": {
+       "anchor1": {
+        "false_anchor_color": "the chair that is near the red table",
+        "false_anchor_class": "the chair that is near the stick"
+       }
+      }
+     }
+    },
+    {
+     "target_index": "0",
+     "target_class": "chair",
+     "target_position": [
+      1.0,
+      2.0,
+      0.5
+     ],
+     "target_colors": [
+      "black",
+      "N/A",
+      "N/A"
+     ],
+     "target_size": 0.27,
+     "target_color_used": "",
+     "target_size_used": "",
+     "distractor_ids": [
+      "3"
+     ],
+     "relation": "closest",
+     "relation_type": "binary",
+     "anchors": {
+      "anchor_1": {
+       "index": "1",
+       "class": "table",
+       "position": [
+        3.0,
+        2.0,
+        0.4
+       ],
+       "color": [
+        "brown",
+        "white",
+        "N/A"
+       ],
+       "size": 0.768,
+       "color_used": "",
+       "size_used": "big"
+      }
+     },
+     "false_statements": {
+      "false_target_color": "the purple chair that is near the table",
+      "false_target_class": "the crib that is near the table",
+      "false_anchors": {
+       "anchor1": {
+        "false_anchor_color": "the chair that is near the red table",
+        "false_anchor_class": "the chair that is near the stick"
+       }
+      }
+     }
+    }
+   ]
+  }
+ }
+}
