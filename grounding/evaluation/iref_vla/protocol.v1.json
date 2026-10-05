@@ -1,0 +1,194 @@
+{
+  "format_version": 1,
+  "record_type": "iref_evaluation_protocol",
+  "protocol_id": "iref.sample.rules.v1",
+  "description": "A2.2b text-only rules baseline on the pinned IRef-VLA development sample (D75): a declared sample-specific grammar, the accepted resolver unchanged, two inventory views, and prediction kept apart from reference scoring. A development diagnostic, not held-out grounding accuracy.",
+  "sample": {
+    "scene_id": "iref.scannet.scene0010_01.full",
+    "category_map_id": "iref.scannet.nyu.sample.v1",
+    "source_commit": "741cf0289a6ee7c8f0763058f40bb3788b76f8e0"
+  },
+  "colour_labels": [
+    "black",
+    "blue",
+    "brown",
+    "gray",
+    "maroon",
+    "navy",
+    "orange",
+    "purple",
+    "white",
+    "yellow"
+  ],
+  "size_words": [
+    "big",
+    "small"
+  ],
+  "relation_aliases": [
+    {
+      "phrase": "closest to",
+      "relation": "closest",
+      "k": 1
+    },
+    {
+      "phrase": "nearest to",
+      "relation": "closest",
+      "k": 1
+    },
+    {
+      "phrase": "second closest to",
+      "relation": "closest",
+      "k": 2
+    },
+    {
+      "phrase": "second nearest to",
+      "relation": "closest",
+      "k": 2
+    },
+    {
+      "phrase": "third closest to",
+      "relation": "closest",
+      "k": 3
+    },
+    {
+      "phrase": "third nearest to",
+      "relation": "closest",
+      "k": 3
+    },
+    {
+      "phrase": "farthest from",
+      "relation": "farthest",
+      "k": 1
+    },
+    {
+      "phrase": "most distant from",
+      "relation": "farthest",
+      "k": 1
+    },
+    {
+      "phrase": "second farthest from",
+      "relation": "farthest",
+      "k": 2
+    },
+    {
+      "phrase": "second most distant from",
+      "relation": "farthest",
+      "k": 2
+    },
+    {
+      "phrase": "third farthest from",
+      "relation": "farthest",
+      "k": 3
+    },
+    {
+      "phrase": "third most distant from",
+      "relation": "farthest",
+      "k": 3
+    },
+    {
+      "phrase": "below",
+      "relation": "below",
+      "k": null
+    },
+    {
+      "phrase": "under",
+      "relation": "below",
+      "k": null
+    },
+    {
+      "phrase": "beneath",
+      "relation": "below",
+      "k": null
+    },
+    {
+      "phrase": "underneath",
+      "relation": "below",
+      "k": null
+    },
+    {
+      "phrase": "near",
+      "relation": "near",
+      "k": null
+    },
+    {
+      "phrase": "next to",
+      "relation": "near",
+      "k": null
+    },
+    {
+      "phrase": "close to",
+      "relation": "near",
+      "k": null
+    },
+    {
+      "phrase": "adjacent to",
+      "relation": "near",
+      "k": null
+    },
+    {
+      "phrase": "beside",
+      "relation": "near",
+      "k": null
+    },
+    {
+      "phrase": "on",
+      "relation": "on",
+      "k": null
+    },
+    {
+      "phrase": "between",
+      "relation": "between",
+      "k": null
+    },
+    {
+      "phrase": "in between",
+      "relation": "between",
+      "k": null
+    },
+    {
+      "phrase": "in the middle of",
+      "relation": "between",
+      "k": null
+    }
+  ],
+  "action": "INSPECT",
+  "action_origin": "evaluation_protocol",
+  "views": [
+    {
+      "view_id": "full_inventory",
+      "sample_scene_id": "iref.scannet.scene0010_01.eval.full_inventory",
+      "command_suffix": ".fi",
+      "policy": "all objects",
+      "exclusion_reason": null
+    },
+    {
+      "view_id": "source_known_nyu",
+      "sample_scene_id": "iref.scannet.scene0010_01.eval.source_known_nyu",
+      "command_suffix": ".kn",
+      "policy": "objects whose category is known and whose model label is in the category map's vocabulary",
+      "exclusion_reason": "source_unknown_category"
+    }
+  ],
+  "query_suffix": ".q",
+  "resolver": {
+    "config_id": "resolver.iref.sample.v1",
+    "vocabulary_id": "iref.sample.nyu.colours.v1",
+    "trace": false,
+    "limits": {
+      "max_interpretations": 1,
+      "max_nodes": 3,
+      "max_constraints": 1,
+      "max_candidate_checks": 10000,
+      "max_binding_attempts": 1000,
+      "max_predicate_calls": 10000,
+      "max_rank_subset_evaluations": 10000,
+      "max_trace_events": 0,
+      "max_trace_bytes": 0
+    }
+  },
+  "library_identities": {
+    "relation_config": "relations.v1@d922fe902669",
+    "direction_config": "directions.v1@73590e939d4f"
+  },
+  "semantic_hash_rule": "deep-copy each prediction record, remove exactly resolution.diagnostics.timings_s, encode the records in file order as canonical JSONL (UTF-8, sorted keys, compact separators, one LF each) and take its SHA-256"
+}

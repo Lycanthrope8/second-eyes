@@ -1,0 +1,43 @@
+{
+ "format_version": 1,
+ "record_type": "iref_inventory_views",
+ "parent_scene_id": "fixture.iref_eval.f1",
+ "parent_scene_revision": 0,
+ "views": [
+  {
+   "view_id": "full_inventory",
+   "policy": "every object row of the object CSV, in source-ID order: the canonical imported scene",
+   "included_object_ids": [
+    "obj_001",
+    "obj_002",
+    "obj_003",
+    "obj_004",
+    "obj_005",
+    "obj_006",
+    "obj_007",
+    "obj_008"
+   ],
+   "excluded": []
+  },
+  {
+   "view_id": "source_known_nyu",
+   "policy": "every object row whose NYU label is a recognized vocabulary label other than the 'unknown' sentinel; built from the object CSV and the vocabulary only, before any statement is read",
+   "included_object_ids": [
+    "obj_001",
+    "obj_002",
+    "obj_003",
+    "obj_004",
+    "obj_005",
+    "obj_006",
+    "obj_007"
+   ],
+   "excluded": [
+    {
+     "object_id": "obj_008",
+     "source_object_id": "8",
+     "reason": "source_unknown_category"
+    }
+   ]
+  }
+ ]
+}

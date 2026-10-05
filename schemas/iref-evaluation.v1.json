@@ -1,0 +1,527 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "iref-evaluation.v1.json",
+  "title": "IRef-VLA development evaluation records v1 (A2.2b, D75)",
+  "description": "Closed definitions for the evaluation's own records: its protocol configuration, parse records, prediction records and per-command scores. Embedded grounding queries and resolution runs are checked by their accepted schemas, not redefined here. Version, count and limit fields must also be plain integers (checked in grounding/evaluation/iref_vla/protocol.py). Not part of the shared scene contract.",
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_.-]{0,127}(?![\\s\\S])"
+    },
+    "label": {
+      "type": "string",
+      "pattern": "^\\S(.*\\S)?(?![\\s\\S])"
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1
+    },
+    "view_id": {
+      "enum": [
+        "full_inventory",
+        "source_known_nyu"
+      ]
+    },
+    "object_id": {
+      "type": "string",
+      "pattern": "^obj_[0-9]{3,}(?![\\s\\S])"
+    },
+    "protocol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format_version",
+        "record_type",
+        "protocol_id",
+        "description",
+        "sample",
+        "colour_labels",
+        "size_words",
+        "relation_aliases",
+        "action",
+        "action_origin",
+        "views",
+        "query_suffix",
+        "resolver",
+        "library_identities",
+        "semantic_hash_rule"
+      ],
+      "properties": {
+        "format_version": {
+          "const": 1
+        },
+        "record_type": {
+          "const": "iref_evaluation_protocol"
+        },
+        "protocol_id": {
+          "$ref": "#/$defs/id"
+        },
+        "description": {
+          "$ref": "#/$defs/text"
+        },
+        "sample": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "scene_id",
+            "category_map_id",
+            "source_commit"
+          ],
+          "properties": {
+            "scene_id": {
+              "$ref": "#/$defs/id"
+            },
+            "category_map_id": {
+              "$ref": "#/$defs/id"
+            },
+            "source_commit": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}(?![\\s\\S])"
+            }
+          }
+        },
+        "colour_labels": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/label"
+          }
+        },
+        "size_words": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/label"
+          }
+        },
+        "relation_aliases": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "phrase",
+              "relation",
+              "k"
+            ],
+            "properties": {
+              "phrase": {
+                "$ref": "#/$defs/label"
+              },
+              "relation": {
+                "enum": [
+                  "closest",
+                  "farthest",
+                  "below",
+                  "near",
+                  "on",
+                  "between"
+                ]
+              },
+              "k": {
+                "oneOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 3
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "action": {
+          "const": "INSPECT"
+        },
+        "action_origin": {
+          "const": "evaluation_protocol"
+        },
+        "views": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "view_id",
+              "sample_scene_id",
+              "command_suffix",
+              "policy",
+              "exclusion_reason"
+            ],
+            "properties": {
+              "view_id": {
+                "$ref": "#/$defs/view_id"
+              },
+              "sample_scene_id": {
+                "$ref": "#/$defs/id"
+              },
+              "command_suffix": {
+                "enum": [
+                  ".fi",
+                  ".kn"
+                ]
+              },
+              "policy": {
+                "$ref": "#/$defs/text"
+              },
+              "exclusion_reason": {
+                "enum": [
+                  "source_unknown_category",
+                  null
+                ]
+              }
+            }
+          }
+        },
+        "query_suffix": {
+          "const": ".q"
+        },
+        "resolver": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "config_id",
+            "vocabulary_id",
+            "trace",
+            "limits"
+          ],
+          "properties": {
+            "config_id": {
+              "$ref": "#/$defs/id"
+            },
+            "vocabulary_id": {
+              "$ref": "#/$defs/id"
+            },
+            "trace": {
+              "const": false
+            },
+            "limits": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "max_interpretations",
+                "max_nodes",
+                "max_constraints",
+                "max_candidate_checks",
+                "max_binding_attempts",
+                "max_predicate_calls",
+                "max_rank_subset_evaluations",
+                "max_trace_events",
+                "max_trace_bytes"
+              ],
+              "properties": {
+                "max_interpretations": {
+                  "$ref": "#/$defs/count"
+                },
+                "max_nodes": {
+                  "$ref": "#/$defs/count"
+                },
+                "max_constraints": {
+                  "$ref": "#/$defs/count"
+                },
+                "max_candidate_checks": {
+                  "$ref": "#/$defs/count"
+                },
+                "max_binding_attempts": {
+                  "$ref": "#/$defs/count"
+                },
+                "max_predicate_calls": {
+                  "$ref": "#/$defs/count"
+                },
+                "max_rank_subset_evaluations": {
+                  "$ref": "#/$defs/count"
+                },
+                "max_trace_events": {
+                  "$ref": "#/$defs/count"
+                },
+                "max_trace_bytes": {
+                  "$ref": "#/$defs/count"
+                }
+              }
+            }
+          }
+        },
+        "library_identities": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "relation_config",
+            "direction_config"
+          ],
+          "properties": {
+            "relation_config": {
+              "$ref": "#/$defs/text"
+            },
+            "direction_config": {
+              "$ref": "#/$defs/text"
+            }
+          }
+        },
+        "semantic_hash_rule": {
+          "$ref": "#/$defs/text"
+        }
+      }
+    },
+    "parse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format_version",
+        "record_type",
+        "parent_command_id",
+        "text",
+        "parse_status",
+        "parse_reason",
+        "features",
+        "analysis_count",
+        "interpretation"
+      ],
+      "properties": {
+        "format_version": {
+          "const": 1
+        },
+        "record_type": {
+          "const": "iref_parse"
+        },
+        "parent_command_id": {
+          "$ref": "#/$defs/id"
+        },
+        "text": {
+          "$ref": "#/$defs/text"
+        },
+        "parse_status": {
+          "enum": [
+            "parsed",
+            "unsupported"
+          ]
+        },
+        "parse_reason": {
+          "enum": [
+            null,
+            "unrecognized_text",
+            "ambiguous_parse",
+            "plural_reference",
+            "coreference",
+            "size_comparison"
+          ]
+        },
+        "features": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "coreference",
+              "plural_reference",
+              "size_comparison"
+            ]
+          }
+        },
+        "analysis_count": {
+          "$ref": "#/$defs/count"
+        },
+        "interpretation": {
+          "description": "Exactly one grounding-query v1 interpretation, checked against schemas/grounding-query.v1.json.",
+          "type": "object"
+        }
+      }
+    },
+    "prediction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format_version",
+        "record_type",
+        "parent_command_id",
+        "view_id",
+        "command_id",
+        "scene_id",
+        "query",
+        "resolution"
+      ],
+      "properties": {
+        "format_version": {
+          "const": 1
+        },
+        "record_type": {
+          "const": "iref_prediction"
+        },
+        "parent_command_id": {
+          "$ref": "#/$defs/id"
+        },
+        "view_id": {
+          "$ref": "#/$defs/view_id"
+        },
+        "command_id": {
+          "$ref": "#/$defs/id"
+        },
+        "scene_id": {
+          "$ref": "#/$defs/id"
+        },
+        "query": {
+          "description": "A grounding-query v1 record, checked by the accepted query validator.",
+          "type": "object"
+        },
+        "resolution": {
+          "description": "The complete resolution_run record, checked against schemas/grounding-result.v1.json.",
+          "type": "object"
+        }
+      }
+    },
+    "view_score": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bin",
+        "target_id",
+        "correct",
+        "reason_codes"
+      ],
+      "properties": {
+        "bin": {
+          "enum": [
+            "resolved",
+            "ambiguous",
+            "no_match",
+            "insufficient_information",
+            "unsupported",
+            "invalid_input",
+            "budget_exceeded"
+          ]
+        },
+        "target_id": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/object_id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "correct": {
+          "type": "boolean"
+        },
+        "reason_codes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "score": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format_version",
+        "record_type",
+        "parent_command_id",
+        "text",
+        "source_target_id",
+        "annotation_ids",
+        "annotation_count",
+        "source_relation",
+        "source_size_any",
+        "source_size_disagreement",
+        "parse_status",
+        "parse_reason",
+        "features",
+        "views"
+      ],
+      "properties": {
+        "format_version": {
+          "const": 1
+        },
+        "record_type": {
+          "const": "iref_score"
+        },
+        "parent_command_id": {
+          "$ref": "#/$defs/id"
+        },
+        "text": {
+          "$ref": "#/$defs/text"
+        },
+        "source_target_id": {
+          "$ref": "#/$defs/object_id"
+        },
+        "annotation_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/id"
+          }
+        },
+        "annotation_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "source_relation": {
+          "$ref": "#/$defs/text"
+        },
+        "source_size_any": {
+          "type": "boolean"
+        },
+        "source_size_disagreement": {
+          "type": "boolean"
+        },
+        "parse_status": {
+          "enum": [
+            "parsed",
+            "unsupported"
+          ]
+        },
+        "parse_reason": {
+          "enum": [
+            null,
+            "unrecognized_text",
+            "ambiguous_parse",
+            "plural_reference",
+            "coreference",
+            "size_comparison"
+          ]
+        },
+        "features": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "coreference",
+              "plural_reference",
+              "size_comparison"
+            ]
+          }
+        },
+        "views": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "full_inventory",
+            "source_known_nyu"
+          ],
+          "properties": {
+            "full_inventory": {
+              "$ref": "#/$defs/view_score"
+            },
+            "source_known_nyu": {
+              "$ref": "#/$defs/view_score"
+            }
+          }
+        }
+      }
+    }
+  }
+}

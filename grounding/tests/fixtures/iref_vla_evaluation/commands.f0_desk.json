@@ -1,0 +1,44 @@
+[
+ {
+  "schema_version": 1,
+  "record_type": "command_context",
+  "command_id": "fixture.iref_eval.f0_desk.r20",
+  "text": "the box that is on the desk",
+  "scene_id": "fixture.iref_eval.f0_desk",
+  "scene_revision": 0,
+  "sources": [
+   {
+    "source_id": "fx",
+    "kind": "fixture",
+    "description": "A2.2b evaluation fixture command; test values only",
+    "release": "fixture-v1"
+   }
+  ],
+  "assumptions": [],
+  "user_pose": {
+   "pose_kind": "none",
+   "frame_id": "scene",
+   "scene_revision": 0,
+   "position_m": {
+    "state": "unknown",
+    "reason": "not_in_source",
+    "source": "fx"
+   },
+   "rotation_xyzw": {
+    "state": "unknown",
+    "reason": "not_in_source",
+    "source": "fx"
+   },
+   "heading_xy": {
+    "state": "unknown",
+    "reason": "not_in_source",
+    "source": "fx"
+   },
+   "snapshot_time": {
+    "state": "unknown",
+    "reason": "not_in_source",
+    "source": "fx"
+   }
+  }
+ }
+]

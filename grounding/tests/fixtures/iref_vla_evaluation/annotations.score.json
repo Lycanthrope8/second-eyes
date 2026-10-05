@@ -1,0 +1,444 @@
+{
+ "schema_version": 1,
+ "record_type": "iref_annotations",
+ "scene_id": "fixture.iref_eval.score",
+ "source_id": "fx",
+ "source_commit": "0000000000000000000000000000000000000000",
+ "statement_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+ "entries": [
+  {
+   "annotation_id": "fixture.iref_eval.score.c1.a000",
+   "command_id": "fixture.iref_eval.score.c1",
+   "source_region_id": "0",
+   "source_annotation_index": 0,
+   "source_payload": {
+    "target_index": "2",
+    "target_class": "chair",
+    "target_position": [
+     1.0,
+     0.0,
+     0.0
+    ],
+    "target_colors": [
+     "white",
+     "N/A",
+     "N/A"
+    ],
+    "target_size": 0.008000000000000002,
+    "target_color_used": "",
+    "target_size_used": "",
+    "distractor_ids": [],
+    "relation": "closest",
+    "relation_type": "binary",
+    "anchors": {
+     "anchor_1": {
+      "index": "1",
+      "class": "table",
+      "position": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "color": [
+       "white",
+       "N/A",
+       "N/A"
+      ],
+      "size": 1.0,
+      "color_used": "",
+      "size_used": ""
+     }
+    },
+    "false_statements": {
+     "false_target_color": "a fixture false statement",
+     "false_target_class": "a fixture false statement",
+     "false_anchors": {
+      "anchor1": {
+       "false_anchor_color": "a fixture false statement",
+       "false_anchor_class": "a fixture false statement"
+      }
+     }
+    }
+   },
+   "mapped_references": {
+    "target": "obj_002",
+    "anchors": {
+     "anchor_1": "obj_001"
+    },
+    "distractors": []
+   }
+  },
+  {
+   "annotation_id": "fixture.iref_eval.score.c1.a001",
+   "command_id": "fixture.iref_eval.score.c1",
+   "source_region_id": "0",
+   "source_annotation_index": 1,
+   "source_payload": {
+    "target_index": "2",
+    "target_class": "chair",
+    "target_position": [
+     1.0,
+     0.0,
+     0.0
+    ],
+    "target_colors": [
+     "white",
+     "N/A",
+     "N/A"
+    ],
+    "target_size": 0.008000000000000002,
+    "target_color_used": "",
+    "target_size_used": "",
+    "distractor_ids": [],
+    "relation": "closest",
+    "relation_type": "binary",
+    "anchors": {
+     "anchor_1": {
+      "index": "1",
+      "class": "table",
+      "position": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "color": [
+       "white",
+       "N/A",
+       "N/A"
+      ],
+      "size": 1.0,
+      "color_used": "",
+      "size_used": ""
+     }
+    },
+    "false_statements": {
+     "false_target_color": "a fixture false statement",
+     "false_target_class": "a fixture false statement",
+     "false_anchors": {
+      "anchor1": {
+       "false_anchor_color": "a fixture false statement",
+       "false_anchor_class": "a fixture false statement"
+      }
+     }
+    }
+   },
+   "mapped_references": {
+    "target": "obj_002",
+    "anchors": {
+     "anchor_1": "obj_001"
+    },
+    "distractors": []
+   }
+  },
+  {
+   "annotation_id": "fixture.iref_eval.score.c1.a002",
+   "command_id": "fixture.iref_eval.score.c1",
+   "source_region_id": "0",
+   "source_annotation_index": 2,
+   "source_payload": {
+    "target_index": "2",
+    "target_class": "chair",
+    "target_position": [
+     1.0,
+     0.0,
+     0.0
+    ],
+    "target_colors": [
+     "white",
+     "N/A",
+     "N/A"
+    ],
+    "target_size": 0.008000000000000002,
+    "target_color_used": "",
+    "target_size_used": "",
+    "distractor_ids": [],
+    "relation": "closest",
+    "relation_type": "binary",
+    "anchors": {
+     "anchor_1": {
+      "index": "1",
+      "class": "table",
+      "position": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "color": [
+       "white",
+       "N/A",
+       "N/A"
+      ],
+      "size": 1.0,
+      "color_used": "",
+      "size_used": ""
+     }
+    },
+    "false_statements": {
+     "false_target_color": "a fixture false statement",
+     "false_target_class": "a fixture false statement",
+     "false_anchors": {
+      "anchor1": {
+       "false_anchor_color": "a fixture false statement",
+       "false_anchor_class": "a fixture false statement"
+      }
+     }
+    }
+   },
+   "mapped_references": {
+    "target": "obj_002",
+    "anchors": {
+     "anchor_1": "obj_001"
+    },
+    "distractors": []
+   }
+  },
+  {
+   "annotation_id": "fixture.iref_eval.score.c2.a000",
+   "command_id": "fixture.iref_eval.score.c2",
+   "source_region_id": "0",
+   "source_annotation_index": 0,
+   "source_payload": {
+    "target_index": "6",
+    "target_class": "box",
+    "target_position": [
+     0.0,
+     0.0,
+     0.6
+    ],
+    "target_colors": [
+     "white",
+     "N/A",
+     "N/A"
+    ],
+    "target_size": 0.008000000000000002,
+    "target_color_used": "",
+    "target_size_used": "",
+    "distractor_ids": [],
+    "relation": "on",
+    "relation_type": "binary",
+    "anchors": {
+     "anchor_1": {
+      "index": "1",
+      "class": "table",
+      "position": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "color": [
+       "white",
+       "N/A",
+       "N/A"
+      ],
+      "size": 1.0,
+      "color_used": "",
+      "size_used": ""
+     }
+    },
+    "false_statements": {
+     "false_target_color": "a fixture false statement",
+     "false_target_class": "a fixture false statement",
+     "false_anchors": {
+      "anchor1": {
+       "false_anchor_color": "a fixture false statement",
+       "false_anchor_class": "a fixture false statement"
+      }
+     }
+    }
+   },
+   "mapped_references": {
+    "target": "obj_006",
+    "anchors": {
+     "anchor_1": "obj_001"
+    },
+    "distractors": []
+   }
+  },
+  {
+   "annotation_id": "fixture.iref_eval.score.c3.a000",
+   "command_id": "fixture.iref_eval.score.c3",
+   "source_region_id": "0",
+   "source_annotation_index": 0,
+   "source_payload": {
+    "target_index": "2",
+    "target_class": "chair",
+    "target_position": [
+     1.0,
+     0.0,
+     0.0
+    ],
+    "target_colors": [
+     "white",
+     "N/A",
+     "N/A"
+    ],
+    "target_size": 0.008000000000000002,
+    "target_color_used": "",
+    "target_size_used": "",
+    "distractor_ids": [],
+    "relation": "near",
+    "relation_type": "binary",
+    "anchors": {
+     "anchor_1": {
+      "index": "1",
+      "class": "table",
+      "position": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "color": [
+       "white",
+       "N/A",
+       "N/A"
+      ],
+      "size": 1.0,
+      "color_used": "",
+      "size_used": ""
+     }
+    },
+    "false_statements": {
+     "false_target_color": "a fixture false statement",
+     "false_target_class": "a fixture false statement",
+     "false_anchors": {
+      "anchor1": {
+       "false_anchor_color": "a fixture false statement",
+       "false_anchor_class": "a fixture false statement"
+      }
+     }
+    }
+   },
+   "mapped_references": {
+    "target": "obj_002",
+    "anchors": {
+     "anchor_1": "obj_001"
+    },
+    "distractors": []
+   }
+  },
+  {
+   "annotation_id": "fixture.iref_eval.score.c4.a000",
+   "command_id": "fixture.iref_eval.score.c4",
+   "source_region_id": "0",
+   "source_annotation_index": 0,
+   "source_payload": {
+    "target_index": "3",
+    "target_class": "chair",
+    "target_position": [
+     2.0,
+     0.0,
+     0.0
+    ],
+    "target_colors": [
+     "white",
+     "N/A",
+     "N/A"
+    ],
+    "target_size": 0.008000000000000002,
+    "target_color_used": "",
+    "target_size_used": "big",
+    "distractor_ids": [],
+    "relation": "near",
+    "relation_type": "binary",
+    "anchors": {
+     "anchor_1": {
+      "index": "1",
+      "class": "table",
+      "position": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "color": [
+       "white",
+       "N/A",
+       "N/A"
+      ],
+      "size": 1.0,
+      "color_used": "",
+      "size_used": ""
+     }
+    },
+    "false_statements": {
+     "false_target_color": "a fixture false statement",
+     "false_target_class": "a fixture false statement",
+     "false_anchors": {
+      "anchor1": {
+       "false_anchor_color": "a fixture false statement",
+       "false_anchor_class": "a fixture false statement"
+      }
+     }
+    }
+   },
+   "mapped_references": {
+    "target": "obj_003",
+    "anchors": {
+     "anchor_1": "obj_001"
+    },
+    "distractors": []
+   }
+  },
+  {
+   "annotation_id": "fixture.iref_eval.score.c5.a000",
+   "command_id": "fixture.iref_eval.score.c5",
+   "source_region_id": "0",
+   "source_annotation_index": 0,
+   "source_payload": {
+    "target_index": "4",
+    "target_class": "chair",
+    "target_position": [
+     3.0,
+     0.0,
+     0.0
+    ],
+    "target_colors": [
+     "white",
+     "N/A",
+     "N/A"
+    ],
+    "target_size": 0.008000000000000002,
+    "target_color_used": "",
+    "target_size_used": "",
+    "distractor_ids": [],
+    "relation": "farthest",
+    "relation_type": "binary",
+    "anchors": {
+     "anchor_1": {
+      "index": "1",
+      "class": "table",
+      "position": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "color": [
+       "white",
+       "N/A",
+       "N/A"
+      ],
+      "size": 1.0,
+      "color_used": "",
+      "size_used": ""
+     }
+    },
+    "false_statements": {
+     "false_target_color": "a fixture false statement",
+     "false_target_class": "a fixture false statement",
+     "false_anchors": {
+      "anchor1": {
+       "false_anchor_color": "a fixture false statement",
+       "false_anchor_class": "a fixture false statement"
+      }
+     }
+    }
+   },
+   "mapped_references": {
+    "target": "obj_004",
+    "anchors": {
+     "anchor_1": "obj_001"
+    },
+    "distractors": []
+   }
+  }
+ ]
+}

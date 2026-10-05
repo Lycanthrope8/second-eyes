@@ -11,5 +11,6 @@ File formats that every component follows, kept in one place so the headset app 
 | `category-map.v1.json` | one category map (`docs/scene-contract.md`) | A2.1a |
 | `scene.v2.json` | one scene record in format v2: v1 with a dataset-identity frame (`docs/scene-contract.md`, D74) | A2.2a |
 | `iref-annotations.v1.json` | the IRef-VLA adapter's reference-only annotation bundle; validated by the adapter, not the contract (`docs/iref-vla-adapter.md`) | A2.2a |
+| `iref-evaluation.v1.json` | the A2.2b evaluation's protocol, parse, prediction and score records; checked by the evaluation, not the contract (`docs/iref-vla-evaluation.md`) | A2.2b |
 | `relation-config.v1.json` | the relation library's thresholds, bands and category lists (`docs/relations.md`) | A2.1b |
 | `direction-config.v1.json` | the directional relations' band and cutoffs (`docs/directions.md`) | A2.1c |

@@ -146,7 +146,8 @@ Before an entry is kept, the adapter checks it:
 - **Shape:** the pinned shape exactly. Any unknown key is reported as a source-format change.
 - **References:** every target, anchor and distractor must exist in the CSV.
 - **Scene-side agreement:** each target's and anchor's class must equal its CSV object's NYU label; its position its
-  CSV centre, within 1e-9 m; and its size the box volume `lx*ly*lz`, within 1e-12 relative.
+  CSV centre, within 1e-9 m; and its size the box volume `lx*ly*lz`, within `abs(delta) <= 1e-12 * max(1.0, abs(source_volume))`: a relative tolerance
+  with an absolute floor (D75 clarified this wording; the check is unchanged).
 
 A disagreement fails the import; nothing is repaired.
 
@@ -226,7 +227,8 @@ pass without its data, so they are never skipped.
 3. **Command provenance:** commands name the source commit and path but not the statements' hash.
 4. **Unreadable inputs:** an unreadable input file is `E_IREF_SOURCE_SHAPE`.
 5. **Unknown versus known labels:** a raw label that is NYU `unknown` in one row and known in another is a conflict.
-6. **Tolerances:** 1e-9 m and 1e-12 relative. The pinned sample agrees exactly.
+6. **Tolerances:** 1e-9 m for coordinates; `abs(delta) <= 1e-12 * max(1.0, abs(source_volume))` for volumes, a relative tolerance with an absolute
+   floor. The pinned sample agrees exactly.
 7. **Graph cross-check scope:** it compares labels, IDs, centres, sizes, volumes and colour slots. Box corners are
    checked by the tests, with their own formula.
 8. **Colour groups:** a placeholder group must be all `_`. A present group needs RGB values from 0 to 255, a share in
