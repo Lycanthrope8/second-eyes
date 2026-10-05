@@ -1,0 +1,815 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "iref-subscene-audit.v1.json",
+  "title": "IRef-VLA category-complete selection audit records v1 (A2.2c, D77)",
+  "description": "Closed definitions for the audit's selection rows, summary and manifest. Cross-field rules (null when unassessed, count equals the retained list, status agrees with count and limit, unknown IDs are exactly the retained unknown-category objects, every retained ID belongs to the base view) and plain integers (no booleans, no whole-valued floats) are enforced in grounding/subscenes/iref_vla/audit.py. Not part of the shared scene contract; selection IDs are audit identities, not contract scene IDs.",
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_.-]{0,127}(?![\\s\\S])"
+    },
+    "label": {
+      "type": "string",
+      "pattern": "^\\S(.*\\S)?(?![\\s\\S])"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}(?![\\s\\S])"
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "object_id": {
+      "type": "string",
+      "pattern": "^obj_[0-9]{3,}(?![\\s\\S])"
+    },
+    "view_id": {
+      "enum": [
+        "full_inventory",
+        "source_known_nyu"
+      ]
+    },
+    "ratio": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "numerator",
+        "denominator",
+        "value"
+      ],
+      "properties": {
+        "numerator": {
+          "$ref": "#/$defs/count"
+        },
+        "denominator": {
+          "$ref": "#/$defs/count"
+        },
+        "value": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          ]
+        }
+      }
+    },
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format_version",
+        "record_type",
+        "policy_id",
+        "parent_command_id",
+        "view_id",
+        "parse_status",
+        "parse_reason",
+        "status",
+        "required_categories",
+        "retained_object_ids",
+        "retained_unknown_category_ids",
+        "required_object_count",
+        "base_object_count",
+        "primary_object_limit",
+        "selection_id"
+      ],
+      "properties": {
+        "format_version": {
+          "const": 1
+        },
+        "record_type": {
+          "const": "iref_subscene_selection"
+        },
+        "policy_id": {
+          "const": "iref_category_complete.v1"
+        },
+        "parent_command_id": {
+          "$ref": "#/$defs/id"
+        },
+        "view_id": {
+          "$ref": "#/$defs/view_id"
+        },
+        "parse_status": {
+          "enum": [
+            "parsed",
+            "unsupported"
+          ]
+        },
+        "parse_reason": {
+          "enum": [
+            null,
+            "unrecognized_text",
+            "ambiguous_parse",
+            "plural_reference",
+            "coreference",
+            "size_comparison"
+          ]
+        },
+        "status": {
+          "enum": [
+            "fits",
+            "over_budget",
+            "unassessed_parse"
+          ]
+        },
+        "required_categories": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/label"
+              }
+            }
+          ]
+        },
+        "retained_object_ids": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/object_id"
+              }
+            }
+          ]
+        },
+        "retained_unknown_category_ids": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/object_id"
+              }
+            }
+          ]
+        },
+        "required_object_count": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/count"
+            }
+          ]
+        },
+        "base_object_count": {
+          "$ref": "#/$defs/count"
+        },
+        "primary_object_limit": {
+          "const": 10
+        },
+        "selection_id": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^iref\\.subset\\.[0-9a-f]{64}(?![\\s\\S])"
+            }
+          ]
+        }
+      }
+    },
+    "view_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "N",
+        "P",
+        "U",
+        "unsupported_reasons",
+        "required_count_histogram",
+        "small_selections",
+        "fits",
+        "over_budget",
+        "fit_coverage_all",
+        "fit_coverage_parsed",
+        "by_limit",
+        "distinct_assessed_selections",
+        "distinct_fitting_selections",
+        "commands_per_selection",
+        "retained_unknown_histogram",
+        "base_object_count"
+      ],
+      "properties": {
+        "N": {
+          "$ref": "#/$defs/count"
+        },
+        "P": {
+          "$ref": "#/$defs/count"
+        },
+        "U": {
+          "$ref": "#/$defs/count"
+        },
+        "unsupported_reasons": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/count"
+          },
+          "propertyNames": {
+            "enum": [
+              "unrecognized_text",
+              "ambiguous_parse",
+              "plural_reference",
+              "coreference",
+              "size_comparison"
+            ]
+          }
+        },
+        "required_count_histogram": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/count"
+          },
+          "propertyNames": {
+            "pattern": "^(0|[1-9][0-9]*)$"
+          }
+        },
+        "small_selections": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "0",
+            "1",
+            "2"
+          ],
+          "properties": {
+            "0": {
+              "$ref": "#/$defs/count"
+            },
+            "1": {
+              "$ref": "#/$defs/count"
+            },
+            "2": {
+              "$ref": "#/$defs/count"
+            }
+          }
+        },
+        "fits": {
+          "$ref": "#/$defs/count"
+        },
+        "over_budget": {
+          "$ref": "#/$defs/count"
+        },
+        "fit_coverage_all": {
+          "$ref": "#/$defs/ratio"
+        },
+        "fit_coverage_parsed": {
+          "$ref": "#/$defs/ratio"
+        },
+        "by_limit": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10"
+          ],
+          "properties": {
+            "3": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "count",
+                "of_all",
+                "of_parsed"
+              ],
+              "properties": {
+                "count": {
+                  "$ref": "#/$defs/count"
+                },
+                "of_all": {
+                  "$ref": "#/$defs/ratio"
+                },
+                "of_parsed": {
+                  "$ref": "#/$defs/ratio"
+                }
+              }
+            },
+            "4": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "count",
+                "of_all",
+                "of_parsed"
+              ],
+              "properties": {
+                "count": {
+                  "$ref": "#/$defs/count"
+                },
+                "of_all": {
+                  "$ref": "#/$defs/ratio"
+                },
+                "of_parsed": {
+                  "$ref": "#/$defs/ratio"
+                }
+              }
+            },
+            "5": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "count",
+                "of_all",
+                "of_parsed"
+              ],
+              "properties": {
+                "count": {
+                  "$ref": "#/$defs/count"
+                },
+                "of_all": {
+                  "$ref": "#/$defs/ratio"
+                },
+                "of_parsed": {
+                  "$ref": "#/$defs/ratio"
+                }
+              }
+            },
+            "6": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "count",
+                "of_all",
+                "of_parsed"
+              ],
+              "properties": {
+                "count": {
+                  "$ref": "#/$defs/count"
+                },
+                "of_all": {
+                  "$ref": "#/$defs/ratio"
+                },
+                "of_parsed": {
+                  "$ref": "#/$defs/ratio"
+                }
+              }
+            },
+            "7": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "count",
+                "of_all",
+                "of_parsed"
+              ],
+              "properties": {
+                "count": {
+                  "$ref": "#/$defs/count"
+                },
+                "of_all": {
+                  "$ref": "#/$defs/ratio"
+                },
+                "of_parsed": {
+                  "$ref": "#/$defs/ratio"
+                }
+              }
+            },
+            "8": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "count",
+                "of_all",
+                "of_parsed"
+              ],
+              "properties": {
+                "count": {
+                  "$ref": "#/$defs/count"
+                },
+                "of_all": {
+                  "$ref": "#/$defs/ratio"
+                },
+                "of_parsed": {
+                  "$ref": "#/$defs/ratio"
+                }
+              }
+            },
+            "9": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "count",
+                "of_all",
+                "of_parsed"
+              ],
+              "properties": {
+                "count": {
+                  "$ref": "#/$defs/count"
+                },
+                "of_all": {
+                  "$ref": "#/$defs/ratio"
+                },
+                "of_parsed": {
+                  "$ref": "#/$defs/ratio"
+                }
+              }
+            },
+            "10": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "count",
+                "of_all",
+                "of_parsed"
+              ],
+              "properties": {
+                "count": {
+                  "$ref": "#/$defs/count"
+                },
+                "of_all": {
+                  "$ref": "#/$defs/ratio"
+                },
+                "of_parsed": {
+                  "$ref": "#/$defs/ratio"
+                }
+              }
+            }
+          }
+        },
+        "distinct_assessed_selections": {
+          "$ref": "#/$defs/count"
+        },
+        "distinct_fitting_selections": {
+          "$ref": "#/$defs/count"
+        },
+        "commands_per_selection": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/count"
+          },
+          "propertyNames": {
+            "pattern": "^(0|[1-9][0-9]*)$"
+          }
+        },
+        "retained_unknown_histogram": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/count"
+          },
+          "propertyNames": {
+            "pattern": "^(0|[1-9][0-9]*)$"
+          }
+        },
+        "base_object_count": {
+          "$ref": "#/$defs/count"
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format_version",
+        "record_type",
+        "policy_id",
+        "primary_object_limit",
+        "sensitivity_limits",
+        "population",
+        "views",
+        "paired"
+      ],
+      "properties": {
+        "format_version": {
+          "const": 1
+        },
+        "record_type": {
+          "const": "iref_subscene_summary"
+        },
+        "policy_id": {
+          "const": "iref_category_complete.v1"
+        },
+        "primary_object_limit": {
+          "const": 10
+        },
+        "sensitivity_limits": {
+          "const": [
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ]
+        },
+        "population": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "parent_commands",
+            "rows"
+          ],
+          "properties": {
+            "parent_commands": {
+              "$ref": "#/$defs/count"
+            },
+            "rows": {
+              "$ref": "#/$defs/count"
+            }
+          }
+        },
+        "views": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "full_inventory",
+            "source_known_nyu"
+          ],
+          "properties": {
+            "full_inventory": {
+              "$ref": "#/$defs/view_summary"
+            },
+            "source_known_nyu": {
+              "$ref": "#/$defs/view_summary"
+            }
+          }
+        },
+        "paired": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "rows",
+            "columns",
+            "counts",
+            "total"
+          ],
+          "properties": {
+            "rows": {
+              "const": "full_inventory"
+            },
+            "columns": {
+              "const": "source_known_nyu"
+            },
+            "total": {
+              "$ref": "#/$defs/count"
+            },
+            "counts": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "fits",
+                "over_budget",
+                "unassessed_parse"
+              ],
+              "properties": {
+                "fits": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "fits",
+                    "over_budget",
+                    "unassessed_parse"
+                  ],
+                  "properties": {
+                    "fits": {
+                      "$ref": "#/$defs/count"
+                    },
+                    "over_budget": {
+                      "$ref": "#/$defs/count"
+                    },
+                    "unassessed_parse": {
+                      "$ref": "#/$defs/count"
+                    }
+                  }
+                },
+                "over_budget": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "fits",
+                    "over_budget",
+                    "unassessed_parse"
+                  ],
+                  "properties": {
+                    "fits": {
+                      "$ref": "#/$defs/count"
+                    },
+                    "over_budget": {
+                      "$ref": "#/$defs/count"
+                    },
+                    "unassessed_parse": {
+                      "$ref": "#/$defs/count"
+                    }
+                  }
+                },
+                "unassessed_parse": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "fits",
+                    "over_budget",
+                    "unassessed_parse"
+                  ],
+                  "properties": {
+                    "fits": {
+                      "$ref": "#/$defs/count"
+                    },
+                    "over_budget": {
+                      "$ref": "#/$defs/count"
+                    },
+                    "unassessed_parse": {
+                      "$ref": "#/$defs/count"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "manifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format_version",
+        "record_type",
+        "policy_id",
+        "primary_object_limit",
+        "sensitivity_limits",
+        "parent_scene",
+        "inputs",
+        "parser",
+        "code",
+        "runtime",
+        "outputs"
+      ],
+      "properties": {
+        "format_version": {
+          "const": 1
+        },
+        "record_type": {
+          "const": "iref_subscene_manifest"
+        },
+        "policy_id": {
+          "const": "iref_category_complete.v1"
+        },
+        "primary_object_limit": {
+          "const": 10
+        },
+        "sensitivity_limits": {
+          "const": [
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ]
+        },
+        "parent_scene": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "scene_id",
+            "scene_revision",
+            "canonical_sha256",
+            "hash_rule"
+          ],
+          "properties": {
+            "scene_id": {
+              "$ref": "#/$defs/id"
+            },
+            "scene_revision": {
+              "$ref": "#/$defs/count"
+            },
+            "canonical_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "hash_rule": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "inputs": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "hash_kind",
+            "scene_sha256",
+            "category_map_sha256",
+            "inventory_views_sha256",
+            "commands_sha256",
+            "commands"
+          ],
+          "properties": {
+            "hash_kind": {
+              "enum": [
+                "file_bytes",
+                "canonical_json"
+              ]
+            },
+            "scene_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "category_map_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "inventory_views_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "commands_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "commands": {
+              "$ref": "#/$defs/count"
+            }
+          }
+        },
+        "parser": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "protocol_id",
+            "protocol_sha256",
+            "module"
+          ],
+          "properties": {
+            "protocol_id": {
+              "$ref": "#/$defs/id"
+            },
+            "protocol_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "module": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "code": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/sha256"
+          }
+        },
+        "runtime": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "python",
+            "jsonschema"
+          ],
+          "properties": {
+            "python": {
+              "type": "string"
+            },
+            "jsonschema": {
+              "type": "string"
+            }
+          }
+        },
+        "outputs": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "selections.jsonl",
+            "summary.json",
+            "report.md"
+          ],
+          "properties": {
+            "selections.jsonl": {
+              "$ref": "#/$defs/sha256"
+            },
+            "summary.json": {
+              "$ref": "#/$defs/sha256"
+            },
+            "report.md": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        }
+      }
+    }
+  }
+}

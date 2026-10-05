@@ -1,0 +1,642 @@
+{
+ "description": "A2.2c expectations, written by hand from the approved brief (sections 4 and 7) before any selector code existed (D77). Every membership below is literal: none was produced by the production selector or a copy of its comprehension.",
+ "projection": {
+  "obj_001": "table",
+  "obj_002": "chair",
+  "obj_003": "chair",
+  "obj_004": "chair",
+  "obj_005": "box",
+  "obj_006": "box",
+  "obj_007": "monitor",
+  "obj_008": null
+ },
+ "views": {
+  "full_inventory": [
+   "obj_001",
+   "obj_002",
+   "obj_003",
+   "obj_004",
+   "obj_005",
+   "obj_006",
+   "obj_007",
+   "obj_008"
+  ],
+  "source_known_nyu": [
+   "obj_001",
+   "obj_002",
+   "obj_003",
+   "obj_004",
+   "obj_005",
+   "obj_006",
+   "obj_007"
+  ]
+ },
+ "selector_cases": [
+  {
+   "id": "S1 chair, table",
+   "categories": [
+    "chair",
+    "table"
+   ],
+   "full_inventory": [
+    "obj_001",
+    "obj_002",
+    "obj_003",
+    "obj_004",
+    "obj_008"
+   ],
+   "source_known_nyu": [
+    "obj_001",
+    "obj_002",
+    "obj_003",
+    "obj_004"
+   ]
+  },
+  {
+   "id": "S2 box, table",
+   "categories": [
+    "box",
+    "table"
+   ],
+   "full_inventory": [
+    "obj_001",
+    "obj_005",
+    "obj_006",
+    "obj_008"
+   ],
+   "source_known_nyu": [
+    "obj_001",
+    "obj_005",
+    "obj_006"
+   ]
+  },
+  {
+   "id": "S3 chair only (target and anchor both chairs)",
+   "categories": [
+    "chair"
+   ],
+   "full_inventory": [
+    "obj_002",
+    "obj_003",
+    "obj_004",
+    "obj_008"
+   ],
+   "source_known_nyu": [
+    "obj_002",
+    "obj_003",
+    "obj_004"
+   ]
+  },
+  {
+   "id": "S4 chair, box, table (both between anchors)",
+   "categories": [
+    "box",
+    "chair",
+    "table"
+   ],
+   "full_inventory": [
+    "obj_001",
+    "obj_002",
+    "obj_003",
+    "obj_004",
+    "obj_005",
+    "obj_006",
+    "obj_008"
+   ],
+   "source_known_nyu": [
+    "obj_001",
+    "obj_002",
+    "obj_003",
+    "obj_004",
+    "obj_005",
+    "obj_006"
+   ]
+  },
+  {
+   "id": "S5 crib, wardrobe (both absent)",
+   "categories": [
+    "crib",
+    "wardrobe"
+   ],
+   "full_inventory": [
+    "obj_008"
+   ],
+   "source_known_nyu": []
+  }
+ ],
+ "pipeline_scene": "scene.f1.json (A2.2b fixture: the same eight categories as the projection)",
+ "pipeline_cases": [
+  {
+   "id": "T01",
+   "text": "the chair that is closest to the table",
+   "expected": {
+    "required_categories": [
+     "chair",
+     "table"
+    ],
+    "full_inventory": {
+     "retained": [
+      "obj_001",
+      "obj_002",
+      "obj_003",
+      "obj_004",
+      "obj_008"
+     ],
+     "unknown": [
+      "obj_008"
+     ],
+     "count": 5,
+     "status": "fits"
+    },
+    "source_known_nyu": {
+     "retained": [
+      "obj_001",
+      "obj_002",
+      "obj_003",
+      "obj_004"
+     ],
+     "unknown": [],
+     "count": 4,
+     "status": "fits"
+    }
+   }
+  },
+  {
+   "id": "T02",
+   "text": "the box that is on the table",
+   "expected": {
+    "required_categories": [
+     "box",
+     "table"
+    ],
+    "full_inventory": {
+     "retained": [
+      "obj_001",
+      "obj_005",
+      "obj_006",
+      "obj_008"
+     ],
+     "unknown": [
+      "obj_008"
+     ],
+     "count": 4,
+     "status": "fits"
+    },
+    "source_known_nyu": {
+     "retained": [
+      "obj_001",
+      "obj_005",
+      "obj_006"
+     ],
+     "unknown": [],
+     "count": 3,
+     "status": "fits"
+    }
+   }
+  },
+  {
+   "id": "T03",
+   "text": "the chair that is second farthest from the black chair",
+   "expected": {
+    "required_categories": [
+     "chair"
+    ],
+    "full_inventory": {
+     "retained": [
+      "obj_002",
+      "obj_003",
+      "obj_004",
+      "obj_008"
+     ],
+     "unknown": [
+      "obj_008"
+     ],
+     "count": 4,
+     "status": "fits"
+    },
+    "source_known_nyu": {
+     "retained": [
+      "obj_002",
+      "obj_003",
+      "obj_004"
+     ],
+     "unknown": [],
+     "count": 3,
+     "status": "fits"
+    }
+   }
+  },
+  {
+   "id": "T04",
+   "text": "the chair that is between the box and the table",
+   "expected": {
+    "required_categories": [
+     "box",
+     "chair",
+     "table"
+    ],
+    "full_inventory": {
+     "retained": [
+      "obj_001",
+      "obj_002",
+      "obj_003",
+      "obj_004",
+      "obj_005",
+      "obj_006",
+      "obj_008"
+     ],
+     "unknown": [
+      "obj_008"
+     ],
+     "count": 7,
+     "status": "fits"
+    },
+    "source_known_nyu": {
+     "retained": [
+      "obj_001",
+      "obj_002",
+      "obj_003",
+      "obj_004",
+      "obj_005",
+      "obj_006"
+     ],
+     "unknown": [],
+     "count": 6,
+     "status": "fits"
+    }
+   }
+  },
+  {
+   "id": "T05",
+   "text": "the crib that is near the desk",
+   "expected": {
+    "required_categories": [
+     "crib",
+     "desk"
+    ],
+    "full_inventory": {
+     "retained": [
+      "obj_008"
+     ],
+     "unknown": [
+      "obj_008"
+     ],
+     "count": 1,
+     "status": "fits"
+    },
+    "source_known_nyu": {
+     "retained": [],
+     "unknown": [],
+     "count": 0,
+     "status": "fits"
+    }
+   }
+  },
+  {
+   "id": "T06",
+   "text": "the white chair that is closest to the table",
+   "expected": {
+    "required_categories": [
+     "chair",
+     "table"
+    ],
+    "full_inventory": {
+     "retained": [
+      "obj_001",
+      "obj_002",
+      "obj_003",
+      "obj_004",
+      "obj_008"
+     ],
+     "unknown": [
+      "obj_008"
+     ],
+     "count": 5,
+     "status": "fits"
+    },
+    "source_known_nyu": {
+     "retained": [
+      "obj_001",
+      "obj_002",
+      "obj_003",
+      "obj_004"
+     ],
+     "unknown": [],
+     "count": 4,
+     "status": "fits"
+    }
+   }
+  },
+  {
+   "id": "T07",
+   "text": "the chair that is farthest from the table",
+   "expected": {
+    "required_categories": [
+     "chair",
+     "table"
+    ],
+    "full_inventory": {
+     "retained": [
+      "obj_001",
+      "obj_002",
+      "obj_003",
+      "obj_004",
+      "obj_008"
+     ],
+     "unknown": [
+      "obj_008"
+     ],
+     "count": 5,
+     "status": "fits"
+    },
+    "source_known_nyu": {
+     "retained": [
+      "obj_001",
+      "obj_002",
+      "obj_003",
+      "obj_004"
+     ],
+     "unknown": [],
+     "count": 4,
+     "status": "fits"
+    }
+   }
+  },
+  {
+   "id": "T08",
+   "text": "the chair that is third closest to the table",
+   "expected": {
+    "required_categories": [
+     "chair",
+     "table"
+    ],
+    "full_inventory": {
+     "retained": [
+      "obj_001",
+      "obj_002",
+      "obj_003",
+      "obj_004",
+      "obj_008"
+     ],
+     "unknown": [
+      "obj_008"
+     ],
+     "count": 5,
+     "status": "fits"
+    },
+    "source_known_nyu": {
+     "retained": [
+      "obj_001",
+      "obj_002",
+      "obj_003",
+      "obj_004"
+     ],
+     "unknown": [],
+     "count": 4,
+     "status": "fits"
+    }
+   }
+  },
+  {
+   "id": "T09",
+   "text": "the big chair that is near the table",
+   "expected": {
+    "unassessed": "size_comparison"
+   }
+  },
+  {
+   "id": "T10",
+   "text": "the chair that is between the other chair and the table",
+   "expected": {
+    "unassessed": "coreference"
+   }
+  },
+  {
+   "id": "T11",
+   "text": "the monitor that is between both of the boxes",
+   "expected": {
+    "unassessed": "plural_reference"
+   }
+  },
+  {
+   "id": "T12",
+   "text": "the chair that is behind the table",
+   "expected": {
+    "unassessed": "unrecognized_text"
+   }
+  }
+ ],
+ "same_selection_ids": [
+  "T01",
+  "T06",
+  "T07",
+  "T08"
+ ],
+ "cap_cases": [
+  {
+   "id": "C1 nine chairs and one table",
+   "chairs": 9,
+   "tables": 1,
+   "unknown": 0,
+   "full_inventory": [
+    10,
+    "fits"
+   ],
+   "source_known_nyu": [
+    10,
+    "fits"
+   ]
+  },
+  {
+   "id": "C2 the same plus one unknown object",
+   "chairs": 9,
+   "tables": 1,
+   "unknown": 1,
+   "full_inventory": [
+    11,
+    "over_budget"
+   ],
+   "source_known_nyu": [
+    10,
+    "fits"
+   ]
+  },
+  {
+   "id": "C3 eleven chairs and one table",
+   "chairs": 11,
+   "tables": 1,
+   "unknown": 0,
+   "full_inventory": [
+    12,
+    "over_budget"
+   ],
+   "source_known_nyu": [
+    12,
+    "over_budget"
+   ]
+  }
+ ],
+ "ordering_case": {
+  "ids": [
+   "obj_999",
+   "obj_1000"
+  ],
+  "expected": [
+   "obj_1000",
+   "obj_999"
+  ]
+ },
+ "missing_geometry_case": {
+  "object": "obj_003",
+  "text": "the chair that is closest to the table",
+  "expected": {
+   "required_categories": [
+    "chair",
+    "table"
+   ],
+   "full_inventory": {
+    "retained": [
+     "obj_001",
+     "obj_002",
+     "obj_003",
+     "obj_004",
+     "obj_008"
+    ],
+    "unknown": [
+     "obj_008"
+    ],
+    "count": 5,
+    "status": "fits"
+   },
+   "source_known_nyu": {
+    "retained": [
+     "obj_001",
+     "obj_002",
+     "obj_003",
+     "obj_004"
+    ],
+    "unknown": [],
+    "count": 4,
+    "status": "fits"
+   }
+  }
+ },
+ "independent_category_table": {
+  "table": [
+   "obj_001"
+  ],
+  "chair": [
+   "obj_002",
+   "obj_003",
+   "obj_004"
+  ],
+  "box": [
+   "obj_005",
+   "obj_006"
+  ],
+  "monitor": [
+   "obj_007"
+  ],
+  "unknown": [
+   "obj_008"
+  ]
+ },
+ "sample": {
+  "N": 1936,
+  "P": 1179,
+  "U": 757,
+  "unsupported_reasons": {
+   "coreference": 42,
+   "plural_reference": 12,
+   "size_comparison": 703
+  },
+  "rows": 3872,
+  "histogram": {
+   "source_known_nyu": {
+    "3": 184,
+    "4": 343,
+    "5": 240,
+    "6": 143,
+    "7": 36,
+    "8": 58,
+    "9": 67,
+    "10": 24,
+    "11": 39,
+    "12": 21,
+    "13": 12,
+    "14": 6,
+    "15": 3,
+    "16": 3
+   },
+   "full_inventory": {
+    "5": 184,
+    "6": 343,
+    "7": 240,
+    "8": 143,
+    "9": 36,
+    "10": 58,
+    "11": 67,
+    "12": 24,
+    "13": 39,
+    "14": 21,
+    "15": 12,
+    "16": 6,
+    "17": 3,
+    "18": 3
+   }
+  },
+  "unknown_added_in_full": [
+   "obj_055",
+   "obj_058"
+  ],
+  "distinct_assessed_memberships": 123,
+  "at_10": {
+   "full_inventory": {
+    "fits": 1004,
+    "over_budget": 175,
+    "unassessed_parse": 757
+   },
+   "source_known_nyu": {
+    "fits": 1095,
+    "over_budget": 84,
+    "unassessed_parse": 757
+   }
+  },
+  "paired": {
+   "fits|fits": 1004,
+   "over_budget|fits": 91,
+   "over_budget|over_budget": 84,
+   "unassessed_parse|unassessed_parse": 757,
+   "fits|over_budget": 0
+  },
+  "at_most_limit": {
+   "source_known_nyu": {
+    "3": 184,
+    "4": 527,
+    "5": 767,
+    "6": 910,
+    "7": 946,
+    "8": 1004,
+    "9": 1071,
+    "10": 1095
+   },
+   "full_inventory": {
+    "3": 0,
+    "4": 0,
+    "5": 184,
+    "6": 527,
+    "7": 767,
+    "8": 910,
+    "9": 946,
+    "10": 1004
+   }
+  }
+ },
+ "report_statements": [
+  "This is command-conditioned category-complete selection under the accepted parser, not a spatial or visibility crop.",
+  "Fitting within ten objects is a count constraint, not a Quest latency, memory or context-window result.",
+  "Unsupported commands remain in the total population and were not assessed for selection.",
+  "The full and source-known inventories express different assumptions about unknown-category objects.",
+  "All material comes from one development room. Distinct commands and subsets are not independent rooms."
+ ]
+}

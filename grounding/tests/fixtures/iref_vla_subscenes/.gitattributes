@@ -1,0 +1,3 @@
+# Exact bytes: expectations.json is hashed in the phase note before implementation,
+# so Git must not convert its line endings.
+* -text
