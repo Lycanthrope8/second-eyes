@@ -69,3 +69,31 @@ From `oculus-samples/Unity-PassthroughCameraApiSamples`:
 
 - Samples include CameraToWorld (camera pose to world-space rays), MultiObjectDetection (a YOLO model on camera frames with the Inference Engine), CameraViewer, BrightnessEstimation and ShaderSample.
 - Requirements: Quest 3 or 3S with Horizon OS v74+, Unity 6000.0.38f1+, Meta MRUK v81+, and Unity Inference Engine v2.2.1 for the detection sample.
+
+## Passthrough camera (A1.10a)
+
+Read on 2026-10-05 from GitHub `oculus-samples/Unity-PassthroughCameraApiSamples` (commit `f9c3821`, 2026-09-30).
+
+- **The component.** Camera frames come from `PassthroughCameraAccess` (namespace `Meta.XR`) in the Mixed Reality
+  Utility Kit (MRUK) v81 or newer; the samples use MRUK 85.0.0 and Unity Inference Engine 2.2.1. It offers a GPU
+  texture, timestamps, both cameras and the cameras' intrinsics, extrinsics and pose. Unity's `WebCamTexture` route is
+  the older one, with a migration guide away from it.
+- **Requirements.** Quest 3 or 3S with Horizon OS v74 or newer, passthrough enabled, and the permission
+  `horizonos.permission.HEADSET_CAMERA`; the samples also request scene and anchor permissions for their other
+  features. A physical headset is needed: the XR Simulator doesn't support the camera.
+- **Members the samples use.** `GetSupportedResolutions(CameraPositionType.Left)` (static), `IsPlaying`,
+  `GetTexture()`, `GetColors()`, `GetCameraPose()`, `CurrentResolution` (assignable to `Vector2`),
+  `ViewportPointToRay(...)` and `enabled` to start and stop. No sample reads a timestamp, so `PassthroughFrameSource`
+  looks for one through reflection and logs which signal it found.
+- **Permission.** `OVRPermissionsRequester.Request(new[] { OVRPermissionsRequester.Permission.PassthroughCameraAccess })`
+  and `OVRPermissionsRequester.IsPermissionGranted(...)`, both in the core SDK. Our OVRManager's own startup request for
+  this permission is off; the frame source requests it and logs the result.
+- **Detection sample.** `MultiObjectDetection` runs a YOLOv9 model (`yolov9onnx.onnx`, `yolov9sentis.sentis`) with Unity
+  Inference Engine. Its license is to be checked in A1.10b before it is used.
+- **On our headset (A1.10a, runs r037 to r039).** With MRUK 207.0.0, `GetSupportedResolutions` returns an empty list
+  until the camera permission is granted, then eleven sizes from 320x240 to 1280x1280; the default is 1280x960, and
+  the component has `IsUpdatedThisFrame`. The camera delivered a median of 58.9 frames per second at 1280x960.
+  MRUK's build adds `USE_SCENE` and `USE_ANCHOR_API` (both `com.oculus` and `horizonos` forms) to the app (O25).
+- **What it costs** (r038 camera off against r039 camera on, one run each): no change in frame rate (72.5 fps, no
+  stale frames) or memory; about 7 points more headset CPU, about half a millisecond more app GPU time per frame,
+  and 0.4 W more power. Details in `notes/phases/A1.10_detector.md`.

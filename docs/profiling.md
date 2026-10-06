@@ -89,6 +89,33 @@ A1.7d's runs, which used Meta's runner in the same app.
 with `--reference 20260929_A1_r016 20260930_A1_r026`. Recording from before Load also captures the load; the summary
 then reports its memory jump on the memory line instead of flagging it.
 
+## A1.10a: what the camera costs (D79; D80 proposed)
+
+Two runs in one block, one app session each, with the same build: run A with the camera off, run B with it on. The
+camera starts only when X on the left controller is pressed (docs/logging.md lists its events). Grant the
+camera-permission prompt in an earlier session (the smoke test), so neither measured session shows it.
+
+Create each run before starting the app: `tools/logs.py pull` files a session that started before its run was created
+under `raw/before_run/`. While A2.2d is staged and A1.10a uncommitted, `tools/runs.py new` marks runs `git_dirty: true`;
+record what was uncommitted with `python tools/runs.py note <run ID> "..."`.
+
+1. Reboot the headset, put it on and wait about two minutes in Home. Turn on OVR Metrics' CSV recording, overlay off.
+2. Run A, camera off:
+   ```
+   python tools/runs.py new A1 --purpose "A1.10a camera off: camera component disabled" --operator <initials> --headset
+   ```
+   Start the app, sit with the controllers down and your hands in view, wait one minute, then
+   `python tools/profile.py record <run A> --minutes 10`. Quit the app (Meta button, then Quit), then
+   `python tools/logs.py pull <run A>` and `python analysis/profile.py summary <run A>`.
+3. Run B, camera on: create the run the same way (purpose "A1.10a camera on: left camera, default resolution,
+   preview off"), start the app, press X, wait one minute, record ten minutes, quit, pull and summarize as for run A.
+4. `python analysis/camera_frames.py <run B>` (and `<run A>`, which should show the camera never playing), then
+   `python analysis/profile.py compare <run A> <run B>`.
+5. Turn OVR Metrics' CSV recording off.
+
+Keep the headset on throughout each session (O14). Each run's notes record "plugged in" (D22), the requested and
+delivered resolution, the frame signal (`updated_flag`, `timestamp` or `none`) and that the preview was off.
+
 ## Comparing two runs
 
 ```

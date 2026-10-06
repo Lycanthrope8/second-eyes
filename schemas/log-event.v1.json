@@ -482,6 +482,160 @@
           "description": "Length of the text box's text at that moment."
         }
       }
+    },
+    "camera.permission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "granted"
+      ],
+      "properties": {
+        "granted": {
+          "type": "boolean",
+          "description": "Whether the headset-camera permission is granted (A1.10a)."
+        }
+      }
+    },
+    "camera.resolutions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "camera",
+        "supported"
+      ],
+      "properties": {
+        "camera": {
+          "enum": [
+            "left",
+            "right"
+          ],
+          "description": "Which passthrough camera."
+        },
+        "supported": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "description": "Supported [width, height] pairs, or null when the component returned none."
+        }
+      }
+    },
+    "camera.toggle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "on",
+        "source"
+      ],
+      "properties": {
+        "on": {
+          "type": "boolean",
+          "description": "Whether the camera was asked to run."
+        },
+        "source": {
+          "enum": [
+            "button_x",
+            "launch"
+          ],
+          "description": "What asked: X on the left controller, or Start On Launch."
+        }
+      }
+    },
+    "camera.state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether MRUK's camera component is now enabled."
+        }
+      }
+    },
+    "camera.playing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "width",
+        "height",
+        "frame_signal"
+      ],
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Frame width in pixels."
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Frame height in pixels."
+        },
+        "frame_signal": {
+          "enum": [
+            "updated_flag",
+            "timestamp",
+            "none"
+          ],
+          "description": "How new frames are told apart: the component's IsUpdatedThisFrame, its Timestamp, or not at all."
+        }
+      }
+    },
+    "camera.second": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "on",
+        "playing",
+        "frames",
+        "window_ms",
+        "width",
+        "height"
+      ],
+      "properties": {
+        "on": {
+          "type": "boolean",
+          "description": "Whether the camera is wanted on."
+        },
+        "playing": {
+          "type": "boolean",
+          "description": "Whether frames are arriving."
+        },
+        "frames": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Distinct frames in this window, or null without a frame signal."
+        },
+        "window_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Length of this window in milliseconds (about 1000)."
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Frame width, 0 when not playing."
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Frame height, 0 when not playing."
+        }
+      }
     }
   }
 }

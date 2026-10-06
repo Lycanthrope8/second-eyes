@@ -593,7 +593,13 @@ MonoBehaviour:
   - {fileID: 4900000, guid: 03508d8ccec30ea47a11a6e490899912, type: 3}
   - {fileID: 4900000, guid: 529628567babd734ca99aaf8805aecd3, type: 3}
   - {fileID: 4900000, guid: ccd8733f50ba2d745a65cff5ca7296e5, type: 3}
+  loadAtStart: 0
+  repeatPauseS: 5
+  stepsChoices: 96000000320000000f000000
+  ggufFile: qwen2.5-0.5b-instruct-q8_0.gguf
+  threadChoices: 0200000004000000
   offsetM: {x: 0, y: -0.1, z: 1}
+  startWithLlama: 1
 --- !u!4 &441867075
 Transform:
   m_ObjectHideFlags: 0
@@ -736,7 +742,8 @@ Transform:
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 2105891339}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &671885763
@@ -1656,6 +1663,85 @@ Transform:
   m_Children: []
   m_Father: {fileID: 639946225}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &2105891338
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2105891339}
+  - component: {fileID: 2105891340}
+  - component: {fileID: 2105891342}
+  - component: {fileID: 2105891341}
+  m_Layer: 0
+  m_Name: PassthroughCamera
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2105891339
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2105891338}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 671885762}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2105891340
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2105891338}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ef9a7893e57c04c0db4114c70954b915, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: meta.xr.mrutilitykit::Meta.XR.PassthroughCameraAccess
+  CameraPosition: 0
+  RequestedResolution: {x: 1280, y: 960}
+  _maxFramerate: 60
+  TargetMaterial: {fileID: 0}
+  _texturePropertyName: 
+--- !u!114 &2105891341
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2105891338}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c4b7d626da84bd64082214f6f1dbb643, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SecondEyes.App.CameraButton
+  frameSource: {fileID: 2105891342}
+--- !u!114 &2105891342
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2105891338}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a2d60d82afaa9694b922de39d2f83597, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SecondEyes.Perception.PassthroughFrameSource
+  cameraAccess: {fileID: 2105891340}
+  startOnLaunch: 0
+  preview: {fileID: 0}
 --- !u!1 &2125808618
 GameObject:
   m_ObjectHideFlags: 0

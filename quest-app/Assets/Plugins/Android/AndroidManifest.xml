@@ -19,6 +19,7 @@
   <horizonos:uses-horizonos-sdk horizonos:minSdkVersion="60" horizonos:targetSdkVersion="207" />
   <uses-feature android:name="oculus.software.handtracking" android:required="false" />
   <uses-permission android:name="com.oculus.permission.HAND_TRACKING" />
+  <uses-permission android:name="horizonos.permission.HEADSET_CAMERA" />
   <uses-feature android:name="com.oculus.feature.PASSTHROUGH" android:required="false" />
   <uses-feature android:name="oculus.software.overlay_keyboard" android:required="false" />
 </manifest>

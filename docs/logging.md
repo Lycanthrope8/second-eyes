@@ -52,6 +52,12 @@ Defined in v1:
 | `model.scores` | `request`, `prompt_id`, `candidates` (object ID to the log-probability of the ID and the closing `"}` after the answer's start), `best`, `ms` | llama.cpp: after each finished answer, once the objects are scored (A1.8c, D56, D58) |
 | `model.message` | `level` (`warning` or `error`), `text` | when Meta's on-device code logs a warning or an error, e.g. a truncated prompt (A1.7c-2) |
 | `ui.keyboard` | `event` (`opened`, `open_failed`, `done`, `canceled`, `lost_focus` or `unsupported`), `chars` | when the text box opened the system keyboard, and when the keyboard closed (D44). Not written since D49 |
+| `camera.permission` | `granted` (true or false) | at startup, then whenever the headset-camera permission changes (A1.10a) |
+| `camera.resolutions` | `camera` (`left`), `supported` (list of `[width, height]`, or null) | once at startup (A1.10a) |
+| `camera.toggle` | `on`, `source` (`button_x` or `launch`) | when the camera is asked to start or stop: X on the left controller (A1.10a) |
+| `camera.state` | `enabled` (whether MRUK's camera component is running) | when the camera component is enabled or disabled (A1.10a) |
+| `camera.playing` | `width`, `height`, `frame_signal` (`updated_flag`, `timestamp` or `none`) | when frames start arriving after the camera is enabled (A1.10a) |
+| `camera.second` | `on`, `playing`, `frames` (distinct frames in the window, or null without a frame signal), `window_ms`, `width`, `height` | about once per second, with the camera on or off (A1.10a) |
 
 Planned, and defined by the phase that first emits them (proposal S0 item 3): speech start and end, recognized text, model input and output, candidate probabilities, the validated goal, commands sent, and drone telemetry. Sync events are defined when time sync is built (deferred, D10).
 
