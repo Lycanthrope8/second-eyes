@@ -16,6 +16,7 @@ How things work now. Edited in place when something changes; log the change and 
 - `iref-vla-subscenes.md`: the category-complete selection audit: the policy, its rows and summary, what it reads and what it never claims
 - `iref-vla-model-inputs.md`: the A2.2d preparation: materialized scenes and commands, both formats rendered and measured with the pinned tokenizer, and moving a bundle between machines
 - `iref-vla-zero-shot-pilot.md`: the A2.3a zero-shot direct-selection pilot: the one-token choice interface, frozen requests, checkpoint identity, the canary and what the results do not establish
+- `iref-vla-pilot-scoring.md`: the A2.3b scoring of the saved pilot against the source annotations, with the matched rules baseline: the two commands, their input checks, the metrics, the exit codes and what the figures do not establish
 - `setup/quest3.md`: the headset's exact state and how to undo every change
 - `setup/quest-model.md`: how a language model gets into the Quest app
 - `plan/revision-3.1-supplement.md`: the Revision 3.1 supplement's text, verbatim (D63); unlike the rest of `docs/`, never edited in place (`conventions.md`, rule 11)

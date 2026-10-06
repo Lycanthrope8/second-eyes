@@ -1,0 +1,46 @@
+{
+  "format_version": 1,
+  "record_type": "iref_pilot_scoring_policy",
+  "policy_id": "iref.pilot.scoring.v1",
+  "decision": "D82",
+  "brief": "Second Eyes A2.3b implementation brief, 6 October 2026",
+  "pilot_protocol_id": "iref.zero_shot.direct_selection.pilot.v1",
+  "rules_protocol_id": "iref.sample.rules.v1",
+  "views": [
+    "full_inventory",
+    "source_known_nyu"
+  ],
+  "formats": [
+    "coordinates_v2",
+    "coordinates_relations_v2"
+  ],
+  "rules_outcomes": [
+    "resolved",
+    "ambiguous",
+    "no_match",
+    "insufficient_information",
+    "unsupported"
+  ],
+  "rules_technical_failures": [
+    "invalid_input",
+    "budget_exceeded"
+  ],
+  "score_check_absolute_tolerance": 1e-10,
+  "diagnostic_alias": "B",
+  "format_difference": "100 * (C of coordinates_relations_v2 - C of coordinates_v2) / N, in percentage points; null when N is 0",
+  "source_target_rule": "A completed model request selects the source target exactly when its chosen object is the command's mapped source target. ASK selects no object, so it is false for this single-target metric; that does not show ASK was inappropriate. A planned exclusion or technical failure is unscored, with a null value.",
+  "rules_source_rule": "The rules system selects the source target only when the resolver completed with status resolved and its target is the mapped source target. Every other completed status counts as not selecting it, with its status kept; invalid_input and budget_exceeded are technical failures, unscored.",
+  "rules_semantic_hash_rule": "deep-copy each rules record, remove exactly resolution.diagnostics.timings_s, encode the records in file order as canonical JSONL (UTF-8, sorted keys, compact separators, one LF each) and take its SHA-256",
+  "exit_codes": {
+    "0": "published; technically complete, whatever the agreement",
+    "1": "published; the analysis contains technical failures or planned exclusions",
+    "2": "invalid input, failed identity or reference checks, or an existing destination; nothing published",
+    "3": "an unexpected failure or a write failure; nothing published"
+  },
+  "error_codes": {
+    "E_SCORING_INPUT": "malformed input: unreadable files, strict JSON, record shapes, versions, plain integers, finite numbers",
+    "E_SCORING_INTEGRITY": "identity or integrity: a stale or disagreeing hash, link, count, order, mapping or saved decision",
+    "E_SCORING_REFERENCE": "reference mismatch: the annotations' schema or pinned identity, a missing or contradictory annotation, a target absent from a selected subscene",
+    "E_SCORING_INTERNAL": "internal failure: an output failed its own readback before publication"
+  }
+}

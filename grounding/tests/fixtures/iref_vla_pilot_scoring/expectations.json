@@ -1,0 +1,862 @@
+{
+  "description": "A2.3b (D82) literal expectations, written by hand before the scoring layer existed. The metric fixture and its arithmetic are the brief's section 10; the extra groups and the reviewed resolver cases are hand-derived here; the real-run values are the brief's section 2 and 3. Fixture groups are labelled fixtures, never the real pilot. Ratios are [numerator, denominator]; a zero denominator has a null value.",
+  "tolerance": 1e-10,
+  "error_codes": [
+    "E_SCORING_INPUT",
+    "E_SCORING_INTEGRITY",
+    "E_SCORING_REFERENCE",
+    "E_SCORING_INTERNAL"
+  ],
+  "metric_fixture": {
+    "view_id": "full_inventory",
+    "mapping": [
+      [
+        "A",
+        "obj_001"
+      ],
+      [
+        "B",
+        "obj_002"
+      ],
+      [
+        "C",
+        "obj_003"
+      ],
+      [
+        "K",
+        "ASK"
+      ]
+    ],
+    "target": "obj_002",
+    "source_alias": "B",
+    "cases": [
+      {
+        "id": "F1",
+        "relation": "closest",
+        "coordinates_v2": "B",
+        "coordinates_relations_v2": "B",
+        "rules": [
+          "resolved",
+          "obj_002"
+        ]
+      },
+      {
+        "id": "F2",
+        "relation": "closest",
+        "coordinates_v2": "A",
+        "coordinates_relations_v2": "B",
+        "rules": [
+          "resolved",
+          "obj_002"
+        ]
+      },
+      {
+        "id": "F3",
+        "relation": "closest",
+        "coordinates_v2": "B",
+        "coordinates_relations_v2": "C",
+        "rules": [
+          "ambiguous",
+          null
+        ]
+      },
+      {
+        "id": "F4",
+        "relation": "near",
+        "coordinates_v2": "K",
+        "coordinates_relations_v2": "A",
+        "rules": [
+          "insufficient_information",
+          null
+        ]
+      },
+      {
+        "id": "F5",
+        "relation": "near",
+        "coordinates_v2": "A",
+        "coordinates_relations_v2": "K",
+        "rules": [
+          "no_match",
+          null
+        ]
+      },
+      {
+        "id": "F6",
+        "relation": "near",
+        "coordinates_v2": "C",
+        "coordinates_relations_v2": "C",
+        "rules": [
+          "resolved",
+          "obj_003"
+        ]
+      }
+    ],
+    "expected": {
+      "models": {
+        "coordinates_v2": {
+          "N": 6,
+          "completed": 6,
+          "object_choices": 5,
+          "ask": 1,
+          "planned_exclusions": 0,
+          "technical_failures": 0,
+          "C": 2,
+          "C_over_N": [
+            2,
+            6
+          ],
+          "C_over_completed": [
+            2,
+            6
+          ],
+          "C_over_object_choices": [
+            2,
+            5
+          ]
+        },
+        "coordinates_relations_v2": {
+          "N": 6,
+          "completed": 6,
+          "object_choices": 5,
+          "ask": 1,
+          "planned_exclusions": 0,
+          "technical_failures": 0,
+          "C": 2,
+          "C_over_N": [
+            2,
+            6
+          ],
+          "C_over_completed": [
+            2,
+            6
+          ],
+          "C_over_object_choices": [
+            2,
+            5
+          ]
+        }
+      },
+      "rules": {
+        "N": 6,
+        "outcomes": {
+          "resolved": 3,
+          "ambiguous": 1,
+          "no_match": 1,
+          "insufficient_information": 1,
+          "unsupported": 0
+        },
+        "technical_failures": {
+          "invalid_input": 0,
+          "budget_exceeded": 0
+        },
+        "R": 3,
+        "C": 2,
+        "C_over_N": [
+          2,
+          6
+        ],
+        "C_over_R": [
+          2,
+          3
+        ]
+      },
+      "format_pairs": {
+        "N": 6,
+        "both": 1,
+        "coordinates_only": 1,
+        "augmented_only": 1,
+        "neither": 3,
+        "unscored": 0,
+        "same_choice": 2,
+        "different_choice": 4,
+        "not_comparable": 0,
+        "difference_pp": 0.0
+      },
+      "model_vs_rules": {
+        "coordinates_v2": {
+          "both": 1,
+          "model_only": 1,
+          "rules_only": 1,
+          "neither": 3,
+          "unscored": 0
+        },
+        "coordinates_relations_v2": {
+          "both": 2,
+          "model_only": 0,
+          "rules_only": 0,
+          "neither": 4,
+          "unscored": 0
+        }
+      },
+      "rules_not_source_by_outcome": {
+        "ambiguous": 1,
+        "insufficient_information": 1,
+        "no_match": 1,
+        "resolved": 1
+      },
+      "crosstab": {
+        "coordinates_v2": {
+          "model_choice_object": {
+            "resolved": 3,
+            "ambiguous": 1,
+            "no_match": 1
+          },
+          "model_choice_ask": {
+            "insufficient_information": 1
+          }
+        },
+        "coordinates_relations_v2": {
+          "model_choice_object": {
+            "resolved": 3,
+            "ambiguous": 1,
+            "insufficient_information": 1
+          },
+          "model_choice_ask": {
+            "no_match": 1
+          }
+        }
+      },
+      "within_rules_resolved": {
+        "coordinates_v2": {
+          "same_object": 2,
+          "different_object": 1,
+          "ask": 0,
+          "unscored": 0
+        },
+        "coordinates_relations_v2": {
+          "same_object": 3,
+          "different_object": 0,
+          "ask": 0,
+          "unscored": 0
+        }
+      },
+      "chosen_alias": {
+        "coordinates_v2": {
+          "A": 2,
+          "B": 2,
+          "C": 1,
+          "K": 1
+        },
+        "coordinates_relations_v2": {
+          "A": 1,
+          "B": 2,
+          "C": 2,
+          "K": 1
+        }
+      },
+      "source_alias": {
+        "B": 6
+      },
+      "source_by_chosen": {
+        "coordinates_v2": {
+          "B": {
+            "A": 2,
+            "B": 2,
+            "C": 1,
+            "K": 1
+          }
+        },
+        "coordinates_relations_v2": {
+          "B": {
+            "A": 1,
+            "B": 2,
+            "C": 2,
+            "K": 1
+          }
+        }
+      },
+      "always_alias": {
+        "alias": "B",
+        "offered": 6,
+        "source_is_alias": 6,
+        "agreement": [
+          6,
+          6
+        ]
+      },
+      "chosen_objects": {
+        "coordinates_v2": {
+          "obj_001": 2,
+          "obj_002": 2,
+          "obj_003": 1
+        },
+        "coordinates_relations_v2": {
+          "obj_001": 1,
+          "obj_002": 2,
+          "obj_003": 2
+        }
+      },
+      "by_relation": {
+        "closest": {
+          "N": 3,
+          "coordinates_v2": {
+            "C": 2,
+            "object_choices": 3,
+            "ask": 0
+          },
+          "coordinates_relations_v2": {
+            "C": 2,
+            "object_choices": 3,
+            "ask": 0
+          },
+          "rules": {
+            "R": 2,
+            "C": 2
+          }
+        },
+        "near": {
+          "N": 3,
+          "coordinates_v2": {
+            "C": 0,
+            "object_choices": 2,
+            "ask": 1
+          },
+          "coordinates_relations_v2": {
+            "C": 0,
+            "object_choices": 2,
+            "ask": 1
+          },
+          "rules": {
+            "R": 1,
+            "C": 0
+          }
+        }
+      },
+      "by_object_count": {
+        "3": {
+          "N": 6
+        }
+      },
+      "population": {
+        "parents": 6,
+        "parent_views": 6,
+        "requests": 12,
+        "annotation_records": 6
+      },
+      "with_F2_annotated_twice": {
+        "annotation_records": 7,
+        "multiplicity": {
+          "1": 5,
+          "2": 1
+        },
+        "N": 6,
+        "C": 2
+      }
+    }
+  },
+  "extra_groups": {
+    "absent_b": {
+      "note": "one object, so B is not offered",
+      "view_id": "full_inventory",
+      "mapping": [
+        [
+          "A",
+          "obj_002"
+        ],
+        [
+          "K",
+          "ASK"
+        ]
+      ],
+      "target": "obj_002",
+      "cases": [
+        {
+          "id": "X1",
+          "relation": "near",
+          "coordinates_v2": "A",
+          "coordinates_relations_v2": "A",
+          "rules": [
+            "resolved",
+            "obj_002"
+          ]
+        }
+      ],
+      "expected": {
+        "always_alias": {
+          "alias": "B",
+          "offered": 0,
+          "source_is_alias": 0,
+          "agreement": [
+            0,
+            1
+          ]
+        },
+        "source_alias": {
+          "A": 1
+        },
+        "models_C": {
+          "coordinates_v2": 1,
+          "coordinates_relations_v2": 1
+        }
+      }
+    },
+    "zero_object_choices": {
+      "view_id": "full_inventory",
+      "mapping": [
+        [
+          "A",
+          "obj_001"
+        ],
+        [
+          "B",
+          "obj_002"
+        ],
+        [
+          "K",
+          "ASK"
+        ]
+      ],
+      "target": "obj_002",
+      "cases": [
+        {
+          "id": "Z1",
+          "relation": "near",
+          "coordinates_v2": "K",
+          "coordinates_relations_v2": "K",
+          "rules": [
+            "no_match",
+            null
+          ]
+        },
+        {
+          "id": "Z2",
+          "relation": "near",
+          "coordinates_v2": "K",
+          "coordinates_relations_v2": "K",
+          "rules": [
+            "no_match",
+            null
+          ]
+        }
+      ],
+      "expected": {
+        "models": {
+          "coordinates_v2": {
+            "N": 2,
+            "completed": 2,
+            "object_choices": 0,
+            "ask": 2,
+            "C": 0,
+            "C_over_N": [
+              0,
+              2
+            ],
+            "C_over_completed": [
+              0,
+              2
+            ],
+            "C_over_object_choices": [
+              0,
+              0
+            ]
+          },
+          "coordinates_relations_v2": {
+            "N": 2,
+            "completed": 2,
+            "object_choices": 0,
+            "ask": 2,
+            "C": 0,
+            "C_over_N": [
+              0,
+              2
+            ],
+            "C_over_completed": [
+              0,
+              2
+            ],
+            "C_over_object_choices": [
+              0,
+              0
+            ]
+          }
+        },
+        "crosstab_ask_no_match": 2,
+        "format_pairs": {
+          "neither": 2,
+          "same_choice": 2
+        }
+      }
+    },
+    "planned_exclusion": {
+      "view_id": "full_inventory",
+      "mapping": [
+        [
+          "A",
+          "obj_001"
+        ],
+        [
+          "B",
+          "obj_002"
+        ],
+        [
+          "K",
+          "ASK"
+        ]
+      ],
+      "target": "obj_002",
+      "cases": [
+        {
+          "id": "P1",
+          "relation": "near",
+          "coordinates_v2": "B",
+          "coordinates_relations_v2": "EXCLUDED",
+          "rules": [
+            "resolved",
+            "obj_002"
+          ]
+        },
+        {
+          "id": "P2",
+          "relation": "near",
+          "coordinates_v2": "B",
+          "coordinates_relations_v2": "B",
+          "rules": [
+            "resolved",
+            "obj_002"
+          ]
+        }
+      ],
+      "expected": {
+        "models": {
+          "coordinates_v2": {
+            "N": 2,
+            "completed": 2,
+            "planned_exclusions": 0,
+            "object_choices": 2,
+            "ask": 0,
+            "C": 2,
+            "C_over_N": [
+              2,
+              2
+            ]
+          },
+          "coordinates_relations_v2": {
+            "N": 2,
+            "completed": 1,
+            "planned_exclusions": 1,
+            "object_choices": 1,
+            "ask": 0,
+            "C": 1,
+            "C_over_N": [
+              1,
+              2
+            ],
+            "C_over_completed": [
+              1,
+              1
+            ],
+            "C_over_object_choices": [
+              1,
+              1
+            ]
+          }
+        },
+        "format_pairs": {
+          "both": 1,
+          "unscored": 1,
+          "same_choice": 1,
+          "not_comparable": 1,
+          "difference_pp": -50.0
+        },
+        "augmented_vs_rules": {
+          "both": 1,
+          "unscored": 1
+        },
+        "excluded_row": {
+          "score_status": "unscored_planned_exclusion",
+          "source_target_selected": null
+        },
+        "augmented_source_alias": {
+          "B": 2
+        },
+        "augmented_chosen_alias": {
+          "B": 1
+        }
+      }
+    },
+    "rules_technical_failure": {
+      "view_id": "full_inventory",
+      "mapping": [
+        [
+          "A",
+          "obj_001"
+        ],
+        [
+          "B",
+          "obj_002"
+        ],
+        [
+          "K",
+          "ASK"
+        ]
+      ],
+      "target": "obj_002",
+      "cases": [
+        {
+          "id": "Q1",
+          "relation": "near",
+          "coordinates_v2": "B",
+          "coordinates_relations_v2": "B",
+          "rules": [
+            "budget_exceeded",
+            null
+          ]
+        },
+        {
+          "id": "Q2",
+          "relation": "near",
+          "coordinates_v2": "B",
+          "coordinates_relations_v2": "B",
+          "rules": [
+            "resolved",
+            "obj_002"
+          ]
+        }
+      ],
+      "expected": {
+        "rules": {
+          "N": 2,
+          "R": 1,
+          "C": 1,
+          "C_over_N": [
+            1,
+            2
+          ],
+          "C_over_R": [
+            1,
+            1
+          ],
+          "budget_exceeded": 1
+        },
+        "model_vs_rules": {
+          "both": 1,
+          "unscored": 1
+        },
+        "crosstab": {
+          "model_choice_object": {
+            "budget_exceeded": 1,
+            "resolved": 1
+          }
+        }
+      }
+    },
+    "two_views": {
+      "note": "the same target has alias B in the full view and A in the source-known view",
+      "views": {
+        "full_inventory": [
+          [
+            "A",
+            "obj_001"
+          ],
+          [
+            "B",
+            "obj_002"
+          ],
+          [
+            "C",
+            "obj_003"
+          ],
+          [
+            "K",
+            "ASK"
+          ]
+        ],
+        "source_known_nyu": [
+          [
+            "A",
+            "obj_002"
+          ],
+          [
+            "B",
+            "obj_003"
+          ],
+          [
+            "K",
+            "ASK"
+          ]
+        ]
+      },
+      "target": "obj_002",
+      "choices": {
+        "full_inventory": {
+          "coordinates_v2": "B",
+          "coordinates_relations_v2": "B"
+        },
+        "source_known_nyu": {
+          "coordinates_v2": "A",
+          "coordinates_relations_v2": "B"
+        }
+      },
+      "rules": {
+        "full_inventory": [
+          "resolved",
+          "obj_002"
+        ],
+        "source_known_nyu": [
+          "resolved",
+          "obj_002"
+        ]
+      },
+      "expected": {
+        "population": {
+          "parents": 1,
+          "parent_views": 2,
+          "requests": 4
+        },
+        "C": {
+          "full_inventory/coordinates_v2": 1,
+          "full_inventory/coordinates_relations_v2": 1,
+          "source_known_nyu/coordinates_v2": 1,
+          "source_known_nyu/coordinates_relations_v2": 0
+        },
+        "source_alias": {
+          "full_inventory": {
+            "B": 1
+          },
+          "source_known_nyu": {
+            "A": 1
+          }
+        },
+        "always_alias": {
+          "full_inventory": [
+            1,
+            1
+          ],
+          "source_known_nyu": [
+            0,
+            1
+          ]
+        },
+        "rules_N": {
+          "full_inventory": 1,
+          "source_known_nyu": 1
+        },
+        "format_pairs": {
+          "full_inventory": {
+            "both": 1,
+            "same_choice": 1
+          },
+          "source_known_nyu": {
+            "coordinates_only": 1,
+            "different_choice": 1
+          }
+        }
+      }
+    }
+  },
+  "score_checks": {
+    "tie_counterexample": {
+      "note": "offered logits A 2.0, B 2.0, K 1.0: the A2.3a rule gives K with exact_score_tie even though K is not tied",
+      "logits": {
+        "A": 2.0,
+        "B": 2.0,
+        "K": 1.0
+      },
+      "expected_code": "K",
+      "expected_reason": "exact_score_tie",
+      "expected_tied": [
+        "A",
+        "B"
+      ]
+    },
+    "contradiction": {
+      "note": "offered logits A 1.0, B 3.0, K 0.0 with a stored choice of A is rejected",
+      "logits": {
+        "A": 1.0,
+        "B": 3.0,
+        "K": 0.0
+      },
+      "stored_code": "A"
+    }
+  },
+  "reviewed_resolver_cases": {
+    "note": "A2.2b's hand-reviewed resolver outcomes on fixture scene F1 (fixtures/iref_vla_evaluation, cases R14-R18), carried over because the category-complete selection keeps every chair, table, box and unknown-category object those commands need",
+    "commands": {
+      "fixture.iref_eval.f1.r14": {
+        "text": "the chair that is closest to the table",
+        "full_inventory": [
+          "insufficient_information",
+          null
+        ],
+        "source_known_nyu": [
+          "resolved",
+          "obj_002"
+        ]
+      },
+      "fixture.iref_eval.f1.r17": {
+        "text": "the chair that is farthest from the black box",
+        "full_inventory": [
+          "insufficient_information",
+          null
+        ],
+        "source_known_nyu": [
+          "resolved",
+          "obj_004"
+        ]
+      },
+      "fixture.iref_eval.f1.r16": {
+        "text": "the chair that is closest to the black box",
+        "full_inventory": [
+          "resolved",
+          "obj_002"
+        ]
+      }
+    },
+    "kinds": {
+      "ranking": [
+        "fixture.iref_eval.f1.r14/source_known_nyu",
+        "fixture.iref_eval.f1.r17/source_known_nyu"
+      ],
+      "missing_evidence": [
+        "fixture.iref_eval.f1.r14/full_inventory",
+        "fixture.iref_eval.f1.r17/full_inventory"
+      ]
+    }
+  },
+  "real_run": {
+    "run_id": "20261005_A2_r003",
+    "pilot_outputs": {
+      "results.jsonl": "7e55838296119ba7f34bedf908232b9c1c1e3c71719f0b8ef0f97f719d1ed282",
+      "summary.json": "b5b3ea087baf373bcb928563796e38b8e48119665b9a57628794d08ec69e84a5",
+      "report.md": "b7c88aba5066b833793068478973766294b70bbe77e9544bda26dc090d5afbbc"
+    },
+    "selected_sha256": "8c826ba35fb8f96425e88f83aa6d0b1d4a0a0815f4a0cdcc3e8303f59e4f8b0a",
+    "preparation_index_sha256": "44a994b466de26517640f563ae3b35176d784c98a598dfc8beab1dff2e544f28",
+    "parents": 32,
+    "views": 2,
+    "formats": 2,
+    "requests": 128,
+    "completed": 128,
+    "technical_failures": 0,
+    "context_exclusions": 0,
+    "empty_scenes": 0,
+    "object_choices": 128,
+    "ask_choices": 0,
+    "choice_codes": {
+      "B": 118,
+      "C": 10
+    },
+    "unknown_category_choices": 4,
+    "unknown_category_objects_note": "obj_055 or obj_058; determined from the scene records, never from these IDs",
+    "format_agreement": {
+      "full_inventory": [
+        30,
+        32
+      ],
+      "source_known_nyu": [
+        28,
+        32
+      ]
+    },
+    "rules_records": 64,
+    "parse_records": 32,
+    "score_rows": 128,
+    "comparison_rows": 64,
+    "canary_max_abs_difference": 0.0,
+    "forward_ms": {
+      "median": 90.09770001284778,
+      "p95": 201.95100002456456
+    },
+    "peak_gpu_bytes": 4945565696
+  }
+}

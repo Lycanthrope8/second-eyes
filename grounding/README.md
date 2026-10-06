@@ -39,6 +39,8 @@ Language grounding (proposal §6, with A2 as the Revision 3.1 supplement plans i
 | `tests/test_iref_vla_preparation.py`, `tests/fixtures/iref_vla_preparation/` | its tests and the expectations written before implementation: `--unit-only` (test doubles; not real-token acceptance), `--bundle DIR` or `--import DIR --selection-audit DIR` | A2.2d |
 | `inference/iref_vla/` | the A2.3a zero-shot direct-selection pilot (`docs/iref-vla-zero-shot-pilot.md`): `prepare` freezes exact requests from an A2.2d bundle; `run` verifies them and the checkpoint, runs the canary and one forward per request; its CLI, `python -m grounding.inference.iref_vla` | A2.3a |
 | `tests/test_iref_vla_pilot.py`, `tests/fixtures/iref_vla_pilot/` | its tests and the expectations written before the scorer: `--unit-only` (fakes only), the pinned-tokenizer mode, `--requests DIR` | A2.3a |
+| `evaluation/iref_vla_pilot/` | the A2.3b saved-pilot scoring and matched rules baseline (`docs/iref-vla-pilot-scoring.md`): `baseline` runs the accepted parser and resolver once per selected parent and view; `score` compares the saved model and rules results with the reference annotations; its CLI, `python -m grounding.evaluation.iref_vla_pilot` | A2.3b |
+| `tests/test_iref_vla_pilot_scoring.py`, `tests/fixtures/iref_vla_pilot_scoring/` | its tests and the expectations written before the scoring layer: `--unit-only` (fixtures and labelled doubles), or `--rules DIR --scores DIR [--pilot DIR]` to read back a real run | A2.3b |
 
 ## Setup
 
