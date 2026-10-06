@@ -1,0 +1,29 @@
+# Run config, format v1 (defined in schemas/run-config.v1.json).
+# Made by:   python tools/runs.py new <phase> --purpose "..." --operator "..."
+# Check it:  python tools/runs.py check <run ID>
+# Fill the optional fields that apply to this run and leave the rest null.
+
+# Identity (filled by the tool)
+config_version: 1
+run_id: "20261005_A2_r001"
+phase: "A2"
+created: "2026-10-05T21:32:40-04:00"  # local time with UTC offset
+
+# Required (given to the tool)
+purpose: "A2.3a zero-shot pilot: canary and 128 requests, float32"  # one line: why this run exists
+operator: "JH"  # who ran it
+
+# Code (filled by the tool)
+git_commit: "c5b7704d28c9e0bd8f20903b6a72f45feb9f8c18"
+git_dirty: true  # true if the repository had uncommitted changes (files in .gitignore don't count)
+
+# Optional: leave null when a field doesn't apply
+model_checkpoint: null  # model file name (--checkpoint fills it)
+model_sha256: null  # SHA-256 of that file (--checkpoint fills it)
+prompt_version: null  # version of the prompt template
+schema_version: null  # version of the model's output/scene schema (proposal section 6.2)
+layout_id: null  # which prop layout
+headset_os_build: null  # ro.build.fingerprint (--headset fills it)
+drone_firmware: null
+lighting: null  # lighting conditions
+notes: "stopped before any work: E_PILOT_DEVICE, CPU-only PyTorch on the laptop; no inference, no outputs"  # anything else
