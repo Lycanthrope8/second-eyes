@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using SecondEyes.Perception;
 using UnityEngine;
 using UnityEngine.XR;
 
@@ -70,7 +71,7 @@ namespace SecondEyes.App
             float fps = frames / elapsed;
             frames = 0;
             windowStart = now;
-            label.text = $"Second Eyes {Application.version}\n{fps:0.0} fps | {RefreshRateText()}" + HandsText();
+            label.text = $"Second Eyes {Application.version}\n{fps:0.0} fps | {RefreshRateText()}" + HandsText() + DetectorText();
 
             if (!sized)
             {
@@ -85,6 +86,12 @@ namespace SecondEyes.App
                 return "";
             }
             return $"\nhands L {(HandState.LeftTracked ? "yes" : "no")} | R {(HandState.RightTracked ? "yes" : "no")}";
+        }
+
+        private static string DetectorText()
+        {
+            string status = DetectorRunner.StatusLine;
+            return string.IsNullOrEmpty(status) ? "" : "\ndetector " + status;
         }
 
         private string RefreshRateText()

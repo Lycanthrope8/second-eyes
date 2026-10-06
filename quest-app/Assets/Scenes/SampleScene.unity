@@ -247,6 +247,82 @@ MonoBehaviour:
     m_VarianceClampScale: 0.9
     m_ContrastAdaptiveSharpening: 0
   m_Version: 2
+--- !u!1 &85153545
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 85153548}
+  - component: {fileID: 85153547}
+  - component: {fileID: 85153546}
+  m_Layer: 0
+  m_Name: "\u200BDetector"
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &85153546
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 85153545}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b0267a1403d9f0049abf704639ac3b2d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SecondEyes.App.DetectorButtons
+  detector: {fileID: 85153547}
+--- !u!114 &85153547
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 85153545}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6ca4f8fd098323c47b90988848c13a58, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SecondEyes.Perception.DetectorRunner
+  model: {fileID: 5022602860645237092, guid: 6b4a28821481fdd4faab4845294cb349, type: 3}
+  packageManifest: {fileID: 4900000, guid: 977686775b72b6e4cb291588be96b13d, type: 3}
+  letterboxShader: {fileID: 4800000, guid: a654cf003270cc44ca2621ba4dccc7c5, type: 3}
+  frameSource: {fileID: 2105891342}
+  flipCamera: 0
+  runChecks: 1
+  canvasImages:
+  - {fileID: 4900000, guid: 5db12feadf66fb34d82b23defb6490a0, type: 3}
+  - {fileID: 4900000, guid: 0387b704cd412a1459937eb1ed53f49a, type: 3}
+  - {fileID: 4900000, guid: 01b4075aa1b2f1242a9f3e77ae519f3b, type: 3}
+  - {fileID: 4900000, guid: 6b0b27ed7beda984cae00d7e2ab19c1f, type: 3}
+  - {fileID: 4900000, guid: 9f25a747973d4064483397c7cffc5070, type: 3}
+  fullImages:
+  - {fileID: 4900000, guid: f01ab54208ce3a749861001b061e517b, type: 3}
+  - {fileID: 4900000, guid: 88fdec7fbee0eec47aa9d645acd3abbc, type: 3}
+  useGpu: 1
+  maxRateHz: 0
+  maxLoggedDetections: 20
+--- !u!4 &85153548
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 85153545}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -0, y: 0, z: -0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &187680864
 GameObject:
   m_ObjectHideFlags: 0
@@ -1784,3 +1860,4 @@ SceneRoots:
   - {fileID: 1324582253}
   - {fileID: 671885762}
   - {fileID: 441867075}
+  - {fileID: 85153548}

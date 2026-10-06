@@ -1,0 +1,205 @@
+{
+ "format_version": 1,
+ "record_type": "detector_reference",
+ "package_id": "yolox_nano_coco.se1",
+ "model_sha256": "5d3807434d0dc23cfbe4f6591e06cd0140d3a3fefbe787f0fb0f498975ff026d",
+ "floor": 0.25,
+ "score_threshold": 0.3,
+ "nms_iou_threshold": 0.45,
+ "detection_fields": [
+  "class",
+  "score",
+  "x1",
+  "y1",
+  "x2",
+  "y2"
+ ],
+ "runtime": {
+  "python": "3.12.3",
+  "onnxruntime": "1.24.4",
+  "onnx": "1.23.2",
+  "opencv": "4.13.0",
+  "numpy": "2.4.4",
+  "provider": "CPUExecutionProvider",
+  "threads": 1,
+  "platform": "Linux-6.18.44-fc-v70-x86_64-with-glibc2.39"
+ },
+ "images": [
+  {
+   "id": "dog",
+   "canvas_file": "quest-app/Assets/SecondEyes/Perception/DetectorTests/dog_416.png.bytes",
+   "canvas_sha256": "6ee69e44dc97f69883ffb90ed4dd53e3b802413dcfb3d6bf1b6441123e65e576",
+   "canvas_detections": [
+    [
+     16,
+     0.8550711870193481,
+     71.92568969726562,
+     111.92735290527344,
+     176.41368103027344,
+     294.17413330078125
+    ],
+    [
+     1,
+     0.8026435375213623,
+     28.030166625976562,
+     74.30388641357422,
+     310.00262451171875,
+     229.47634887695312
+    ],
+    [
+     2,
+     0.7981905341148376,
+     252.5615234375,
+     42.46361541748047,
+     375.09490966796875,
+     92.76419830322266
+    ]
+   ],
+   "full_file": "quest-app/Assets/SecondEyes/Perception/DetectorTests/dog_full.png.bytes",
+   "full_sha256": "dfc703495cbbfe0b588ed9846ff35158f302c749eb338beb11043278b9fca314",
+   "width": 768,
+   "height": 576,
+   "ratio": 0.5416666666666666,
+   "full_detections": [
+    [
+     16,
+     0.8550711870193481,
+     132.785888671875,
+     206.63511305588943,
+     325.68679574819714,
+     543.0907076322115
+    ],
+    [
+     1,
+     0.8026435375213623,
+     51.747999924879814,
+     137.17640568659857,
+     572.3125375600962,
+     423.64864408052887
+    ],
+    [
+     2,
+     0.7981905341148376,
+     466.2674278846154,
+     78.39436692457933,
+     692.48291015625,
+     171.25698148287262
+    ]
+   ],
+   "source": {
+    "source": "https://github.com/Megvii-BaseDetection/YOLOX/blob/6ddff4824372906469a7fae2dc3206c7aa4bbaee/assets/dog.jpg",
+    "license": "Apache-2.0",
+    "sha256": "5a9522051c3cec2bbd2f6323fccba32e8fbf3ddcc2b3e2fd46b04c720bc6f866"
+   }
+  },
+  {
+   "id": "fruits",
+   "canvas_file": "quest-app/Assets/SecondEyes/Perception/DetectorTests/fruits_416.png.bytes",
+   "canvas_sha256": "22323b2e7f0556bd293e17573c4abe27af9ec4cf6515fa3e9948ddefcaf30729",
+   "canvas_detections": [
+    [
+     49,
+     0.6379438042640686,
+     258.81549072265625,
+     202.41143798828125,
+     416.66754150390625,
+     392.99188232421875
+    ],
+    [
+     49,
+     0.3006346821784973,
+     55.91351318359375,
+     57.22322082519531,
+     280.99755859375,
+     386.24090576171875
+    ]
+   ],
+   "full_file": "quest-app/Assets/SecondEyes/Perception/DetectorTests/fruits_full.png.bytes",
+   "full_sha256": "3170da62652bbb4039f7f80351214a981ca73cf7f498fc1305341fb295241283",
+   "width": 512,
+   "height": 480,
+   "ratio": 0.8125,
+   "full_detections": [
+    [
+     49,
+     0.6379438042640686,
+     318.54214242788464,
+     249.12176983173077,
+     512.8215895432693,
+     483.6823167067308
+    ],
+    [
+     49,
+     0.3006346821784973,
+     68.81663161057692,
+     70.42857947716347,
+     345.84314903846155,
+     475.37342247596155
+    ]
+   ],
+   "source": {
+    "source": "https://github.com/opencv/opencv/blob/3303de8ae0ec0567c50e334ca39cf4587d4abc46/samples/data/fruits.jpg",
+    "license": "Apache-2.0",
+    "sha256": "9c031d80a1c52da5eca790db896baffec6a7e52bf786cdb7bbfca5c7f880e6a1"
+   }
+  },
+  {
+   "id": "box_in_scene",
+   "canvas_file": "quest-app/Assets/SecondEyes/Perception/DetectorTests/box_in_scene_416.png.bytes",
+   "canvas_sha256": "09144aa92438ff20e2f2ccedea471f4d7ccfe4d9fd9378817af83c20577b4470",
+   "canvas_detections": [
+    [
+     73,
+     0.47754889726638794,
+     195.0971221923828,
+     139.15560913085938,
+     318.1394958496094,
+     288.7779541015625
+    ],
+    [
+     73,
+     0.3180234134197235,
+     75.83232116699219,
+     131.15774536132812,
+     220.6758270263672,
+     238.74896240234375
+    ]
+   ],
+   "source": {
+    "source": "https://github.com/opencv/opencv/blob/3303de8ae0ec0567c50e334ca39cf4587d4abc46/samples/data/box_in_scene.png",
+    "license": "Apache-2.0",
+    "sha256": "8b0225ff76244a42bd1400c0904f8b7afea7d97b7d8115495e42e98ad347bd51"
+   }
+  },
+  {
+   "id": "apple",
+   "canvas_file": "quest-app/Assets/SecondEyes/Perception/DetectorTests/apple_416.png.bytes",
+   "canvas_sha256": "d4561eedd88af5b503fc736f19d21084989c1d8639aeb22ed7a7499a6d2dd2ee",
+   "canvas_detections": [
+    [
+     49,
+     0.5350555181503296,
+     31.808883666992188,
+     50.16963195800781,
+     369.26611328125,
+     402.75250244140625
+    ]
+   ],
+   "source": {
+    "source": "https://github.com/opencv/opencv/blob/3303de8ae0ec0567c50e334ca39cf4587d4abc46/samples/data/apple.jpg",
+    "license": "Apache-2.0",
+    "sha256": "e86879de3d9a807dedc742a8f464f39e6b74bbb531a1fba3583155d94997d1cd"
+   }
+  },
+  {
+   "id": "blank",
+   "canvas_file": "quest-app/Assets/SecondEyes/Perception/DetectorTests/blank_416.png.bytes",
+   "canvas_sha256": "4587c627b3807f4c7c3603348206df7a5cd2cf7c133e4c8fd3950eb6bbe8d330",
+   "canvas_detections": [],
+   "source": {
+    "source": "uniform pad value 114",
+    "license": "generated"
+   }
+  }
+ ]
+}

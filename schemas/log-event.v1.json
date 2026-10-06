@@ -636,6 +636,321 @@
           "description": "Frame height, 0 when not playing."
         }
       }
+    },
+    "detector.toggle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "on",
+        "source"
+      ],
+      "properties": {
+        "on": {
+          "type": "boolean",
+          "description": "Whether the detector was asked to run (A1.10c)."
+        },
+        "source": {
+          "enum": [
+            "button_y",
+            "context_menu"
+          ],
+          "description": "Y on the left controller, or the component's context menu in the Editor."
+        }
+      }
+    },
+    "detector.backend": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "backend",
+        "source"
+      ],
+      "properties": {
+        "backend": {
+          "enum": [
+            "gpu_compute",
+            "cpu"
+          ],
+          "description": "The backend now selected; it applies the next time the detector starts."
+        },
+        "source": {
+          "enum": [
+            "left_thumbstick"
+          ],
+          "description": "Pressing the left thumbstick while the detector is off."
+        }
+      }
+    },
+    "detector.load": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "package_id",
+        "model_sha256",
+        "backend",
+        "input_size",
+        "load_ms",
+        "warmup_ms",
+        "warmup_completed",
+        "color_space"
+      ],
+      "properties": {
+        "package_id": {
+          "type": "string",
+          "description": "The detector package's ID (D84)."
+        },
+        "model_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "The model file's SHA-256 as the package manifest states it."
+        },
+        "backend": {
+          "enum": [
+            "gpu_compute",
+            "cpu"
+          ],
+          "description": "Unity Inference Engine backend: GPUCompute or CPU."
+        },
+        "input_size": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "The model's square input size in pixels."
+        },
+        "load_ms": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Reading the manifest, loading the model and creating the worker."
+        },
+        "warmup_ms": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "The first inference, on a uniform pad-coloured canvas; it includes one-time setup."
+        },
+        "warmup_completed": {
+          "type": "boolean",
+          "description": "Whether that first inference finished."
+        },
+        "color_space": {
+          "enum": [
+            "linear",
+            "gamma"
+          ],
+          "description": "The project's colour space."
+        }
+      }
+    },
+    "detector.unload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "backend"
+      ],
+      "properties": {
+        "backend": {
+          "enum": [
+            "gpu_compute",
+            "cpu"
+          ],
+          "description": "The backend of the detector released when it was turned off."
+        }
+      }
+    },
+    "detector.source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "graphics_format",
+        "srgb",
+        "width",
+        "height",
+        "encode_srgb",
+        "flip"
+      ],
+      "properties": {
+        "path": {
+          "enum": [
+            "camera",
+            "texture_srgb",
+            "texture_linear"
+          ],
+          "description": "Which texture path the next results use."
+        },
+        "graphics_format": {
+          "type": "string",
+          "description": "The source texture's GraphicsFormat."
+        },
+        "srgb": {
+          "type": "boolean",
+          "description": "Whether that format is sRGB."
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "encode_srgb": {
+          "type": "boolean",
+          "description": "Whether the letterbox shader encodes samples back to sRGB values (linear colour space and an sRGB source)."
+        },
+        "flip": {
+          "type": "boolean",
+          "description": "Whether the source's rows are read bottom to top."
+        }
+      }
+    },
+    "detector.result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "image_id",
+        "backend",
+        "completed",
+        "error",
+        "width",
+        "height",
+        "ratio",
+        "schedule_ms",
+        "latency_ms",
+        "postprocess_ms",
+        "frames_waited",
+        "candidates",
+        "detections_total",
+        "detections",
+        "snapshot"
+      ],
+      "properties": {
+        "path": {
+          "enum": [
+            "tensor",
+            "texture_srgb",
+            "texture_linear",
+            "camera"
+          ],
+          "description": "tensor: an exact test canvas (the parity path); texture_*: a full-size test image through the GPU letterbox; camera: a passthrough frame."
+        },
+        "image_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The test image's ID (reference.v1.json), null for camera frames."
+        },
+        "backend": {
+          "enum": [
+            "gpu_compute",
+            "cpu"
+          ],
+          "description": "Unity Inference Engine backend: GPUCompute or CPU."
+        },
+        "readback": {
+          "enum": [
+            "blocking",
+            "async"
+          ],
+          "description": "blocking: outputs read back synchronously in the inference's frame (the warm-up and self-checks); async: over the following frames (camera frames by default). Absent in logs from builds before the second A1.10c fix."
+        },
+        "completed": {
+          "type": "boolean",
+          "description": "Whether the inference finished."
+        },
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Why it did not run, for example busy."
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Source width in pixels."
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Source height in pixels."
+        },
+        "ratio": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Letterbox ratio: input pixels per source pixel."
+        },
+        "schedule_ms": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "From the start to the model being scheduled: letterbox, conversion, scheduling (CPU wall time)."
+        },
+        "latency_ms": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "From the start until all three outputs were read back."
+        },
+        "postprocess_ms": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Thresholding and suppression on the CPU."
+        },
+        "frames_waited": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Frames spent waiting for the readbacks."
+        },
+        "candidates": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Outputs at or above the score threshold before suppression."
+        },
+        "detections_total": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Detections after suppression; at most maxLoggedDetections are listed."
+        },
+        "detections": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "minItems": 6,
+            "maxItems": 6,
+            "items": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "description": "[class, score, x1, y1, x2, y2] in source pixels, highest score first."
+        },
+        "snapshot": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The saved input's name (snapshots/<name>.png beside the logs), or null."
+        }
+      }
     }
   }
 }

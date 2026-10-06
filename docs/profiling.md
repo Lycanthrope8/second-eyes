@@ -116,6 +116,31 @@ record what was uncommitted with `python tools/runs.py note <run ID> "..."`.
 Keep the headset on throughout each session (O14). Each run's notes record "plugged in" (D22), the requested and
 delivered resolution, the frame signal (`updated_flag`, `timestamp` or `none`) and that the preview was off.
 
+## A1.10c: what the detector costs (D84 to D86)
+
+Three runs with one build that has the detector set up (`docs/detector.md`). Y on the left controller turns the
+detector on: it loads, warms up, runs its self-checks (about ten inferences on the test images), then detects on camera
+frames back to back until Y turns it off and releases the model. Create each run before starting the app, as in A1.10a.
+
+1. Run A, parity (not profiled): `python tools/runs.py new A1 --purpose "A1.10c parity: self-checks on GPU then CPU"
+   --operator <initials> --headset`. Start the app, press Y, wait for the self-checks (about 20 s), press Y again;
+   press the left thumbstick (backend now CPU), press Y, wait, press Y; quit, pull, then
+   `python -m perception.detector parity <run A>` and `python analysis/detector_runs.py <run A>`.
+2. Run B, the cost on the GPU backend: reboot and settle as in A1.10a, OVR Metrics' CSV recording on, create the run
+   (purpose "A1.10c detector on camera frames, GPU backend, back to back"), start the app, press X (camera on), then
+   Y (detector on). While it settles for one minute, face furniture or the props with no people in view and pull the
+   left trigger once (a snapshot). Then `python tools/profile.py record <run B> --minutes 10`, quit, pull,
+   `python analysis/profile.py summary <run B>`, `python analysis/camera_frames.py <run B>`,
+   `python analysis/detector_runs.py <run B>` and `python analysis/profile.py compare 20261005_A1_r039 <run B>`
+   (camera on, no detector).
+3. Run C, the CPU backend for comparison: as run B, but press the left thumbstick before Y, and record three minutes.
+4. The snapshot: `adb pull /sdcard/Android/data/com.secondeyes.quest/files/snapshots runs/<run B>/raw/snapshots`, then
+   `python -m perception.detector snapshot <run B> --image runs/<run B>/raw/snapshots/<name>.png --id <name>`.
+   Snapshots stay out of Git with the rest of `raw/`.
+
+Keep the headset on throughout each session (O14). Each run's notes record "plugged in" (D22), the backend, the rate
+setting (0: back to back) and anything unusual, such as frame drops when the detector started.
+
 ## Comparing two runs
 
 ```

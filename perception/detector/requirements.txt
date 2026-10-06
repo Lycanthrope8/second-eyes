@@ -1,0 +1,5 @@
+# PC reference for the detector (A1.10b, D84). Versions used to make fixtures/reference.v1.json.
+numpy==2.4.4
+onnx==1.23.2
+onnxruntime==1.24.4
+opencv-python-headless==4.13.0.92

@@ -58,6 +58,12 @@ Defined in v1:
 | `camera.state` | `enabled` (whether MRUK's camera component is running) | when the camera component is enabled or disabled (A1.10a) |
 | `camera.playing` | `width`, `height`, `frame_signal` (`updated_flag`, `timestamp` or `none`) | when frames start arriving after the camera is enabled (A1.10a) |
 | `camera.second` | `on`, `playing`, `frames` (distinct frames in the window, or null without a frame signal), `window_ms`, `width`, `height` | about once per second, with the camera on or off (A1.10a) |
+| `detector.toggle` | `on`, `source` (`button_y` or `context_menu`) | Y on the left controller turns the detector on or off (A1.10c) |
+| `detector.backend` | `backend` (`gpu_compute` or `cpu`), `source` | the left thumbstick switches the backend while the detector is off (A1.10c) |
+| `detector.load` | `package_id`, `model_sha256`, `backend`, `input_size`, `load_ms`, `warmup_ms`, `warmup_completed`, `color_space` | once per start, after the model is loaded and one warm-up inference has run (A1.10c) |
+| `detector.unload` | `backend` | when the detector is turned off and its model released (A1.10c) |
+| `detector.source` | `path`, `graphics_format`, `srgb`, `width`, `height`, `encode_srgb`, `flip` | before the first result from each texture path: the camera, or a test image as an sRGB or linear texture (A1.10c) |
+| `detector.result` | `path` (`tensor`, `texture_srgb`, `texture_linear` or `camera`), `image_id`, `backend`, `readback` (`blocking` or `async`; absent before the second A1.10c fix), `completed`, `error`, `width`, `height`, `ratio`, `schedule_ms`, `latency_ms`, `postprocess_ms`, `frames_waited`, `candidates`, `detections_total`, `detections` ([class, score, x1, y1, x2, y2] in source pixels), `snapshot` | after every inference: the self-checks each time it starts, then each camera frame (A1.10c; `docs/detector.md`) |
 
 Planned, and defined by the phase that first emits them (proposal S0 item 3): speech start and end, recognized text, model input and output, candidate probabilities, the validated goal, commands sent, and drone telemetry. Sync events are defined when time sync is built (deferred, D10).
 
