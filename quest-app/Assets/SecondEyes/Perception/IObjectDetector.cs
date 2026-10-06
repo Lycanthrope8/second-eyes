@@ -26,6 +26,8 @@ namespace SecondEyes.Perception
         public int Candidates;
         public double ScheduleMs, LatencyMs, PostprocessMs;
         public int FramesWaited;
+        public int StepsPerFrame, ScheduleSteps, ScheduleFrames;
+        public float Floor;
         public bool Blocking;
         public bool Completed;
         public string Error;
@@ -33,7 +35,8 @@ namespace SecondEyes.Perception
         public void Clear()
         {
             Detections.Clear();
-            SourceWidth = SourceHeight = Candidates = FramesWaited = 0;
+            SourceWidth = SourceHeight = Candidates = FramesWaited = StepsPerFrame = ScheduleSteps = ScheduleFrames = 0;
+            Floor = 0f;
             Ratio = ScheduleMs = LatencyMs = PostprocessMs = 0;
             Completed = Blocking = false;
             Error = null;
@@ -57,6 +60,17 @@ namespace SecondEyes.Perception
         int InputSize { get; }
 
         IReadOnlyList<string> Classes { get; }
+
+        /// <summary>The model's layer count after import: the number of scheduling steps one inference takes.</summary>
+        int LayerCount { get; }
+
+        /// <summary>Scheduling steps (layers) dispatched per rendered frame; 0 dispatches the whole network in one frame.
+        /// Applies from the next inference (A1.10, D88).</summary>
+        int StepsPerFrame { get; set; }
+
+        /// <summary>Lowest score kept after suppression. The package's threshold still defines a detection; scores
+        /// between the floor and the threshold are kept only so parity can verify threshold crossings (D88).</summary>
+        float Floor { get; set; }
 
         /// <summary>Letterboxes a texture into the model's input on the GPU, then detects.</summary>
         /// <param name="flipVertically">True when the texture's rows run bottom to top.</param>

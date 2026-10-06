@@ -53,11 +53,24 @@ def iou(a, b) -> float:
     return inter / union if union > 0 else 0.0
 
 
-def compare(ref: list, got: list, threshold=P.SCORE_THRESHOLD) -> dict:
-    """Match one image's detections; failures are unmatched detections clearly above the threshold."""
+def compare(ref: list, got: list, threshold=P.SCORE_THRESHOLD, got_floor=None) -> dict:
+    """Match one image's detections and sort what is left into the D85 categories (D88's reporting).
+
+    Both lists may hold detections below the threshold, down to each side's floor (the PC reference keeps 0.25; the
+    headset logs its own floor from D88 on, earlier builds only 0.3). Matching is one-to-one, greedy by descending
+    PC score, same class, IoU >= 0.95 and scores within 0.02. Then:
+    - strict: matched pairs with both scores at or above the threshold;
+    - crossing: matched pairs on opposite sides of the threshold (a verified threshold-crossing exception);
+    - borderline: an unmatched detection within 0.02 of the threshold, at or above it on its own side, whose partner
+      could not be checked or was not found (unresolved);
+    - failure: an unmatched detection at or above threshold + 0.02, or an unmatched one the other side's floor could
+      have shown.
+    """
+    if got_floor is None:
+        got_floor = min([d[1] for d in got] + [threshold])
     ref = sorted(ref, key=lambda d: -d[1])
     got = sorted(got, key=lambda d: -d[1])
-    used, pairs = set(), []
+    used, pairs, matched_ref = set(), [], set()
     for i, r in enumerate(ref):
         best = None
         for j, g in enumerate(got):
@@ -68,43 +81,63 @@ def compare(ref: list, got: list, threshold=P.SCORE_THRESHOLD) -> dict:
                 best = (j, o)
         if best is not None:
             used.add(best[0])
+            matched_ref.add(i)
             pairs.append({"class": r[0], "pc_score": r[1], "headset_score": got[best[0]][1], "iou": best[1]})
-    matched_ref = {id(ref[i]) for i in range(len(ref)) if any(p["pc_score"] == ref[i][1] and p["class"] == ref[i][0]
-                                                              for p in pairs)}
-    lone_ref = [r for r in ref if id(r) not in matched_ref and r[1] >= threshold - MARGIN]
-    lone_got = [g for j, g in enumerate(got) if j not in used]
-    fail = [("pc_only", r) for r in lone_ref if r[1] >= threshold + MARGIN] + \
-           [("headset_only", g) for g in lone_got if g[1] >= threshold + MARGIN]
-    border = [("pc_only", r) for r in lone_ref if r[1] < threshold + MARGIN] + \
-             [("headset_only", g) for g in lone_got if g[1] < threshold + MARGIN]
-    return {"pass": not fail, "pairs": pairs, "failures": fail, "borderline": border,
-            "max_score_diff": max((abs(p["pc_score"] - p["headset_score"]) for p in pairs), default=0.0),
-            "min_iou": min((p["iou"] for p in pairs), default=1.0)}
+    crossing = [x for x in pairs if (x["pc_score"] >= threshold) != (x["headset_score"] >= threshold)]
+    lone_ref = [r for i, r in enumerate(ref) if i not in matched_ref and r[1] >= threshold]
+    lone_got = [g for j, g in enumerate(got) if j not in used and g[1] >= threshold]
+    fail, border = [], []
+    for side, lone, other_floor in (("pc_only", lone_ref, got_floor), ("headset_only", lone_got, 0.25)):
+        for d in lone:
+            if d[1] >= threshold + MARGIN:
+                fail.append((side, d))
+            elif d[1] - SCORE_TOL >= other_floor + 1e-9 and other_floor < threshold:
+                fail.append((side, d))       # the other side's floor could have shown a partner, and did not
+            else:
+                border.append((side, d))
+    in_pairs = [x for x in pairs if x["pc_score"] >= threshold or x["headset_score"] >= threshold]
+    return {"pass": not fail, "strict": not fail and not crossing and not border, "pairs": in_pairs,
+            "crossings": crossing, "failures": fail, "borderline": border,
+            "max_score_diff": max((abs(p["pc_score"] - p["headset_score"]) for p in in_pairs), default=0.0),
+            "min_iou": min((p["iou"] for p in in_pairs), default=1.0)}
 
 
-def evaluate(events, reference: dict) -> dict:
+def evaluate(events, reference: dict, extra_dir=None) -> dict:
+    """Every self-check result against the reference; extra canvases (a snapshot pushed to the headset) are judged
+    against a PC reference made now from the PNG of the same name in extra_dir."""
     ref = {e["id"]: e for e in reference["images"]}
+    extra = {}
     rows, seen = [], set()
     for log, line, ev in events:
         d = ev["data"]
-        if d.get("path") not in ("tensor", "texture_srgb", "texture_linear") or d.get("image_id") not in ref:
+        path, image = d.get("path"), d.get("image_id")
+        if path not in ("tensor", "texture_srgb", "texture_linear") or image is None:
             continue
-        r = ref[d["image_id"]]
-        if d["path"] == "tensor":
-            want = r["canvas_detections"]
-        elif "full_detections" in r:
-            want = r["full_detections"]
+        if image in ref:
+            r = ref[image]
+            want = r["canvas_detections"] if path == "tensor" else r.get("full_detections")
+            if want is None:
+                continue
+            kind = "reference"
+        elif path == "tensor" and extra_dir is not None and (Path(extra_dir) / f"{image}.png").is_file():
+            if image not in extra:
+                from . import reference as R
+                man = P.load_manifest()
+                extra[image] = R.detect_canvas(R.session(P.PACKAGE_DIR / man["model_file"]),
+                                               R.read_png(Path(extra_dir) / f"{image}.png"), 1.0, 0.25)
+            want, kind = extra[image], "extra"
         else:
             continue
-        c = compare(want, d["detections"])
-        rows.append({"log": log, "line": line, "path": d["path"], "backend": d.get("backend"), "image": d["image_id"],
-                     **c})
-        if d["path"] == "tensor" and d.get("backend") == "gpu_compute":
-            seen.add(d["image_id"])
+        c = compare(want, d["detections"], got_floor=d.get("floor"))
+        rows.append({"log": log, "line": line, "path": path, "backend": d.get("backend"), "image": image, "kind": kind,
+                     "steps_per_frame": d.get("steps_per_frame"), **c})
+        if path == "tensor" and d.get("backend") == "gpu_compute" and kind == "reference":
+            seen.add(image)
     gpu = [x for x in rows if x["path"] == "tensor" and x["backend"] == "gpu_compute"]
     missing = sorted(set(ref) - seen)
     return {"rows": rows, "missing_gpu_images": missing,
-            "parity_pass": bool(gpu) and not missing and all(x["pass"] for x in gpu)}
+            "parity_pass": bool(gpu) and not missing and all(x["pass"] for x in gpu),
+            "strict": bool(gpu) and not missing and all(x["strict"] for x in gpu)}
 
 
 def snapshot(events, image_path, snapshot_id) -> dict:

@@ -742,6 +742,40 @@
             "gamma"
           ],
           "description": "The project's colour space."
+        },
+        "layer_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "The model's layer count after import: scheduling steps per inference (D88)."
+        },
+        "steps_per_frame": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Scheduling steps per rendered frame; 0: the whole network in one frame."
+        },
+        "floor": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Lowest score kept after suppression, for parity's threshold-crossing checks."
+        },
+        "mode": {
+          "enum": [
+            "scan",
+            "burst",
+            "continuous"
+          ],
+          "description": "scan: stop-and-shoot keyframes in hover blocks; burst: a short higher-rate run; continuous: back to back."
+        },
+        "keyframe_rate_hz": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Keyframe rate of the scan or burst mode."
         }
       }
     },
@@ -758,6 +792,18 @@
             "cpu"
           ],
           "description": "The backend of the detector released when it was turned off."
+        },
+        "release_ms": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Time to dispose the detector's worker, tensors and textures (D88)."
+        },
+        "in_flight": {
+          "type": "boolean",
+          "description": "Whether an inference was still running when it was released (false when it finished first)."
         }
       }
     },
@@ -949,6 +995,260 @@
             "null"
           ],
           "description": "The saved input's name (snapshots/<name>.png beside the logs), or null."
+        },
+        "steps_per_frame": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Scheduling steps per rendered frame for this inference (0: all in one frame)."
+        },
+        "schedule_steps": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Scheduling steps this inference took (runtime layers)."
+        },
+        "schedule_frames": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Rendered frames its scheduling spanned."
+        },
+        "floor": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Lowest score kept; detections are those at or above the package threshold (0.3)."
+        },
+        "keyframe": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Keyframe number in this session (null for self-checks)."
+        },
+        "scan": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Scan number (scan mode), else null."
+        },
+        "hover": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Hover block within the scan, else null."
+        },
+        "requested_utc_us": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "When the keyframe came due (UTC microseconds, the log's clock), null for self-checks."
+        },
+        "started_utc_us": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "When the inference copied its image and started (UTC microseconds)."
+        },
+        "capture_stamp": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The camera frame's timestamp as the camera component reports it, or null."
+        },
+        "pose": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "minItems": 7,
+          "maxItems": 7,
+          "items": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "description": "Camera pose at capture: x, y, z, qx, qy, qz, qw; null when unavailable."
+        }
+      },
+      "description": "Fields added in D88 (steps, keyframe, capture identity) are absent in earlier logs."
+    },
+    "detector.setting": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "backend",
+        "mode",
+        "steps_per_frame",
+        "source"
+      ],
+      "properties": {
+        "backend": {
+          "enum": [
+            "gpu_compute",
+            "cpu"
+          ]
+        },
+        "mode": {
+          "enum": [
+            "scan",
+            "burst",
+            "continuous"
+          ],
+          "description": "scan: stop-and-shoot keyframes in hover blocks; burst: a short higher-rate run; continuous: back to back."
+        },
+        "steps_per_frame": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The control that changed it."
+        }
+      }
+    },
+    "detector.scan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scan",
+        "hover",
+        "state",
+        "requested",
+        "completed",
+        "rejected"
+      ],
+      "properties": {
+        "scan": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "hover": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Hover block, or null for the whole scan."
+        },
+        "state": {
+          "enum": [
+            "start",
+            "end"
+          ]
+        },
+        "requested": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "completed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rejected": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "detector.reject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reason",
+        "scan",
+        "hover",
+        "requested_utc_us"
+      ],
+      "properties": {
+        "reason": {
+          "enum": [
+            "busy",
+            "no_camera_frame"
+          ],
+          "description": "busy: an inference was in flight; never queued."
+        },
+        "scan": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "hover": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "requested_utc_us": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "frame.second": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "window_ms",
+        "frames",
+        "budget_ms",
+        "over_budget",
+        "max_ms",
+        "longest_over_run",
+        "over_at_ms"
+      ],
+      "properties": {
+        "window_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "frames": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "budget_ms": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "One refresh interval."
+        },
+        "over_budget": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "App frame intervals over 1.5 refresh intervals."
+        },
+        "max_ms": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "longest_over_run": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "over_at_ms": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "description": "When in the window each over-budget frame ended (ms)."
         }
       }
     }

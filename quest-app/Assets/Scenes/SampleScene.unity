@@ -258,6 +258,7 @@ GameObject:
   - component: {fileID: 85153548}
   - component: {fileID: 85153547}
   - component: {fileID: 85153546}
+  - component: {fileID: 85153549}
   m_Layer: 0
   m_Name: "\u200BDetector"
   m_TagString: Untagged
@@ -305,9 +306,23 @@ MonoBehaviour:
   fullImages:
   - {fileID: 4900000, guid: f01ab54208ce3a749861001b061e517b, type: 3}
   - {fileID: 4900000, guid: 88fdec7fbee0eec47aa9d645acd3abbc, type: 3}
+  deviceCanvases: 1
   useGpu: 1
-  maxRateHz: 0
+  mode: 0
+  stepsChoices: 0800000010000000200000004000000000000000
+  stepsIndex: 1
+  keyframeRateHz: 1
+  hoversPerScan: 3
+  keyframesPerHover: 12
+  repositionS: 8
+  scanGapS: 15
+  burstRateHz: 2
+  burstSeconds: 30
+  floor: 0.25
   maxLoggedDetections: 20
+  asyncCameraReadback: 1
+  watchdogFrames: 300
+  releaseWaitS: 5
 --- !u!4 &85153548
 Transform:
   m_ObjectHideFlags: 0
@@ -323,6 +338,20 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &85153549
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 85153545}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 59016abe9c4ecc540a12f274d8aef8c2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SecondEyes.App.FrameTimes
+  refreshHz: 72
+  overFactor: 1.5
 --- !u!1 &187680864
 GameObject:
   m_ObjectHideFlags: 0

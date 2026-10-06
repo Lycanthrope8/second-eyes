@@ -29,6 +29,7 @@ namespace SecondEyes.Perception
         [SerializeField] private RawImage preview;
 
         private PropertyInfo updatedFlag, timestamp;
+        private MethodInfo cameraPose;
         private string frameSignal = "none";
         private object lastStamp;
         private bool wanted, permissionKnown, permissionGranted, playingLogged;
@@ -60,6 +61,8 @@ namespace SecondEyes.Perception
             if (updatedFlag != null && updatedFlag.PropertyType != typeof(bool)) updatedFlag = null;
             timestamp = type.GetProperty("Timestamp", flags);
             frameSignal = updatedFlag != null ? "updated_flag" : timestamp != null ? "timestamp" : "none";
+            cameraPose = type.GetMethod("GetCameraPose", flags, null, System.Type.EmptyTypes, null);
+            if (cameraPose != null && cameraPose.ReturnType != typeof(Pose)) cameraPose = null;
         }
 
         private void Start()
@@ -94,6 +97,35 @@ namespace SecondEyes.Perception
         }
 
         public void Toggle(string source) => SetOn(!wanted, source);
+
+        /// <summary>
+        /// The current frame's capture timestamp, as the camera component reports it (its text form, or null), and the
+        /// camera's pose (A1.10, D88). Read in the frame an inference copies its image, so the three stay together.
+        /// </summary>
+        public bool TryGetCapture(out string stamp, out Pose pose)
+        {
+            stamp = null;
+            pose = default;
+            if (!IsDelivering) return false;
+            try
+            {
+                if (timestamp != null)
+                {
+                    object value = timestamp.GetValue(cameraAccess);
+                    if (value is System.DateTime when)
+                        stamp = when.ToUniversalTime().ToString("o", System.Globalization.CultureInfo.InvariantCulture);
+                    else if (value != null)
+                        stamp = System.Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture);
+                }
+                if (cameraPose == null) return false;
+                pose = (Pose)cameraPose.Invoke(cameraAccess, null);
+                return true;
+            }
+            catch (System.Exception)
+            {
+                return false;
+            }
+        }
 
         private void Update()
         {

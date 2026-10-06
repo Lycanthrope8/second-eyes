@@ -61,12 +61,32 @@ judge real camera content by the same rule.
    `PassthroughCamera` object; Canvas Images the five `*_416.png` assets in `Perception/DetectorTests`; Full Images
    `dog_full.png` and `fruits_full.png`; Run Checks on; Use Gpu on; Max Rate Hz 0; Max Logged Detections 20; Flip
    Camera off.
-4. `DetectorButtons`: Detector, the `Detector` object. Save the scene.
+4. `DetectorButtons`: Detector, the `Detector` object. Add `FrameTimes` (App) to the same object; it logs the
+   app's frame intervals once a second (D88). Save the scene.
 5. Optional, before building: in Play mode in the Editor, right-click `DetectorRunner` and choose "Detector on". This
    only works if Play mode is running frames: with OpenXR set to start in the Editor and no Quest Link, it may not be
    (the log then has no `camera.second` events). Start Quest Link, or untick Initialize XR on Startup on the PC tab of
    XR Plug-in Management, first. The self-checks run on the PC's GPU; check the session log (under the Editor's
    persistent data path) with `python -m perception.detector parity <log file>`. No camera frames arrive in the Editor.
+
+## Running it on the headset (D88)
+
+Each inference is dispatched over several frames: Worker.ScheduleIterable advances one layer per step, and the runner
+takes a fixed number of steps per rendered frame (8, 16, 32 or 64; 0 dispatches the whole network in one frame, as
+before D88). The model's layer count after import is logged at load (`layer_count`), and every result logs the steps it
+took and the frames it spanned. One inference is in flight: its image is copied once, at its start, with the camera's
+timestamp and pose (`capture_stamp`, `pose`), and its three outputs are read back together after the last step (D87).
+
+Modes:
+- **scan** (default): stop-and-shoot keyframes, 3 hover blocks of 12 keyframes at 1 Hz, 8 s repositioning between
+  blocks and 15 s between scans, repeated until off. A keyframe that comes due while an inference is in flight is
+  rejected and logged (`detector.reject`), never queued.
+- **burst**: 2 Hz for 30 s, then idle (a diagnostic).
+- **continuous**: back to back (stress evidence only).
+
+Results keep detections down to a score of 0.25 so parity can verify threshold crossings; a detection is still one
+at or above 0.3. Turning the detector off stops new keyframes, lets the inference in flight finish (up to 5 s) and then
+releases it, logging the release time and whether anything was still running.
 
 ## How to tell that it works
 
@@ -83,7 +103,12 @@ and in Unity's console, the detector has been released, and Y starts it again. A
 `python analysis/detector_runs.py <run or log>` (latency and rates). Pointing at a chair or a table should show it on
 the overlay; COCO calls many other things by their nearest class.
 
-Controls on the headset: Y turns the detector on and off (on: load, warm-up, self-checks, then camera frames; off:
-release the model); the left thumbstick switches between the GPU and CPU backends while it is off; the left trigger
-saves the next camera frame's input as a snapshot. Events: `detector.*` in `docs/logging.md`. The measurement
+Controls on the left controller: Y turns the detector on and off (on: load, warm-up, self-checks, then the mode;
+off: finish the inference in flight, then release the model). While it is off: press the thumbstick to switch GPU and
+CPU, push it up or down to change the mode, left or right to change the steps per frame; the overlay shows
+`off | GPU | scan | 16 steps/frame`. While it is on, the left trigger saves the next keyframe's input as a snapshot.
+Any 416 x 416 PNG in the app's `files/parity/` folder on the headset (pushed with adb, for example a saved snapshot) is
+checked with the self-checks; `python -m perception.detector parity <run> --canvas-dir <folder with that PNG>` judges
+it against a PC reference made from the same file. Parity reports each canvas as strict, as passing with verified
+threshold crossings or unresolved borderlines (listed), or as failing. Events: `detector.*` in `docs/logging.md`. The measurement
 procedure: `docs/profiling.md`, "A1.10c".

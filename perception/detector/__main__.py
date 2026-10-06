@@ -20,6 +20,8 @@ def main(argv=None) -> int:
     s = sub.add_parser("parity", help="a headset run's detections against the PC reference")
     s.add_argument("target", help="a run ID (its pulled session logs) or one log file")
     s.add_argument("--include-before-run", action="store_true")
+    s.add_argument("--canvas-dir", help="folder of extra 416 x 416 canvases checked on the headset (for example the "
+                                        "snapshots pushed to its parity/ folder), judged by a PC reference made now")
     s = sub.add_parser("snapshot", help="a saved camera canvas against the headset's detections for it")
     s.add_argument("target")
     s.add_argument("--image", required=True)
@@ -90,16 +92,23 @@ def main(argv=None) -> int:
               f"failures {rep['failures']}; borderline {rep['borderline']}")
         return 0 if rep["pass"] else 1
     ref = json.loads(R.REFERENCE.read_text(encoding="utf-8"))
-    rep = Q.evaluate(events, ref)
+    rep = Q.evaluate(events, ref, getattr(a, "canvas_dir", None))
     for x in rep["rows"]:
         tag = "parity" if x["path"] == "tensor" else "informational"
-        print(f"{x['log']}:{x['line']} {x['backend']} {x['path']} {x['image']} [{tag}]: "
-              f"{'pass' if x['pass'] else 'FAIL'}; {len(x['pairs'])} matched, max score diff {x['max_score_diff']:.4f}, "
-              f"min IoU {x['min_iou']:.4f}" + (f"; failures {x['failures']}" if x["failures"] else "")
-              + (f"; borderline {x['borderline']}" if x["borderline"] else ""))
+        steps = x["steps_per_frame"]
+        verdict = "FAIL" if not x["pass"] else "strict" if x["strict"] else "pass with exceptions"
+        print(f"{x['log']}:{x['line']} {x['backend']} {x['path']} {x['image']}"
+              + (f" ({x['kind']})" if x["kind"] == "extra" else "")
+              + (f" steps/frame {steps}" if steps is not None else "") + f" [{tag}]: {verdict}; {len(x['pairs'])} matched, "
+              f"max score diff {x['max_score_diff']:.4f}, min IoU {x['min_iou']:.4f}"
+              + (f"; verified threshold crossings {len(x['crossings'])}" if x["crossings"] else "")
+              + (f"; unresolved borderlines {x['borderline']}" if x["borderline"] else "")
+              + (f"; failures {x['failures']}" if x["failures"] else ""))
     if rep["missing_gpu_images"]:
         print(f"parity images never run on the GPU backend: {rep['missing_gpu_images']}")
-    print(f"PARITY {'PASSED' if rep['parity_pass'] else 'FAILED'} (GPU backend, exact canvases; criteria in D85)")
+    print(f"PARITY {'PASSED' if rep['parity_pass'] else 'FAILED'} (GPU backend, exact canvases; criteria in D85)"
+          + (" with strict agreement on every canvas" if rep["strict"] else
+             (" with verified crossings or unresolved borderlines listed above" if rep["parity_pass"] else "")))
     return 0 if rep["parity_pass"] else 1
 
 

@@ -141,6 +141,32 @@ frames back to back until Y turns it off and releases the model. Create each run
 Keep the headset on throughout each session (O14). Each run's notes record "plugged in" (D22), the backend, the rate
 setting (0: back to back) and anything unusual, such as frame drops when the detector started.
 
+## A1.10c with slicing: tuning and confirmation (D88)
+
+The criteria: under 1% stale frames over the operational phase and over the buckets overlapping inference (OVR
+Metrics, its clock calibrated against the app's frame times; the bucket figure is a proxy, O26), and capture-to-result
+latency p95 of 500 ms or less. `python analysis/detector_phases.py <run>` prints both, per detector load.
+
+Once: push the r041 snapshot so the self-checks include it.
+```
+adb shell mkdir -p /sdcard/Android/data/com.secondeyes.quest/files/parity
+adb push runs/20261006_A1_r041/raw/snapshots/b20c60c3_001.png /sdcard/Android/data/com.secondeyes.quest/files/parity/
+```
+
+1. Tuning, one run with three segments. Reboot and settle as in A1.10a, OVR Metrics' CSV recording on, create the run
+   (purpose "A1.10c slicing tuning: 8, 16, 32 steps per frame, scan mode, GPU"), start the app, press X. With the
+   detector off, push the left thumbstick left or right until the overlay shows `8 steps/frame` (mode `scan`). Start
+   `python tools/profile.py record <run> --minutes 13`. Press Y and leave it for 3 scans (about 3.5 minutes; the
+   overlay counts them), press Y and wait for `off`; set 16, press Y, 3 scans, Y; set 32, the same. Quit, pull, then
+   `python analysis/detector_phases.py <run>` and
+   `python -m perception.detector parity <run> --canvas-dir runs/20261006_A1_r041/raw/snapshots`.
+   Freeze the fastest setting (lowest p95 latency) that meets both criteria; if none does, stop and report.
+2. Confirmation: a fresh session at the frozen setting, ten minutes of repeated scans, recorded and analyzed the same
+   way (purpose "A1.10c slicing confirmation: <n> steps per frame, scan mode, GPU, 10 minutes").
+3. Diagnostics (optional): a short run with burst (2 Hz for 30 s) and then continuous for a minute.
+
+Each run's notes record "plugged in", the settings and the order of the segments (later segments start warmer).
+
 ## Comparing two runs
 
 ```

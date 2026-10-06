@@ -12,14 +12,19 @@ using UnityEngine.Experimental.Rendering;
 namespace SecondEyes.Perception
 {
     /// <summary>
-    /// Runs the detector in the app (A1.10c, D84 to D86). Turning it on loads the package, warms it up, runs the
-    /// self-checks (the exact test canvases, then the full-size test images through the GPU letterbox, as an sRGB and
-    /// as a linear texture), then detects on camera frames until it is turned off, which releases the model. Every
-    /// step is logged (docs/logging.md, detector.*); parity with the PC is judged offline by
-    /// `python -m perception.detector parity`.
+    /// Runs the detector in the app (A1.10c and A1.10d; D84 to D88). Turning it on loads the package, warms it up and
+    /// runs the self-checks (the exact test canvases, any PNG canvas pushed to persistent data/parity/, and the
+    /// full-size test images through the GPU letterbox), all through the same sliced, asynchronous path as camera
+    /// frames. It then works in one of three modes: scan (stop-and-shoot keyframes: hovers x keyframes at a fixed
+    /// rate, with repositioning pauses), burst (a short run at a higher rate, diagnostic) or continuous (back to back,
+    /// stress). One inference is in flight at a time; a keyframe that comes due while one is running is rejected and
+    /// logged, never queued. Turning it off stops new keyframes, lets the inference in flight finish and then releases
+    /// the model. Every step is logged (docs/logging.md, detector.* and frame.second).
     /// </summary>
     public class DetectorRunner : MonoBehaviour
     {
+        public enum Mode { Scan, Burst, Continuous }
+
         [Header("Detector package (D84)")]
         [SerializeField] private ModelAsset model;
         [SerializeField] private TextAsset packageManifest;
@@ -36,73 +41,123 @@ namespace SecondEyes.Perception
         [SerializeField] private TextAsset[] canvasImages;
         [Tooltip("The *_full.png.bytes test images.")]
         [SerializeField] private TextAsset[] fullImages;
+        [Tooltip("Also check every 416 x 416 PNG in <persistent data>/parity/, pushed with adb (a saved snapshot).")]
+        [SerializeField] private bool deviceCanvases = true;
 
-        [Header("Running")]
+        [Header("Running (D88)")]
         [SerializeField] private bool useGpu = true;
-        [Tooltip("Camera inferences per second; 0 runs them back to back.")]
-        [SerializeField] private float maxRateHz;
+        [SerializeField] private Mode mode = Mode.Scan;
+        [Tooltip("Scheduling steps (layers) per rendered frame to choose from; 0 dispatches the whole network in one frame.")]
+        [SerializeField] private int[] stepsChoices = { 8, 16, 32, 64, 0 };
+        [SerializeField] private int stepsIndex = 1;
+        [SerializeField] private float keyframeRateHz = 1f;
+        [SerializeField] private int hoversPerScan = 3;
+        [SerializeField] private int keyframesPerHover = 12;
+        [SerializeField] private float repositionS = 8f;
+        [SerializeField] private float scanGapS = 15f;
+        [SerializeField] private float burstRateHz = 2f;
+        [SerializeField] private float burstSeconds = 30f;
+        [Tooltip("Lowest score kept after suppression, for parity's threshold-crossing checks; detections are those at or above the package's threshold.")]
+        [SerializeField] private float floor = 0.25f;
         [SerializeField] private int maxLoggedDetections = 20;
-        [Tooltip("Read camera results back asynchronously (no hitch); the warm-up and self-checks always read back synchronously.")]
+        [Tooltip("Read camera results back asynchronously (all three outputs requested together, D87).")]
         [SerializeField] private bool asyncCameraReadback = true;
-        [Tooltip("Frames without progress before the watchdog reports the detector as stuck.")]
+        [Tooltip("Frames without progress before the watchdog reports the detector stuck and stops it.")]
         [SerializeField] private int watchdogFrames = 300;
+        [Tooltip("When turned off, how long to wait for the inference in flight before releasing anyway.")]
+        [SerializeField] private float releaseWaitS = 5f;
+
+        private struct KeyInfo
+        {
+            public int? Keyframe, Scan, Hover;
+            public long? RequestedUtc;
+            public long StartedUtc;
+            public string Stamp;
+            public bool HasPose;
+            public Pose Pose;
+        }
 
         private IObjectDetector detector;
-        private readonly DetectionResult result = new DetectionResult();
-        private bool wanted, loopRunning, snapshotRequested;
-        private int snapshots, cameraInferences, lastProgressFrame;
+        private readonly DetectionResult checkResult = new DetectionResult();
+        private readonly DetectionResult keyResult = new DetectionResult();
+        private readonly Stack<IEnumerator> mainStack = new Stack<IEnumerator>(), keyStack = new Stack<IEnumerator>();
+        private Coroutine mainHandle, keyHandle;
+        private bool wanted, loopRunning, inFlight, snapshotRequested, watchdogReported;
+        private int snapshots, keyframes, lastProgressFrame, blockRequested, blockCompleted, blockRejected;
+        private int scanRequested, scanCompleted, scanRejected;
         private string stage = "idle";
-        private Coroutine handle;
-        private readonly Stack<IEnumerator> running = new Stack<IEnumerator>();
-        private bool watchdogReported;
 
-        /// <summary>One short line on what the detector is doing, for the debug overlay; null until first used.</summary>
+        /// <summary>One short line on what the detector is doing, for the debug overlay; null until the scene starts.</summary>
         public static string StatusLine { get; private set; }
 
         public bool IsOn => wanted;
+        public bool IsBusy => inFlight;
         public string Backend => useGpu ? "gpu_compute" : "cpu";
+        private int Steps => stepsChoices != null && stepsChoices.Length > 0
+            ? stepsChoices[Mathf.Clamp(stepsIndex, 0, stepsChoices.Length - 1)] : 0;
+        private static long UtcUs => (DateTime.UtcNow.Ticks - 621355968000000000L) / 10;
+
+        private void Start() => StatusLine = OffLine();
+
+        private string OffLine() => "off | " + (useGpu ? "GPU" : "CPU") + " | " + ModeName(mode) + " | " + StepsName(Steps);
+        private static string ModeName(Mode m) => m == Mode.Scan ? "scan" : m == Mode.Burst ? "burst" : "continuous";
+        private static string StepsName(int s) => s <= 0 ? "whole network per frame" : s + " steps/frame";
 
         public void Toggle(string source) => SetOn(!wanted, source);
 
         public void SetOn(bool on, string source)
         {
             if (on == wanted) return;
+            if (on && loopRunning)
+            {
+                EventLog.Mark("detector: still stopping; turn it on again once the overlay says off");
+                return;
+            }
             wanted = on;
             var sb = new StringBuilder("{\"on\":").Append(on ? "true" : "false").Append(",\"source\":");
             Json.AppendString(sb, source);
             EventLog.Write("detector.toggle", sb.Append('}').ToString());
             if (on)
             {
-                if (loopRunning) Stop();
                 loopRunning = true;
                 watchdogReported = false;
                 lastProgressFrame = Time.frameCount;
                 Stage("start", "starting");
-                handle = StartCoroutine(Guarded(Run()));
+                mainHandle = StartCoroutine(Guarded(Run(), mainStack));
             }
-            else if (loopRunning && stage != "camera")
+            else
             {
-                Stop();   // the camera loop ends by itself at its next frame; anything else is stopped now
+                StatusLine = "stopping: finishing the inference in flight";
             }
         }
 
         /// <summary>Switches between the GPU and CPU backends; only while the detector is off.</summary>
         public void SwitchBackend(string source)
         {
-            if (wanted || loopRunning)
-            {
-                EventLog.Error("detector", "turn the detector off before switching its backend");
-                return;
-            }
+            if (!Idle()) return;
             useGpu = !useGpu;
-            var sb = new StringBuilder("{\"backend\":");
-            Json.AppendString(sb, Backend);
-            sb.Append(",\"source\":");
-            Json.AppendString(sb, source);
-            EventLog.Write("detector.backend", sb.Append('}').ToString());
+            LogSetting(source);
         }
 
-        /// <summary>Saves the next camera frame's letterboxed input, as the model sees it, beside the logs.</summary>
+        /// <summary>Cycles scan, burst and continuous; only while the detector is off.</summary>
+        public void CycleMode(int step, string source)
+        {
+            if (!Idle()) return;
+            int n = Enum.GetValues(typeof(Mode)).Length;
+            mode = (Mode)((((int)mode + step) % n + n) % n);
+            LogSetting(source);
+        }
+
+        /// <summary>Cycles the scheduling steps per frame; only while the detector is off.</summary>
+        public void CycleSteps(int step, string source)
+        {
+            if (!Idle() || stepsChoices == null || stepsChoices.Length == 0) return;
+            int n = stepsChoices.Length;
+            stepsIndex = ((stepsIndex + step) % n + n) % n;
+            LogSetting(source);
+        }
+
+        /// <summary>Saves the next camera keyframe's letterboxed input, as the model sees it, beside the logs.</summary>
         public void RequestSnapshot(string source)
         {
             if (!wanted) return;
@@ -116,15 +171,21 @@ namespace SecondEyes.Perception
         [ContextMenu("Detector off")]
         private void OffFromMenu() => SetOn(false, "context_menu");
 
+        private bool Idle()
+        {
+            if (!wanted && !loopRunning) return true;
+            EventLog.Error("detector", "turn the detector off before changing its settings");
+            return false;
+        }
+
+        // ------------------------------------------------------------------------------------------------ guard
         /// <summary>
         /// Runs a coroutine and every coroutine it yields as one flat sequence, so an exception at any depth is caught:
-        /// it is logged (an error event naming the stage, and Unity's console), shown on the overlay, and the detector
-        /// is released and can be started again. Without this, an exception inside a nested coroutine stops the chain
-        /// silently and leaves the runner stuck.
+        /// logged (an error event naming the stage, and Unity's console), shown on the overlay, and the detector is
+        /// released. Every resume also counts as progress for the watchdog.
         /// </summary>
-        private IEnumerator Guarded(IEnumerator root)
+        private IEnumerator Guarded(IEnumerator root, Stack<IEnumerator> stack)
         {
-            var stack = running;
             stack.Clear();
             stack.Push(root);
             while (stack.Count > 0)
@@ -146,13 +207,17 @@ namespace SecondEyes.Perception
                 {
                     Fail(stage, failure.GetType().Name + ": " + failure.Message + FirstFrame(failure));
                     Debug.LogException(failure);
-                    while (stack.Count > 0)
+                    DisposeStack(stack);
+                    if (stack == keyStack)
                     {
-                        try { (stack.Pop() as IDisposable)?.Dispose(); }
-                        catch (Exception e) { Debug.LogException(e); }
+                        inFlight = false;
+                        keyHandle = null;
                     }
-                    loopRunning = false;
-                    handle = null;
+                    else
+                    {
+                        mainHandle = null;
+                        ForceStop();
+                    }
                     yield break;
                 }
                 if (!moved)
@@ -169,40 +234,26 @@ namespace SecondEyes.Perception
             }
         }
 
-        /// <summary>Stops the coroutine wherever it is, finishes its iterators (running their cleanup) and releases
-        /// the detector.</summary>
-        private void Stop()
+        private static void DisposeStack(Stack<IEnumerator> stack)
         {
-            if (handle != null) StopCoroutine(handle);
-            handle = null;
-            while (running.Count > 0)
+            while (stack.Count > 0)
             {
-                try { (running.Pop() as IDisposable)?.Dispose(); }
+                try { (stack.Pop() as IDisposable)?.Dispose(); }
                 catch (Exception e) { Debug.LogException(e); }
             }
-            Unload();
+        }
+
+        /// <summary>Stops everything at once and releases the detector: for failures and the watchdog only.</summary>
+        private void ForceStop()
+        {
+            wanted = false;
+            if (keyHandle != null) StopCoroutine(keyHandle);
+            if (mainHandle != null) StopCoroutine(mainHandle);
+            keyHandle = mainHandle = null;
+            DisposeStack(keyStack);
+            DisposeStack(mainStack);
+            Release();
             loopRunning = false;
-            if (StatusLine == null || !StatusLine.StartsWith("failed")) StatusLine = "off";
-        }
-
-        /// <summary>Notes a stage: the overlay line, Unity's console and a mark in the event log.</summary>
-        private void Stage(string name, string status)
-        {
-            stage = name;
-            StatusLine = status;
-            Debug.Log("[SecondEyes] Detector: " + status + " (frame " + Time.frameCount + ")");
-            EventLog.Mark("detector: " + status);
-        }
-
-        private void Update()
-        {
-            if (!loopRunning || watchdogReported || Time.frameCount - lastProgressFrame < watchdogFrames) return;
-            watchdogReported = true;
-            string message = "no progress for " + (Time.frameCount - lastProgressFrame) + " frames at " + stage +
-                             " (frame " + Time.frameCount + "): its coroutine is not being resumed";
-            Debug.LogWarning("[SecondEyes] Detector: " + message);
-            EventLog.Error("detector", message);
-            StatusLine = "stuck at " + stage;
         }
 
         private void Fail(string where, string message)
@@ -221,9 +272,32 @@ namespace SecondEyes.Perception
             return first.Length > 0 ? " (" + first + ")" : "";
         }
 
+        /// <summary>Notes a stage: the overlay line, Unity's console and a mark in the event log.</summary>
+        private void Stage(string name, string status)
+        {
+            stage = name;
+            StatusLine = status;
+            Debug.Log("[SecondEyes] Detector: " + status + " (frame " + Time.frameCount + ")");
+            EventLog.Mark("detector: " + status);
+        }
+
+        private void Update()
+        {
+            if (!loopRunning || watchdogReported || Time.frameCount - lastProgressFrame < watchdogFrames) return;
+            watchdogReported = true;
+            string message = "no progress for " + (Time.frameCount - lastProgressFrame) + " frames at " + stage +
+                             " (frame " + Time.frameCount + "): its coroutine is not being resumed; stopped";
+            Debug.LogWarning("[SecondEyes] Detector: " + message);
+            EventLog.Error("detector", message);
+            ForceStop();
+            StatusLine = "stuck at " + stage + "; stopped";
+        }
+
+        private void OnDestroy() => ForceStop();
+
+        // ------------------------------------------------------------------------------------------------- run
         private IEnumerator Run()
         {
-            loopRunning = true;
             try
             {
                 Stage("load", "loading");
@@ -248,106 +322,63 @@ namespace SecondEyes.Perception
                     Fail(stage, failure);
                     yield break;
                 }
+                detector.StepsPerFrame = Steps;
+                detector.Floor = Mathf.Min(floor, package.postprocess.score_threshold);
                 double loadMs = clock.Elapsed.TotalMilliseconds;
                 var gray = new Color32[detector.InputSize * detector.InputSize];
                 byte pad = (byte)package.input.pad_value;
                 for (int k = 0; k < gray.Length; k++) gray[k] = new Color32(pad, pad, pad, 255);
-                Stage("warm-up", "warming up (" + detector.Backend + ")");
+                Stage("warm-up", "warming up (" + detector.Backend + ", " + StepsName(detector.StepsPerFrame) + ")");
                 var warm = Stopwatch.StartNew();
-                yield return detector.DetectCanvas(gray, true, result);
+                yield return detector.DetectCanvas(gray, false, checkResult);
                 LogLoad(package, loadMs, warm.Elapsed.TotalMilliseconds);
-                if (!result.Completed)
+                if (!checkResult.Completed)
                 {
-                    Fail(stage, result.Error ?? "the first inference did not complete");
+                    Fail(stage, checkResult.Error ?? "the first inference did not complete");
                     yield break;
                 }
-
-                Stage("warm-up", "warmed up in " + Mathf.RoundToInt((float)warm.Elapsed.TotalMilliseconds) + " ms");
+                Stage("warm-up", "warmed up in " + Mathf.RoundToInt((float)warm.Elapsed.TotalMilliseconds) + " ms, " +
+                                 detector.LayerCount + " layers, " + checkResult.ScheduleSteps + " steps");
                 yield return null;
-                if (runChecks) yield return Checks();
-                Stage("camera", "on, waiting for camera frames (X)");
-
-                bool sourceLogged = false;
-                float next = 0f;
-                while (wanted)
-                {
-                    var texture = frameSource != null ? frameSource.CurrentTexture : null;
-                    if (texture == null || Time.realtimeSinceStartup < next)
-                    {
-                        if (texture == null && cameraInferences == 0) StatusLine = "on, waiting for camera frames (X)";
-                        yield return null;
-                        continue;
-                    }
-                    if (!sourceLogged)
-                    {
-                        LogSource("camera", texture, flipCamera);
-                        sourceLogged = true;
-                    }
-                    next = maxRateHz > 0f ? Time.realtimeSinceStartup + 1f / maxRateHz : 0f;
-                    string snapshot = null;
-                    if (snapshotRequested)
-                    {
-                        snapshotRequested = false;
-                        snapshots++;
-                        snapshot = EventLog.SessionId + "_" + snapshots.ToString("D3");
-                    }
-                    yield return detector.DetectTexture(texture, flipCamera, snapshot == null ? null : SnapshotPath(snapshot),
-                                                        !asyncCameraReadback, result);
-                    LogResult("camera", null, snapshot);
-                    cameraInferences++;
-                    StatusLine = CameraStatus(snapshot != null);
-                    yield return null;
-                }
+                if (runChecks && wanted) yield return Checks();
+                if (wanted) yield return Operate();
+                var wait = Stopwatch.StartNew();
+                while (inFlight && wait.Elapsed.TotalSeconds < releaseWaitS) yield return null;
             }
             finally
             {
-                Unload();
+                Release();
                 loopRunning = false;
-                handle = null;
-                if (StatusLine == null || !StatusLine.StartsWith("failed")) StatusLine = "off";
+                mainHandle = null;
+                if (StatusLine == null || !(StatusLine.StartsWith("failed") || StatusLine.StartsWith("stuck"))) StatusLine = OffLine();
             }
-        }
-
-        private string CameraStatus(bool snapshot)
-        {
-            var sb = new StringBuilder(detector.Backend == "gpu_compute" ? "GPU" : "CPU");
-            sb.Append(" #").Append(cameraInferences).Append(' ');
-            if (!result.Completed)
-                return sb.Append("incomplete: ").Append(result.Error ?? "?").ToString();
-            sb.Append(Mathf.RoundToInt((float)result.LatencyMs)).Append(" ms, ").Append(result.Detections.Count).Append(" found");
-            for (int k = 0; k < Mathf.Min(2, result.Detections.Count); k++)
-            {
-                var d = result.Detections[k];
-                var names = detector.Classes;
-                string name = d.ClassId >= 0 && d.ClassId < names.Count ? names[d.ClassId] : d.ClassId.ToString();
-                sb.Append(k == 0 ? ": " : ", ").Append(name).Append(' ').Append(d.Score.ToString("0.00"));
-            }
-            if (snapshot) sb.Append(" [snapshot]");
-            return sb.ToString();
         }
 
         private IEnumerator Checks()
         {
-            int total = (canvasImages?.Length ?? 0) + 2 * (fullImages?.Length ?? 0), done = 0;
+            var device = new List<string>();
+            string dir = Path.Combine(Application.persistentDataPath, "parity");
+            if (deviceCanvases && Directory.Exists(dir)) device.AddRange(Directory.GetFiles(dir, "*.png"));
+            device.Sort(StringComparer.Ordinal);
+            int total = (canvasImages?.Length ?? 0) + device.Count + 2 * (fullImages?.Length ?? 0), done = 0;
             foreach (var asset in canvasImages ?? new TextAsset[0])
             {
-                if (asset == null) continue;
+                if (asset == null || !wanted) continue;
                 Stage("self-check " + asset.name, "self-checks " + (++done) + "/" + total);
-                var pixels = DecodeTopDown(asset.bytes, out int w, out int h);
-                if (pixels == null || w != detector.InputSize || h != detector.InputSize)
-                {
-                    EventLog.Error("detector", asset.name + " is not a " + detector.InputSize + "-pixel test canvas");
-                    continue;
-                }
-                yield return detector.DetectCanvas(pixels, true, result);
-                LogResult("tensor", ImageId(asset), null);
-                yield return null;   // one blocking inference per frame
+                yield return CheckCanvas(asset.bytes, ImageId(asset.name));
+            }
+            foreach (var path in device)
+            {
+                if (!wanted) break;
+                Stage("self-check " + Path.GetFileName(path), "self-checks " + (++done) + "/" + total);
+                yield return CheckCanvas(File.ReadAllBytes(path), Path.GetFileNameWithoutExtension(path));
             }
             foreach (var asset in fullImages ?? new TextAsset[0])
             {
                 if (asset == null) continue;
                 foreach (bool linear in new[] { false, true })
                 {
+                    if (!wanted) yield break;
                     var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false, linear);
                     if (!texture.LoadImage(asset.bytes, false))
                     {
@@ -360,26 +391,203 @@ namespace SecondEyes.Perception
                     string path = linear ? "texture_linear" : "texture_srgb";
                     Stage("self-check " + asset.name + " " + path, "self-checks " + (++done) + "/" + total);
                     LogSource(path, texture, false);
-                    yield return detector.DetectTexture(texture, false, null, true, result);
-                    LogResult(path, ImageId(asset), null);
+                    var info = new KeyInfo { StartedUtc = UtcUs };
+                    yield return detector.DetectTexture(texture, false, null, false, checkResult);
+                    LogResult(checkResult, path, ImageId(asset.name), null, info);
                     Destroy(texture);
                     yield return null;
                 }
             }
         }
 
-        private void Unload()
+        private IEnumerator CheckCanvas(byte[] bytes, string id)
         {
+            var pixels = DecodeTopDown(bytes, out int w, out int h);
+            if (pixels == null || w != detector.InputSize || h != detector.InputSize)
+            {
+                EventLog.Error("detector", id + " is not a " + detector.InputSize + "-pixel test canvas");
+                yield break;
+            }
+            var info = new KeyInfo { StartedUtc = UtcUs };
+            yield return detector.DetectCanvas(pixels, false, checkResult);
+            LogResult(checkResult, "tensor", id, null, info);
+            yield return null;
+        }
+
+        private Texture CameraTexture() => frameSource != null ? frameSource.CurrentTexture : null;
+
+        private IEnumerator Operate()
+        {
+            while (wanted && CameraTexture() == null)
+            {
+                StatusLine = "on, waiting for camera frames (X)";
+                yield return null;
+            }
+            if (!wanted) yield break;
+            LogSource("camera", CameraTexture(), flipCamera);
+            Stage("camera", "on: " + ModeName(mode) + ", " + StepsName(detector.StepsPerFrame));
+            if (mode == Mode.Continuous)
+            {
+                while (wanted)
+                {
+                    if (!inFlight) Begin(null, null, UtcUs);
+                    yield return null;
+                }
+            }
+            else if (mode == Mode.Burst)
+            {
+                yield return Ticks(burstRateHz, Mathf.Max(1, Mathf.RoundToInt(burstSeconds * burstRateHz)), null, null);
+                while (wanted)
+                {
+                    StatusLine = "burst done; Y to stop";
+                    yield return null;
+                }
+            }
+            else
+            {
+                for (int scan = 1; wanted; scan++)
+                {
+                    scanRequested = scanCompleted = scanRejected = 0;
+                    LogScan(scan, null, "start", 0, 0, 0);
+                    for (int hover = 1; hover <= hoversPerScan && wanted; hover++)
+                    {
+                        yield return Ticks(keyframeRateHz, keyframesPerHover, scan, hover);
+                        if (hover < hoversPerScan) yield return Pause(repositionS, "scan " + scan + ": repositioning");
+                    }
+                    LogScan(scan, null, "end", scanRequested, scanCompleted, scanRejected);
+                    yield return Pause(scanGapS, "scan " + scan + " done; next scan soon");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Requests `count` keyframes on a fixed schedule at `rateHz`. A keyframe that comes due while an inference is
+        /// in flight is rejected and logged; nothing is queued. After the last request, waits for the inference in
+        /// flight, so the block's counts are final.
+        /// </summary>
+        private IEnumerator Ticks(float rateHz, int count, int? scan, int? hover)
+        {
+            blockRequested = blockCompleted = blockRejected = 0;
+            if (hover != null) LogScan(scan ?? 0, hover, "start", 0, 0, 0);
+            double start = Time.realtimeSinceStartupAsDouble, period = 1.0 / Mathf.Max(0.01f, rateHz);
+            for (int k = 0; k < count && wanted; k++)
+            {
+                double due = start + k * period;
+                while (wanted && Time.realtimeSinceStartupAsDouble < due) yield return null;
+                if (!wanted) break;
+                blockRequested++;
+                long requested = UtcUs;
+                if (inFlight || CameraTexture() == null)
+                {
+                    blockRejected++;
+                    LogReject(scan, hover, requested, inFlight ? "busy" : "no_camera_frame");
+                    continue;
+                }
+                Begin(scan, hover, requested);
+            }
+            var wait = Stopwatch.StartNew();
+            while (inFlight && wait.Elapsed.TotalSeconds < 10) yield return null;
+            scanRequested += blockRequested;
+            scanCompleted += blockCompleted;
+            scanRejected += blockRejected;
+            if (hover != null) LogScan(scan ?? 0, hover, "end", blockRequested, blockCompleted, blockRejected);
+        }
+
+        private IEnumerator Pause(float seconds, string status)
+        {
+            double end = Time.realtimeSinceStartupAsDouble + seconds;
+            while (wanted && Time.realtimeSinceStartupAsDouble < end)
+            {
+                StatusLine = status;
+                yield return null;
+            }
+        }
+
+        private void Begin(int? scan, int? hover, long requestedUtc)
+        {
+            var texture = CameraTexture();
+            if (texture == null || detector == null) return;
+            inFlight = true;
+            keyframes++;
+            keyHandle = StartCoroutine(Guarded(Keyframe(texture, keyframes, scan, hover, requestedUtc), keyStack));
+        }
+
+        private IEnumerator Keyframe(Texture texture, int index, int? scan, int? hover, long requestedUtc)
+        {
+            try
+            {
+                var info = new KeyInfo { Keyframe = index, Scan = scan, Hover = hover, RequestedUtc = requestedUtc };
+                if (frameSource != null) info.HasPose = frameSource.TryGetCapture(out info.Stamp, out info.Pose);
+                info.StartedUtc = UtcUs;
+                string snapshot = null;
+                if (snapshotRequested)
+                {
+                    snapshotRequested = false;
+                    snapshots++;
+                    snapshot = EventLog.SessionId + "_" + snapshots.ToString("D3");
+                }
+                yield return detector.DetectTexture(texture, flipCamera, snapshot == null ? null : SnapshotPath(snapshot),
+                                                    !asyncCameraReadback, keyResult);
+                LogResult(keyResult, "camera", null, snapshot, info);
+                if (keyResult.Completed) blockCompleted++;
+                StatusLine = CameraStatus(index, scan, hover, snapshot != null);
+            }
+            finally
+            {
+                inFlight = false;
+                keyHandle = null;
+            }
+        }
+
+        private void Release()
+        {
+            if (keyHandle != null)
+            {
+                StopCoroutine(keyHandle);
+                keyHandle = null;
+                DisposeStack(keyStack);
+            }
+            bool pending = inFlight;
+            inFlight = false;
             if (detector == null) return;
             string backend = detector.Backend;
+            var clock = Stopwatch.StartNew();
             detector.Dispose();
             detector = null;
             var sb = new StringBuilder("{\"backend\":");
             Json.AppendString(sb, backend);
+            sb.Append(",\"release_ms\":");
+            Json.AppendNumber(sb, (float)clock.Elapsed.TotalMilliseconds);
+            sb.Append(",\"in_flight\":").Append(pending ? "true" : "false");
             EventLog.Write("detector.unload", sb.Append('}').ToString());
         }
 
-        private void OnDestroy() => Unload();
+        // ---------------------------------------------------------------------------------------------- helpers
+        private string CameraStatus(int index, int? scan, int? hover, bool snapshot)
+        {
+            var sb = new StringBuilder(detector.Backend == "gpu_compute" ? "GPU " : "CPU ");
+            sb.Append(StepsName(detector.StepsPerFrame)).Append(" #").Append(index);
+            if (scan != null) sb.Append(" scan ").Append(scan).Append('.').Append(hover);
+            sb.Append(' ');
+            if (!keyResult.Completed) return sb.Append("incomplete: ").Append(keyResult.Error ?? "?").ToString();
+            sb.Append(Mathf.RoundToInt((float)keyResult.LatencyMs)).Append(" ms, ");
+            float threshold = 0.3f;
+            int found = 0;
+            var names = detector.Classes;
+            foreach (var d in keyResult.Detections)
+            {
+                if (d.Score < threshold) continue;
+                if (found < 2)
+                {
+                    string name = d.ClassId >= 0 && d.ClassId < names.Count ? names[d.ClassId] : d.ClassId.ToString();
+                    sb.Append(found == 0 ? "" : ", ").Append(name).Append(' ').Append(d.Score.ToString("0.00"));
+                }
+                found++;
+            }
+            if (found == 0) sb.Append("none");
+            if (snapshot) sb.Append(" [snapshot]");
+            return sb.ToString();
+        }
 
         private static Color32[] DecodeTopDown(byte[] bytes, out int width, out int height)
         {
@@ -400,9 +608,8 @@ namespace SecondEyes.Perception
             return topDown;
         }
 
-        private static string ImageId(TextAsset asset)
+        private static string ImageId(string name)
         {
-            string name = asset.name;
             int cut = name.IndexOf("_416", StringComparison.Ordinal);
             if (cut < 0) cut = name.IndexOf("_full", StringComparison.Ordinal);
             return cut > 0 ? name.Substring(0, cut) : name;
@@ -410,6 +617,24 @@ namespace SecondEyes.Perception
 
         private static string SnapshotPath(string snapshot) =>
             Path.Combine(Application.persistentDataPath, "snapshots", snapshot + ".png");
+
+        private static void AppendNullable(StringBuilder sb, string name, int? value)
+        {
+            sb.Append(",\"").Append(name).Append("\":");
+            if (value == null) sb.Append("null"); else sb.Append(value.Value);
+        }
+
+        private void LogSetting(string source)
+        {
+            StatusLine = OffLine();
+            var sb = new StringBuilder("{\"backend\":");
+            Json.AppendString(sb, Backend);
+            sb.Append(",\"mode\":");
+            Json.AppendString(sb, ModeName(mode));
+            sb.Append(",\"steps_per_frame\":").Append(Steps).Append(",\"source\":");
+            Json.AppendString(sb, source);
+            EventLog.Write("detector.setting", sb.Append('}').ToString());
+        }
 
         private void LogLoad(DetectorPackage package, double loadMs, double warmupMs)
         {
@@ -423,10 +648,39 @@ namespace SecondEyes.Perception
             Json.AppendNumber(sb, (float)loadMs);
             sb.Append(",\"warmup_ms\":");
             Json.AppendNumber(sb, (float)warmupMs);
-            sb.Append(",\"warmup_completed\":").Append(result.Completed ? "true" : "false");
+            sb.Append(",\"warmup_completed\":").Append(checkResult.Completed ? "true" : "false");
             sb.Append(",\"color_space\":");
             Json.AppendString(sb, QualitySettings.activeColorSpace == ColorSpace.Linear ? "linear" : "gamma");
+            sb.Append(",\"layer_count\":").Append(detector.LayerCount);
+            sb.Append(",\"steps_per_frame\":").Append(detector.StepsPerFrame);
+            sb.Append(",\"floor\":");
+            Json.AppendNumber(sb, detector.Floor);
+            sb.Append(",\"mode\":");
+            Json.AppendString(sb, ModeName(mode));
+            sb.Append(",\"keyframe_rate_hz\":");
+            Json.AppendNumber(sb, mode == Mode.Burst ? burstRateHz : keyframeRateHz);
             EventLog.Write("detector.load", sb.Append('}').ToString());
+        }
+
+        private void LogScan(int scan, int? hover, string state, int requested, int completed, int rejected)
+        {
+            var sb = new StringBuilder("{\"scan\":").Append(scan);
+            AppendNullable(sb, "hover", hover);
+            sb.Append(",\"state\":");
+            Json.AppendString(sb, state);
+            sb.Append(",\"requested\":").Append(requested).Append(",\"completed\":").Append(completed)
+              .Append(",\"rejected\":").Append(rejected);
+            EventLog.Write("detector.scan", sb.Append('}').ToString());
+        }
+
+        private void LogReject(int? scan, int? hover, long requestedUtc, string reason)
+        {
+            var sb = new StringBuilder("{\"reason\":");
+            Json.AppendString(sb, reason);
+            AppendNullable(sb, "scan", scan);
+            AppendNullable(sb, "hover", hover);
+            sb.Append(",\"requested_utc_us\":").Append(requestedUtc);
+            EventLog.Write("detector.reject", sb.Append('}').ToString());
         }
 
         private void LogSource(string path, Texture texture, bool flip)
@@ -444,7 +698,7 @@ namespace SecondEyes.Perception
             EventLog.Write("detector.source", sb.Append('}').ToString());
         }
 
-        private void LogResult(string path, string imageId, string snapshot)
+        private void LogResult(DetectionResult result, string path, string imageId, string snapshot, KeyInfo info)
         {
             var sb = new StringBuilder("{\"path\":");
             Json.AppendString(sb, path);
@@ -465,7 +719,34 @@ namespace SecondEyes.Perception
             sb.Append(",\"postprocess_ms\":");
             Json.AppendNumber(sb, (float)result.PostprocessMs);
             sb.Append(",\"frames_waited\":").Append(result.FramesWaited)
-              .Append(",\"candidates\":").Append(result.Candidates)
+              .Append(",\"steps_per_frame\":").Append(result.StepsPerFrame)
+              .Append(",\"schedule_steps\":").Append(result.ScheduleSteps)
+              .Append(",\"schedule_frames\":").Append(result.ScheduleFrames)
+              .Append(",\"floor\":");
+            Json.AppendNumber(sb, result.Floor);
+            AppendNullable(sb, "keyframe", info.Keyframe);
+            AppendNullable(sb, "scan", info.Scan);
+            AppendNullable(sb, "hover", info.Hover);
+            sb.Append(",\"requested_utc_us\":");
+            if (info.RequestedUtc == null) sb.Append("null"); else sb.Append(info.RequestedUtc.Value);
+            sb.Append(",\"started_utc_us\":").Append(info.StartedUtc).Append(",\"capture_stamp\":");
+            if (info.Stamp == null) sb.Append("null"); else Json.AppendString(sb, info.Stamp);
+            sb.Append(",\"pose\":");
+            if (!info.HasPose) sb.Append("null");
+            else
+            {
+                var p = info.Pose.position;
+                var q = info.Pose.rotation;
+                float[] v = { p.x, p.y, p.z, q.x, q.y, q.z, q.w };
+                sb.Append('[');
+                for (int k = 0; k < v.Length; k++)
+                {
+                    if (k > 0) sb.Append(',');
+                    Json.AppendNumber(sb, v[k]);
+                }
+                sb.Append(']');
+            }
+            sb.Append(",\"candidates\":").Append(result.Candidates)
               .Append(",\"detections_total\":").Append(result.Detections.Count).Append(",\"detections\":[");
             int n = Mathf.Min(result.Detections.Count, maxLoggedDetections);
             for (int k = 0; k < n; k++)

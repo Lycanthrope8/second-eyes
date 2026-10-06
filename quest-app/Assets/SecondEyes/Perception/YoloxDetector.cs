@@ -44,6 +44,9 @@ namespace SecondEyes.Perception
         public string Backend => backendType == BackendType.GPUCompute ? "gpu_compute" : "cpu";
         public int InputSize => size;
         public IReadOnlyList<string> Classes => package.classes;
+        public int LayerCount { get; private set; }
+        public int StepsPerFrame { get; set; }
+        public float Floor { get; set; }
 
         public YoloxDetector(DetectorPackage package, ModelAsset modelAsset, Shader letterboxShader, BackendType backend)
         {
@@ -56,6 +59,8 @@ namespace SecondEyes.Perception
             var shape = model.inputs[0].shape;
             if (model.inputs.Count != 1 || shape.Get(0) != 1 || shape.Get(1) != 3 || shape.Get(2) != size || shape.Get(3) != size)
                 throw new ArgumentException("the model's input is not [1, 3, " + size + ", " + size + "] as the manifest says");
+            LayerCount = model.layers.Count;
+            Floor = package.postprocess.score_threshold;
             worker = new Worker(model, backend);
             input = new Tensor<float>(new TensorShape(1, 3, size, size));
             canvas = new RenderTexture(size, size, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear)
@@ -98,11 +103,10 @@ namespace SecondEyes.Perception
                 if (snapshotPath != null) SaveCanvas(snapshotPath);
                 var transform = new TextureTransform().SetDimensions(size, size, 3).SetCoordOrigin(CoordOrigin.TopLeft);
                 TextureConverter.ToTensor(canvas, input, transform);
-                worker.Schedule(input);
-                into.ScheduleMs = clock.Elapsed.TotalMilliseconds;
                 into.SourceWidth = w;
                 into.SourceHeight = h;
                 into.Ratio = ratio;
+                yield return Schedule(input, into, clock);
                 yield return Collect(into, clock, ratio, blocking);
             }
             finally
@@ -138,10 +142,9 @@ namespace SecondEyes.Perception
                     data[2 * plane + k] = p.b / 255f;
                 }
                 using var exact = new Tensor<float>(new TensorShape(1, 3, size, size), data);
-                worker.Schedule(exact);
-                into.ScheduleMs = clock.Elapsed.TotalMilliseconds;
                 into.SourceWidth = into.SourceHeight = size;
                 into.Ratio = 1.0;
+                yield return Schedule(exact, into, clock);
                 yield return Collect(into, clock, 1.0, blocking);
             }
             finally
@@ -150,8 +153,49 @@ namespace SecondEyes.Perception
             }
         }
 
+        /// <summary>
+        /// Dispatches the network: all at once when StepsPerFrame is 0, otherwise StepsPerFrame layers per rendered
+        /// frame through Worker.ScheduleIterable, so no frame carries the whole network (D88). The input stays fixed
+        /// until the inference ends: one inference is in flight, and its tensor is written once, before the first step.
+        /// </summary>
+        private IEnumerator Schedule(Tensor<float> source, DetectionResult into, Stopwatch clock)
+        {
+            int perFrame = StepsPerFrame;
+            into.StepsPerFrame = perFrame;
+            if (perFrame <= 0)
+            {
+                worker.Schedule(source);
+                into.ScheduleSteps = LayerCount;
+                into.ScheduleFrames = 1;
+                into.ScheduleMs = clock.Elapsed.TotalMilliseconds;
+                yield break;
+            }
+            var steps = worker.ScheduleIterable(source);
+            int count = 0, frames = 1;
+            while (true)
+            {
+                bool more = true;
+                for (int k = 0; k < perFrame; k++)
+                {
+                    if (!steps.MoveNext())
+                    {
+                        more = false;
+                        break;
+                    }
+                    count++;
+                }
+                if (!more) break;
+                frames++;
+                yield return null;
+            }
+            into.ScheduleSteps = count;
+            into.ScheduleFrames = frames;
+            into.ScheduleMs = clock.Elapsed.TotalMilliseconds;
+        }
+
         private IEnumerator Collect(DetectionResult into, Stopwatch clock, double ratio, bool blocking)
         {
+            into.Floor = Floor;
             into.Blocking = blocking;
             float[] boxes, scores;
             int[] classes;
@@ -196,7 +240,7 @@ namespace SecondEyes.Perception
 
         private void Postprocess(float[] boxes, float[] scores, int[] classes, double ratio, DetectionResult into)
         {
-            float threshold = package.postprocess.score_threshold;
+            float threshold = Mathf.Min(Floor, package.postprocess.score_threshold);
             float iouThreshold = package.postprocess.nms_iou_threshold;
             candidates.Clear();
             for (int i = 0; i < scores.Length; i++)
