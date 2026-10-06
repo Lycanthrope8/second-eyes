@@ -1,0 +1,197 @@
+{
+ "description": "A2.2d expectations written before the preparation package existed (D78). Work allowances, calibration counts, pins and sample counts are literal from the approved brief. Fixture memberships and selection IDs are the accepted A2.2c outputs for F1; derived command IDs come from an independent hash of the brief's identity payload, computed here without any production helper.",
+ "work_slots": {
+  "0": 0,
+  "1": 2,
+  "2": 22,
+  "3": 63,
+  "6": 342,
+  "10": 1190
+ },
+ "ceilings": [
+  1024,
+  2048,
+  4096
+ ],
+ "pins": {
+  "repo": "Qwen/Qwen2.5-0.5B-Instruct",
+  "revision": "7ae557604adf67be50417f59c2c2f167def9a775",
+  "files": {
+   "vocab.json": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910",
+   "merges.txt": "599bab54075088774b1733fde865d5bd747cbcc7a547c5bc12610e874e26f5e3",
+   "tokenizer_config.json": "5b5d4f65d0acd3b2d56a35b56d374a36cbc1c8fa5cf3b3febbbfabf22f359583"
+  },
+  "transformers": "4.57.6",
+  "tokenizers": "0.22.2",
+  "tokenizer_class": "Qwen2TokenizerFast"
+ },
+ "system_message": "Use the supplied scene evidence to interpret the typed command. Unknown values are not false facts. Respect the stated spatial definitions and frame labels. Do not invent missing evidence or silently choose an unstated reference frame.",
+ "wrapper": [
+  "<|im_start|>system\n",
+  "{system}",
+  "<|im_end|>\n<|im_start|>user\n",
+  "{document}",
+  "<|im_end|>\n<|im_start|>assistant\n"
+ ],
+ "calibration": {
+  "a1_prompts": {
+   "a17-fixed": 230,
+   "a17-front": 232,
+   "a17-left": 230,
+   "a17-table": 227
+  },
+  "a1_scene_prefix": 191,
+  "goldens": {
+   "a17.annotated": [
+    1343,
+    2266
+   ],
+   "a17.restricted": [
+    1272,
+    2106
+   ],
+   "dirh10.annotated": [
+    1443,
+    2998
+   ],
+   "dirh10.restricted": [
+    1413,
+    3625
+   ]
+  }
+ },
+ "fixture_commands": {
+  "c01": "the chair that is closest to the table",
+  "c02": "the chair that is farthest from the table",
+  "c03": "the crib that is near the desk",
+  "c04": "the big chair that is near the table"
+ },
+ "fixture": [
+  {
+   "parent_command_id": "fixture.iref_prep.c01",
+   "view_id": "full_inventory",
+   "text": "the chair that is closest to the table",
+   "source_status": "fits",
+   "selection_id": "iref.subset.e4f51c277cc38d86e8531395f98ed5dca9089c68480dd095732fb73333c1e4c0",
+   "objects": [
+    "obj_001",
+    "obj_002",
+    "obj_003",
+    "obj_004",
+    "obj_008"
+   ],
+   "derived_command_id": "iref.input.f771bdea463aad8015f3114239c9bf92836b9985075462ce9c5466ffa2d4e010"
+  },
+  {
+   "parent_command_id": "fixture.iref_prep.c01",
+   "view_id": "source_known_nyu",
+   "text": "the chair that is closest to the table",
+   "source_status": "fits",
+   "selection_id": "iref.subset.57853a181481ebf6d73afe3a5c0afecce6a97194925fe3166dc630531cdffd56",
+   "objects": [
+    "obj_001",
+    "obj_002",
+    "obj_003",
+    "obj_004"
+   ],
+   "derived_command_id": "iref.input.f63454bace6c4e701dee1f88b1999d986b52bd1f7476b14961412cbd60fb5306"
+  },
+  {
+   "parent_command_id": "fixture.iref_prep.c02",
+   "view_id": "full_inventory",
+   "text": "the chair that is farthest from the table",
+   "source_status": "fits",
+   "selection_id": "iref.subset.e4f51c277cc38d86e8531395f98ed5dca9089c68480dd095732fb73333c1e4c0",
+   "objects": [
+    "obj_001",
+    "obj_002",
+    "obj_003",
+    "obj_004",
+    "obj_008"
+   ],
+   "derived_command_id": "iref.input.42b06865792d55e5e1be4b3888bf167617d4f400e655d11cbe14fa115cecdfbe"
+  },
+  {
+   "parent_command_id": "fixture.iref_prep.c02",
+   "view_id": "source_known_nyu",
+   "text": "the chair that is farthest from the table",
+   "source_status": "fits",
+   "selection_id": "iref.subset.57853a181481ebf6d73afe3a5c0afecce6a97194925fe3166dc630531cdffd56",
+   "objects": [
+    "obj_001",
+    "obj_002",
+    "obj_003",
+    "obj_004"
+   ],
+   "derived_command_id": "iref.input.2269bbe79d4f2b1e1638521cd202d566f4b94d2b4868134018d6024f80563ff6"
+  },
+  {
+   "parent_command_id": "fixture.iref_prep.c03",
+   "view_id": "full_inventory",
+   "text": "the crib that is near the desk",
+   "source_status": "fits",
+   "selection_id": "iref.subset.9d4575dfafd72cae7518200abc2ac422720df4a85d3aa90de5d63e4b52674554",
+   "objects": [
+    "obj_008"
+   ],
+   "derived_command_id": "iref.input.6060bdbe0c4cb16534b9dcd4b764c1fa66f24f78df717258dc5f8abcf1d4110d"
+  },
+  {
+   "parent_command_id": "fixture.iref_prep.c03",
+   "view_id": "source_known_nyu",
+   "text": "the crib that is near the desk",
+   "source_status": "fits",
+   "selection_id": "iref.subset.41629e1ca2392abad773b920e87d48bb80fbb136a8c9141ee7e195ad64d95e8d",
+   "objects": [],
+   "derived_command_id": "iref.input.26c5dddb39d1b1d09248d578984de659f3bba1c41d82e316f29d06ab40385e89"
+  },
+  {
+   "parent_command_id": "fixture.iref_prep.c04",
+   "view_id": "full_inventory",
+   "text": "the big chair that is near the table",
+   "source_status": "unassessed_parse",
+   "selection_id": null,
+   "objects": null,
+   "derived_command_id": null
+  },
+  {
+   "parent_command_id": "fixture.iref_prep.c04",
+   "view_id": "source_known_nyu",
+   "text": "the big chair that is near the table",
+   "source_status": "unassessed_parse",
+   "selection_id": null,
+   "objects": null,
+   "derived_command_id": null
+  }
+ ],
+ "fixture_shared_scene": [
+  [
+   "fixture.iref_prep.c01",
+   "fixture.iref_prep.c02"
+  ]
+ ],
+ "sample": {
+  "pairs": 3872,
+  "fits": {
+   "full_inventory": 1004,
+   "source_known_nyu": 1095
+  },
+  "over": {
+   "full_inventory": 175,
+   "source_known_nyu": 84
+  },
+  "unassessed": {
+   "full_inventory": 757,
+   "source_known_nyu": 757
+  },
+  "distinct_fitting": {
+   "full_inventory": 95,
+   "source_known_nyu": 104
+  },
+  "scene_files": 199,
+  "command_files": 2099,
+  "rendered_documents": 4198,
+  "index_rows": 3872,
+  "measurement_rows": 7744
+ }
+}

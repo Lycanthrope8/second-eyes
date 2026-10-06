@@ -1,0 +1,864 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://second-eyes.local/schemas/iref-model-input-audit.v1.json",
+  "title": "IRef-VLA model-input preparation records (A2.2d, D78)",
+  "description": "Closed records of the A2.2d preparation bundle: one index row per command and view, two measurement rows per index row (fixed format order), the summary and the manifest. Every count is a plain integer; numbers are finite; missing measurements are null, never zero. Semantic consistency (linkage, hashes, telescoping marginals, pairing) is checked in code by verify_bundle.",
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "selection_id": {
+      "type": "string",
+      "pattern": "^iref\\.subset\\.[0-9a-f]{64}$"
+    },
+    "derived_command_id": {
+      "type": "string",
+      "pattern": "^iref\\.input\\.[0-9a-f]{64}$"
+    },
+    "view_id": {
+      "enum": [
+        "full_inventory",
+        "source_known_nyu"
+      ]
+    },
+    "format": {
+      "enum": [
+        "coordinates_v2",
+        "coordinates_relations_v2"
+      ]
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "relpath": {
+      "type": "string",
+      "pattern": "^(model_records|diagnostic_inputs)/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$"
+    },
+    "text_stat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bytes",
+        "sha256"
+      ],
+      "properties": {
+        "bytes": {
+          "$ref": "#/$defs/count"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "index_row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "command_path",
+        "command_sha256",
+        "derived_command_id",
+        "derived_scene_id",
+        "format_version",
+        "parent_command_id",
+        "planned_object_ids",
+        "policy_id",
+        "preparation_status",
+        "record_type",
+        "required_object_count",
+        "scene_path",
+        "scene_sha256",
+        "selection_id",
+        "source_reason",
+        "source_status",
+        "view_id"
+      ],
+      "properties": {
+        "format_version": {
+          "const": 1
+        },
+        "record_type": {
+          "const": "iref_model_input_index"
+        },
+        "policy_id": {
+          "const": "iref_model_inputs.v1"
+        },
+        "parent_command_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "view_id": {
+          "$ref": "#/$defs/view_id"
+        },
+        "selection_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/selection_id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_status": {
+          "enum": [
+            "fits",
+            "over_budget",
+            "unassessed_parse"
+          ]
+        },
+        "source_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "required_object_count": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/count"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "planned_object_ids": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "preparation_status": {
+          "enum": [
+            "materialized",
+            "over_object_budget",
+            "unassessed_parse"
+          ]
+        },
+        "derived_scene_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/selection_id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "derived_command_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/derived_command_id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scene_path": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/relpath"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "command_path": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/relpath"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scene_sha256": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "command_sha256": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "measurement_row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "blocks",
+        "ceilings",
+        "derived_command_id",
+        "derived_scene_id",
+        "format",
+        "format_version",
+        "measurement_kind",
+        "non_nfc",
+        "object_count",
+        "parent_command_id",
+        "paths",
+        "policy_id",
+        "reason",
+        "record_type",
+        "selection_id",
+        "serializer_token_status",
+        "states_by_block",
+        "status",
+        "tokenizer_identity",
+        "tokens",
+        "view_id",
+        "work",
+        "wrapper_identity"
+      ],
+      "properties": {
+        "format_version": {
+          "const": 1
+        },
+        "record_type": {
+          "const": "iref_model_input_measurement"
+        },
+        "policy_id": {
+          "const": "iref_model_inputs.v1"
+        },
+        "parent_command_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "view_id": {
+          "$ref": "#/$defs/view_id"
+        },
+        "format": {
+          "$ref": "#/$defs/format"
+        },
+        "selection_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/selection_id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "derived_scene_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/selection_id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "derived_command_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/derived_command_id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "enum": [
+            "rendered",
+            "unassessed_parse",
+            "over_object_budget",
+            "work_budget_exceeded"
+          ]
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "object_count": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/count"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "measurement_kind": {
+          "anyOf": [
+            {
+              "enum": [
+                "exact",
+                "test_double"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tokenizer_identity": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "wrapper_identity": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "serializer_token_status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "paths": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "document",
+                "dynamic_suffix",
+                "prompt",
+                "static_prefix"
+              ],
+              "properties": {
+                "document": {
+                  "$ref": "#/$defs/relpath"
+                },
+                "static_prefix": {
+                  "$ref": "#/$defs/relpath"
+                },
+                "dynamic_suffix": {
+                  "$ref": "#/$defs/relpath"
+                },
+                "prompt": {
+                  "$ref": "#/$defs/relpath"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tokens": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "document",
+                "document_tokens",
+                "dynamic_suffix",
+                "group_reusable_prefix_tokens",
+                "group_size",
+                "input_bytes",
+                "input_sha256",
+                "input_tokens",
+                "prefix_compatible_tokens",
+                "prefix_fully_compatible",
+                "prefix_tokens",
+                "static_prefix",
+                "token_ids_sha256",
+                "tokens_after_compatible_prefix",
+                "tokens_after_group_prefix"
+              ],
+              "properties": {
+                "input_tokens": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "input_bytes": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "input_sha256": {
+                  "$ref": "#/$defs/sha256"
+                },
+                "token_ids_sha256": {
+                  "$ref": "#/$defs/sha256"
+                },
+                "document_tokens": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "document": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "bytes",
+                    "sha256"
+                  ],
+                  "properties": {
+                    "bytes": {
+                      "$ref": "#/$defs/count"
+                    },
+                    "sha256": {
+                      "$ref": "#/$defs/sha256"
+                    }
+                  }
+                },
+                "static_prefix": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "bytes",
+                    "sha256"
+                  ],
+                  "properties": {
+                    "bytes": {
+                      "$ref": "#/$defs/count"
+                    },
+                    "sha256": {
+                      "$ref": "#/$defs/sha256"
+                    }
+                  }
+                },
+                "dynamic_suffix": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "bytes",
+                    "sha256"
+                  ],
+                  "properties": {
+                    "bytes": {
+                      "$ref": "#/$defs/count"
+                    },
+                    "sha256": {
+                      "$ref": "#/$defs/sha256"
+                    }
+                  }
+                },
+                "prefix_tokens": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "prefix_compatible_tokens": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "prefix_fully_compatible": {
+                  "type": "boolean"
+                },
+                "tokens_after_compatible_prefix": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "group_size": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "group_reusable_prefix_tokens": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "tokens_after_group_prefix": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "work": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "actual_total",
+                "cap",
+                "distances",
+                "planned_slots",
+                "status"
+              ],
+              "properties": {
+                "planned_slots": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "cap": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "status": {
+                  "type": "string"
+                },
+                "actual_total": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "distances": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "missing",
+                    "performed",
+                    "slots"
+                  ],
+                  "properties": {
+                    "slots": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "performed": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "missing": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "states_by_block": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "F",
+                  "T",
+                  "U"
+                ],
+                "properties": {
+                  "T": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "F": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "U": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "blocks": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "marginal_tokens",
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "marginal_tokens": {
+                    "type": "integer"
+                  }
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ceilings": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "1024",
+                "2048",
+                "4096"
+              ],
+              "properties": {
+                "1024": {
+                  "enum": [
+                    "within_input_ceiling",
+                    "exceeds_input_ceiling"
+                  ]
+                },
+                "2048": {
+                  "enum": [
+                    "within_input_ceiling",
+                    "exceeds_input_ceiling"
+                  ]
+                },
+                "4096": {
+                  "enum": [
+                    "within_input_ceiling",
+                    "exceeds_input_ceiling"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "non_nfc": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ceilings",
+        "format_version",
+        "limitations",
+        "measurement_kind",
+        "measurement_label",
+        "object_limit",
+        "paired",
+        "policy_id",
+        "population",
+        "record_type",
+        "views",
+        "work_cap"
+      ],
+      "properties": {
+        "format_version": {
+          "const": 1
+        },
+        "record_type": {
+          "const": "iref_model_input_summary"
+        },
+        "policy_id": {
+          "const": "iref_model_inputs.v1"
+        },
+        "measurement_label": {
+          "type": "string"
+        },
+        "measurement_kind": {
+          "anyOf": [
+            {
+              "enum": [
+                "exact",
+                "test_double"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ceilings": {
+          "const": [
+            1024,
+            2048,
+            4096
+          ]
+        },
+        "object_limit": {
+          "const": 10
+        },
+        "work_cap": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "population": {
+          "type": "object"
+        },
+        "views": {
+          "type": "object"
+        },
+        "paired": {
+          "type": "object"
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "manifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baseline",
+        "calibration",
+        "ceilings",
+        "code",
+        "format_version",
+        "inputs",
+        "libraries",
+        "materialized",
+        "model_description",
+        "notes",
+        "object_limit",
+        "outputs",
+        "parser",
+        "policy_id",
+        "record_type",
+        "runtime",
+        "selection_audit",
+        "source_selection_policy",
+        "tokenizer",
+        "work_cap",
+        "wrapper"
+      ],
+      "properties": {
+        "format_version": {
+          "const": 1
+        },
+        "record_type": {
+          "const": "iref_model_input_manifest"
+        },
+        "policy_id": {
+          "const": "iref_model_inputs.v1"
+        },
+        "source_selection_policy": {
+          "const": "iref_category_complete.v1"
+        },
+        "baseline": {
+          "type": "object"
+        },
+        "inputs": {
+          "type": "object"
+        },
+        "selection_audit": {
+          "type": "object"
+        },
+        "libraries": {
+          "type": "object"
+        },
+        "model_description": {
+          "type": "object"
+        },
+        "tokenizer": {
+          "type": "object"
+        },
+        "wrapper": {
+          "type": "object"
+        },
+        "calibration": {
+          "type": "object"
+        },
+        "parser": {
+          "type": "object"
+        },
+        "materialized": {
+          "type": "object"
+        },
+        "outputs": {
+          "type": "object"
+        },
+        "code": {
+          "type": "object"
+        },
+        "runtime": {
+          "type": "object"
+        },
+        "object_limit": {
+          "const": 10
+        },
+        "work_cap": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ceilings": {
+          "const": [
+            1024,
+            2048,
+            4096
+          ]
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

@@ -34,6 +34,11 @@ Language grounding (proposal §6, with A2 as the Revision 3.1 supplement plans i
 | `tests/test_iref_vla_evaluation.py`, `tests/fixtures/iref_vla_evaluation/` | its tests and the cases fixed before implementation: `python grounding/tests/test_iref_vla_evaluation.py --sample DIR` (or `--unit-only`, which is not sample acceptance) | A2.2b |
 | `subscenes/iref_vla/` | the A2.2c category-complete selection audit (`docs/iref-vla-subscenes.md`): selection plans per command and inventory view, from the accepted parser and validation; its CLI, `python -m grounding.subscenes.iref_vla` | A2.2c |
 | `tests/test_iref_vla_subscenes.py`, `tests/fixtures/iref_vla_subscenes/` | its tests and the hand-written expectations: `python grounding/tests/test_iref_vla_subscenes.py --sample DIR` (or `--unit-only`, which is not sample acceptance) | A2.2c |
+| `preparation/iref_vla/` | the A2.2d model-input preparation (`docs/iref-vla-model-inputs.md`): derived scenes and commands from A2.2c's fitting selections, both formats rendered and measured with the pinned tokenizer; its CLI, `python -m grounding.preparation.iref_vla` | A2.2d |
+| `requirements-token-audit.txt` | the pinned token-measurement environment (transformers 4.57.6, tokenizers 0.22.2), installed apart from any training environment | A2.2d |
+| `tests/test_iref_vla_preparation.py`, `tests/fixtures/iref_vla_preparation/` | its tests and the expectations written before implementation: `--unit-only` (test doubles; not real-token acceptance), `--bundle DIR` or `--import DIR --selection-audit DIR` | A2.2d |
+| `inference/iref_vla/` | the A2.3a zero-shot direct-selection pilot (`docs/iref-vla-zero-shot-pilot.md`): `prepare` freezes exact requests from an A2.2d bundle; `run` verifies them and the checkpoint, runs the canary and one forward per request; its CLI, `python -m grounding.inference.iref_vla` | A2.3a |
+| `tests/test_iref_vla_pilot.py`, `tests/fixtures/iref_vla_pilot/` | its tests and the expectations written before the scorer: `--unit-only` (fakes only), the pinned-tokenizer mode, `--requests DIR` | A2.3a |
 
 ## Setup
 

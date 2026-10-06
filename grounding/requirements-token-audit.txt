@@ -1,0 +1,5 @@
+# The A2.2d token-measurement environment (D78). Install into a separate virtual environment;
+# do not upgrade a training environment with these pins.
+transformers==4.57.6
+tokenizers==0.22.2
+jsonschema>=4.0

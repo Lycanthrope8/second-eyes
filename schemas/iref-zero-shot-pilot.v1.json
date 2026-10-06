@@ -1,0 +1,587 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://second-eyes.local/schemas/iref-zero-shot-pilot.v1.json",
+  "title": "IRef-VLA zero-shot direct-selection pilot records (A2.3a, D81)",
+  "description": "Closed records of the pilot's frozen request folder and its result folder. Counts are plain integers; numbers are finite; unavailable values are null. Semantic consistency (hashes, identities, mappings, re-tokenization, choices within their mapping) is checked in code by verify_request_dir and verify_results.",
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "view_id": {
+      "enum": [
+        "full_inventory",
+        "source_known_nyu"
+      ]
+    },
+    "format": {
+      "enum": [
+        "coordinates_v2",
+        "coordinates_relations_v2"
+      ]
+    },
+    "mapping": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 11,
+      "items": {
+        "type": "array",
+        "minItems": 3,
+        "maxItems": 3,
+        "prefixItems": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "string"
+          },
+          {
+            "type": "integer",
+            "minimum": 0
+          }
+        ],
+        "items": false
+      }
+    },
+    "request_row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "context_status",
+        "derived_command_id",
+        "derived_scene_id",
+        "empty_candidate_set",
+        "format",
+        "format_version",
+        "input_only_ceilings",
+        "input_tokens",
+        "mapping",
+        "object_ids",
+        "pair_eligible",
+        "parent_command_id",
+        "prompt_bytes",
+        "prompt_path",
+        "prompt_sha256",
+        "protocol_id",
+        "record_type",
+        "request_id",
+        "request_index",
+        "selection_rank",
+        "source_document_path",
+        "source_document_sha256",
+        "token_ids_file_sha256",
+        "token_ids_path",
+        "token_ids_sha256",
+        "view_id"
+      ],
+      "properties": {
+        "format_version": {
+          "const": 1
+        },
+        "record_type": {
+          "const": "iref_pilot_request"
+        },
+        "protocol_id": {
+          "const": "iref.zero_shot.direct_selection.pilot.v1"
+        },
+        "request_index": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^q[0-9]{3}$"
+        },
+        "selection_rank": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "parent_command_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "view_id": {
+          "$ref": "#/$defs/view_id"
+        },
+        "format": {
+          "$ref": "#/$defs/format"
+        },
+        "derived_scene_id": {
+          "type": "string",
+          "pattern": "^iref\\.subset\\.[0-9a-f]{64}$"
+        },
+        "derived_command_id": {
+          "type": "string",
+          "pattern": "^iref\\.input\\.[0-9a-f]{64}$"
+        },
+        "object_ids": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "mapping": {
+          "$ref": "#/$defs/mapping"
+        },
+        "empty_candidate_set": {
+          "type": "boolean"
+        },
+        "source_document_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_document_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "prompt_path": {
+          "type": "string"
+        },
+        "prompt_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "prompt_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "token_ids_path": {
+          "type": "string"
+        },
+        "token_ids_file_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "token_ids_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "input_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "context_status": {
+          "enum": [
+            "within_context_limit",
+            "context_budget_exceeded"
+          ]
+        },
+        "pair_eligible": {
+          "type": "boolean"
+        },
+        "input_only_ceilings": {
+          "type": "object",
+          "additionalProperties": {
+            "enum": [
+              "within_input_ceiling",
+              "exceeds_input_ceiling"
+            ]
+          }
+        }
+      }
+    },
+    "request_manifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "context_limit_tokens",
+        "files",
+        "format_version",
+        "input_only_ceilings",
+        "model_description",
+        "notes",
+        "protocol_id",
+        "protocol_sha256",
+        "record_type",
+        "requests",
+        "runtime",
+        "selection",
+        "source_bundle",
+        "tokenizer"
+      ],
+      "properties": {
+        "format_version": {
+          "const": 1
+        },
+        "record_type": {
+          "const": "iref_pilot_request_manifest"
+        },
+        "protocol_id": {
+          "const": "iref.zero_shot.direct_selection.pilot.v1"
+        },
+        "protocol_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "source_bundle": {
+          "type": "object"
+        },
+        "selection": {
+          "type": "object"
+        },
+        "model_description": {
+          "type": "object"
+        },
+        "tokenizer": {
+          "type": "object"
+        },
+        "requests": {
+          "type": "object"
+        },
+        "files": {
+          "type": "object"
+        },
+        "code": {
+          "type": "object"
+        },
+        "runtime": {
+          "type": "object"
+        },
+        "context_limit_tokens": {
+          "type": "integer",
+          "minimum": 2
+        },
+        "input_only_ceilings": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "score": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "log_prob",
+        "logit",
+        "restricted_share",
+        "target",
+        "token_id"
+      ],
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "target": {
+          "type": "string"
+        },
+        "token_id": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "logit": {
+          "type": "number"
+        },
+        "log_prob": {
+          "type": "number"
+        },
+        "restricted_share": {
+          "type": "number"
+        }
+      }
+    },
+    "result_row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "choice_code",
+        "choice_object_id",
+        "derived_command_id",
+        "derived_scene_id",
+        "format",
+        "format_version",
+        "input_tokens",
+        "logit_margin",
+        "mapping",
+        "model_choice",
+        "parent_command_id",
+        "prompt_sha256",
+        "protocol_id",
+        "record_type",
+        "request_id",
+        "request_index",
+        "scores",
+        "selection_reason",
+        "source_document_sha256",
+        "technical_status",
+        "tied_codes",
+        "timing_ms",
+        "token_ids_sha256",
+        "top_restricted_share",
+        "view_id"
+      ],
+      "properties": {
+        "format_version": {
+          "const": 1
+        },
+        "record_type": {
+          "const": "iref_pilot_result"
+        },
+        "protocol_id": {
+          "const": "iref.zero_shot.direct_selection.pilot.v1"
+        },
+        "request_index": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^q[0-9]{3}$"
+        },
+        "parent_command_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "view_id": {
+          "$ref": "#/$defs/view_id"
+        },
+        "format": {
+          "$ref": "#/$defs/format"
+        },
+        "derived_scene_id": {
+          "type": "string"
+        },
+        "derived_command_id": {
+          "type": "string"
+        },
+        "source_document_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "prompt_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "token_ids_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "input_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "mapping": {
+          "$ref": "#/$defs/mapping"
+        },
+        "technical_status": {
+          "enum": [
+            "completed",
+            "empty_scene_bypass",
+            "context_budget_exceeded"
+          ]
+        },
+        "model_choice": {
+          "anyOf": [
+            {
+              "enum": [
+                "model_choice_object",
+                "model_choice_ask"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "choice_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "choice_object_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "selection_reason": {
+          "anyOf": [
+            {
+              "enum": [
+                "max_offered_logit",
+                "exact_score_tie",
+                "empty_candidate_set"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tied_codes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "scores": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/score"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "top_restricted_share": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "logit_margin": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timing_ms": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "forward",
+            "verify"
+          ],
+          "properties": {
+            "verify": {
+              "type": "number"
+            },
+            "forward": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "result_manifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canary",
+        "checkpoint",
+        "counts",
+        "device_requested",
+        "format_version",
+        "model_info",
+        "notes",
+        "outputs",
+        "protocol_id",
+        "protocol_sha256",
+        "record_type",
+        "requests_manifest_sha256",
+        "runtime",
+        "selection",
+        "source_bundle"
+      ],
+      "properties": {
+        "format_version": {
+          "const": 1
+        },
+        "record_type": {
+          "const": "iref_pilot_result_manifest"
+        },
+        "protocol_id": {
+          "const": "iref.zero_shot.direct_selection.pilot.v1"
+        },
+        "requests_manifest_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "protocol_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "selection": {
+          "type": "object"
+        },
+        "source_bundle": {
+          "type": "object"
+        },
+        "checkpoint": {
+          "type": "object"
+        },
+        "counts": {
+          "type": "object"
+        },
+        "runtime": {
+          "type": "object"
+        },
+        "outputs": {
+          "type": "object"
+        },
+        "model_info": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "canary": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "device_requested": {
+          "enum": [
+            "cpu",
+            "cuda"
+          ]
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
