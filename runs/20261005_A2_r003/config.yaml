@@ -1,0 +1,29 @@
+# Run config, format v1 (defined in schemas/run-config.v1.json).
+# Made by:   python tools/runs.py new <phase> --purpose "..." --operator "..."
+# Check it:  python tools/runs.py check <run ID>
+# Fill the optional fields that apply to this run and leave the rest null.
+
+# Identity (filled by the tool)
+config_version: 1
+run_id: "20261005_A2_r003"
+phase: "A2"
+created: "2026-10-05T23:05:34-04:00"  # local time with UTC offset
+
+# Required (given to the tool)
+purpose: "A2.3a zero-shot pilot: canary and 128 requests, cuda float32, RTX PRO 6000"  # one line: why this run exists
+operator: "JH"  # who ran it
+
+# Code (filled by the tool)
+git_commit: "e71f8a5dab15f882bb55b571a3524c4972028a5a"
+git_dirty: false  # true if the repository had uncommitted changes (files in .gitignore don't count)
+
+# Optional: leave null when a field doesn't apply
+model_checkpoint: null  # model file name (--checkpoint fills it)
+model_sha256: null  # SHA-256 of that file (--checkpoint fills it)
+prompt_version: null  # version of the prompt template
+schema_version: null  # version of the model's output/scene schema (proposal section 6.2)
+layout_id: null  # which prop layout
+headset_os_build: null  # ro.build.fingerprint (--headset fills it)
+drone_firmware: null
+lighting: null  # lighting conditions
+notes: "cuda float32 on RTX PRO 6000 Blackwell; torch 2.11.0+cu128, transformers 4.57.6, tokenizers 0.22.2; requests-20261005-212446 (transfer manifest e71cc6c6, preflight passed); model description: the transferred byte-exact copy; weights SHA-256 fdf756fa; canary accepted (q001, max difference 0.0); 128 of 128 completed; outputs in raw/pilot"  # anything else
