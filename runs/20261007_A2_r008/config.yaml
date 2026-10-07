@@ -1,0 +1,29 @@
+# Run config, format v1 (defined in schemas/run-config.v1.json).
+# Made by:   python tools/runs.py new <phase> --purpose "..." --operator "..."
+# Check it:  python tools/runs.py check <run ID>
+# Fill the optional fields that apply to this run and leave the rest null.
+
+# Identity (filled by the tool)
+config_version: 1
+run_id: "20261007_A2_r008"
+phase: "A2"
+created: "2026-10-07T17:51:22-04:00"  # local time with UTC offset
+
+# Required (given to the tool)
+purpose: "A2.3e 0.5B exact-prefix cache check (D96)"  # one line: why this run exists
+operator: "JH"  # who ran it
+
+# Code (filled by the tool)
+git_commit: "eabc0d3592f6f213c2daeb89b669d65e10256084"
+git_dirty: false  # true if the repository had uncommitted changes (files in .gitignore don't count)
+
+# Optional: leave null when a field doesn't apply
+model_checkpoint: null  # model file name (--checkpoint fills it)
+model_sha256: null  # SHA-256 of that file (--checkpoint fills it)
+prompt_version: null  # version of the prompt template
+schema_version: null  # version of the model's output/scene schema (proposal section 6.2)
+layout_id: null  # which prop layout
+headset_os_build: null  # ro.build.fingerprint (--headset fills it)
+drone_firmware: null
+lighting: null  # lighting conditions
+notes: "cuda float32 on RTX PRO 6000 Blackwell; torch 2.11.0+cu128, transformers 4.57.6; Qwen2.5-0.5B-Instruct 7ae55760; requests-20261007-115636 (manifest 0e49a9f6); 16 cases x 2 formats, 224 of 224 cache checks passed (D56); repeated identical request: last-token scoring 19.2 ms vs 90.6 ms uncached; peak GPU 3.98 GB; outputs in raw/cache"  # anything else
