@@ -401,6 +401,102 @@ def check_audit(D, P, AU):
               and "the prompt is exactly the protocol's system turn, the user turn and an open assistant turn" in failed)
 
 
+class FakeCacheModel:
+    """Labelled double: logits from the full token sequence, so cached and uncached agree exactly; `broken` ignores the prefix."""
+
+    def __init__(self, base, broken=False):
+        self.base, self.broken = base, broken
+
+    def info(self):
+        return self.base.info()
+
+    def synchronize(self):
+        pass
+
+    def reset_peak(self):
+        pass
+
+    def peak(self):
+        return None
+
+    def uncached(self, ids):
+        return self.base._row(list(ids))
+
+    def prefill(self, ids):
+        return {"ids": list(ids)}
+
+    def suffix(self, cache, prefix_len, ids):
+        return self.base._row(list(ids) if self.broken else cache["ids"][:prefix_len] + list(ids))
+
+
+def check_costs_and_cache(D, P, RUN):
+    print("-- A2.3e costs and cache check (labelled doubles)")
+    SB = importlib.import_module("grounding.tests.test_iref_vla_pilot_scoring")
+    A = SB.pilot_helpers()
+    PI = importlib.import_module("grounding.inference.iref_vla.prepare")
+    CO = importlib.import_module("grounding.inference.iref_vla_compare.costs")
+    CA = importlib.import_module("grounding.inference.iref_vla_compare.cache")
+    ev = lambda *a: {"revision": "fixture", "tie": "labelled fixture", "files": {}}  # noqa: E731
+    check("common prefix and identity: another model or tokenizer gets no reuse",
+          CA.common_prefix([1, 2, 3], [1, 2, 4]) == 2 and (lambda pc: (pc.add(("m", "t"), [1, 2, 3]), pc.lookup(("m2", "t"), [1, 2, 3]),
+                                                                        pc.lookup(("m", "t"), [1, 2, 9]))[1:])(CA.PrefixCache()) == (0, 2))
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        bundle = SB.scoring_bundle(tmp, A)
+        src = PI.read_bundle(bundle)
+        eligible = PI.eligible_parents(src)
+        pilot = sorted(eligible, key=lambda p: (hs("fixture-pilot\n" + p), p))[:1]
+        pol = json.loads(D.POLICY_PATH.read_text(encoding="utf-8"))
+        pol["population"] = {"rule": "fixture", "expected_eligible": len(eligible), "expected_remaining": len(eligible) - 1,
+                             "excluded": {"what": "fixture", "salt": "fixture-pilot\n", "count": 1,
+                                          "selected_sha256": hashlib.sha256((pilot[0] + "\n").encode()).hexdigest()}}
+        pol["selection"]["count"] = len(eligible) - 1
+        pol["expected"] = {"parents": len(eligible) - 1, "parent_views": 2 * (len(eligible) - 1), "requests": 4 * (len(eligible) - 1)}
+        pp = tmp / "policy.json"
+        pp.write_text(json.dumps(pol), encoding="utf-8")
+        toks = {k: A.OffsetCharTokenizer() for k in KEYS}
+        P.prepare_compare(bundle=bundle, tokenizer_small=None, tokenizer_large=None, out=tmp / "req", policy=pp, tokenizers=toks)
+        common = dict(requests=tmp / "req", model_dir=tmp, tokenizer_dir=None, device="cpu", evidence_fn=ev)
+        for key in KEYS:
+            RUN.smoke(**common, model_key=key, out=tmp / f"smoke-{key}.json", model_loader=A.loader_for(A.FakeModel()),
+                      tokenizer=A.OffsetCharTokenizer())
+            RUN.run_compare(**common, model_key=key, smoke_record=tmp / f"smoke-{key}.json", out=tmp / f"run-{key}",
+                            model_loader=A.loader_for(A.FakeModel()), tokenizer=A.OffsetCharTokenizer(), progress=lambda m: None)
+        r = outcome(lambda: CO.run_costs(requests=tmp / "req", bundle=bundle, relation_config=REL_CFG, direction_config=DIR_CFG,
+                                         tokenizer_small=None, tokenizer_large=None, small_run=tmp / f"run-{KEYS[0]}",
+                                         large_run=tmp / f"run-{KEYS[1]}", out=tmp / "costs", tokenizers=toks))
+        check("costs: every rebuilt document, prompt and token list matches the frozen one; readback clean",
+              r[0] == "ok" and r[1]["all_reconstructions_match"] and CO.verify_costs(tmp / "costs") == [], str(r)[:300])
+        rows = jsonl(tmp / "req" / "request-index.jsonl")
+        cases = CO.select_cases(rows)
+        want = sorted(dict.fromkeys((x["parent_command_id"], x["view_id"]) for x in rows),
+                      key=lambda pv: (hs("second-eyes/a23e/cases/v1\n" + pv[0] + "\n" + pv[1]), pv))[:16]
+        check("the cases are the first 16 parent/views by the recorded hash (independent recomputation)", cases == want)
+        if r[0] == "ok":
+            ms = jsonl(tmp / "costs" / "measurements.jsonl")
+            check("five measured repetitions per case and format; the augmented format calls the relation builders",
+                  len(ms) == 5 * 2 * len(cases) and all(m["relation_calls"] > 0 for m in ms if m["format"] == "coordinates_relations_v2"))
+        good = FakeCacheModel(A.FakeModel())
+        r2 = outcome(lambda: CA.run_cache(**{k: v for k, v in common.items() if k != "tokenizer_dir"}, tokenizer_dir=None,
+                                          out=tmp / "cache", model_loader=lambda d, dev, p: good, tokenizer=A.OffsetCharTokenizer()))
+        check("cache: every D56 comparison and invalidation check passes when the cache keeps the prefix",
+              r2[0] == "ok" and r2[1]["passed"] and CA.verify_cache(tmp / "cache") == [], str(r2)[:300])
+        if r2[0] == "ok":
+            cs = jsonl(tmp / "cache" / "checks.jsonl")
+            inv = [c for c in cs if c["kind"].startswith("invalidation_") and c["kind"] != "invalidation_identity" and not c.get("skipped")]
+            check("an edit to scene evidence, pose or choices limits reuse to the tokens before the edit",
+                  inv and all(c["reuse_stops_at_edit"] for c in inv) and {c["kind"] for c in inv} >= {"invalidation_scene", "invalidation_choices"})
+            prompts = {x["request_id"]: x["prompt"] for x in jsonl(tmp / "req" / "prompts.jsonl")}
+            tok = A.OffsetCharTokenizer()
+            doc_start = {rid: len(tok.encode(p[:p.index('{"header"')])) for rid, p in prompts.items()}
+            check("reuse across parents stops before the scene document starts (the choices line differs first)",
+                  all(c["reused_tokens"] <= doc_start[c["request_id"]] for c in cs if c["kind"] == "other_parent"))
+        bad = FakeCacheModel(A.FakeModel(), broken=True)
+        r3 = outcome(lambda: CA.run_cache(**{k: v for k, v in common.items() if k != "tokenizer_dir"}, tokenizer_dir=None,
+                                          out=tmp / "cache-bad", model_loader=lambda d, dev, p: bad, tokenizer=A.OffsetCharTokenizer()))
+        check("a cache that drops the prefix fails D56 and is reported, not hidden", r3[0] == "ok" and not r3[1]["passed"], str(r3)[:200])
+
+
 def main() -> int:
     D = importlib.import_module("grounding.inference.iref_vla_compare.design")
     P = importlib.import_module("grounding.inference.iref_vla_compare.prepare")
@@ -413,6 +509,7 @@ def main() -> int:
     check_runs(D, P, RUN)
     check_scoring(D, P, R, RUN, S)
     check_audit(D, P, AU)
+    check_costs_and_cache(D, P, RUN)
     print(f"\n{len(PASSES)} passed, {len(FAILS)} failed")
     return 1 if FAILS else 0
 

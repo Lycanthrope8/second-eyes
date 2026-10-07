@@ -32,6 +32,14 @@ def main(argv=None) -> int:
     au = sub.add_parser("audit", help="export and check the canary parents' exact inputs (A2.3e)")
     for n in ("--requests", "--bundle", "--tokenizer-small", "--tokenizer-large", "--out"):
         au.add_argument(n, required=True)
+    co = sub.add_parser("costs", help="token, run and deterministic-stage costs for 16 hash-chosen cases (A2.3e, laptop)")
+    for n in ("--requests", "--bundle", "--relation-config", "--direction-config", "--tokenizer-small", "--tokenizer-large",
+              "--small-run", "--large-run", "--out"):
+        co.add_argument(n, required=True)
+    ca = sub.add_parser("cache", help="the 0.5B exact-prefix cache check on the same cases (A2.3e, RTX PC)")
+    for n in ("--requests", "--model-dir", "--tokenizer-dir", "--out"):
+        ca.add_argument(n, required=True)
+    ca.add_argument("--device", required=True, choices=("cuda",))
     sc = sub.add_parser("score", help="score both runs and the rules against the pinned annotations (laptop)")
     for n in ("--requests", "--rules", "--small-run", "--large-run", "--bundle", "--annotations", "--out"):
         sc.add_argument(n, required=True)
@@ -72,6 +80,24 @@ def main(argv=None) -> int:
             print(f"  forward median {f['median']:.1f} ms, p95 {f['p95']:.1f} ms; peak GPU bytes {x['peak_gpu_bytes']}")
             print(f"written to {a.out}")
             return 1 if c["context_budget_exceeded"] or c["execution_failed"] else 0
+        if a.command == "costs":
+            from .costs import run_costs
+            x = run_costs(requests=a.requests, bundle=a.bundle, relation_config=a.relation_config,
+                          direction_config=a.direction_config, tokenizer_small=a.tokenizer_small,
+                          tokenizer_large=a.tokenizer_large, small_run=a.small_run, large_run=a.large_run, out=a.out)
+            for k, d in x["deterministic"].items():
+                print(f"  {k}: relations {d['relation_ms']['median']:.2f} ms, rest of serialization "
+                      f"{d['serialization_ms']['median']:.2f} ms, tokenize {d['tokenize_ms/qwen2.5-0.5b-instruct']['median']:.2f} ms")
+            print(f"costs for {len(x['cases'])} cases; reconstructions match: {x['all_reconstructions_match']}; written to {a.out}")
+            return 0
+        if a.command == "cache":
+            from .cache import run_cache
+            x = run_cache(requests=a.requests, model_dir=a.model_dir, tokenizer_dir=a.tokenizer_dir, device=a.device, out=a.out)
+            for k, b in x["by_kind"].items():
+                print(f"  {k}: {b['passed']} of {b['checks']} passed" + (f", reused tokens median {b['reused_tokens']['median']}"
+                                                                          if b.get("reused_tokens") else ""))
+            print(f"cache check: {'every check passed' if x['passed'] else 'SOME CHECKS FAILED'}; written to {a.out}")
+            return 0 if x["passed"] else 1
         if a.command == "audit":
             from .audit import run_audit
             x = run_audit(requests=a.requests, bundle=a.bundle, tokenizer_small=a.tokenizer_small,

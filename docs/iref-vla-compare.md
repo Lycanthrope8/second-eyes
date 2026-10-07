@@ -85,3 +85,32 @@ augmented per model, on common completed requests, with their coverage); breakdo
 count; and a failure sample (six per model and view, by salted hash, for reading only). The policy is
 `compare-scoring.v1.json`. Ratios keep numerator and denominator; no float sums enter the summary, so its readback does
 not depend on the Python version.
+
+## A2.3e checks (D96)
+
+```text
+python -m grounding.inference.iref_vla_compare audit --requests DIR --bundle DIR --tokenizer-small DIR --tokenizer-large DIR --out NEW_DIR
+python -m grounding.inference.iref_vla_compare costs --requests DIR --bundle DIR --relation-config FILE --direction-config FILE --tokenizer-small DIR --tokenizer-large DIR --small-run DIR --large-run DIR --out NEW_DIR
+python -m grounding.inference.iref_vla_compare cache --requests DIR --model-dir DIR --tokenizer-dir DIR --device cuda --out NEW_DIR
+```
+
+- **`audit`** (laptop) exports and checks the canary parents' eight requests: exact prompt bytes, both tokenizers' token
+  IDs, role boundaries in characters and tokens, choices, document hash, command text, leak and scored-position
+  checks. Exit 1 if any check fails.
+- **`costs`** (laptop) reports token counts and paired format differences from the requests, and uncached forward
+  timings, load times and peak memory from the accepted runs. It then times, for 16 parent/view cases (both formats)
+  chosen by SHA-256 of UTF-8(`second-eyes/a23e/cases/v1` + LF + parent + LF + view), one warm-up and five repetitions
+  of each stage separately: relation construction (the serializer's relation-table builders, wrapped from outside), the
+  rest of serialization, prompt assembly, and tokenization per tokenizer. Disk reads and record validation are timed
+  apart. Every rebuilt document, prompt and token list must equal the frozen one, or nothing is reported.
+- **`cache`** (RTX PC) runs the 0.5B on the same cases. It compares the uncached forward with cached scoring under
+  three kinds of reuse, each of an exactly matching token prefix only:
+  - a repeated identical request (all tokens but the last);
+  - another command: the other format of the same parent and view, and another parent;
+  - an edited copy: scene evidence, pose or choices changed, which may reuse only the tokens before the edit.
+
+  A different model or tokenizer identity gets no reuse. Every comparison applies D56 (the same best candidate, the
+  same order among candidates with at least 1% restricted share, total variation distance at most 0.05). A pass
+  preserves the model's output, wrong choices included. Exit 1 if any check fails.
+
+All timings are PC measurements, not Quest figures.
