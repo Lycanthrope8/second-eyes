@@ -472,7 +472,33 @@ def check_costs_and_cache(D, P, RUN):
         want = sorted(dict.fromkeys((x["parent_command_id"], x["view_id"]) for x in rows),
                       key=lambda pv: (hs("second-eyes/a23e/cases/v1\n" + pv[0] + "\n" + pv[1]), pv))[:16]
         check("the cases are the first 16 parent/views by the recorded hash (independent recomputation)", cases == want)
+        check("percentile: nearest rank ceil(p x n) - 1 (n = 256 gives index 243, n = 80 gives 75, n = 20 gives 18)",
+              [CO.percentile_index(n, 0.95) for n in (256, 80, 20)] == [243, 75, 18]
+              and CO.percentile_index(256, 0.95, "round_p_n_minus_1") == 242)
         if r[0] == "ok":
+            legacy = tmp / "costs-legacy"
+            shutil.copytree(tmp / "costs", legacy)
+            sm = json.loads((legacy / "summary.json").read_text()); sm.pop("percentile_rule", None)
+            sm["existing"] = CO.existing_costs(jsonl(tmp / "req" / "request-index.jsonl"), {
+                k: {"results": jsonl(tmp / f"run-{k}" / "results.jsonl"), "sessions": jsonl(tmp / f"run-{k}" / "sessions.jsonl"),
+                    "manifest": json.loads((tmp / f"run-{k}" / "manifest.json").read_text()),
+                    "manifest_sha256": hashlib.sha256((tmp / f"run-{k}" / "manifest.json").read_bytes()).hexdigest()} for k in KEYS},
+                "round_p_n_minus_1")
+            sm = CO.summarize(jsonl(legacy / "measurements.jsonl"), sm["existing"], [tuple(c) for c in sm["cases"]], sm["hardware"],
+                              "round_p_n_minus_1")
+            (legacy / "summary.json").write_bytes(importlib.import_module("grounding.evaluation.iref_vla.protocol").encode_json(sm))
+            (legacy / "report.md").write_bytes(CO.render(sm).encode("utf-8"))
+            mm = json.loads((legacy / "manifest.json").read_text())
+            mm["outputs"] = {n: hashlib.sha256((legacy / n).read_bytes()).hexdigest() for n in ("measurements.jsonl", "summary.json", "report.md")}
+            (legacy / "manifest.json").write_text(json.dumps(mm))
+            r5 = outcome(lambda: CO.regenerate_costs(old=legacy, requests=tmp / "req", small_run=tmp / f"run-{KEYS[0]}",
+                                                     large_run=tmp / f"run-{KEYS[1]}", out=tmp / "costs-fixed"))
+            check("a legacy-rule costs folder still verifies; regeneration recomputes with the corrected rule, copies the "
+                  "measurements unchanged and links the original",
+                  CO.verify_costs(legacy) == [] and r5[0] == "ok" and r5[1]["percentile_rule"] == "nearest_rank_ceil"
+                  and (tmp / "costs-fixed" / "measurements.jsonl").read_bytes() == (legacy / "measurements.jsonl").read_bytes()
+                  and json.loads((tmp / "costs-fixed" / "manifest.json").read_text())["regenerated_from"]["folder"] == "costs-legacy"
+                  and CO.verify_costs(tmp / "costs-fixed") == [], str(r5)[:300])
             ms = jsonl(tmp / "costs" / "measurements.jsonl")
             check("five measured repetitions per case and format; the augmented format calls the relation builders",
                   len(ms) == 5 * 2 * len(cases) and all(m["relation_calls"] > 0 for m in ms if m["format"] == "coordinates_relations_v2"))

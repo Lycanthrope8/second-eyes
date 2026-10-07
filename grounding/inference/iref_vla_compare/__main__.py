@@ -36,6 +36,9 @@ def main(argv=None) -> int:
     for n in ("--requests", "--bundle", "--relation-config", "--direction-config", "--tokenizer-small", "--tokenizer-large",
               "--small-run", "--large-run", "--out"):
         co.add_argument(n, required=True)
+    cr = sub.add_parser("costs-regenerate", help="recompute a costs folder with the corrected percentile rule (no re-timing)")
+    for n in ("--old", "--requests", "--small-run", "--large-run", "--out"):
+        cr.add_argument(n, required=True)
     ca = sub.add_parser("cache", help="the 0.5B exact-prefix cache check on the same cases (A2.3e, RTX PC)")
     for n in ("--requests", "--model-dir", "--tokenizer-dir", "--out"):
         ca.add_argument(n, required=True)
@@ -89,6 +92,15 @@ def main(argv=None) -> int:
                 print(f"  {k}: relations {d['relation_ms']['median']:.2f} ms, rest of serialization "
                       f"{d['serialization_ms']['median']:.2f} ms, tokenize {d['tokenize_ms/qwen2.5-0.5b-instruct']['median']:.2f} ms")
             print(f"costs for {len(x['cases'])} cases; reconstructions match: {x['all_reconstructions_match']}; written to {a.out}")
+            return 0
+        if a.command == "costs-regenerate":
+            from .costs import regenerate_costs
+            x = regenerate_costs(old=a.old, requests=a.requests, small_run=a.small_run, large_run=a.large_run, out=a.out)
+            e = x["existing"]
+            for v, d in e["forward_ms"]["qwen2.5-0.5b-instruct"].items():
+                for f, st in d.items():
+                    print(f"  {v}/{f}: 0.5B forward p95 {st['p95']:.1f} ms; 7B p95 {e['forward_ms']['qwen2.5-7b-instruct'][v][f]['p95']:.1f} ms")
+            print(f"regenerated with {x['percentile_rule']}; written to {a.out}")
             return 0
         if a.command == "cache":
             from .cache import run_cache

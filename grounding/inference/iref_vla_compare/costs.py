@@ -7,12 +7,14 @@ measured repetitions each: relation construction, the rest of serialization, pro
 each tokenizer. Relation construction is timed by wrapping the serializer's relation-table builders from outside for
 the duration of the measurement; the accepted code is not changed. Disk reads and artifact validation are timed
 separately and never inside the stage timings. Every rebuilt document, prompt and token list must equal the frozen
-one before its timings count. Medians and p95 use the nearest rank, index round(0.95 x (n - 1)).
+one before its timings count. Percentiles use the nearest rank: the sorted value at zero-based index ceil(p x n) - 1
+(corrected on A2.3's closure; summaries made before it record the earlier index round(p x (n - 1)) and still verify).
 """
 from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import platform
 import shutil
@@ -50,27 +52,41 @@ def select_cases(rows, count=CASE_COUNT, salt=CASE_SALT) -> list:
     return pairs[:count]
 
 
-def stats(values) -> dict:
+RULES = {"nearest_rank_ceil": "sorted value at zero-based index ceil(p x n) - 1",
+         "round_p_n_minus_1": "sorted value at zero-based index round(p x (n - 1)) (before the correction)"}
+RULE = "nearest_rank_ceil"
+
+
+def percentile_index(n: int, p: float, rule: str = RULE) -> int:
+    if rule == "nearest_rank_ceil":
+        return max(0, math.ceil(p * n) - 1)
+    if rule == "round_p_n_minus_1":
+        return int(round(p * (n - 1)))
+    raise ValueError(rule)
+
+
+def stats(values, rule: str = RULE) -> dict:
     v = sorted(values)
     if not v:
         return {"n": 0, "median": None, "p95": None, "max": None}
-    return {"n": len(v), "median": statistics.median(v), "p95": v[int(round(0.95 * (len(v) - 1)))], "min": v[0], "max": v[-1]}
+    return {"n": len(v), "median": statistics.median(v), "p95": v[percentile_index(len(v), 0.95, rule)], "min": v[0], "max": v[-1]}
 
 
-def existing_costs(rows, runs) -> dict:
+def existing_costs(rows, runs, rule=RULE) -> dict:
     """Token counts and paired differences from the requests; timings and memory from the accepted runs."""
+    stats_ = lambda v: stats(v, rule)  # noqa: E731
     out = {"tokens": {}, "paired_token_difference": {}, "forward_ms": {}, "runs": {}}
     for key in MODEL_KEYS:
-        out["tokens"][key] = {v: {f: stats([r["models"][key]["input_tokens"] for r in rows if r["view_id"] == v and r["format"] == f])
+        out["tokens"][key] = {v: {f: stats_([r["models"][key]["input_tokens"] for r in rows if r["view_id"] == v and r["format"] == f])
                                   for f in D.FORMATS} for v in D.VIEWS}
         out["paired_token_difference"][key] = {}
         for v in D.VIEWS:
             a = {r["parent_command_id"]: r["models"][key]["input_tokens"] for r in rows if r["view_id"] == v and r["format"] == D.FORMATS[0]}
             b = {r["parent_command_id"]: r["models"][key]["input_tokens"] for r in rows if r["view_id"] == v and r["format"] == D.FORMATS[1]}
-            out["paired_token_difference"][key][v] = stats([b[p] - a[p] for p in a])
+            out["paired_token_difference"][key][v] = stats_([b[p] - a[p] for p in a])
     for key, run in runs.items():
         res, man, sessions = run["results"], run["manifest"], run["sessions"]
-        out["forward_ms"][key] = {v: {f: stats([x["timing_ms"]["forward"] for x, r in zip(res, rows)
+        out["forward_ms"][key] = {v: {f: stats_([x["timing_ms"]["forward"] for x, r in zip(res, rows)
                                                 if r["view_id"] == v and r["format"] == f and x["timing_ms"]["forward"] is not None])
                                       for f in D.FORMATS} for v in D.VIEWS}
         out["runs"][key] = {"run_manifest_sha256": run["manifest_sha256"], "main_run_load_ms": [s["load_ms"] for s in sessions],
@@ -112,24 +128,26 @@ def _hardware() -> dict:
             "logical_cpus": os.cpu_count(), "python": platform.python_version(), "timer": "time.perf_counter_ns"}
 
 
-def summarize(measurements, existing, cases, hardware) -> dict:
+def summarize(measurements, existing, cases, hardware, rule=RULE) -> dict:
     stages = ("relation_ms", "serialization_ms", "serialize_total_ms", "assembly_ms")
+    stats_ = lambda v: stats(v, rule)  # noqa: E731
     det = {}
     for v in D.VIEWS:
         for f in D.FORMATS:
             ms = [m for m in measurements if m["view_id"] == v and m["format"] == f]
             if not ms:
                 continue
-            det[f"{v}/{f}"] = {**{s: stats([m[s] for m in ms]) for s in stages},
-                               **{f"tokenize_ms/{k}": stats([m["tokenize_ms"][k] for m in ms]) for k in MODEL_KEYS},
-                               "relation_calls": stats([m["relation_calls"] for m in ms]),
-                               "io_ms": stats([m["io_ms"] for m in ms]), "validation_ms": stats([m["validation_ms"] for m in ms])}
+            det[f"{v}/{f}"] = {**{s: stats_([m[s] for m in ms]) for s in stages},
+                               **{f"tokenize_ms/{k}": stats_([m["tokenize_ms"][k] for m in ms]) for k in MODEL_KEYS},
+                               "relation_calls": stats_([m["relation_calls"] for m in ms]),
+                               "io_ms": stats_([m["io_ms"] for m in ms]), "validation_ms": stats_([m["validation_ms"] for m in ms])}
     return {"format_version": 1, "record_type": "iref_compare_costs", "policy_id": D.POLICY_ID,
             "cases": [list(c) for c in cases], "case_rule": f"SHA-256 of UTF-8('{CASE_SALT}' + LF + parent + LF + view); first {CASE_COUNT}",
             "repetitions": {"warmup": 1, "measured": 5}, "existing": existing, "deterministic": det,
             "all_reconstructions_match": all(m["document_matches"] and m["prompt_matches"] and all(m["tokens_match"].values())
                                              for m in measurements),
-            "hardware": hardware, "scope": "PC measurements; not Quest latency and not a combined runtime figure"}
+            "hardware": hardware, "scope": "PC measurements; not Quest latency and not a combined runtime figure",
+            **({"percentile_rule": rule} if rule != "round_p_n_minus_1" else {})}
 
 
 def _f(x, unit="ms"):
@@ -140,7 +158,7 @@ def render(s) -> str:
     e = s["existing"]
     L = ["# A2.3e costs (PC measurements, not Quest)", "",
          f"Hardware: {s['hardware']['processor']}, {s['hardware']['logical_cpus']} logical CPUs, {s['hardware']['platform']}, "
-         f"Python {s['hardware']['python']}. Medians and p95 by nearest rank.", "",
+         f"Python {s['hardware']['python']}. Medians; p95 = " + RULES[s.get("percentile_rule", "round_p_n_minus_1")] + ".", "",
          "## Prompt tokens and uncached forward passes (existing artifacts)", "",
          "| View / format | Tokens median (p95) | 0.5B forward median / p95 | 7B forward median / p95 |", "|---|---|---|---|"]
     for v in D.VIEWS:
@@ -283,9 +301,60 @@ def verify_costs(folder) -> list:
     bad = [f"{n}: changed" for n, want in manifest.get("outputs", {}).items() if sha256((f / n).read_bytes()) != want]
     if bad:
         return bad
-    again = summarize(ms, summary["existing"], [tuple(c) for c in summary["cases"]], summary["hardware"])
+    rule = summary.get("percentile_rule", "round_p_n_minus_1")
+    again = summarize(ms, summary["existing"], [tuple(c) for c in summary["cases"]], summary["hardware"], rule)
     if again != summary:
         return ["summary.json differs from a recomputation"]
     if render(summary).encode("utf-8") != (f / "report.md").read_bytes():
         return ["report.md differs from a rendering of the summary"]
     return []
+
+
+def regenerate_costs(*, old, requests, small_run, large_run, out) -> dict:
+    """Recompute a costs folder's summary and report with the corrected percentile rule, from its saved measurements and
+    the accepted runs; nothing is re-timed. The original folder is left as it is; the new manifest links it."""
+    out = output.refuse_existing(out)
+    old, req = Path(old), Path(requests)
+    bad = verify_costs(old) + verify_compare_requests(req)
+    for label, folder in (("0.5B run", small_run), ("7B run", large_run)):
+        bad += [f"{label}: {m}" for m in verify_compare_results(folder, req)]
+    if bad:
+        _fail("E_COMPARE_INPUT", [("inputs", m) for m in bad[:20]])
+    old_summary = strict_json("summary.json", (old / "summary.json").read_bytes(), "E_COMPARE_COSTS")
+    old_manifest_bytes = (old / "manifest.json").read_bytes()
+    old_manifest = json.loads(old_manifest_bytes)
+    rows = rows_of("request-index.jsonl", (req / "request-index.jsonl").read_bytes(), "E_COMPARE_REQUESTS")
+    runs = {}
+    for key, folder in zip(MODEL_KEYS, (small_run, large_run)):
+        f = Path(folder)
+        runs[key] = {"results": rows_of("results.jsonl", (f / "results.jsonl").read_bytes(), "E_COMPARE_RESULTS"),
+                     "sessions": rows_of("sessions.jsonl", (f / "sessions.jsonl").read_bytes(), "E_COMPARE_RESULTS"),
+                     "manifest": json.loads((f / "manifest.json").read_bytes()), "manifest_sha256": sha256((f / "manifest.json").read_bytes())}
+    if {k: runs[k]["manifest_sha256"] for k in MODEL_KEYS} != old_manifest["run_manifests"] \
+            or sha256((req / "manifest.json").read_bytes()) != old_manifest["requests_manifest_sha256"]:
+        _fail("E_COMPARE_INPUT", [("inputs", "these are not the requests and runs the original costs were made from")])
+    ms_bytes = (old / "measurements.jsonl").read_bytes()
+    ms = rows_of("measurements.jsonl", ms_bytes, "E_COMPARE_COSTS")
+    summary = summarize(ms, existing_costs(rows, runs, RULE), [tuple(c) for c in old_summary["cases"]], old_summary["hardware"], RULE)
+    files = {"measurements.jsonl": ms_bytes, "summary.json": encode_json(summary), "report.md": render(summary).encode("utf-8")}
+    manifest = dict(old_manifest, outputs={k: sha256(v) for k, v in files.items()}, code=code_hashes(), runtime=runtime(),
+                    regenerated_from={"manifest_sha256": sha256(old_manifest_bytes), "folder": old.name,
+                                      "reason": "percentile corrected to the nearest rank, index ceil(p x n) - 1; measurements "
+                                                "copied unchanged; nothing re-timed"})
+    out.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=f".{out.name}.partial-", dir=str(out.parent)))
+    try:
+        for k, v in files.items():
+            output._write_file(staging / k, v)
+        output._write_file(staging / "manifest.json", encode_json(manifest))
+        bad = verify_costs(staging)
+        if bad:
+            raise RuntimeError("the regenerated costs failed readback: " + "; ".join(bad[:5]))
+        os.rename(staging, out)
+    except OSError as e:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise EvaluationOutputError([issue(str(out), "E_EVAL_OUTPUT_IO", f"{type(e).__name__}: {e}")]) from e
+    except BaseException:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+    return summary
