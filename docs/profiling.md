@@ -167,6 +167,29 @@ adb push runs/20261006_A1_r041/raw/snapshots/b20c60c3_001.png /sdcard/Android/da
 
 Each run's notes record "plugged in", the settings and the order of the segments (later segments start warmer).
 
+## A1.10c cost-balanced schedule (D89)
+
+One bounded attempt: profile, build, tune, freeze, confirm. The criteria are unchanged (p95 capture-to-result 500 ms or
+less, under 1% stale frames, parity, memory). Each step's output goes to the project lead before the next.
+
+1. Profiling session (about 6 minutes recorded). In Unity: Player Settings > Frame Timing Stats on; `GpuFrameTimes` on
+   the `Detector` object; build. Reboot and settle, OVR Metrics' CSV on, create the run (purpose "A1.10c D89 4-step
+   diagnostic and step profiling"), start the app, press X. With the detector off, set mode `diagnostic` (thumbstick up
+   or down) and `4 steps/frame` (left or right). Start `python tools/profile.py record <run> --minutes 6`. Press Y: the
+   self-checks, eight clock-sync stalls, then one scan at 0.5 Hz (about 90 s); when the overlay says
+   `diagnostic scan done`, press Y and wait for `off`. Set mode `profile`, press Y: self-checks, stalls, five profiling
+   passes (about 100 s); at `profile done`, press Y. Quit, pull the logs, then
+   `python analysis/detector_phases.py <run>` and `python -m perception.detector schedule <run>`.
+2. Tuning session: push the candidate schedules
+   (`adb shell mkdir -p /sdcard/Android/data/com.secondeyes.quest/files/schedules`, then
+   `adb push perception/detector/schedules/<id>.json /sdcard/Android/data/com.secondeyes.quest/files/schedules/`),
+   restart the app, and run each in scan mode at 1 Hz for two scans in one recorded run, as in the slicing tuning.
+   Freeze the fastest schedule that meets both criteria; commit that schedule file and record it as a decision.
+3. Confirmation: a fresh ten-minute session of repeated scans with the frozen schedule, analyzed the same way.
+
+If no schedule meets both criteria, or this needs substantial new profiling or runtime infrastructure, stop: the next
+step is CPU sequential operation, after confirming CPU parity (`python -m perception.detector parity 20261006_A1_r042`).
+
 ## Comparing two runs
 
 ```

@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from pathlib import Path
 
 
 def main(argv=None) -> int:
@@ -22,6 +23,11 @@ def main(argv=None) -> int:
     s.add_argument("--include-before-run", action="store_true")
     s.add_argument("--canvas-dir", help="folder of extra 416 x 416 canvases checked on the headset (for example the "
                                         "snapshots pushed to its parity/ folder), judged by a PC reference made now")
+    s = sub.add_parser("schedule", help="cost-balanced slice schedules from a profiling run (D89)")
+    s.add_argument("target", help="the profiling run's ID (its pulled session logs) or one log file")
+    s.add_argument("--budgets", default="", help="per-frame GPU budgets in ms, comma-separated; default: 40, 55 "
+                                                 "and 70 percent of the measured headroom")
+    s.add_argument("--out", default=None, help="folder for the schedule files (default perception/detector/schedules)")
     s = sub.add_parser("snapshot", help="a saved camera canvas against the headset's detections for it")
     s.add_argument("target")
     s.add_argument("--image", required=True)
@@ -84,6 +90,22 @@ def main(argv=None) -> int:
         print(f"equivalence: {'passed' if ok else 'FAILED'} (largest score difference {worst:.2e})")
         return 0 if ok else 1
     from . import parity as Q
+    if a.cmd == "schedule":
+        from . import schedule as S
+        import json as _json
+        events = []
+        for path in Q.session_logs(a.target):
+            events += [_json.loads(x) for x in Path(path).read_text(encoding="utf-8").splitlines() if x.strip()]
+        events.sort(key=lambda e: e["utc_us"])
+        costs = S.step_costs(events)
+        head = 1000.0 / 72.0 - costs["baseline_ms"]
+        budgets = [float(x) for x in a.budgets.split(",") if x.strip()] or [round(head * f, 1) for f in (0.4, 0.55, 0.7)]
+        run = Path(a.target).name if Path(a.target).is_file() else a.target
+        schedules, costs = S.build(events, budgets, run)
+        for path in S.write(schedules, a.out or S.SCHEDULE_DIR):
+            print(f"wrote {path}")
+        print(S.report(schedules, costs))
+        return 0
     events = Q.results(Q.session_logs(a.target, getattr(a, "include_before_run", False)))
     if a.cmd == "snapshot":
         rep = Q.snapshot(events, a.image, a.id)

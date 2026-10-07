@@ -46,6 +46,9 @@ namespace SecondEyes.Perception
         public IReadOnlyList<string> Classes => package.classes;
         public int LayerCount { get; private set; }
         public int StepsPerFrame { get; set; }
+        public int[] Slices { get; set; }
+        public IReadOnlyList<string> LayerTypes => layerTypes;
+        private readonly List<string> layerTypes = new List<string>();
         public float Floor { get; set; }
 
         public YoloxDetector(DetectorPackage package, ModelAsset modelAsset, Shader letterboxShader, BackendType backend)
@@ -60,6 +63,7 @@ namespace SecondEyes.Perception
             if (model.inputs.Count != 1 || shape.Get(0) != 1 || shape.Get(1) != 3 || shape.Get(2) != size || shape.Get(3) != size)
                 throw new ArgumentException("the model's input is not [1, 3, " + size + ", " + size + "] as the manifest says");
             LayerCount = model.layers.Count;
+            foreach (var layer in model.layers) layerTypes.Add(layer.GetType().Name);
             Floor = package.postprocess.score_threshold;
             worker = new Worker(model, backend);
             input = new Tensor<float>(new TensorShape(1, 3, size, size));
@@ -91,6 +95,7 @@ namespace SecondEyes.Perception
             try
             {
                 var clock = Stopwatch.StartNew();
+                into.StartFrame = Time.frameCount;
                 int w = source.width, h = source.height;
                 double ratio = Math.Min((double)size / h, (double)size / w);
                 int rw = (int)(w * ratio), rh = (int)(h * ratio);
@@ -103,6 +108,7 @@ namespace SecondEyes.Perception
                 if (snapshotPath != null) SaveCanvas(snapshotPath);
                 var transform = new TextureTransform().SetDimensions(size, size, 3).SetCoordOrigin(CoordOrigin.TopLeft);
                 TextureConverter.ToTensor(canvas, input, transform);
+                into.PreprocessMs = clock.Elapsed.TotalMilliseconds;
                 into.SourceWidth = w;
                 into.SourceHeight = h;
                 into.Ratio = ratio;
@@ -133,6 +139,7 @@ namespace SecondEyes.Perception
             try
             {
                 var clock = Stopwatch.StartNew();
+                into.StartFrame = Time.frameCount;
                 var data = new float[3 * plane];
                 for (int k = 0; k < plane; k++)
                 {
@@ -142,6 +149,7 @@ namespace SecondEyes.Perception
                     data[2 * plane + k] = p.b / 255f;
                 }
                 using var exact = new Tensor<float>(new TensorShape(1, 3, size, size), data);
+                into.PreprocessMs = clock.Elapsed.TotalMilliseconds;
                 into.SourceWidth = into.SourceHeight = size;
                 into.Ratio = 1.0;
                 yield return Schedule(exact, into, clock);
@@ -162,11 +170,33 @@ namespace SecondEyes.Perception
         {
             int perFrame = StepsPerFrame;
             into.StepsPerFrame = perFrame;
+            if (Slices != null)
+            {
+                var plan = worker.ScheduleIterable(source);
+                int done = 0, framesUsed = 0;
+                foreach (int slice in Slices)
+                {
+                    if (framesUsed > 0) yield return null;
+                    framesUsed++;
+                    for (int k = 0; k < slice; k++)
+                    {
+                        if (!plan.MoveNext()) break;
+                        done++;
+                    }
+                }
+                while (plan.MoveNext()) done++;   // never leave the network unscheduled (a schedule is checked at load)
+                into.ScheduleSteps = done;
+                into.ScheduleFrames = framesUsed;
+                into.ScheduleEndFrame = Time.frameCount;
+                into.ScheduleMs = clock.Elapsed.TotalMilliseconds;
+                yield break;
+            }
             if (perFrame <= 0)
             {
                 worker.Schedule(source);
                 into.ScheduleSteps = LayerCount;
                 into.ScheduleFrames = 1;
+                into.ScheduleEndFrame = Time.frameCount;
                 into.ScheduleMs = clock.Elapsed.TotalMilliseconds;
                 yield break;
             }
@@ -190,7 +220,70 @@ namespace SecondEyes.Perception
             }
             into.ScheduleSteps = count;
             into.ScheduleFrames = frames;
+            into.ScheduleEndFrame = Time.frameCount;
             into.ScheduleMs = clock.Elapsed.TotalMilliseconds;
+        }
+
+        public IEnumerator ProfileTexture(Texture source, int spacing, ProfilePass into)
+        {
+            into.Clear();
+            into.Spacing = spacing;
+            if (running || source == null)
+            {
+                into.Error = running ? "busy" : "no source texture";
+                yield break;
+            }
+            running = true;
+            try
+            {
+                int w = source.width, h = source.height;
+                double ratio = Math.Min((double)size / h, (double)size / w);
+                int rw = (int)(w * ratio), rh = (int)(h * ratio);
+                bool encode = QualitySettings.activeColorSpace == ColorSpace.Linear
+                              && GraphicsFormatUtility.IsSRGBFormat(source.graphicsFormat);
+                letterbox.SetVector(RegionId, new Vector4((float)rw / size, (float)rh / size, package.input.pad_value / 255f, 0f));
+                letterbox.SetFloat(EncodeId, encode ? 1f : 0f);
+                letterbox.SetFloat(FlipId, 0f);
+                into.PreFrame = Time.frameCount;
+                Graphics.Blit(source, canvas, letterbox);
+                TextureConverter.ToTensor(canvas, input, new TextureTransform().SetDimensions(size, size, 3).SetCoordOrigin(CoordOrigin.TopLeft));
+                for (int k = 0; k < spacing; k++) yield return null;
+                var plan = worker.ScheduleIterable(input);
+                while (true)
+                {
+                    into.StepFrames.Add(Time.frameCount);
+                    if (!plan.MoveNext())
+                    {
+                        into.StepFrames.RemoveAt(into.StepFrames.Count - 1);
+                        break;
+                    }
+                    for (int k = 0; k < spacing; k++) yield return null;
+                }
+                into.ReadbackFrame = Time.frameCount;
+                var boxesAwaiter = (worker.PeekOutput("boxes") as Tensor<float>).ReadbackAndCloneAsync().GetAwaiter();
+                var scoresAwaiter = (worker.PeekOutput("scores") as Tensor<float>).ReadbackAndCloneAsync().GetAwaiter();
+                var classesAwaiter = (worker.PeekOutput("classes") as Tensor<int>).ReadbackAndCloneAsync().GetAwaiter();
+                int waited = 0;
+                while (!boxesAwaiter.IsCompleted || !scoresAwaiter.IsCompleted || !classesAwaiter.IsCompleted)
+                {
+                    if (++waited > MaxWaitFrames)
+                    {
+                        abandoned = true;
+                        into.Error = "the readbacks did not complete within " + MaxWaitFrames + " frames";
+                        yield break;
+                    }
+                    yield return null;
+                }
+                into.DoneFrame = Time.frameCount;
+                boxesAwaiter.GetResult().Dispose();
+                scoresAwaiter.GetResult().Dispose();
+                classesAwaiter.GetResult().Dispose();
+                into.Completed = true;
+            }
+            finally
+            {
+                running = false;
+            }
         }
 
         private IEnumerator Collect(DetectionResult into, Stopwatch clock, double ratio, bool blocking)
@@ -235,6 +328,7 @@ namespace SecondEyes.Perception
             var post = Stopwatch.StartNew();
             Postprocess(boxes, scores, classes, ratio, into);
             into.PostprocessMs = post.Elapsed.TotalMilliseconds;
+            into.EndFrame = Time.frameCount;
             into.Completed = true;
         }
 

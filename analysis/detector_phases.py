@@ -35,6 +35,8 @@ sys.path.insert(0, str(HERE))
 import profile as P  # noqa: E402  (analysis/profile.py)
 
 REPO = HERE.parent
+sys.path.insert(1, str(REPO))
+from perception.detector import gpu_frames  # noqa: E402
 SESSION_LOG = re.compile(r"^[0-9]{8}T[0-9]{6}Z_[0-9A-Za-z]+[.]jsonl$")
 
 
@@ -82,13 +84,28 @@ def pearson(x, y):
 
 
 def calibrate(rows, events) -> dict:
-    """The shift (seconds) to add to the OVR rows' times to put them on the event log's clock."""
+    """The shift (seconds) to add to the OVR rows' times to put them on the event log's clock.
+
+    With clock.sync pulses (deliberate stalls at logged times, phases spread across the second), only the rows around
+    the pulses are fitted against the pulses' midpoints: a designed marker. Otherwise the app's over-budget frames are
+    the predictor (incidental). Either way every offset whose fit is within 0.01 of the best is reported, and the
+    phase figures are recomputed across that whole range (D89)."""
+    pulses = [((e["data"]["start_utc_us"] + e["data"]["end_utc_us"]) / 2e6) for e in events if e["ev"] == "clock.sync"]
+    if len(pulses) >= 4:
+        lo, hi = min(pulses) - 3, max(pulses) + 3
+        res = _fit([r for r in rows if lo <= r["_t"] <= hi + 2], pulses, "clock.sync pulses")
+        if res["calibrated"]:
+            return res
     over = over_budget_times(events)
     t0, t1 = events[0]["utc_us"] / 1e6, events[-1]["utc_us"] / 1e6
-    inside = [r for r in rows if t0 <= r["_t"] <= t1]
+    return _fit([r for r in rows if t0 <= r["_t"] <= t1], over, "incidental over-budget app frames")
+
+
+def _fit(inside, marks, method) -> dict:
+    over = marks
     stale = [P.number(r, "stale_frame_count") or 0.0 for r in inside]
     best = {"offset_s": 0.0, "r": None, "calibrated": False, "over_budget_frames": len(over), "buckets": len(inside),
-            "offset_range_s": None}
+            "offset_range_s": None, "method": method}
     if len(over) < 5 or sum(stale) == 0:
         return best
     scores = []
@@ -104,8 +121,17 @@ def calibrate(rows, events) -> dict:
     best.update(r=top, offset_range_s=(min(plateau), max(plateau)),
                 offset_s=round((min(plateau) + max(plateau)) / 2, 3), calibrated=top >= 0.3)
     if not best["calibrated"]:
-        best["offset_s"] = 0.0
+        best["offset_s"], best["offset_range_s"] = 0.0, None
     return best
+
+
+def offsets_of(cal) -> list:
+    """Every offset in the calibration's equally good range, 0.05 s apart (just the offset when there is none)."""
+    if not cal.get("offset_range_s"):
+        return [cal["offset_s"]]
+    a, b = cal["offset_range_s"]
+    n = int(round((b - a) / 0.05))
+    return [round(a + k * 0.05, 3) for k in range(n + 1)]
 
 
 def segments(events) -> list:
@@ -140,7 +166,53 @@ def union_rate(rows, offset, intervals, refresh, any_overlap):
             "rate": (stale / (refresh * buckets)) if buckets else None}
 
 
-def phase_report(rows, offset, events, window, refresh) -> dict:
+def phase_report(rows, offsets, events, window, refresh, gpu=None) -> dict:
+    """The phase's figures at the middle offset, with the stale rates' range across all equally good offsets."""
+    offsets = offsets if isinstance(offsets, list) else [offsets]
+    mid = offsets[len(offsets) // 2]
+    rep = _phase_at(rows, mid, events, window, refresh)
+    for key in ("stale_whole", "stale_inference_buckets"):
+        rates = [_phase_at(rows, o, events, window, refresh)[key]["rate"] for o in offsets]
+        rates = [x for x in rates if x is not None]
+        rep[key]["range"] = (min(rates), max(rates)) if rates else None
+    if gpu:
+        rep["gpu_stages"] = gpu_stages(gpu, events, window, refresh)
+    return rep
+
+
+def gpu_stages(gpu, events, window, refresh) -> dict:
+    """Frames whose app GPU time exceeds one refresh interval, by inference stage (frame-level, no clock alignment)."""
+    a, b = window
+    limit = 1000.0 / refresh
+    stage = {}
+    for e in events:
+        d = e["data"]
+        if e["ev"] != "detector.result" or d.get("path") != "camera" or not (a <= e["utc_us"] / 1e6 <= b):
+            continue
+        if not d.get("start_frame") or not d.get("end_frame"):
+            continue
+        stage[d["start_frame"]] = "preprocessing"
+        for f in range(d["start_frame"] + 1, d["schedule_end_frame"] + 1):
+            stage[f] = "scheduling"
+        for f in range(d["schedule_end_frame"] + 1, d["end_frame"] + 1):
+            stage[f] = "readback"
+    frames = set()
+    for e in events:
+        if e["ev"] == "gpu.second" and a <= e["utc_us"] / 1e6 <= b:
+            frames.update(e["data"]["frames"])
+    out = {k: {"frames": 0, "over": 0, "max_ms": None} for k in ("preprocessing", "scheduling", "readback", "outside")}
+    for f in frames:
+        if f not in gpu:
+            continue
+        k = stage.get(f, "outside")
+        g = gpu[f]
+        out[k]["frames"] += 1
+        out[k]["over"] += g > limit
+        out[k]["max_ms"] = g if out[k]["max_ms"] is None else max(out[k]["max_ms"], g)
+    return out
+
+
+def _phase_at(rows, offset, events, window, refresh) -> dict:
     a, b = window
     res = [e for e in events if e["ev"] == "detector.result" and e["data"].get("path") == "camera"
            and a <= e["utc_us"] / 1e6 <= b]
@@ -173,7 +245,9 @@ def analyze(raw: Path, refresh: float, limit_gib: float) -> dict:
     if not events:
         raise SystemExit(f"no session logs in {raw}")
     cal = calibrate(rows, events)
-    off = cal["offset_s"]
+    off = offsets_of(cal)
+    gm = gpu_frames.frame_gpu_times(events)
+    gpu = gm["by_frame"] or None
     segs = []
     for s in segments(events):
         window = (s["start"], s["end"])
@@ -193,24 +267,36 @@ def analyze(raw: Path, refresh: float, limit_gib: float) -> dict:
         if later_loads:
             after = [e for e in after if e["utc_us"] / 1e6 < min(later_loads)]
         seg = {"settings": s["settings"], "release": s["release"], "window": window,
-               "loaded": phase_report(rows, off, events, window, refresh),
+               "loaded": phase_report(rows, off, events, window, refresh, gpu),
                "scans": [dict(phase_report(rows, off, events, (x, y), refresh), scan=d["scan"], counts=d)
                          for x, y, d in scans],
                "hover_blocks": [dict(phase_report(rows, off, events, (x, y), refresh), scan=d["scan"], hover=d["hover"],
                                      counts=d) for x, y, d in hovers],
                "results_after_release": len(after)}
         if hovers:
-            seg["all_hover_blocks"] = union_rate(rows, off, [(x, y) for x, y, _ in hovers], refresh, any_overlap=False)
+            seg["all_hover_blocks"] = union_rate(rows, off[len(off) // 2], [(x, y) for x, y, _ in hovers], refresh,
+                                                 any_overlap=False)
         if scans:
-            seg["all_scans"] = phase_report(rows, off, events, (scans[0][0], scans[-1][1]), refresh)
+            seg["all_scans"] = phase_report(rows, off, events, (scans[0][0], scans[-1][1]), refresh, gpu)
         segs.append(seg)
     limit_mb = limit_gib * 1024
     return {"raw": str(raw), "ovr_files": used, "ovr_rows": len(rows), "calibration": cal, "refresh_hz": refresh,
-            "memory_limit_mb": limit_mb, "segments": segs}
+            "memory_limit_mb": limit_mb, "segments": segs, "gpu_timing": {k: gm[k] for k in ("lag", "spread_ms", "entries", "reason")}}
 
 
 def rate(x):
-    return "-" if x is None or x.get("rate") is None else f"{100 * x['rate']:.2f}% ({x['stale']:.0f} of {x['refreshes']:.0f})"
+    if x is None or x.get("rate") is None:
+        return "-"
+    s = f"{100 * x['rate']:.2f}% ({x['stale']:.0f} of {x['refreshes']:.0f})"
+    r = x.get("range")
+    if r and abs(r[1] - r[0]) > 1e-12:
+        s += f", {100 * r[0]:.2f}-{100 * r[1]:.2f}% across the offset range"
+    return s
+
+
+def worst(x):
+    r = x.get("range") if x else None
+    return r[1] if r else (x or {}).get("rate")
 
 
 def fmt(v, d=0):
@@ -220,9 +306,13 @@ def fmt(v, d=0):
 def print_report(rep: dict) -> None:
     cal = rep["calibration"]
     print(f"{rep['raw']}: {rep['ovr_rows']} OVR Metrics rows ({', '.join(rep['ovr_files']) or 'none'})")
+    g = rep["gpu_timing"]
+    print("per-frame GPU times: " + (f"{g['entries']} timings, matched with a lag of {g['lag']} frames (spread "
+                                     f"{g['spread_ms']:.2f} ms)" if g["lag"] is not None else f"none ({g['reason']})"))
     print(f"clock: offset {cal['offset_s']:+.2f} s "
-          + (f"calibrated (r = {cal['r']:.2f} over {cal['buckets']} buckets, {cal['over_budget_frames']} over-budget app "
-             f"frames; equally good from {cal['offset_range_s'][0]:+.2f} to {cal['offset_range_s'][1]:+.2f} s)"
+          + (f"calibrated by {cal['method']} (r = {cal['r']:.2f} over {cal['buckets']} buckets, {cal['over_budget_frames']} "
+             f"marks; equally good from {cal['offset_range_s'][0]:+.2f} to {cal['offset_range_s'][1]:+.2f} s, and the "
+             "overlap figures are given across that range)"
              if cal["calibrated"] else
              f"NOT calibrated (best r = {fmt(cal['r'], 2)}; {cal['over_budget_frames']} over-budget app frames): the "
              "file-name clock is used, so bucket alignment is uncertain by up to a second"))
@@ -245,6 +335,10 @@ def print_report(rep: dict) -> None:
                   f" ({fmt(None if af['over_share'] is None else 100 * af['over_share'], 2)}%), worst {fmt(af['max_ms'], 1)} ms, "
                   f"longest over-budget run {af['longest_over_run']}")
             print(f"    memory: app PSS max {fmt(mem['app_pss_max_mb'])} MB, headset available min {fmt(mem['available_min_mb'])} MB")
+            if ph.get("gpu_stages"):
+                gs = ph["gpu_stages"]
+                print("    frames with app GPU time over one refresh interval, by stage (frame-level): " + "; ".join(
+                    f"{k} {v['over']} of {v['frames']} (worst {fmt(v['max_ms'], 1)} ms)" for k, v in gs.items()))
         if "all_hover_blocks" in s:
             print(f"  hover blocks only (inference active, excluding repositioning): stale {rate(s['all_hover_blocks'])}")
         for h in s["hover_blocks"]:
@@ -252,12 +346,12 @@ def print_report(rep: dict) -> None:
                   f"{h['counts']['requested']} (rejected {h['counts']['rejected']}), stale {rate(h['stale_whole'])}, "
                   f"p95 {fmt(h['latency_ms']['p95'])} ms")
         ph = s.get("all_scans") or L
-        whole = ph["stale_whole"]["rate"]
-        buckets = ph["stale_inference_buckets"]["rate"]
+        whole = worst(ph["stale_whole"])
+        buckets = worst(ph["stale_inference_buckets"])
         p95 = ph["latency_ms"]["p95"]
         peak = ph["memory"]["app_pss_max_mb"]
         avail = ph["memory"]["available_min_mb"]
-        print("  acceptance (D88):")
+        print("  acceptance (D88; overlap figures judged at the least favourable offset in the range, D89):")
         print(f"    stale frames < 1% over the operational phase: {verdict(whole is not None and whole < 0.01)} ({rate(ph['stale_whole'])})")
         print(f"    stale frames < 1% over buckets overlapping inference (proxy, not the exact interval criterion; O26): "
               f"{verdict(buckets is not None and buckets < 0.01)} ({rate(ph['stale_inference_buckets'])})")

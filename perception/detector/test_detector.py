@@ -160,6 +160,120 @@ def check_phases():
               text[-400:])
 
 
+def gpu_events(frame_ms, base_tick, lag, fc=10_000_000, fs=1_000_000_000, offset_s=-0.002):
+    """gpu.timing and gpu.second events for frames {frame: gpu_ms}, reported `lag` frames late; frame starts precede
+    their Update by 2 ms on the same clock, and frame intervals jitter by up to 1 ms."""
+    import random
+    jitter = random.Random(11)
+    frames = sorted(frame_ms)
+    ev = [{"ev": "gpu.timing", "utc_us": 1, "data": {"feature_enabled": True, "cpu_timer_frequency": fc,
+                                                       "gpu_timer_frequency": fc, "stopwatch_frequency": fs}}]
+    upd, t = {}, base_tick
+    for f in frames:
+        upd[f] = t
+        t += 1 / 72.0 + jitter.uniform(-0.001, 0.001)
+    batch = {"frames": [], "update_ticks": [], "timing_start": [], "gpu_ms": [], "cpu_ms": []}
+    for f in frames:
+        batch["frames"].append(f)
+        batch["update_ticks"].append(int(round(upd[f] * fs)))
+        g = f - lag
+        if g in upd:
+            batch["timing_start"].append(int(round((upd[g] + offset_s) * fc)))
+            batch["gpu_ms"].append(frame_ms[g])
+        else:
+            batch["timing_start"].append(0)
+            batch["gpu_ms"].append(-1)
+        batch["cpu_ms"].append(5.0)
+        if len(batch["frames"]) == 72:
+            ev.append({"ev": "gpu.second", "utc_us": 2 + f, "data": batch})
+            batch = {k: [] for k in batch}
+    if batch["frames"]:
+        ev.append({"ev": "gpu.second", "utc_us": 2 + frames[-1], "data": batch})
+    return ev
+
+
+def check_scheduling():
+    """gpu_frames' frame matching, the schedule builder and sync-pulse calibration (D89), on synthetic data."""
+    print("-- cost-balanced scheduling (D89) on synthetic profiling data")
+    from perception.detector import gpu_frames as G, schedule as S
+    import random
+    rnd = random.Random(5)
+    n = 40
+    true = [4.0 if i < 3 else (1.2 if i < 10 else 0.2) for i in range(n)]   # heavy early steps, light late ones
+    true[20] = 7.5                                                           # one indivisible heavy step
+    base, spacing, frame, frame_ms, events = 8.0, 3, 1000, {}, []
+    for pss in range(1, 4):
+        pre = frame
+        frame_ms[frame] = base + 0.6
+        frame += 1
+        for _ in range(spacing):
+            frame_ms[frame] = base + rnd.uniform(-0.05, 0.05)
+            frame += 1
+        steps = []
+        for i in range(n):
+            steps.append(frame)
+            frame_ms[frame] = base + true[i] + rnd.uniform(-0.05, 0.05)
+            frame += 1
+            for _ in range(spacing):
+                frame_ms[frame] = base + rnd.uniform(-0.05, 0.05)
+                frame += 1
+        rb = frame
+        frame_ms[frame] = base + 0.3
+        frame += 1
+        for _ in range(3):
+            frame_ms[frame] = base
+            frame += 1
+        done = frame - 1
+        events.append({"ev": "detector.profile", "utc_us": 10 + pss, "data": {"pass": pss, "spacing": spacing, "completed": True,
+                       "error": None, "pre_frame": pre, "readback_frame": rb, "done_frame": done, "step_frames": steps}})
+        for _ in range(2 * spacing):
+            frame_ms[frame] = base
+            frame += 1
+    gev = gpu_events(frame_ms, 5000.0, lag=3)
+    m = G.frame_gpu_times(gev)
+    check("frame matching finds the 3-frame lag and assigns every timing to its own frame",
+          m["lag"] == 3 and all(abs(m["by_frame"][f] - frame_ms[f]) < 1e-9 for f in list(m["by_frame"])[:500]), str(m["lag"]))
+    events += gev
+    events.append({"ev": "detector.layers", "utc_us": 3, "data": {"count": n, "types_sha256": "a" * 64, "types": ["Conv"] * n}})
+    events.append({"ev": "detector.load", "utc_us": 4, "data": {"package_id": "yolox_nano_coco.se1", "model_sha256": "5" * 64,
+                                                                 "backend": "gpu_compute"}})
+    events.sort(key=lambda e: e["utc_us"])
+    costs = S.step_costs(events)
+    est = [s["cost_ms"] for s in costs["steps"]]
+    check("measured step costs match the truth within 0.1 ms, baseline 8 ms, preprocessing 0.6 ms",
+          max(abs(a - b) for a, b in zip(est, true)) < 0.1 and abs(costs["baseline_ms"] - 8.0) < 0.06
+          and abs(costs["pre_ms"] - 0.6) < 0.1, f"{max(abs(a - b) for a, b in zip(est, true)):.3f}")
+    schedules, _ = S.build(events, [5.0], "synthetic")
+    s = schedules[0]
+    loads = S.pack(est, 5.0, costs["pre_ms"], costs["readback_ms"])["frame_loads_ms"]
+    check("the 5 ms schedule covers every step in graph order", sum(s["slices"]) == n and all(k >= 0 for k in s["slices"]))
+    over_frames = [i for i, x in enumerate(loads) if x > 5.0 + 1e-9]
+    check("every frame stays within 5 ms except one holding only the 7.5 ms step, which is reported",
+          len(over_frames) == 1 and s["slices"][over_frames[0]] == 1
+          and [o["step"] for o in s["over_budget_steps"]] == [20],
+          f"slices {s['slices']} loads {['%.2f' % x for x in loads]} over {s['over_budget_steps']}")
+    check("the heavy early steps get thin slices and the light late ones are packed",
+          s["slices"][0] <= 1 and max(s["slices"]) >= 10, str(s["slices"]))
+    check("the schedule carries its identity: model, backend, layer count and layer-type hash",
+          s["model_sha256"] == "5" * 64 and s["backend"] == "gpu_compute" and s["layer_count"] == n
+          and s["layer_types_sha256"] == "a" * 64)
+    print("-- clock calibration from sync pulses")
+    import detector_phases as DP
+    T0, SHIFT = 1_760_000_000, 0.4
+    pulses = [T0 + 10 + 1.37 * k for k in range(8)]
+    rows = []
+    for k in range(1, 60):
+        a, b = T0 + k - 1 + SHIFT, T0 + k + SHIFT
+        rows.append({"_t": T0 + k, "stale_frame_count": 4 * sum(1 for x in pulses if a <= x + 0.03 < b)})
+    evs = [{"ev": "clock.sync", "utc_us": int((x + 0.06) * 1e6), "data": {"pulse": i + 1, "start_utc_us": int(x * 1e6),
+            "end_utc_us": int((x + 0.06) * 1e6), "stall_ms": 60.0}} for i, x in enumerate(pulses)]
+    evs = [{"ev": "session.start", "utc_us": int(T0 * 1e6), "data": {}}] + evs + [{"ev": "session.end", "utc_us": int((T0 + 59) * 1e6), "data": {}}]
+    cal = DP.calibrate(rows, evs)
+    lo, hi = cal["offset_range_s"]
+    check("eight pulses at spread phases pin the offset within 0.05 s, with a range of at most 0.15 s",
+          cal["method"] == "clock.sync pulses" and lo - 0.051 <= SHIFT <= hi + 0.051 and hi - lo <= 0.151, str(cal))
+
+
 def main() -> int:
     print("-- the detector package")
     man = P.load_manifest()
@@ -251,6 +365,7 @@ def main() -> int:
             code = detector_runs.main([str(log)])
         check("analysis/detector_runs.py prints a summary for a log file", code == 0 and "camera/gpu_compute" in out.getvalue())
     check_phases()
+    check_scheduling()
     print(f"{COUNT[0]} checks; {'FAILED: ' + ', '.join(FAILED) if FAILED else 'all checks passed'}")
     return 1 if FAILED else 0
 

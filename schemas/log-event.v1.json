@@ -764,6 +764,8 @@
         "mode": {
           "enum": [
             "scan",
+            "diagnostic",
+            "profile",
             "burst",
             "continuous"
           ],
@@ -776,6 +778,13 @@
           ],
           "minimum": 0,
           "description": "Keyframe rate of the scan or burst mode."
+        },
+        "schedule_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The frozen schedule in use (D89), or null for a fixed number of steps per frame."
         }
       }
     },
@@ -1077,6 +1086,36 @@
             ]
           },
           "description": "Camera pose at capture: x, y, z, qx, qy, qz, qw; null when unavailable."
+        },
+        "start_frame": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Frame of the inference's preprocessing (D89)."
+        },
+        "schedule_end_frame": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Frame of its last scheduling step."
+        },
+        "end_frame": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Frame its readbacks completed."
+        },
+        "preprocess_ms": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Letterbox and conversion (or the exact canvas upload), CPU wall time."
+        },
+        "schedule_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The frozen schedule used for a camera keyframe, else null."
         }
       },
       "description": "Fields added in D88 (steps, keyframe, capture identity) are absent in earlier logs."
@@ -1100,6 +1139,8 @@
         "mode": {
           "enum": [
             "scan",
+            "diagnostic",
+            "profile",
             "burst",
             "continuous"
           ],
@@ -1113,6 +1154,13 @@
           "type": "string",
           "minLength": 1,
           "description": "The control that changed it."
+        },
+        "schedule_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The chosen schedule (D89), or null."
         }
       }
     },
@@ -1249,6 +1297,231 @@
             "minimum": 0
           },
           "description": "When in the window each over-budget frame ended (ms)."
+        }
+      }
+    },
+    "detector.layers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "count",
+        "types_sha256",
+        "types"
+      ],
+      "properties": {
+        "count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "types_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "types": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Runtime layer type names in scheduling order."
+        }
+      }
+    },
+    "detector.schedule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schedule_id",
+        "frames",
+        "budget_ms",
+        "accepted",
+        "problem"
+      ],
+      "properties": {
+        "schedule_id": {
+          "type": "string"
+        },
+        "frames": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "budget_ms": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "accepted": {
+          "type": "boolean"
+        },
+        "problem": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "detector.profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pass",
+        "spacing",
+        "completed",
+        "error",
+        "pre_frame",
+        "readback_frame",
+        "done_frame",
+        "step_frames"
+      ],
+      "properties": {
+        "pass": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "spacing": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "completed": {
+          "type": "boolean"
+        },
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pre_frame": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "readback_frame": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "done_frame": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "step_frames": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "description": "Frame of each single scheduling step, in order."
+        }
+      }
+    },
+    "clock.sync": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pulse",
+        "start_utc_us",
+        "end_utc_us",
+        "stall_ms"
+      ],
+      "properties": {
+        "pulse": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "start_utc_us": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end_utc_us": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "stall_ms": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        }
+      }
+    },
+    "gpu.timing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "feature_enabled",
+        "cpu_timer_frequency",
+        "gpu_timer_frequency",
+        "stopwatch_frequency"
+      ],
+      "properties": {
+        "feature_enabled": {
+          "type": "boolean"
+        },
+        "cpu_timer_frequency": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "gpu_timer_frequency": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "stopwatch_frequency": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "gpu.second": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "frames",
+        "update_ticks",
+        "timing_start",
+        "gpu_ms",
+        "cpu_ms"
+      ],
+      "properties": {
+        "frames": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "update_ticks": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "timing_start": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "gpu_ms": {
+          "type": "array",
+          "items": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "cpu_ms": {
+          "type": "array",
+          "items": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
         }
       }
     }

@@ -61,8 +61,8 @@ judge real camera content by the same rule.
    `PassthroughCamera` object; Canvas Images the five `*_416.png` assets in `Perception/DetectorTests`; Full Images
    `dog_full.png` and `fruits_full.png`; Run Checks on; Use Gpu on; Max Rate Hz 0; Max Logged Detections 20; Flip
    Camera off.
-4. `DetectorButtons`: Detector, the `Detector` object. Add `FrameTimes` (App) to the same object; it logs the
-   app's frame intervals once a second (D88). Save the scene.
+4. `DetectorButtons`: Detector, the `Detector` object. Add `FrameTimes` (App, D88) and `GpuFrameTimes` (App, D89)
+   to the same object, enable Player Settings > Other Settings > Frame Timing Stats, and save the scene.
 5. Optional, before building: in Play mode in the Editor, right-click `DetectorRunner` and choose "Detector on". This
    only works if Play mode is running frames: with OpenXR set to start in the Editor and no Quest Link, it may not be
    (the log then has no `camera.second` events). Start Quest Link, or untick Initialize XR on Startup on the PC tab of
@@ -81,8 +81,25 @@ Modes:
 - **scan** (default): stop-and-shoot keyframes, 3 hover blocks of 12 keyframes at 1 Hz, 8 s repositioning between
   blocks and 15 s between scans, repeated until off. A keyframe that comes due while an inference is in flight is
   rejected and logged (`detector.reject`), never queued.
+- **diagnostic**: one scan at 0.5 Hz, so even slow settings never overlap (D89); a diagnostic workload, not
+  acceptance at 1 Hz.
+- **profile**: five passes in which the preprocessing and then each scheduling step run alone, each followed by four
+  empty frames, then the readbacks (`detector.profile`); with per-frame GPU times this measures every step's cost.
 - **burst**: 2 Hz for 30 s, then idle (a diagnostic).
 - **continuous**: back to back (stress evidence only).
+
+**Cost-balanced schedules (D89).** `python -m perception.detector schedule <profiling run>` turns a profile run into
+schedules: contiguous slices in graph order packed against a per-frame GPU budget, the first frame carrying the
+preprocessing and the last the readback requests. Pushed to the headset's `files/schedules/`, each joins the
+steps-per-frame choices (`schedule <id>` on the overlay). At load the app checks it against the model hash, backend
+and the runtime's layer list, and refuses a mismatch. Nothing in the production loop measures or waits on the GPU: the
+schedule is fixed.
+
+**Measuring.** `GpuFrameTimes` (App) logs per-frame GPU times from FrameTimingManager (enable Player Settings > Other
+Settings > Frame Timing Stats); `perception/detector/gpu_frames.py` assigns each timing to its frame. When a mode starts,
+eight short deliberate stalls at logged times (`clock.sync`) let `analysis/detector_phases.py` align OVR Metrics'
+one-second buckets with the log; it reports the overlap figures across every equally good offset and judges them at
+the least favourable one, and lists frames over budget by inference stage (preprocessing, scheduling, readback).
 
 Results keep detections down to a score of 0.25 so parity can verify threshold crossings; a detection is still one
 at or above 0.3. Turning the detector off stops new keyframes, lets the inference in flight finish (up to 5 s) and then
@@ -105,7 +122,8 @@ the overlay; COCO calls many other things by their nearest class.
 
 Controls on the left controller: Y turns the detector on and off (on: load, warm-up, self-checks, then the mode;
 off: finish the inference in flight, then release the model). While it is off: press the thumbstick to switch GPU and
-CPU, push it up or down to change the mode, left or right to change the steps per frame; the overlay shows
+CPU, push it up or down to change the mode (scan, diagnostic, profile, burst, continuous), left or right to change the
+steps per frame (4, 8, 16, 32, 64, whole network, then any pushed schedules); the overlay shows
 `off | GPU | scan | 16 steps/frame`. While it is on, the left trigger saves the next keyframe's input as a snapshot.
 Any 416 x 416 PNG in the app's `files/parity/` folder on the headset (pushed with adb, for example a saved snapshot) is
 checked with the self-checks; `python -m perception.detector parity <run> --canvas-dir <folder with that PNG>` judges

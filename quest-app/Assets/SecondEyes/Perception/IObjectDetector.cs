@@ -27,6 +27,8 @@ namespace SecondEyes.Perception
         public double ScheduleMs, LatencyMs, PostprocessMs;
         public int FramesWaited;
         public int StepsPerFrame, ScheduleSteps, ScheduleFrames;
+        public int StartFrame, ScheduleEndFrame, EndFrame;
+        public double PreprocessMs;
         public float Floor;
         public bool Blocking;
         public bool Completed;
@@ -36,9 +38,29 @@ namespace SecondEyes.Perception
         {
             Detections.Clear();
             SourceWidth = SourceHeight = Candidates = FramesWaited = StepsPerFrame = ScheduleSteps = ScheduleFrames = 0;
+            StartFrame = ScheduleEndFrame = EndFrame = 0;
+            PreprocessMs = 0;
             Floor = 0f;
             Ratio = ScheduleMs = LatencyMs = PostprocessMs = 0;
             Completed = Blocking = false;
+            Error = null;
+        }
+    }
+
+    /// <summary>One profiling pass (D89): the frame of the preprocessing, of each single scheduling step, of the readback
+    /// request and of its completion, with the given number of empty frames between them.</summary>
+    public sealed class ProfilePass
+    {
+        public readonly List<int> StepFrames = new List<int>();
+        public int PreFrame, ReadbackFrame, DoneFrame, Spacing;
+        public bool Completed;
+        public string Error;
+
+        public void Clear()
+        {
+            StepFrames.Clear();
+            PreFrame = ReadbackFrame = DoneFrame = Spacing = 0;
+            Completed = false;
             Error = null;
         }
     }
@@ -67,6 +89,17 @@ namespace SecondEyes.Perception
         /// <summary>Scheduling steps (layers) dispatched per rendered frame; 0 dispatches the whole network in one frame.
         /// Applies from the next inference (A1.10, D88).</summary>
         int StepsPerFrame { get; set; }
+
+        /// <summary>A frozen cost-balanced schedule (D89): the scheduling steps dispatched in each consecutive frame,
+        /// summing to LayerCount; a leading 0 gives preprocessing a frame of its own. Null uses StepsPerFrame.</summary>
+        int[] Slices { get; set; }
+
+        /// <summary>The runtime layers' type names in scheduling order: the schedule's identity check.</summary>
+        IReadOnlyList<string> LayerTypes { get; }
+
+        /// <summary>One profiling pass: preprocessing, then each scheduling step alone, each followed by `spacing` empty
+        /// frames, then the readbacks; the frames are recorded so per-frame GPU times can be assigned to steps.</summary>
+        IEnumerator ProfileTexture(Texture source, int spacing, ProfilePass into);
 
         /// <summary>Lowest score kept after suppression. The package's threshold still defines a detection; scores
         /// between the floor and the threshold are kept only so parity can verify threshold crossings (D88).</summary>

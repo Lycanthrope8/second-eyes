@@ -23,7 +23,7 @@ namespace SecondEyes.Perception
     /// </summary>
     public class DetectorRunner : MonoBehaviour
     {
-        public enum Mode { Scan, Burst, Continuous }
+        public enum Mode { Scan, Diagnostic, Profile, Burst, Continuous }
 
         [Header("Detector package (D84)")]
         [SerializeField] private ModelAsset model;
@@ -48,13 +48,23 @@ namespace SecondEyes.Perception
         [SerializeField] private bool useGpu = true;
         [SerializeField] private Mode mode = Mode.Scan;
         [Tooltip("Scheduling steps (layers) per rendered frame to choose from; 0 dispatches the whole network in one frame.")]
-        [SerializeField] private int[] stepsChoices = { 8, 16, 32, 64, 0 };
+        [SerializeField] private int[] stepsChoices = { 4, 8, 16, 32, 64, 0 };
         [SerializeField] private int stepsIndex = 1;
         [SerializeField] private float keyframeRateHz = 1f;
         [SerializeField] private int hoversPerScan = 3;
         [SerializeField] private int keyframesPerHover = 12;
         [SerializeField] private float repositionS = 8f;
         [SerializeField] private float scanGapS = 15f;
+        [Tooltip("Diagnostic mode: one scan at this rate, slow enough that inferences cannot overlap (D89).")]
+        [SerializeField] private float diagnosticRateHz = 0.5f;
+        [Tooltip("Profile mode: passes, and empty frames after the preprocessing and after each single step (D89).")]
+        [SerializeField] private int profilePasses = 5;
+        [SerializeField] private int profileSpacing = 4;
+        [Tooltip("Before the mode starts: short deliberate main-thread stalls at logged times, so OVR Metrics' one-second buckets can be aligned with the log (D89).")]
+        [SerializeField] private bool clockSync = true;
+        [SerializeField] private int syncPulses = 8;
+        [SerializeField] private float syncSpacingS = 1.37f;
+        [SerializeField] private float syncStallMs = 60f;
         [SerializeField] private float burstRateHz = 2f;
         [SerializeField] private float burstSeconds = 30f;
         [Tooltip("Lowest score kept after suppression, for parity's threshold-crossing checks; detections are those at or above the package's threshold.")]
@@ -66,6 +76,24 @@ namespace SecondEyes.Perception
         [SerializeField] private int watchdogFrames = 300;
         [Tooltip("When turned off, how long to wait for the inference in flight before releasing anyway.")]
         [SerializeField] private float releaseWaitS = 5f;
+
+        [Serializable]
+        private class ScheduleFile
+        {
+            public int format_version;
+            public string record_type;
+            public string schedule_id;
+            public string model_sha256;
+            public string backend;
+            public int layer_count;
+            public string layer_types_sha256;
+            public int[] slices;
+            public float budget_ms;
+        }
+
+        private readonly List<ScheduleFile> schedules = new List<ScheduleFile>();
+        private ScheduleFile activeSchedule;
+        private readonly ProfilePass profilePass = new ProfilePass();
 
         private struct KeyInfo
         {
@@ -93,14 +121,48 @@ namespace SecondEyes.Perception
         public bool IsOn => wanted;
         public bool IsBusy => inFlight;
         public string Backend => useGpu ? "gpu_compute" : "cpu";
-        private int Steps => stepsChoices != null && stepsChoices.Length > 0
-            ? stepsChoices[Mathf.Clamp(stepsIndex, 0, stepsChoices.Length - 1)] : 0;
+        private int ChoiceCount => (stepsChoices?.Length ?? 0) + schedules.Count;
+        private ScheduleFile ChosenSchedule => stepsIndex >= (stepsChoices?.Length ?? 0) && stepsIndex < ChoiceCount
+            ? schedules[stepsIndex - stepsChoices.Length] : null;
+        private int Steps => ChosenSchedule != null || stepsChoices == null || stepsChoices.Length == 0
+            ? 0 : stepsChoices[Mathf.Clamp(stepsIndex, 0, stepsChoices.Length - 1)];
+        private string ChoiceName => ChosenSchedule != null ? "schedule " + ChosenSchedule.schedule_id : StepsName(Steps);
         private static long UtcUs => (DateTime.UtcNow.Ticks - 621355968000000000L) / 10;
 
-        private void Start() => StatusLine = OffLine();
+        private void Start()
+        {
+            LoadSchedules();
+            StatusLine = OffLine();
+        }
 
-        private string OffLine() => "off | " + (useGpu ? "GPU" : "CPU") + " | " + ModeName(mode) + " | " + StepsName(Steps);
-        private static string ModeName(Mode m) => m == Mode.Scan ? "scan" : m == Mode.Burst ? "burst" : "continuous";
+        /// <summary>Frozen schedules pushed to persistent data/schedules/ (D89); checked against the model at load.</summary>
+        private void LoadSchedules()
+        {
+            schedules.Clear();
+            string dir = Path.Combine(Application.persistentDataPath, "schedules");
+            if (!Directory.Exists(dir)) return;
+            var files = new List<string>(Directory.GetFiles(dir, "*.json"));
+            files.Sort(StringComparer.Ordinal);
+            foreach (var file in files)
+            {
+                try
+                {
+                    var s = JsonUtility.FromJson<ScheduleFile>(File.ReadAllText(file));
+                    if (s != null && s.format_version == 1 && s.record_type == "detector_schedule" && s.slices != null && s.slices.Length > 0)
+                        schedules.Add(s);
+                    else
+                        EventLog.Error("detector", Path.GetFileName(file) + " is not a version 1 detector_schedule");
+                }
+                catch (Exception e)
+                {
+                    EventLog.Error("detector", Path.GetFileName(file) + ": " + e.Message);
+                }
+            }
+        }
+
+        private string OffLine() => "off | " + (useGpu ? "GPU" : "CPU") + " | " + ModeName(mode) + " | " + ChoiceName;
+        private static string ModeName(Mode m) => m == Mode.Scan ? "scan" : m == Mode.Diagnostic ? "diagnostic"
+            : m == Mode.Profile ? "profile" : m == Mode.Burst ? "burst" : "continuous";
         private static string StepsName(int s) => s <= 0 ? "whole network per frame" : s + " steps/frame";
 
         public void Toggle(string source) => SetOn(!wanted, source);
@@ -151,8 +213,8 @@ namespace SecondEyes.Perception
         /// <summary>Cycles the scheduling steps per frame; only while the detector is off.</summary>
         public void CycleSteps(int step, string source)
         {
-            if (!Idle() || stepsChoices == null || stepsChoices.Length == 0) return;
-            int n = stepsChoices.Length;
+            if (!Idle() || ChoiceCount == 0) return;
+            int n = ChoiceCount;
             stepsIndex = ((stepsIndex + step) % n + n) % n;
             LogSetting(source);
         }
@@ -325,10 +387,23 @@ namespace SecondEyes.Perception
                 detector.StepsPerFrame = Steps;
                 detector.Floor = Mathf.Min(floor, package.postprocess.score_threshold);
                 double loadMs = clock.Elapsed.TotalMilliseconds;
+                string typesHash = LogLayers();
+                activeSchedule = ChosenSchedule;
+                if (activeSchedule != null)
+                {
+                    string why = ScheduleProblem(activeSchedule, package, typesHash);
+                    LogSchedule(activeSchedule, why);
+                    if (why != null)
+                    {
+                        Fail("schedule", why);
+                        yield break;
+                    }
+                    detector.Slices = activeSchedule.slices;
+                }
                 var gray = new Color32[detector.InputSize * detector.InputSize];
                 byte pad = (byte)package.input.pad_value;
                 for (int k = 0; k < gray.Length; k++) gray[k] = new Color32(pad, pad, pad, 255);
-                Stage("warm-up", "warming up (" + detector.Backend + ", " + StepsName(detector.StepsPerFrame) + ")");
+                Stage("warm-up", "warming up (" + detector.Backend + ", " + ChoiceName + ")");
                 var warm = Stopwatch.StartNew();
                 yield return detector.DetectCanvas(gray, false, checkResult);
                 LogLoad(package, loadMs, warm.Elapsed.TotalMilliseconds);
@@ -341,6 +416,7 @@ namespace SecondEyes.Perception
                                  detector.LayerCount + " layers, " + checkResult.ScheduleSteps + " steps");
                 yield return null;
                 if (runChecks && wanted) yield return Checks();
+                if (clockSync && wanted) yield return SyncPulses();
                 if (wanted) yield return Operate();
                 var wait = Stopwatch.StartNew();
                 while (inFlight && wait.Elapsed.TotalSeconds < releaseWaitS) yield return null;
@@ -425,8 +501,48 @@ namespace SecondEyes.Perception
             }
             if (!wanted) yield break;
             LogSource("camera", CameraTexture(), flipCamera);
-            Stage("camera", "on: " + ModeName(mode) + ", " + StepsName(detector.StepsPerFrame));
-            if (mode == Mode.Continuous)
+            Stage("camera", "on: " + ModeName(mode) + ", " + ChoiceName);
+            if (mode == Mode.Profile)
+            {
+                for (int pass = 1; pass <= profilePasses && wanted; pass++)
+                {
+                    var texture = CameraTexture();
+                    if (texture == null)
+                    {
+                        yield return null;
+                        pass--;
+                        continue;
+                    }
+                    StatusLine = "profiling pass " + pass + "/" + profilePasses;
+                    inFlight = true;
+                    yield return detector.ProfileTexture(texture, Mathf.Max(1, profileSpacing), profilePass);
+                    inFlight = false;
+                    LogProfile(pass);
+                    for (int k = 0; k < 2 * profileSpacing; k++) yield return null;
+                }
+                while (wanted)
+                {
+                    StatusLine = "profile done; Y to stop";
+                    yield return null;
+                }
+            }
+            else if (mode == Mode.Diagnostic)
+            {
+                scanRequested = scanCompleted = scanRejected = 0;
+                LogScan(1, null, "start", 0, 0, 0);
+                for (int hover = 1; hover <= hoversPerScan && wanted; hover++)
+                {
+                    yield return Ticks(diagnosticRateHz, keyframesPerHover, 1, hover);
+                    if (hover < hoversPerScan) yield return Pause(repositionS, "diagnostic scan: repositioning");
+                }
+                LogScan(1, null, "end", scanRequested, scanCompleted, scanRejected);
+                while (wanted)
+                {
+                    StatusLine = "diagnostic scan done; Y to stop";
+                    yield return null;
+                }
+            }
+            else if (mode == Mode.Continuous)
             {
                 while (wanted)
                 {
@@ -491,6 +607,33 @@ namespace SecondEyes.Perception
             scanCompleted += blockCompleted;
             scanRejected += blockRejected;
             if (hover != null) LogScan(scan ?? 0, hover, "end", blockRequested, blockCompleted, blockRejected);
+        }
+
+        /// <summary>
+        /// Deliberate main-thread stalls at logged times (clock.sync), spaced so their sub-second phases differ: each
+        /// shows up as stale frames in one OVR Metrics bucket, which fixes the offset between the two clocks far more
+        /// tightly than incidental misses (D89). They run before the mode starts, outside any measured phase.
+        /// </summary>
+        private IEnumerator SyncPulses()
+        {
+            Stage("clock-sync", "clock sync pulses");
+            double next = Time.realtimeSinceStartupAsDouble + 1.0;
+            for (int k = 0; k < syncPulses && wanted; k++)
+            {
+                while (wanted && Time.realtimeSinceStartupAsDouble < next) yield return null;
+                if (!wanted) yield break;
+                long start = UtcUs;
+                var spin = Stopwatch.StartNew();
+                while (spin.Elapsed.TotalMilliseconds < syncStallMs) { }
+                long end = UtcUs;
+                var sb = new StringBuilder("{\"pulse\":").Append(k + 1).Append(",\"start_utc_us\":").Append(start)
+                    .Append(",\"end_utc_us\":").Append(end).Append(",\"stall_ms\":");
+                Json.AppendNumber(sb, syncStallMs);
+                EventLog.Write("clock.sync", sb.Append('}').ToString());
+                next += syncSpacingS;
+            }
+            double settle = Time.realtimeSinceStartupAsDouble + 2.0;
+            while (wanted && Time.realtimeSinceStartupAsDouble < settle) yield return null;
         }
 
         private IEnumerator Pause(float seconds, string status)
@@ -566,7 +709,7 @@ namespace SecondEyes.Perception
         private string CameraStatus(int index, int? scan, int? hover, bool snapshot)
         {
             var sb = new StringBuilder(detector.Backend == "gpu_compute" ? "GPU " : "CPU ");
-            sb.Append(StepsName(detector.StepsPerFrame)).Append(" #").Append(index);
+            sb.Append(ChoiceName).Append(" #").Append(index);
             if (scan != null) sb.Append(" scan ").Append(scan).Append('.').Append(hover);
             sb.Append(' ');
             if (!keyResult.Completed) return sb.Append("incomplete: ").Append(keyResult.Error ?? "?").ToString();
@@ -624,6 +767,62 @@ namespace SecondEyes.Perception
             if (value == null) sb.Append("null"); else sb.Append(value.Value);
         }
 
+        private string LogLayers()
+        {
+            string joined = string.Join("\n", detector.LayerTypes);
+            string hash;
+            using (var sha = System.Security.Cryptography.SHA256.Create())
+                hash = BitConverter.ToString(sha.ComputeHash(Encoding.UTF8.GetBytes(joined))).Replace("-", "").ToLowerInvariant();
+            var sb = new StringBuilder("{\"count\":").Append(detector.LayerCount).Append(",\"types_sha256\":");
+            Json.AppendString(sb, hash);
+            sb.Append(",\"types\":[");
+            for (int k = 0; k < detector.LayerTypes.Count; k++)
+            {
+                if (k > 0) sb.Append(',');
+                Json.AppendString(sb, detector.LayerTypes[k]);
+            }
+            EventLog.Write("detector.layers", sb.Append("]}").ToString());
+            return hash;
+        }
+
+        private string ScheduleProblem(ScheduleFile s, DetectorPackage package, string typesHash)
+        {
+            if (s.model_sha256 != package.model_sha256) return "schedule " + s.schedule_id + " was made for another model";
+            if (s.backend != detector.Backend) return "schedule " + s.schedule_id + " was made for " + s.backend;
+            if (s.layer_count != detector.LayerCount || s.layer_types_sha256 != typesHash)
+                return "schedule " + s.schedule_id + " does not match this runtime's layers";
+            int sum = 0;
+            foreach (int n in s.slices)
+            {
+                if (n < 0) return "schedule " + s.schedule_id + " has a negative slice";
+                sum += n;
+            }
+            return sum == detector.LayerCount ? null : "schedule " + s.schedule_id + " covers " + sum + " of " + detector.LayerCount + " steps";
+        }
+
+        private void LogSchedule(ScheduleFile s, string problem)
+        {
+            var sb = new StringBuilder("{\"schedule_id\":");
+            Json.AppendString(sb, s.schedule_id);
+            sb.Append(",\"frames\":").Append(s.slices.Length).Append(",\"budget_ms\":");
+            Json.AppendNumber(sb, s.budget_ms);
+            sb.Append(",\"accepted\":").Append(problem == null ? "true" : "false").Append(",\"problem\":");
+            if (problem == null) sb.Append("null"); else Json.AppendString(sb, problem);
+            EventLog.Write("detector.schedule", sb.Append('}').ToString());
+        }
+
+        private void LogProfile(int pass)
+        {
+            var p = profilePass;
+            var sb = new StringBuilder("{\"pass\":").Append(pass).Append(",\"spacing\":").Append(p.Spacing)
+                .Append(",\"completed\":").Append(p.Completed ? "true" : "false").Append(",\"error\":");
+            if (p.Error == null) sb.Append("null"); else Json.AppendString(sb, p.Error);
+            sb.Append(",\"pre_frame\":").Append(p.PreFrame).Append(",\"readback_frame\":").Append(p.ReadbackFrame)
+              .Append(",\"done_frame\":").Append(p.DoneFrame).Append(",\"step_frames\":[");
+            for (int k = 0; k < p.StepFrames.Count; k++) sb.Append(k > 0 ? "," : "").Append(p.StepFrames[k]);
+            EventLog.Write("detector.profile", sb.Append("]}").ToString());
+        }
+
         private void LogSetting(string source)
         {
             StatusLine = OffLine();
@@ -631,6 +830,8 @@ namespace SecondEyes.Perception
             Json.AppendString(sb, Backend);
             sb.Append(",\"mode\":");
             Json.AppendString(sb, ModeName(mode));
+            sb.Append(",\"schedule_id\":");
+            if (ChosenSchedule == null) sb.Append("null"); else Json.AppendString(sb, ChosenSchedule.schedule_id);
             sb.Append(",\"steps_per_frame\":").Append(Steps).Append(",\"source\":");
             Json.AppendString(sb, source);
             EventLog.Write("detector.setting", sb.Append('}').ToString());
@@ -658,7 +859,9 @@ namespace SecondEyes.Perception
             sb.Append(",\"mode\":");
             Json.AppendString(sb, ModeName(mode));
             sb.Append(",\"keyframe_rate_hz\":");
-            Json.AppendNumber(sb, mode == Mode.Burst ? burstRateHz : keyframeRateHz);
+            Json.AppendNumber(sb, mode == Mode.Burst ? burstRateHz : mode == Mode.Diagnostic ? diagnosticRateHz : keyframeRateHz);
+            sb.Append(",\"schedule_id\":");
+            if (activeSchedule == null) sb.Append("null"); else Json.AppendString(sb, activeSchedule.schedule_id);
             EventLog.Write("detector.load", sb.Append('}').ToString());
         }
 
@@ -722,7 +925,14 @@ namespace SecondEyes.Perception
               .Append(",\"steps_per_frame\":").Append(result.StepsPerFrame)
               .Append(",\"schedule_steps\":").Append(result.ScheduleSteps)
               .Append(",\"schedule_frames\":").Append(result.ScheduleFrames)
-              .Append(",\"floor\":");
+              .Append(",\"start_frame\":").Append(result.StartFrame)
+              .Append(",\"schedule_end_frame\":").Append(result.ScheduleEndFrame)
+              .Append(",\"end_frame\":").Append(result.EndFrame)
+              .Append(",\"preprocess_ms\":");
+            Json.AppendNumber(sb, (float)result.PreprocessMs);
+            sb.Append(",\"schedule_id\":");
+            if (activeSchedule == null || path != "camera") sb.Append("null"); else Json.AppendString(sb, activeSchedule.schedule_id);
+            sb.Append(",\"floor\":");
             Json.AppendNumber(sb, result.Floor);
             AppendNullable(sb, "keyframe", info.Keyframe);
             AppendNullable(sb, "scan", info.Scan);
