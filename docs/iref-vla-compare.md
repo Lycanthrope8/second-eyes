@@ -44,4 +44,28 @@ checks every offered letter's one-token boundary; requests over 8,192 tokens are
 truncated. `rules` runs the unchanged A2.2b parser and A2.1e resolver once per parent and view on the same derived scene
 and command the models are offered (A2.3b's join checks them), with no annotation read.
 
-Model runs on the RTX PC and scoring follow in later deliveries; `docs/` will be extended then.
+## Commands (RTX PC)
+
+```text
+python -m grounding.inference.iref_vla_compare smoke --requests DIR --model KEY --model-dir DIR --tokenizer-dir DIR --device cuda --out FILE
+python -m grounding.inference.iref_vla_compare run --requests DIR --model KEY --model-dir DIR --tokenizer-dir DIR --device cuda --smoke FILE --out NEW_DIR [--resume]
+```
+
+`KEY` is `qwen2.5-0.5b-instruct` or `qwen2.5-7b-instruct`. Both commands first verify the request bundle, re-tokenize every
+prompt with the model's own pinned tokenizer and compare it with the frozen token IDs, recheck every offered letter's
+boundary, and tie the checkpoint's files to the pinned revision. Both use A2.3a's unchanged model path: float32, eager
+attention, evaluation mode, batch size one, one final-position forward with no cache, no generation; offered-letter
+scoring with exact ties to K.
+
+`smoke` loads the model, runs two canaries (the first request and the longest; production forward against the
+independent last-hidden-state path, A2.3a's tolerance) and the three longest requests, and writes the settings record:
+precision, attention, device, library versions, load time, timings and peak GPU memory. `run` starts only from an
+accepted smoke record that names the same model, requests, checkpoint and code, and stops if the loaded model's
+settings differ from it. It runs the canaries again, then every request in canonical order, appending one row per
+request to `<out>.partial/rows.jsonl`. After an interruption, `--resume` continues only if every frozen hash agrees (a torn
+last line is dropped). Requests over the ceiling are kept as `context_budget_exceeded` and never sent; a failed forward is
+kept as `execution_failed`; three consecutive failures stop the run, resumable. On completion the run writes
+`results.jsonl`, `sessions.jsonl`, `canaries.json`, `summary.json`, `report.md` and a manifest, reads them back and removes
+the partial folder. Exit 1 marks a published run with exclusions or failures. All timings are PC measurements.
+
+Scoring follows in a later delivery.

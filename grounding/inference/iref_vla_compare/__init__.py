@@ -7,7 +7,7 @@ subscenes. Model runs and scoring are later deliveries. Commands load lazily.
 import importlib
 
 _LAZY = {"prepare_compare": "prepare", "verify_compare_requests": "prepare", "run_compare_rules": "rules",
-         "verify_compare_rules": "rules"}
+         "verify_compare_rules": "rules", "smoke": "run", "run_compare": "run", "verify_compare_results": "run"}
 __all__ = list(_LAZY)
 
 

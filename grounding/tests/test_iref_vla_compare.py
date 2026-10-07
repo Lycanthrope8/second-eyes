@@ -33,7 +33,7 @@ def outcome(fn):
         return ("ok", fn())
     except EI as e:
         return ("input_error", sorted({i["code"] for i in e.issues}))
-    except Exception as e:  # noqa: BLE001
+    except (Exception, KeyboardInterrupt) as e:  # noqa: BLE001  (a simulated interruption is an outcome here)
         return ("crashed", f"{type(e).__name__}: {e}")
 
 
@@ -169,12 +169,127 @@ def check_chain(D, P, R):
     check("context exclusions are counted per model", counts["context_budget_exceeded"] == {KEYS[0]: 0, KEYS[1]: 1})
 
 
+class Interrupting:
+    """Labelled double: the fake model, interrupted (as by Ctrl+C) after a number of forwards, or NaN on one prompt."""
+
+    def __init__(self, base, stop_after=None, nan_ids=None, dtype=None):
+        self.base, self.stop_after, self.nan_ids, self.dtype, self.calls = base, stop_after, nan_ids, dtype, 0
+
+    def info(self):
+        i = self.base.info()
+        if self.dtype:
+            i = dict(i, dtype=self.dtype)
+        return i
+
+    def forward_last(self, ids):
+        self.calls += 1
+        if self.stop_after is not None and self.calls > self.stop_after:
+            raise KeyboardInterrupt("simulated interruption")
+        row = self.base.forward_last(ids)
+        if self.nan_ids is not None and list(ids) == list(self.nan_ids):
+            row = [float("nan")] * len(row)
+        return row
+
+    def independent_last(self, ids):
+        return self.base.independent_last(ids)
+
+
+def check_runs(D, P, RUN):
+    print("-- smoke check and resumable runs (labelled fake model, injected checkpoint tie)")
+    SB = importlib.import_module("grounding.tests.test_iref_vla_pilot_scoring")
+    A = SB.pilot_helpers()
+    PI = importlib.import_module("grounding.inference.iref_vla.prepare")
+    ev = lambda *a: {"revision": "fixture", "tie": "labelled fixture", "files": {}}  # noqa: E731
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        bundle = SB.scoring_bundle(tmp, A)
+        src = PI.read_bundle(bundle)
+        eligible = PI.eligible_parents(src)
+        pilot = sorted(eligible, key=lambda p: (hs("fixture-pilot\n" + p), p))[:1]
+        pol = json.loads(D.POLICY_PATH.read_text(encoding="utf-8"))
+        pol["population"] = {"rule": "fixture", "expected_eligible": len(eligible), "expected_remaining": len(eligible) - 1,
+                             "excluded": {"what": "fixture", "salt": "fixture-pilot\n", "count": 1,
+                                          "selected_sha256": hashlib.sha256((pilot[0] + "\n").encode()).hexdigest()}}
+        pol["selection"]["count"] = len(eligible) - 1
+        pol["expected"] = {"parents": len(eligible) - 1, "parent_views": 2 * (len(eligible) - 1), "requests": 4 * (len(eligible) - 1)}
+        pp = tmp / "policy.json"
+        pp.write_text(json.dumps(pol), encoding="utf-8")
+        P.prepare_compare(bundle=bundle, tokenizer_small=None, tokenizer_large=None, out=tmp / "req", policy=pp,
+                          tokenizers={k: A.OffsetCharTokenizer() for k in KEYS})
+        rows = jsonl(tmp / "req" / "request-index.jsonl")
+        n = len(rows)
+        common = dict(requests=tmp / "req", model_dir=tmp, tokenizer_dir=None, device="cpu", evidence_fn=ev)
+        for key in KEYS:
+            fake = A.FakeModel()
+            r = outcome(lambda: RUN.smoke(**common, model_key=key, out=tmp / f"smoke-{key}.json",
+                                          model_loader=A.loader_for(fake), tokenizer=A.OffsetCharTokenizer()))
+            check(f"{key}: the smoke check passes its canaries and writes an accepted record", r[0] == "ok" and r[1]["accepted"], str(r)[:200])
+            fake = A.FakeModel()
+            r = outcome(lambda: RUN.run_compare(**common, model_key=key, smoke_record=tmp / f"smoke-{key}.json",
+                                                out=tmp / f"run-{key}", model_loader=A.loader_for(fake),
+                                                tokenizer=A.OffsetCharTokenizer(), progress=lambda m: None))
+            ok = r[0] == "ok" and r[1]["counts"]["completed"] == n
+            check(f"{key}: the run completes all {n} requests and reads back against the bundle",
+                  ok and RUN.verify_compare_results(tmp / f"run-{key}", tmp / "req") == []
+                  and not (tmp / f"run-{key}.partial").exists(), str(r)[:200])
+        check("every forward is fresh: canaries plus one forward per request, nothing reused",
+              fake.forward_calls == n + len(jsonl(tmp / f"run-{KEYS[1]}" / "sessions.jsonl")[0]["canaries"]))
+        r = outcome(lambda: RUN.run_compare(**common, model_key=KEYS[0], smoke_record=tmp / f"smoke-{KEYS[1]}.json",
+                                            out=tmp / "x1", model_loader=A.loader_for(A.FakeModel()),
+                                            tokenizer=A.OffsetCharTokenizer(), progress=lambda m: None))
+        check("a smoke record of the other model is refused before loading", r == ("input_error", ["E_COMPARE_SMOKE"]), str(r))
+        stop = Interrupting(A.FakeModel(), stop_after=5)
+        r = outcome(lambda: RUN.run_compare(**common, model_key=KEYS[0], smoke_record=tmp / f"smoke-{KEYS[0]}.json",
+                                            out=tmp / "res", model_loader=A.loader_for(stop),
+                                            tokenizer=A.OffsetCharTokenizer(), progress=lambda m: None))
+        kept = jsonl(tmp / "res.partial" / "rows.jsonl") if (tmp / "res.partial" / "rows.jsonl").exists() else []
+        check("an interruption keeps the rows already written and publishes nothing", r[0] == "crashed" and "KeyboardInterrupt" in r[1]
+              and len(kept) == 5 - 2 and not (tmp / "res").exists(), f"{r} {len(kept)}")
+        with open(tmp / "res.partial" / "rows.jsonl", "ab") as fh:
+            fh.write(b'{"request_id": "r00')
+        r = outcome(lambda: RUN.run_compare(**common, model_key=KEYS[0], smoke_record=tmp / f"smoke-{KEYS[0]}.json",
+                                            out=tmp / "res", model_loader=A.loader_for(A.FakeModel()),
+                                            tokenizer=A.OffsetCharTokenizer(), progress=lambda m: None))
+        check("without --resume an existing partial run is refused", r == ("input_error", ["E_COMPARE_RESUME"]), str(r))
+        other = tmp / "smoke-again.json"
+        RUN.smoke(**common, model_key=KEYS[0], out=other, model_loader=A.loader_for(A.FakeModel()), tokenizer=A.OffsetCharTokenizer())
+        r = outcome(lambda: RUN.run_compare(**common, model_key=KEYS[0], smoke_record=other, out=tmp / "res", resume=True,
+                                            model_loader=A.loader_for(A.FakeModel()), tokenizer=A.OffsetCharTokenizer(),
+                                            progress=lambda m: None))
+        check("resuming with a different frozen configuration (another smoke record) is refused",
+              r == ("input_error", ["E_COMPARE_RESUME"]), str(r))
+        r = outcome(lambda: RUN.run_compare(**common, model_key=KEYS[0], smoke_record=tmp / f"smoke-{KEYS[0]}.json",
+                                            out=tmp / "res", resume=True, model_loader=A.loader_for(A.FakeModel()),
+                                            tokenizer=A.OffsetCharTokenizer(), progress=lambda m: None))
+        a, b = jsonl(tmp / "res" / "results.jsonl") if r[0] == "ok" else [], jsonl(tmp / f"run-{KEYS[0]}" / "results.jsonl")
+        check("--resume drops the torn last line, finishes, and gives the uninterrupted run's choices in two sessions",
+              r[0] == "ok" and [x["choice_code"] for x in a] == [x["choice_code"] for x in b] and r[1]["counts"]["sessions"] == 2,
+              str(r)[:200])
+        nan_ids = jsonl(tmp / "req" / "tokens" / f"{KEYS[0]}.jsonl")[2]["token_ids"]
+        r = outcome(lambda: RUN.run_compare(**common, model_key=KEYS[0], smoke_record=tmp / f"smoke-{KEYS[0]}.json",
+                                            out=tmp / "nan", model_loader=A.loader_for(Interrupting(A.FakeModel(), nan_ids=nan_ids)),
+                                            tokenizer=A.OffsetCharTokenizer(), progress=lambda m: None))
+        res = jsonl(tmp / "nan" / "results.jsonl") if r[0] == "ok" else []
+        check("a non-finite output is kept as one execution_failed row; the others complete",
+              r[0] == "ok" and r[1]["counts"]["execution_failed"] == 1 and res[2]["technical_status"] == "execution_failed"
+              and res[2]["choice_code"] is None and RUN.verify_compare_results(tmp / "nan", tmp / "req") == [], str(r)[:200])
+        r = outcome(lambda: RUN.run_compare(**common, model_key=KEYS[0], smoke_record=tmp / f"smoke-{KEYS[0]}.json",
+                                            out=tmp / "dt", model_loader=A.loader_for(Interrupting(A.FakeModel(), dtype="torch.bfloat16")),
+                                            tokenizer=A.OffsetCharTokenizer(), progress=lambda m: None))
+        check("a model loaded with other settings than the smoke record's stops the run", r[0] == "crashed" and "settings" in r[1], str(r))
+        r = outcome(lambda: RUN.run_compare(**dict(common, device="cpu"), model_key=KEYS[0], smoke_record=tmp / f"smoke-{KEYS[0]}.json",
+                                            out=tmp / "cpu", tokenizer=A.OffsetCharTokenizer(), progress=lambda m: None))
+        check("a CPU run without an injected test loader is refused", r == ("input_error", ["E_COMPARE_DEVICE"]), str(r))
+
+
 def main() -> int:
     D = importlib.import_module("grounding.inference.iref_vla_compare.design")
     P = importlib.import_module("grounding.inference.iref_vla_compare.prepare")
     R = importlib.import_module("grounding.inference.iref_vla_compare.rules")
+    RUN = importlib.import_module("grounding.inference.iref_vla_compare.run")
     check_design(D)
     check_chain(D, P, R)
+    check_runs(D, P, RUN)
     print(f"\n{len(PASSES)} passed, {len(FAILS)} failed")
     return 1 if FAILS else 0
 
