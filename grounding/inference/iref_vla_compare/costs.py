@@ -158,7 +158,8 @@ def render(s) -> str:
     e = s["existing"]
     L = ["# A2.3e costs (PC measurements, not Quest)", "",
          f"Hardware: {s['hardware']['processor']}, {s['hardware']['logical_cpus']} logical CPUs, {s['hardware']['platform']}, "
-         f"Python {s['hardware']['python']}. Medians; p95 = " + RULES[s.get("percentile_rule", "round_p_n_minus_1")] + ".", "",
+         f"Python {s['hardware']['python']}. " + (f"Medians; p95 = {RULES[s['percentile_rule']]}." if "percentile_rule" in s
+                                                   else "Medians and p95 by nearest rank."), "",
          "## Prompt tokens and uncached forward passes (existing artifacts)", "",
          "| View / format | Tokens median (p95) | 0.5B forward median / p95 | 7B forward median / p95 |", "|---|---|---|---|"]
     for v in D.VIEWS:

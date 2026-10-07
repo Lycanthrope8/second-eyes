@@ -493,6 +493,9 @@ def check_costs_and_cache(D, P, RUN):
             (legacy / "manifest.json").write_text(json.dumps(mm))
             r5 = outcome(lambda: CO.regenerate_costs(old=legacy, requests=tmp / "req", small_run=tmp / f"run-{KEYS[0]}",
                                                      large_run=tmp / f"run-{KEYS[1]}", out=tmp / "costs-fixed"))
+            check("a legacy folder's report keeps its original header text, exactly as the first version rendered it",
+                  "Medians and p95 by nearest rank." in (legacy / "report.md").read_text(encoding="utf-8")
+                  and "Medians; p95 =" in (tmp / "costs-fixed" / "report.md").read_text(encoding="utf-8") if r5[0] == "ok" else False)
             check("a legacy-rule costs folder still verifies; regeneration recomputes with the corrected rule, copies the "
                   "measurements unchanged and links the original",
                   CO.verify_costs(legacy) == [] and r5[0] == "ok" and r5[1]["percentile_rule"] == "nearest_rank_ceil"
