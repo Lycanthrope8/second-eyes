@@ -68,4 +68,20 @@ kept as `execution_failed`; three consecutive failures stop the run, resumable. 
 `results.jsonl`, `sessions.jsonl`, `canaries.json`, `summary.json`, `report.md` and a manifest, reads them back and removes
 the partial folder. Exit 1 marks a published run with exclusions or failures. All timings are PC measurements.
 
-Scoring follows in a later delivery.
+## Scoring (laptop)
+
+```text
+python -m grounding.inference.iref_vla_compare score --requests DIR --rules DIR --small-run DIR --large-run DIR --bundle DIR --annotations FILE --out NEW_DIR
+```
+
+Every input is read back first; the annotation file must be the pinned IRef-VLA file (`06cfdfb4…`), read through
+A2.3b's loader: one mapped target and one relation label per command, present in both views and offered in every
+request. Annotations are read here and nowhere else. Per request and system the outcome is correct (the chosen object is
+the published target), wrong object, ASK, over the ceiling or execution failure; an ASK on a uniquely annotated command
+is not correct. The summary, per view (the full inventory first, as the primary comparison) and format, gives correct
+over planned and over object choices; the rules' agreement and outcomes; the sample's actual always-B and
+always-second-position rates; paired tables (0.5B against 7B, each model against the rules, and coordinates against
+augmented per model, on common completed requests, with their coverage); breakdowns by source relation and by candidate
+count; and a failure sample (six per model and view, by salted hash, for reading only). The policy is
+`compare-scoring.v1.json`. Ratios keep numerator and denominator; no float sums enter the summary, so its readback does
+not depend on the Python version.

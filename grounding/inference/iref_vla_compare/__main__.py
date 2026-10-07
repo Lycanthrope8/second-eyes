@@ -29,6 +29,9 @@ def main(argv=None) -> int:
         if name == "run":
             s.add_argument("--smoke", required=True)
             s.add_argument("--resume", action="store_true")
+    sc = sub.add_parser("score", help="score both runs and the rules against the pinned annotations (laptop)")
+    for n in ("--requests", "--rules", "--small-run", "--large-run", "--bundle", "--annotations", "--out"):
+        sc.add_argument(n, required=True)
     a = ap.parse_args(argv)
     try:
         if a.command == "prepare":
@@ -66,6 +69,20 @@ def main(argv=None) -> int:
             print(f"  forward median {f['median']:.1f} ms, p95 {f['p95']:.1f} ms; peak GPU bytes {x['peak_gpu_bytes']}")
             print(f"written to {a.out}")
             return 1 if c["context_budget_exceeded"] or c["execution_failed"] else 0
+        if a.command == "score":
+            from .score import score_compare
+            x = score_compare(requests=a.requests, rules=a.rules, small_run=a.small_run, large_run=a.large_run,
+                              bundle=a.bundle, annotations=a.annotations, out=a.out)
+            for v, b in x["by_view"].items():
+                for fm, y in b["by_format"].items():
+                    s_ = y["systems"]
+                    def pc(f):
+                        return "-" if f is None else f"{f['numerator']}/{f['denominator']}"
+                    print(f"  {v}/{fm}: 0.5B {pc(s_['qwen2.5-0.5b-instruct']['correct_over_planned'])}, "
+                          f"7B {pc(s_['qwen2.5-7b-instruct']['correct_over_planned'])}, rules {pc(s_['rules']['correct_over_planned'])}, "
+                          f"always B {pc(y['references']['always_B'])}, second position {pc(y['references']['always_second_list_position'])}")
+            print(f"scored {x['counts']['requests']} requests; written to {a.out}")
+            return 0
         from .rules import run_compare_rules
         s = run_compare_rules(requests=a.requests, bundle=a.bundle, relation_config=a.relation_config,
                               direction_config=a.direction_config, out=a.out)

@@ -10,6 +10,7 @@ import importlib
 import json
 import shutil
 import sys
+from collections import Counter
 import tempfile
 from pathlib import Path
 
@@ -282,14 +283,82 @@ def check_runs(D, P, RUN):
         check("a CPU run without an injected test loader is refused", r == ("input_error", ["E_COMPARE_DEVICE"]), str(r))
 
 
+def check_scoring(D, P, R, RUN, S):
+    print("-- scoring against fixture annotations (labelled fake runs)")
+    SB = importlib.import_module("grounding.tests.test_iref_vla_pilot_scoring")
+    A = SB.pilot_helpers()
+    PI = importlib.import_module("grounding.inference.iref_vla.prepare")
+    ev = lambda *a: {"revision": "fixture", "tie": "labelled fixture", "files": {}}  # noqa: E731
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        bundle = SB.scoring_bundle(tmp, A)
+        ann = SB.annotation_bundle(tmp / "annotations.json", SB.TARGETS)
+        src = PI.read_bundle(bundle)
+        eligible = PI.eligible_parents(src)
+        pilot = sorted(eligible, key=lambda p: (hs("fixture-pilot\n" + p), p))[:1]
+        pol = json.loads(D.POLICY_PATH.read_text(encoding="utf-8"))
+        pol["population"] = {"rule": "fixture", "expected_eligible": len(eligible), "expected_remaining": len(eligible) - 1,
+                             "excluded": {"what": "fixture", "salt": "fixture-pilot\n", "count": 1,
+                                          "selected_sha256": hashlib.sha256((pilot[0] + "\n").encode()).hexdigest()}}
+        pol["selection"]["count"] = len(eligible) - 1
+        pol["expected"] = {"parents": len(eligible) - 1, "parent_views": 2 * (len(eligible) - 1), "requests": 4 * (len(eligible) - 1)}
+        pp = tmp / "policy.json"
+        pp.write_text(json.dumps(pol), encoding="utf-8")
+        P.prepare_compare(bundle=bundle, tokenizer_small=None, tokenizer_large=None, out=tmp / "req", policy=pp,
+                          tokenizers={k: A.OffsetCharTokenizer() for k in KEYS})
+        R.run_compare_rules(requests=tmp / "req", bundle=bundle, relation_config=REL_CFG, direction_config=DIR_CFG,
+                            out=tmp / "rules", sample=False)
+        common = dict(requests=tmp / "req", model_dir=tmp, tokenizer_dir=None, device="cpu", evidence_fn=ev)
+        for key in KEYS:
+            RUN.smoke(**common, model_key=key, out=tmp / f"smoke-{key}.json", model_loader=A.loader_for(A.FakeModel()),
+                      tokenizer=A.OffsetCharTokenizer())
+            RUN.run_compare(**common, model_key=key, smoke_record=tmp / f"smoke-{key}.json", out=tmp / f"run-{key}",
+                            model_loader=A.loader_for(A.FakeModel()), tokenizer=A.OffsetCharTokenizer(), progress=lambda m: None)
+        args = dict(requests=tmp / "req", rules=tmp / "rules", small_run=tmp / f"run-{KEYS[0]}", large_run=tmp / f"run-{KEYS[1]}",
+                    bundle=bundle, annotations=ann, sample=False, fixture_scene_id="fixture.iref_eval.f1")
+        r = outcome(lambda: S.score_compare(**args, out=tmp / "scores"))
+        check("scoring completes on the fixture and reads back", r[0] == "ok" and S.verify_compare_scores(tmp / "scores") == [], str(r)[:300])
+        if r[0] != "ok":
+            return
+        rows = jsonl(tmp / "scores" / "scores.jsonl")
+        req = {x["request_id"]: x for x in jsonl(tmp / "req" / "request-index.jsonl")}
+        check("one score row per request, targets inherited from the annotations", len(rows) == len(req)
+              and all(x["source_target_id"] == SB.TARGETS[x["parent_command_id"]] for x in rows))
+        ok_ref = all(x["reference_always_B"] == (dict((m[1], m[0]) for m in req[x["request_id"]]["mapping"][:-1])[x["source_target_id"]] == "B")
+                     and x["reference_second_position"] == (req[x["request_id"]]["mapping"][1][1] == x["source_target_id"]) for x in rows)
+        check("the always-B and second-position references follow each request's own mapping (independent recomputation)", ok_ref)
+        res = {k: {x["request_id"]: x for x in jsonl(tmp / f"run-{k}" / "results.jsonl")} for k in KEYS}
+        check("each model's outcome is correct exactly when its chosen object is the target; ASK is never correct",
+              all((x["models"][k]["outcome"] == "correct") == (res[k][x["request_id"]]["choice_object_id"] == x["source_target_id"])
+                  and (res[k][x["request_id"]]["model_choice"] != "model_choice_ask" or x["models"][k]["outcome"] == "ask")
+                  for x in rows for k in KEYS))
+        s = r[1]
+        pr = s["by_view"]["full_inventory"]["by_format"]["coordinates_v2"]["pairs"]["small_vs_large"]
+        check("paired counts add up to the common requests", pr["both"] + pr["first_only"] + pr["second_only"] + pr["neither"] == pr["common"])
+        check("the failure sample holds at most six per model and view, all wrong or ASK",
+              all(f["outcome"] in ("wrong_object", "ask") for f in s["failure_sample"])
+              and max(Counter((f["model_key"], f["view_id"]) for f in s["failure_sample"]).values(), default=0) <= 6)
+        r2 = outcome(lambda: S.score_compare(**dict(args, small_run=tmp / f"run-{KEYS[1]}", large_run=tmp / f"run-{KEYS[0]}"), out=tmp / "x"))
+        check("swapped model runs are refused", r2 == ("input_error", ["E_COMPARE_INPUT"]), str(r2))
+        bad = tmp / "scores-copy"
+        shutil.copytree(tmp / "scores", bad)
+        rr = jsonl(bad / "scores.jsonl"); rr[0]["models"][KEYS[0]]["outcome"] = "correct" if rr[0]["models"][KEYS[0]]["outcome"] != "correct" else "ask"
+        write_jsonl(bad / "scores.jsonl", rr)
+        m = json.loads((bad / "manifest.json").read_text()); m["outputs"]["scores.jsonl"] = hashlib.sha256((bad / "scores.jsonl").read_bytes()).hexdigest()
+        (bad / "manifest.json").write_text(json.dumps(m))
+        check("an edited outcome is caught by readback even when re-hashed", S.verify_compare_scores(bad) != [])
+
+
 def main() -> int:
     D = importlib.import_module("grounding.inference.iref_vla_compare.design")
     P = importlib.import_module("grounding.inference.iref_vla_compare.prepare")
     R = importlib.import_module("grounding.inference.iref_vla_compare.rules")
     RUN = importlib.import_module("grounding.inference.iref_vla_compare.run")
+    S = importlib.import_module("grounding.inference.iref_vla_compare.score")
     check_design(D)
     check_chain(D, P, R)
     check_runs(D, P, RUN)
+    check_scoring(D, P, R, RUN, S)
     print(f"\n{len(PASSES)} passed, {len(FAILS)} failed")
     return 1 if FAILS else 0
 

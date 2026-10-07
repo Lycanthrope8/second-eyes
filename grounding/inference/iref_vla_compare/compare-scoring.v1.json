@@ -1,0 +1,18 @@
+{
+ "format_version": 1,
+ "record_type": "iref_compare_scoring",
+ "policy_id": "iref.compare.zero_shot.v1",
+ "decision": "D95",
+ "annotations_sha256": "06cfdfb4c8b55fdbd8f86ae35030471d5f5a793fe9ebf144f067649e7d4ce72b",
+ "failure_salt": "second-eyes/a23d/failures/v1",
+ "failures_per_cell": 6,
+ "failure_rule": "per model and view: the first six wrong-object or ASK outcomes by SHA-256 of UTF-8(salt + LF + model + LF + request ID), ties by request ID; for reading only",
+ "interpretation": [
+  "One inspected development room (ScanNet scene0010_01 through IRef-VLA), annotated geometry, parser-conditioned and category-complete subscenes: 256 parents are a broader development screen, not an unseen-room evaluation. The pilot's 32 parents are excluded and the reserved lab commands stay closed.",
+  "Correct means the chosen object is the published target. A mismatch does not by itself show a choice wrong under every reading of the adapted geometry; the rules' answerability (resolved, ambiguous, insufficient information) is reported apart from agreement with the target.",
+  "An ASK on a uniquely annotated command is not correct and earns no ambiguity credit; restricted shares are not calibrated confidence and no threshold is applied.",
+  "Each parent and view has one frozen, answer-blind letter assignment and list order; the always-B and always-second-position figures are this sample's actual reference rates, and the randomization does not remove code sensitivity.",
+  "The source-known view is an annotation-derived diagnostic condition, not a demonstrated deployment inventory.",
+  "No significance test, format winner, Gate B result or headset claim follows; both formats go to A2.4."
+ ]
+}
