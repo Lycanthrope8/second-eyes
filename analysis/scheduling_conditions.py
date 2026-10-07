@@ -136,6 +136,7 @@ def analyze(raw: Path, refresh: float = 72.0, limit_gib: float = 5.75) -> dict:
     goal = [c["goal_s"] * 1000 for c in sent if c["goal_s"] is not None]
     mem = [r for r in rows if t0 <= r["_t"] + mid <= t1]
     return {"raw": str(raw), "calibration": cal, "window": (t0 - first, t1 - first),
+            "schedule_events": sum(1 for e in events if e["ev"] == "command.schedule"),
             "commands": {"dispatched": len(sent), "skipped": len(cmds) - len(sent),
                          "skip_reasons": sorted({c["reason"] for c in cmds if not c["dispatched"]}),
                          "unfinished": sum(1 for c in sent if c["goal_s"] is None),
@@ -169,6 +170,8 @@ def show(rep: dict) -> None:
           f"scores; dispatch to scored answer median {f(c['goal_ms']['median'])} ms, p95 {f(c['goal_ms']['p95'])}, max "
           f"{f(c['goal_ms']['max'])} (to the answer {f(c['answer_ms_median'])} ms median); typed presets, partial "
           "runtime evidence, not end-of-speech")
+    if not c["dispatched"] and not rep["schedule_events"]:
+        print("  WARNING: no command.schedule event in this log: the command schedule was never started")
     if c["goal_ms_overlapping"]:
         print(f"  commands overlapping an inference: {len(c['goal_ms_overlapping'])}, {c['goal_ms_overlapping'][:12]} ms; "
               f"the others' median {f(c['goal_ms_alone_median'])} ms")
@@ -198,7 +201,9 @@ def show(rep: dict) -> None:
           f"{DP.verdict(m['app_pss_max_mb'] is not None and m['app_pss_max_mb'] <= m['limit_mb'] - 1024)} ({f(m['app_pss_max_mb'])} MB)")
     print(f"    headset available memory >= 1 GiB: {DP.verdict(m['available_min_mb'] is not None and m['available_min_mb'] >= 1024)} "
           f"({f(m['available_min_mb'])} MB)")
-    print(f"    every command sent and finished: {DP.verdict(c['skipped'] == 0 and c['unfinished'] == 0)}")
+    sent_ok = c["dispatched"] > 0 and c["skipped"] == 0 and c["unfinished"] == 0
+    print(f"    every command sent and finished: {DP.verdict(sent_ok)}"
+          + ("" if c["dispatched"] else " (no command was sent: the schedule never started; check its wiring)"))
     if rep["releases"]:
         print(f"    no detector result after a release, nothing in flight: "
               f"{DP.verdict(rep['results_after_release'] == 0 and not any(x['in_flight'] for x in rep['releases']))}")

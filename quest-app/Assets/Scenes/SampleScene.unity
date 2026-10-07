@@ -280,7 +280,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SecondEyes.App.DetectorButtons
   detector: {fileID: 85153547}
-  commands: {fileID: 0}
+  commands: {fileID: 441867076}
 --- !u!114 &85153547
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -324,7 +324,7 @@ MonoBehaviour:
   syncPulses: 8
   syncSpacingS: 1.37
   syncStallMs: 60
-  commands: {fileID: 0}
+  commands: {fileID: 441867076}
   sequentialCycles: 3
   commandWindowS: 150
   burstRateHz: 2

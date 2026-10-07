@@ -368,6 +368,13 @@ namespace SecondEyes.Perception
         {
             try
             {
+                if (mode == Mode.Sequential && (commands == null || !commands.IsWired))
+                {
+                    Fail("sequential", commands == null
+                        ? "no CommandSchedule in DetectorRunner's Commands field"
+                        : "the CommandSchedule has no ChatPanel or no order");
+                    yield break;
+                }
                 yield return LoadDetector();
                 if (detector == null) yield break;
                 if (runChecks && wanted) yield return Checks();
@@ -596,7 +603,8 @@ namespace SecondEyes.Perception
                     if (!wanted) yield break;
                     if (commands != null) commands.StartSchedule("sequential_cycle_" + cycle);
                     LogCycle(cycle, "commands_start");
-                    yield return Pause(commandWindowS, "cycle " + cycle + ": detector released, commands running");
+                    yield return Pause(commandWindowS, "cycle " + cycle + ": detector released, " +
+                        (commands != null && commands.Running ? "commands running" : "commands NOT running"));
                     if (commands != null) commands.StopSchedule("sequential_cycle_" + cycle);
                     LogCycle(cycle, "commands_end");
                 }

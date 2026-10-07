@@ -211,6 +211,12 @@ inference (judged at the least favourable clock offset), parity and the memory m
 
 ## A1.10d: the detector against the language model (D88, D90, D91)
 
+D92 defers these three conditions to the final evaluation. Until then, the practical check is one six-minute recorded
+run of sequential mode (CPU, whole network per frame, the panel's model loaded, camera on), pulled and read with
+`python analysis/scheduling_conditions.py <run>`: commands sent and answered with none skipped, clean releases, stale
+frames under 1% and the memory margins. Sequential mode now refuses to start unless `DetectorRunner`'s Commands field
+holds a `CommandSchedule` whose Panel is the `ChatPanel`.
+
 Three ten-minute conditions, one recorded run each, with the frozen detector configuration (D91: CPU, whole network
 per frame, 1 Hz scans), the same fixed command schedule (choices 0 to 3, one every 12 s), the camera on in every
 condition and the panel's model loaded before recording. Before each run: reboot, settle about 2 minutes, OVR Metrics'

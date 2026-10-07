@@ -382,6 +382,16 @@ def check_conditions():
         check("the report prints residency, cycles and the acceptance lines", "residency: language model loaded" in
               out.getvalue() and "cycle 2:" in out.getvalue() and "every command sent and finished: yes" in out.getvalue(),
               out.getvalue()[-500:])
+        log = raw / "20251009T085320Z_synth002.jsonl"
+        kept = [x for x in log.read_text().splitlines() if '"ev": "command.' not in x and '"ev": "model.request"' not in x
+                and '"ev": "model.generate"' not in x and '"ev": "model.scores"' not in x]
+        log.write_text("\n".join(kept) + "\n")
+        out = io.StringIO()
+        with redirect_stdout(out):
+            SC.show(SC.analyze(raw))
+        check("with no command at all (r046), the acceptance line fails and the report warns, instead of a vacuous yes",
+              "every command sent and finished: NO" in out.getvalue() and "WARNING: no command.schedule" in out.getvalue(),
+              out.getvalue()[-400:])
 
 
 def main() -> int:

@@ -22,6 +22,9 @@ namespace SecondEyes.Grounding
 
         public bool Running { get; private set; }
 
+        /// <summary>Whether a panel and an order are assigned, so a start can actually send (r046 ran without).</summary>
+        public bool IsWired => panel != null && order != null && order.Length > 0;
+
         public void Toggle(string source)
         {
             if (Running) StopSchedule(source); else StartSchedule(source);
@@ -29,7 +32,12 @@ namespace SecondEyes.Grounding
 
         public void StartSchedule(string source)
         {
-            if (Running || panel == null || order == null || order.Length == 0) return;
+            if (Running) return;
+            if (!IsWired)
+            {
+                EventLog.Error("commands", "the command schedule has no ChatPanel or no order assigned; nothing will be sent");
+                return;
+            }
             Running = true;
             seq = 0;
             next = Time.realtimeSinceStartupAsDouble;
