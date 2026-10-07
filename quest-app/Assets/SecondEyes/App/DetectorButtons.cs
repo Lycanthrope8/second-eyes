@@ -1,3 +1,4 @@
+using SecondEyes.Grounding;
 using SecondEyes.Perception;
 using UnityEngine;
 
@@ -12,9 +13,13 @@ namespace SecondEyes.App
     public class DetectorButtons : MonoBehaviour
     {
         [SerializeField] private DetectorRunner detector;
+        [Tooltip("A1.10d: the right controller's grip starts and stops the fixed command schedule.")]
+        [SerializeField] private CommandSchedule commands;
 
         private void Update()
         {
+            if (commands != null && OVRInput.GetDown(OVRInput.Button.PrimaryHandTrigger, OVRInput.Controller.RTouch))
+                commands.Toggle("right_grip");
             if (detector == null) return;
             const OVRInput.Controller left = OVRInput.Controller.LTouch;
             if (OVRInput.GetDown(OVRInput.Button.Two, left)) detector.Toggle("button_y");

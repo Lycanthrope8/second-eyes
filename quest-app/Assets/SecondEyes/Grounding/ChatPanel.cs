@@ -263,6 +263,28 @@ namespace SecondEyes.Grounding
             Debug.Log("[ChatPanel] Preset " + choices[chosen].id + ": " + Command(choices[chosen]));
         }
 
+        /// <summary>Whether the model is loaded, and whether a send is running (A1.10d, D88).</summary>
+        public bool IsLoaded => loaded;
+        public bool IsBusy => running != null;
+
+        /// <summary>The number of prompt choices (the fixed prompt, then the presets) and choice k's prompt ID.</summary>
+        public int ChoiceCount => choices.Count;
+        public string ChoiceId(int k) => k >= 0 && k < choices.Count ? choices[k].id : null;
+
+        /// <summary>
+        /// Sends choice k exactly as pressing its button and Send would (A1.10d's fixed command schedule, D88, O21).
+        /// Returns null when sent, otherwise why not: "not_loaded", "busy" or "no_such_choice". Never queues.
+        /// </summary>
+        public string TryDispatch(int k)
+        {
+            if (!loaded) return "not_loaded";
+            if (running != null) return "busy";
+            if (k < 0 || k >= choices.Count) return "no_such_choice";
+            Choose(k);
+            Send();
+            return null;
+        }
+
         /// <summary>Shows choice k's user text; Send then sends it under that prompt's ID.</summary>
         private void Choose(int k)
         {

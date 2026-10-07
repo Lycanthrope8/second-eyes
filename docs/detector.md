@@ -61,9 +61,13 @@ judge real camera content by the same rule.
    `PassthroughCamera` object; Canvas Images the five `*_416.png` assets in `Perception/DetectorTests`; Full Images
    `dog_full.png` and `fruits_full.png`; Run Checks on; Use Gpu on; Max Rate Hz 0; Max Logged Detections 20; Flip
    Camera off.
-4. `DetectorButtons`: Detector, the `Detector` object. Add `FrameTimes` (App, D88) and `GpuFrameTimes` (App, D89)
+4. A1.10d: add `CommandSchedule` (Grounding) to the `ChatPanel` object, with Panel the `ChatPanel`, Order 0, 1, 2,
+   3 (the fixed prompt, then the presets) and Period 12 s; set `DetectorRunner`'s Commands and `DetectorButtons`'
+   Commands to it. The right controller's grip starts and stops the schedule; sequential mode starts and stops it
+   itself.
+5. `DetectorButtons`: Detector, the `Detector` object. Add `FrameTimes` (App, D88) and `GpuFrameTimes` (App, D89)
    to the same object, enable Player Settings > Other Settings > Frame Timing Stats, and save the scene.
-5. Optional, before building: in Play mode in the Editor, right-click `DetectorRunner` and choose "Detector on". This
+6. Optional, before building: in Play mode in the Editor, right-click `DetectorRunner` and choose "Detector on". This
    only works if Play mode is running frames: with OpenXR set to start in the Editor and no Quest Link, it may not be
    (the log then has no `camera.second` events). Start Quest Link, or untick Initialize XR on Startup on the PC tab of
    XR Plug-in Management, first. The self-checks run on the PC's GPU; check the session log (under the Editor's
@@ -81,6 +85,8 @@ Modes:
 - **scan** (default): stop-and-shoot keyframes, 3 hover blocks of 12 keyframes at 1 Hz, 8 s repositioning between
   blocks and 15 s between scans, repeated until off. A keyframe that comes due while an inference is in flight is
   rejected and logged (`detector.reject`), never queued.
+- **sequential** (A1.10d, D90): three cycles of load, one scan, release, then the fixed command schedule for 150 s;
+  each stage is logged (`detector.cycle`), and the next cycle reloads the detector.
 - **diagnostic**: one scan at 0.5 Hz, so even slow settings never overlap (D89); a diagnostic workload, not
   acceptance at 1 Hz.
 - **profile**: five passes in which the preprocessing and then each scheduling step run alone, each followed by four

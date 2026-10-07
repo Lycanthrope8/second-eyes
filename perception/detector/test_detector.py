@@ -295,6 +295,95 @@ def check_scheduling():
           abs(first - 3.0) < 1e-9 and abs(pm["mid"]["stale"] - 3.0) < 1e-9, str(round(first, 3)))
 
 
+def check_conditions():
+    """analysis/scheduling_conditions.py on a synthetic sequential run: two cycles of scan, release and commands."""
+    print("-- A1.10d conditions on a synthetic sequential run")
+    import csv
+    import scheduling_conditions as SC
+    T0 = 1_760_000_000
+    with tempfile.TemporaryDirectory() as tmp:
+        raw = Path(tmp)
+        (raw / "sampler.jsonl").write_text(json.dumps({"device_start_s": T0, "device_tz": "+0000"}) + "\n"
+                                           + "".join(json.dumps({"elapsed_s": k}) + "\n" for k in range(0, 241, 30)))
+        lines = []
+
+        def ev(t, name, data):
+            lines.append({"seq": 0, "mono_us": int((t - T0) * 1e6), "utc_us": int(t * 1e6), "ev": name, "data": data})
+        ev(T0 + 0.5, "session.start", {"format": 1, "session_id": "synth002", "app_version": "test", "os_build": None})
+        ev(T0 + 5, "model.load", {"file": None, "copied": False, "ms": 900.0, "backend": "cpu", "execution_mode": "llama"})
+        req, loaded = 0, []
+        for cycle, base in ((1, T0 + 20), (2, T0 + 120)):
+            if cycle > 1:
+                ev(base - 0.5, "detector.cycle", {"cycle": cycle, "stage": "load"})
+            ev(base, "detector.load", {"package_id": "p", "model_sha256": "5" * 64, "backend": "cpu", "input_size": 416,
+                                       "load_ms": 40.0, "warmup_ms": 90.0, "warmup_completed": True, "color_space": "linear"})
+            loaded.append((base, base + 21))
+            ev(base + 2, "detector.cycle", {"cycle": cycle, "stage": "scan_start"})
+            for k in range(12):
+                s = base + 3 + k
+                ev(s + 0.09, "detector.result", {"path": "camera", "image_id": None, "backend": "cpu", "completed": True,
+                    "error": None, "width": 1280, "height": 960, "ratio": 0.325, "schedule_ms": 13.0, "latency_ms": 90.0,
+                    "postprocess_ms": 0.02, "frames_waited": 6, "candidates": 3, "detections_total": 1,
+                    "detections": [[56, 0.6, 1, 2, 3, 4]], "snapshot": None, "started_utc_us": int(s * 1e6)})
+            ev(base + 20, "detector.cycle", {"cycle": cycle, "stage": "scan_end"})
+            ev(base + 21, "detector.unload", {"backend": "cpu", "release_ms": 1.2, "in_flight": False})
+            ev(base + 21.1, "detector.cycle", {"cycle": cycle, "stage": "released"})
+            ev(base + 21.2, "command.schedule", {"state": "start", "source": f"sequential_cycle_{cycle}", "period_s": 12.0, "order": [1, 2]})
+            ev(base + 21.3, "detector.cycle", {"cycle": cycle, "stage": "commands_start"})
+            for j in range(3):
+                t = base + 22 + 12 * j
+                req += 1
+                pid = "p1" if j % 2 == 0 else "p2"
+                ev(t, "command.dispatch", {"seq": j + 1, "choice": 1 + j % 2, "prompt_id": pid, "dispatched": True,
+                                           "reason": None, "late_ms": 3.0})
+                ev(t + 0.01, "model.request", {"request": req, "prompt_id": pid, "prompt_tokens": 300, "prompt_token_ids": []})
+                ev(t + 0.81, "model.generate", {"request": req, "prompt_id": pid, "answer": "x", "answer_tokens": 15,
+                                                 "first_token_ms": 300.0, "total_ms": 800.0, "stopped": False})
+                ev(t + 1.1 + 0.05 * j, "model.scores", {"request": req, "prompt_id": pid, "candidates": {"box_1": -1.2, "box_2": -0.3}, "best": "box_2", "ms": 300.0})
+            ev(base + 70, "command.schedule", {"state": "stop", "source": f"sequential_cycle_{cycle}", "period_s": 12.0, "order": [1, 2]})
+            ev(base + 70.1, "detector.cycle", {"cycle": cycle, "stage": "commands_end"})
+        ev(T0 + 239, "session.end", {})
+        lines.sort(key=lambda e: e["utc_us"])
+        for k, e in enumerate(lines):
+            e["seq"] = k
+        (raw / "20251009T085320Z_synth002.jsonl").write_text("".join(json.dumps(e) + "\n" for e in lines))
+        rows = []
+        for k in range(1, 240):
+            t = T0 + k
+            pss = 2000 + (80 if any(a <= t <= b for a, b in loaded) else 0)
+            stale = 1 if any(T0 + 20 + 3 + i <= t < T0 + 20 + 4 + i for i in (2, 7)) else 0
+            rows.append({"Time Stamp": k * 1000, "stale_frame_count": stale, "average_frame_rate": 72, "app_pss_MB": pss,
+                         "available_memory_MB": 2200})
+        with open(raw / "com.secondeyes.quest#UnityPlayerGameActivity-20251009_085320.csv", "w", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=list(rows[0]))
+            w.writeheader()
+            w.writerows(rows)
+        import eventlog
+        info = eventlog.check_file(raw / "20251009T085320Z_synth002.jsonl")
+        problems = info.get("problems") or info.get("errors") or []
+        check("the synthetic A1.10d log validates against the schema (commands, cycles, model events)", not problems,
+              str(problems)[:300])
+        rep = SC.analyze(raw)
+        c = rep["commands"]
+        check("6 commands sent and matched to their scores; median dispatch-to-scored-answer 1,150 ms",
+              c["dispatched"] == 6 and c["unfinished"] == 0 and abs(c["goal_ms"]["median"] - 1150.0) < 1.0, str(c))
+        check("no command overlaps an inference (they run after each release)", c["goal_ms_overlapping"] == [])
+        cy = rep["cycles"]
+        check("two cycles; memory 2,000 MB before each load, 2,080 at the scan's end, 2,000 after release",
+              len(cy) == 2 and all(x["mem_before_load_mb"] == 2000 and x["mem_scan_end_mb"] == 2080
+                                   and x["mem_after_release_mb"] == 2000 for x in cy), str(cy))
+        check("the first command after each release is measured (1.1 s)", all(abs(x["first_command_goal_s"] - 1.1) < 1e-6 for x in cy))
+        check("two releases, nothing in flight, no detector result after a release",
+              len(rep["releases"]) == 2 and rep["results_after_release"] == 0 and not any(x["in_flight"] for x in rep["releases"]))
+        check("2 stale frames over the scans' buckets are counted", rep["stale_scans"]["stale"] == 2, str(rep["stale_scans"]))
+        out = io.StringIO()
+        with redirect_stdout(out):
+            SC.show(rep)
+        check("the report prints residency, cycles and the acceptance lines", "residency: language model loaded" in
+              out.getvalue() and "cycle 2:" in out.getvalue() and "every command sent and finished: yes" in out.getvalue(),
+              out.getvalue()[-500:])
+
+
 def main() -> int:
     print("-- the detector package")
     man = P.load_manifest()
@@ -387,6 +476,7 @@ def main() -> int:
         check("analysis/detector_runs.py prints a summary for a log file", code == 0 and "camera/gpu_compute" in out.getvalue())
     check_phases()
     check_scheduling()
+    check_conditions()
     print(f"{COUNT[0]} checks; {'FAILED: ' + ', '.join(FAILED) if FAILED else 'all checks passed'}")
     return 1 if FAILED else 0
 

@@ -74,6 +74,9 @@ Defined in v1:
 | `detector.layers` | `count`, `types_sha256`, `types` | at each load: the runtime layers in scheduling order, a schedule's identity (D89) |
 | `detector.schedule` | `schedule_id`, `frames`, `budget_ms`, `accepted`, `problem` | at a load that uses a frozen schedule: whether it matches the model, backend and layers (D89) |
 | `detector.profile` | `pass`, `spacing`, `completed`, `error`, `pre_frame`, `readback_frame`, `done_frame`, `step_frames` | after each profiling pass: the frame of the preprocessing, of every single step and of the readbacks (D89) |
+| `detector.cycle` | `cycle`, `stage` (`load`, `scan_start`, `scan_end`, `released`, `commands_start`, `commands_end`) | sequential mode: each cycle's load, scan, release and command window (A1.10d, D88) |
+| `command.schedule` | `state` (`start` or `stop`), `source`, `period_s`, `order` | the fixed command schedule starts or stops: right grip, or sequential mode after a release (A1.10d) |
+| `command.dispatch` | `seq`, `choice`, `prompt_id`, `dispatched`, `reason`, `late_ms` | each scheduled command: sent through the panel as its preset would be, or skipped with the reason (never queued) |
 
 Planned, and defined by the phase that first emits them (proposal S0 item 3): speech start and end, recognized text, model input and output, candidate probabilities, the validated goal, commands sent, and drone telemetry. Sync events are defined when time sync is built (deferred, D10).
 

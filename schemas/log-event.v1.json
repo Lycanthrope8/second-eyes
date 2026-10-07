@@ -764,6 +764,7 @@
         "mode": {
           "enum": [
             "scan",
+            "sequential",
             "diagnostic",
             "profile",
             "burst",
@@ -1139,6 +1140,7 @@
         "mode": {
           "enum": [
             "scan",
+            "sequential",
             "diagnostic",
             "profile",
             "burst",
@@ -1522,6 +1524,113 @@
               "null"
             ]
           }
+        }
+      }
+    },
+    "command.schedule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "source",
+        "period_s",
+        "order"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "start",
+            "stop"
+          ]
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "period_s": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "order": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "description": "Prompt choices in sending order (0 is the fixed prompt, then the presets)."
+        }
+      }
+    },
+    "command.dispatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "seq",
+        "choice",
+        "prompt_id",
+        "dispatched",
+        "reason",
+        "late_ms"
+      ],
+      "properties": {
+        "seq": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "choice": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "prompt_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dispatched": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Why it was not sent: not_loaded, busy or no_such_choice; never queued."
+        },
+        "late_ms": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "How long after its scheduled time it was handled."
+        }
+      }
+    },
+    "detector.cycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cycle",
+        "stage"
+      ],
+      "properties": {
+        "cycle": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "stage": {
+          "enum": [
+            "load",
+            "scan_start",
+            "scan_end",
+            "released",
+            "commands_start",
+            "commands_end"
+          ]
         }
       }
     }

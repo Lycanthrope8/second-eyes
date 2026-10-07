@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Stopwatch = System.Diagnostics.Stopwatch;
 using System.IO;
 using System.Text;
+using SecondEyes.Grounding;
 using SecondEyes.Logging;
 using Unity.InferenceEngine;
 using UnityEngine;
@@ -23,7 +24,7 @@ namespace SecondEyes.Perception
     /// </summary>
     public class DetectorRunner : MonoBehaviour
     {
-        public enum Mode { Scan, Diagnostic, Profile, Burst, Continuous }
+        public enum Mode { Scan, Sequential, Diagnostic, Profile, Burst, Continuous }
 
         [Header("Detector package (D84)")]
         [SerializeField] private ModelAsset model;
@@ -66,6 +67,10 @@ namespace SecondEyes.Perception
         [SerializeField] private int syncPulses = 8;
         [SerializeField] private float syncSpacingS = 1.37f;
         [SerializeField] private float syncStallMs = 60f;
+        [Tooltip("Sequential mode (A1.10d, D88): cycles of load, one scan, release, then the command schedule for a window.")]
+        [SerializeField] private CommandSchedule commands;
+        [SerializeField] private int sequentialCycles = 3;
+        [SerializeField] private float commandWindowS = 150f;
         [SerializeField] private float burstRateHz = 2f;
         [SerializeField] private float burstSeconds = 30f;
         [Tooltip("Lowest score kept after suppression, for parity's threshold-crossing checks; detections are those at or above the package's threshold.")]
@@ -162,8 +167,8 @@ namespace SecondEyes.Perception
         }
 
         private string OffLine() => "off | " + (useGpu ? "GPU" : "CPU") + " | " + ModeName(mode) + " | " + ChoiceName;
-        private static string ModeName(Mode m) => m == Mode.Scan ? "scan" : m == Mode.Diagnostic ? "diagnostic"
-            : m == Mode.Profile ? "profile" : m == Mode.Burst ? "burst" : "continuous";
+        private static string ModeName(Mode m) => m == Mode.Scan ? "scan" : m == Mode.Sequential ? "sequential"
+            : m == Mode.Diagnostic ? "diagnostic" : m == Mode.Profile ? "profile" : m == Mode.Burst ? "burst" : "continuous";
         private static string StepsName(int s) => s <= 0 ? "whole network per frame" : s + " steps/frame";
 
         public void Toggle(string source) => SetOn(!wanted, source);
@@ -363,59 +368,8 @@ namespace SecondEyes.Perception
         {
             try
             {
-                Stage("load", "loading");
-                var clock = Stopwatch.StartNew();
-                var package = DetectorPackage.Parse(packageManifest, out string problem);
-                if (package == null)
-                {
-                    Fail(stage, problem);
-                    yield break;
-                }
-                string failure = null;
-                try
-                {
-                    detector = new YoloxDetector(package, model, letterboxShader, useGpu ? BackendType.GPUCompute : BackendType.CPU);
-                }
-                catch (Exception e)
-                {
-                    failure = e.GetType().Name + ": " + e.Message;
-                }
-                if (failure != null)
-                {
-                    Fail(stage, failure);
-                    yield break;
-                }
-                detector.StepsPerFrame = Steps;
-                detector.Floor = Mathf.Min(floor, package.postprocess.score_threshold);
-                double loadMs = clock.Elapsed.TotalMilliseconds;
-                string typesHash = LogLayers();
-                activeSchedule = ChosenSchedule;
-                if (activeSchedule != null)
-                {
-                    string why = ScheduleProblem(activeSchedule, package, typesHash);
-                    LogSchedule(activeSchedule, why);
-                    if (why != null)
-                    {
-                        Fail("schedule", why);
-                        yield break;
-                    }
-                    detector.Slices = activeSchedule.slices;
-                }
-                var gray = new Color32[detector.InputSize * detector.InputSize];
-                byte pad = (byte)package.input.pad_value;
-                for (int k = 0; k < gray.Length; k++) gray[k] = new Color32(pad, pad, pad, 255);
-                Stage("warm-up", "warming up (" + detector.Backend + ", " + ChoiceName + ")");
-                var warm = Stopwatch.StartNew();
-                yield return detector.DetectCanvas(gray, false, checkResult);
-                LogLoad(package, loadMs, warm.Elapsed.TotalMilliseconds);
-                if (!checkResult.Completed)
-                {
-                    Fail(stage, checkResult.Error ?? "the first inference did not complete");
-                    yield break;
-                }
-                Stage("warm-up", "warmed up in " + Mathf.RoundToInt((float)warm.Elapsed.TotalMilliseconds) + " ms, " +
-                                 detector.LayerCount + " layers, " + checkResult.ScheduleSteps + " steps");
-                yield return null;
+                yield return LoadDetector();
+                if (detector == null) yield break;
                 if (runChecks && wanted) yield return Checks();
                 if (clockSync && wanted) yield return SyncPulses();
                 if (wanted) yield return Operate();
@@ -427,8 +381,69 @@ namespace SecondEyes.Perception
                 Release();
                 loopRunning = false;
                 mainHandle = null;
+                if (commands != null && mode == Mode.Sequential) commands.StopSchedule("detector_off");
                 if (StatusLine == null || !(StatusLine.StartsWith("failed") || StatusLine.StartsWith("stuck"))) StatusLine = OffLine();
             }
+        }
+
+        /// <summary>Loads the package, checks a chosen schedule and warms up; on failure the detector stays null.</summary>
+        private IEnumerator LoadDetector()
+        {
+            Stage("load", "loading");
+            var clock = Stopwatch.StartNew();
+            var package = DetectorPackage.Parse(packageManifest, out string problem);
+            if (package == null)
+            {
+                Fail(stage, problem);
+                yield break;
+            }
+            string failure = null;
+            try
+            {
+                detector = new YoloxDetector(package, model, letterboxShader, useGpu ? BackendType.GPUCompute : BackendType.CPU);
+            }
+            catch (Exception e)
+            {
+                failure = e.GetType().Name + ": " + e.Message;
+            }
+            if (failure != null)
+            {
+                Fail(stage, failure);
+                yield break;
+            }
+            detector.StepsPerFrame = Steps;
+            detector.Floor = Mathf.Min(floor, package.postprocess.score_threshold);
+            double loadMs = clock.Elapsed.TotalMilliseconds;
+            string typesHash = LogLayers();
+            activeSchedule = ChosenSchedule;
+            if (activeSchedule != null)
+            {
+                string why = ScheduleProblem(activeSchedule, package, typesHash);
+                LogSchedule(activeSchedule, why);
+                if (why != null)
+                {
+                    Fail("schedule", why);
+                    Release();
+                    yield break;
+                }
+                detector.Slices = activeSchedule.slices;
+            }
+            var gray = new Color32[detector.InputSize * detector.InputSize];
+            byte pad = (byte)package.input.pad_value;
+            for (int k = 0; k < gray.Length; k++) gray[k] = new Color32(pad, pad, pad, 255);
+            Stage("warm-up", "warming up (" + detector.Backend + ", " + ChoiceName + ")");
+            var warm = Stopwatch.StartNew();
+            yield return detector.DetectCanvas(gray, false, checkResult);
+            LogLoad(package, loadMs, warm.Elapsed.TotalMilliseconds);
+            if (!checkResult.Completed)
+            {
+                Fail(stage, checkResult.Error ?? "the first inference did not complete");
+                Release();
+                yield break;
+            }
+            Stage("warm-up", "warmed up in " + Mathf.RoundToInt((float)warm.Elapsed.TotalMilliseconds) + " ms, " +
+                             detector.LayerCount + " layers, " + checkResult.ScheduleSteps + " steps");
+            yield return null;
         }
 
         private IEnumerator Checks()
@@ -560,21 +575,65 @@ namespace SecondEyes.Perception
                     yield return null;
                 }
             }
+            else if (mode == Mode.Sequential)
+            {
+                for (int cycle = 1; cycle <= sequentialCycles && wanted; cycle++)
+                {
+                    if (cycle > 1)
+                    {
+                        LogCycle(cycle, "load");
+                        yield return LoadDetector();
+                        if (detector == null) yield break;
+                        Stage("camera", "on: sequential cycle " + cycle + ", " + ChoiceName);
+                    }
+                    LogCycle(cycle, "scan_start");
+                    yield return ScanOnce(cycle);
+                    var wait = Stopwatch.StartNew();
+                    while (inFlight && wait.Elapsed.TotalSeconds < releaseWaitS) yield return null;
+                    LogCycle(cycle, "scan_end");
+                    Release();
+                    LogCycle(cycle, "released");
+                    if (!wanted) yield break;
+                    if (commands != null) commands.StartSchedule("sequential_cycle_" + cycle);
+                    LogCycle(cycle, "commands_start");
+                    yield return Pause(commandWindowS, "cycle " + cycle + ": detector released, commands running");
+                    if (commands != null) commands.StopSchedule("sequential_cycle_" + cycle);
+                    LogCycle(cycle, "commands_end");
+                }
+                while (wanted)
+                {
+                    StatusLine = "sequential cycles done; Y to stop";
+                    yield return null;
+                }
+            }
             else
             {
                 for (int scan = 1; wanted; scan++)
                 {
-                    scanRequested = scanCompleted = scanRejected = 0;
-                    LogScan(scan, null, "start", 0, 0, 0);
-                    for (int hover = 1; hover <= hoversPerScan && wanted; hover++)
-                    {
-                        yield return Ticks(keyframeRateHz, keyframesPerHover, scan, hover);
-                        if (hover < hoversPerScan) yield return Pause(repositionS, "scan " + scan + ": repositioning");
-                    }
-                    LogScan(scan, null, "end", scanRequested, scanCompleted, scanRejected);
+                    yield return ScanOnce(scan);
                     yield return Pause(scanGapS, "scan " + scan + " done; next scan soon");
                 }
             }
+        }
+
+        /// <summary>One scan: hovers x keyframes at the keyframe rate, with repositioning pauses between hovers.</summary>
+        private IEnumerator ScanOnce(int scan)
+        {
+            scanRequested = scanCompleted = scanRejected = 0;
+            LogScan(scan, null, "start", 0, 0, 0);
+            for (int hover = 1; hover <= hoversPerScan && wanted; hover++)
+            {
+                yield return Ticks(keyframeRateHz, keyframesPerHover, scan, hover);
+                if (hover < hoversPerScan) yield return Pause(repositionS, "scan " + scan + ": repositioning");
+            }
+            LogScan(scan, null, "end", scanRequested, scanCompleted, scanRejected);
+        }
+
+        private void LogCycle(int cycle, string stage)
+        {
+            var sb = new StringBuilder("{\"cycle\":").Append(cycle).Append(",\"stage\":");
+            Json.AppendString(sb, stage);
+            EventLog.Write("detector.cycle", sb.Append('}').ToString());
         }
 
         /// <summary>

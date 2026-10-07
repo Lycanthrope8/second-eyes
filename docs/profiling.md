@@ -209,6 +209,26 @@ leave it about 10.5 minutes (the overlay counts the scans); press Y, wait for `o
 p95 capture-to-result of 500 ms or less and under 1% stale frames over the scans and over the buckets overlapping
 inference (judged at the least favourable clock offset), parity and the memory margins; then A1.10d.
 
+## A1.10d: the detector against the language model (D88, D90, D91)
+
+Three ten-minute conditions, one recorded run each, with the frozen detector configuration (D91: CPU, whole network
+per frame, 1 Hz scans), the same fixed command schedule (choices 0 to 3, one every 12 s), the camera on in every
+condition and the panel's model loaded before recording. Before each run: reboot, settle about 2 minutes, OVR Metrics'
+CSV on; between runs let the headset cool to a similar starting SoC temperature (the first sample shows it). Start the
+app, press X, wait for `Model loaded` on the panel, and with the detector off set `CPU`, `whole network per frame` and
+the mode below. Start `python tools/profile.py record <run> --minutes 11`, then:
+
+1. The language model alone: the right grip starts the commands; after 10 minutes the grip stops them. Detector off.
+2. The model with detection, deliberately overlapping: mode `scan`; press Y, and once the scans have started (the
+   overlay counts them), the right grip starts the commands; after 10 minutes stop both (grip, then Y).
+3. Sequential: mode `sequential`; press Y. It loads, runs the self-checks and clock stalls, then three cycles of one
+   scan, release and 150 s of commands; at `sequential cycles done`, press Y.
+
+After each: quit the app, `python tools/logs.py pull <run>`, `python analysis/scheduling_conditions.py <run>`,
+`python grounding/check_headset.py <run> --reference 20260929_A1_r016 20260930_A1_r026` (answers against the PC),
+`python analysis/profile.py summary <run>`, and for conditions 2 and 3 `python analysis/detector_phases.py <run>`.
+Record each run's notes: condition, settings, plugged in, starting SoC temperature. The 30-minute soak stays in A1.11.
+
 ## Comparing two runs
 
 ```
