@@ -1,0 +1,41 @@
+{
+ "format_version": 1,
+ "record_type": "iref_compare_policy",
+ "policy_id": "iref.compare.zero_shot.v1",
+ "decision": "D95",
+ "brief": "ChatGPT's instructions for the remaining A2.3 work, 7 October 2026, sections 3 to 6",
+ "population": {
+  "rule": "A2.3a's eligibility: both inventory views materialized and all four view/format documents rendered in the accepted A2.2d bundle",
+  "expected_eligible": 1004,
+  "excluded": {"what": "the 32 parents of the A2.3a pilot (also A2.3c's), recomputed with A2.3a's own salt and count", "salt": "second-eyes/a23a/pilot/v1\n", "count": 32, "selected_sha256": "8c826ba35fb8f96425e88f83aa6d0b1d4a0a0815f4a0cdcc3e8303f59e4f8b0a"},
+  "expected_remaining": 972
+ },
+ "selection": {
+  "salt": "second-eyes/a23d/compare/v1",
+  "count": 256,
+  "rule": "sort the remaining parent IDs by SHA-256 of UTF-8(salt + LF + parent ID), ascending, ties by parent ID; take the first 256",
+  "list_hash_rule": "SHA-256 of the selected IDs in selection order, each followed by one LF"
+ },
+ "codes": {
+  "salt": "second-eyes/a23d/codes/v1",
+  "rule": "per parent and inventory view: sort the retained object IDs by SHA-256 of UTF-8(salt + LF + parent ID + LF + view + LF + object ID), ties by object ID; the k-th object gets the k-th letter of A..J"
+ },
+ "list_order": {
+  "salt": "second-eyes/a23d/list/v1",
+  "rule": "per parent and inventory view: the choices list shows the retained objects sorted by SHA-256 of UTF-8(salt + LF + parent ID + LF + view + LF + object ID), ties by object ID; [K, ASK] last"
+ },
+ "permutation_inputs": "parent ID, inventory view and object IDs only: never the model, the format or any annotation",
+ "request_order": "selection rank, then view (full_inventory, source_known_nyu), then format (coordinates_v2, coordinates_relations_v2)",
+ "models": {
+  "qwen2.5-0.5b-instruct": {"hf_repo": "Qwen/Qwen2.5-0.5B-Instruct", "hf_revision": "7ae557604adf67be50417f59c2c2f167def9a775",
+   "loader": "A2.3a's pinned loader (vocab.json, merges.txt, tokenizer_config.json)",
+   "tokenizer_files": {"vocab.json": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910", "merges.txt": "599bab54075088774b1733fde865d5bd747cbcc7a547c5bc12610e874e26f5e3", "tokenizer_config.json": "5b5d4f65d0acd3b2d56a35b56d374a36cbc1c8fa5cf3b3febbbfabf22f359583"}},
+  "qwen2.5-7b-instruct": {"hf_repo": "Qwen/Qwen2.5-7B-Instruct", "hf_revision": "a09a35458c702b33eeacc393d103063234e8bc28",
+   "loader": "its own acquired folder (acquisition.json naming the pinned revision), including tokenizer.json",
+   "tokenizer_files": {"tokenizer.json": "c0382117ea329cdf097041132f6d735924b697924d6f6fc3945713e96ce87539", "vocab.json": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910", "merges.txt": "599bab54075088774b1733fde865d5bd747cbcc7a547c5bc12610e874e26f5e3", "tokenizer_config.json": "5b5d4f65d0acd3b2d56a35b56d374a36cbc1c8fa5cf3b3febbbfabf22f359583"}}
+ },
+ "tokenizer_versions": {"transformers": "4.57.6", "tokenizers": "0.22.2"},
+ "context_limit_tokens": 8192,
+ "continuation_tokens": 1,
+ "expected": {"parents": 256, "parent_views": 512, "requests": 1024}
+}

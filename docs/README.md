@@ -18,6 +18,7 @@ How things work now. Edited in place when something changes; log the change and 
 - `iref-vla-zero-shot-pilot.md`: the A2.3a zero-shot direct-selection pilot: the one-token choice interface, frozen requests, checkpoint identity, the canary and what the results do not establish
 - `iref-vla-pilot-scoring.md`: the A2.3b scoring of the saved pilot against the source annotations, with the matched rules baseline: the two commands, their input checks, the metrics, the exit codes and what the figures do not establish
 - `iref-vla-ordering.md`: the A2.3c crossed code-assignment and choices-order diagnostic: the design, the three commands (prepare, run, score), the canary and repeat-control gate, the metrics, the exit codes and what the figures do not establish
+- `iref-vla-compare.md`: the A2.3d comparison of rules, a 0.5B and a 7B model: the model pins and acquisition, the selection and the frozen letter and list-order policy, and the prepare and rules commands
 - `detector.md`: the on-device object detector (A1.10b, A1.10c): the replaceable detector package, the PC reference and parity rule, the Unity setup and the headset checks
 - `setup/quest3.md`: the headset's exact state and how to undo every change
 - `setup/quest-model.md`: how a language model gets into the Quest app

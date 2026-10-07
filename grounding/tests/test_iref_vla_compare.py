@@ -1,0 +1,183 @@
+"""A2.3d (D95) checks for preparation and rules: answer-blind selection, frozen mappings, both tokenizers, integrity.
+
+Run directly (python grounding/tests/test_iref_vla_compare.py) or as a module. Fixtures are A2.3b's labelled fixture
+chain with labelled tokenizer doubles; expectations are recomputed independently with hashlib.
+"""
+from __future__ import annotations
+
+import hashlib
+import importlib
+import json
+import shutil
+import sys
+import tempfile
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parents[2]
+if str(REPO) not in sys.path:
+    sys.path.insert(0, str(REPO))
+FAILS, PASSES = [], []
+REL_CFG = REPO / "grounding" / "relations" / "relations.v1.json"
+DIR_CFG = REPO / "grounding" / "relations" / "directions.v1.json"
+KEYS = ("qwen2.5-0.5b-instruct", "qwen2.5-7b-instruct")
+
+
+def check(name, ok, detail=""):
+    (PASSES if ok else FAILS).append(name)
+    print(("  ok    " if ok else "  FAIL  ") + name + ("" if ok or not detail else f"  [{detail}]"))
+
+
+def outcome(fn):
+    EI = importlib.import_module("grounding.evaluation.iref_vla.protocol").EvaluationInputError
+    try:
+        return ("ok", fn())
+    except EI as e:
+        return ("input_error", sorted({i["code"] for i in e.issues}))
+    except Exception as e:  # noqa: BLE001
+        return ("crashed", f"{type(e).__name__}: {e}")
+
+
+def hs(s):
+    return hashlib.sha256(s.encode("utf-8")).hexdigest()
+
+
+def jsonl(p):
+    return [json.loads(x) for x in Path(p).read_text(encoding="utf-8").splitlines()]
+
+
+def write_jsonl(p, rows):
+    Path(p).write_text("".join(json.dumps(r, sort_keys=True, separators=(",", ":"), ensure_ascii=False) + "\n" for r in rows),
+                       encoding="utf-8")
+
+
+def rehash(folder, rels):
+    m = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
+    for rel in rels:
+        m["files"][rel] = hashlib.sha256((folder / rel).read_bytes()).hexdigest()
+    (folder / "manifest.json").write_text(json.dumps(m, indent=2) + "\n", encoding="utf-8")
+
+
+def check_design(D):
+    print("-- design: selection and permutations (pure)")
+    pol = D.load_policy()
+    ids = [f"p{i:02d}" for i in range(20)]
+    want = sorted(ids, key=lambda p: (hs("second-eyes/a23d/compare/v1\n" + p), p))[:5]
+    check("selection: the first k by SHA-256(salt + LF + ID), recomputed independently", D.select(ids, pol["selection"]["salt"], 5) == want)
+    objs = ["obj_003", "obj_001", "obj_010", "obj_002"]
+    codes = D.code_assignment(pol, "parent.a", "full_inventory", objs)
+    want_codes = {o: "ABCD"[k] for k, o in enumerate(sorted(objs, key=lambda o: (hs("second-eyes/a23d/codes/v1\nparent.a\nfull_inventory\n" + o), o)))}
+    check("letters: the k-th object of the codes stream gets the k-th letter (independent recomputation)", codes == want_codes)
+    order = D.list_order(pol, "parent.a", "full_inventory", objs)
+    want_order = sorted(objs, key=lambda o: (hs("second-eyes/a23d/list/v1\nparent.a\nfull_inventory\n" + o), o))
+    check("list order: a separate hash stream (independent recomputation)", order == want_order)
+    m = D.mapping_for(pol, {"ask_code": "K", "ask_target": "ASK"}, "parent.a", "full_inventory", objs)
+    check("the mapping lists objects in list order with their letters, every letter once, K last",
+          [x[1] for x in m[:-1]] == want_order and sorted(x[0] for x in m[:-1]) == list("ABCD") and m[-1] == ["K", "ASK"])
+    check("the mapping depends on the view (separate stream inputs)", m != D.mapping_for(pol, {"ask_code": "K", "ask_target": "ASK"},
+                                                                                          "parent.a", "source_known_nyu", objs))
+    check("the inputs exclude model, format and annotations (the functions take only parent, view and objects)",
+          D.mapping_for.__code__.co_varnames[:5] == ("policy", "proto", "parent", "view", "objects"))
+    try:
+        D.code_assignment(pol, "p", "v", [f"o{i}" for i in range(11)])
+        check("eleven objects are refused", False)
+    except ValueError:
+        check("eleven objects are refused", True)
+
+
+def check_chain(D, P, R):
+    print("-- preparation and rules on A2.3b's fixture chain (labelled tokenizer doubles)")
+    SB = importlib.import_module("grounding.tests.test_iref_vla_pilot_scoring")
+    A = SB.pilot_helpers()
+    PI = importlib.import_module("grounding.inference.iref_vla.prepare")
+    C = importlib.import_module("grounding.inference.iref_vla.choices")
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        bundle = SB.scoring_bundle(tmp, A)
+        ann = SB.annotation_bundle(tmp / "annotations.json", SB.TARGETS)
+        src = PI.read_bundle(bundle)
+        eligible = PI.eligible_parents(src)
+        pilot = sorted(eligible, key=lambda p: (hs("fixture-pilot\n" + p), p))[:1]
+        pol = json.loads(D.POLICY_PATH.read_text(encoding="utf-8"))
+        pol["population"] = {"rule": "fixture", "expected_eligible": len(eligible), "expected_remaining": len(eligible) - 1,
+                             "excluded": {"what": "fixture", "salt": "fixture-pilot\n", "count": 1,
+                                          "selected_sha256": hashlib.sha256((pilot[0] + "\n").encode()).hexdigest()}}
+        pol["selection"]["count"] = len(eligible) - 1
+        pol["expected"] = {"parents": len(eligible) - 1, "parent_views": 2 * (len(eligible) - 1), "requests": 4 * (len(eligible) - 1)}
+        pp = tmp / "policy.json"
+        pp.write_text(json.dumps(pol), encoding="utf-8")
+        toks = {k: A.OffsetCharTokenizer() for k in KEYS}
+        with SB.Watch([ann]) as w:
+            r = outcome(lambda: P.prepare_compare(bundle=bundle, tokenizer_small=None, tokenizer_large=None, out=tmp / "req",
+                                                  policy=pp, tokenizers=toks))
+        check(f"preparation completes on {len(eligible)} eligible fixture parents with the annotations inaccessible",
+              r[0] == "ok" and not w.denied, str(r)[:200])
+        if r[0] != "ok":
+            return
+        rows = jsonl(tmp / "req" / "request-index.jsonl")
+        sel = json.loads((tmp / "req" / "selection.json").read_text())
+        check("the pilot parent is excluded and every other eligible parent selected",
+              sel["excluded_pilot"]["parent_ids"] == pilot and set(sel["selected_parent_ids"]) == set(eligible) - set(pilot))
+        check("four requests per parent in the canonical order, readback clean",
+              len(rows) == 4 * len(sel["selected_parent_ids"]) and P.verify_compare_requests(tmp / "req") == [])
+        pairs = {}
+        for x in rows:
+            pairs.setdefault((x["parent_command_id"], x["view_id"]), []).append(x["mapping"])
+        check("both formats of each parent and view share one mapping", all(len(v) == 2 and v[0] == v[1] for v in pairs.values()))
+        check("at least one mapping departs from scene order (letters or list order)",
+              any([m[1] for m in x["mapping"][:-1]] != x["object_ids"] or [m[0] for m in x["mapping"][:-1]] != list("ABCDEFGHIJ"[:len(x["object_ids"])])
+                  for x in rows))
+        check("both models' token files hold one line per request", all(len((tmp / "req" / "tokens" / f"{k}.jsonl").read_text().splitlines()) == len(rows) for k in KEYS))
+        cases = []
+        for label, edit in (("a changed letter", lambda x: x["mapping"][0].__setitem__(0, "J")),
+                            ("a reordered choices list", lambda x: x["list_order"].reverse()),
+                            ("a whole-valued float counter", lambda x: x.__setitem__("object_count", float(x["object_count"])))):
+            d = tmp / f"t{len(cases)}"
+            shutil.copytree(tmp / "req", d)
+            rr = jsonl(d / "request-index.jsonl"); edit(rr[1]); write_jsonl(d / "request-index.jsonl", rr)
+            rehash(d, ["request-index.jsonl"])
+            cases.append((label, P.verify_compare_requests(d)))
+        d = tmp / "tt"
+        shutil.copytree(tmp / "req", d)
+        tl = jsonl(d / "tokens" / f"{KEYS[1]}.jsonl"); tl[0]["token_ids"][0] += 1; write_jsonl(d / "tokens" / f"{KEYS[1]}.jsonl", tl)
+        rehash(d, [f"tokens/{KEYS[1]}.jsonl"])
+        cases.append(("an edited token ID of one model", P.verify_compare_requests(d)))
+        for label, probs in cases:
+            check(f"the verifier rejects {label}", bool(probs))
+        bad = dict(pol); bad["population"] = dict(pol["population"], excluded=dict(pol["population"]["excluded"], selected_sha256="0" * 64))
+        bp = tmp / "bad-policy.json"; bp.write_text(json.dumps(bad), encoding="utf-8")
+        r2 = outcome(lambda: P.prepare_compare(bundle=bundle, tokenizer_small=None, tokenizer_large=None, out=tmp / "x",
+                                               policy=bp, tokenizers=toks))
+        check("a pilot list that does not match its pinned hash stops preparation", r2 == ("input_error", ["E_COMPARE_POPULATION"]), str(r2))
+        r3 = outcome(lambda: P.prepare_compare(bundle=bundle, tokenizer_small=None, tokenizer_large=None, out=tmp / "req",
+                                               policy=pp, tokenizers=toks))
+        check("an existing destination is refused", r3 == ("input_error", ["E_EVAL_OUTPUT_EXISTS"]), str(r3))
+        with SB.Watch([ann]) as w:
+            r4 = outcome(lambda: R.run_compare_rules(requests=tmp / "req", bundle=bundle, relation_config=REL_CFG,
+                                                     direction_config=DIR_CFG, out=tmp / "rules", sample=False))
+        check("rules complete on the same subscenes with the annotations inaccessible", r4[0] == "ok" and not w.denied, str(r4)[:200])
+        if r4[0] == "ok":
+            rules = jsonl(tmp / "rules" / "rules.jsonl")
+            by = {(x["parent_command_id"], x["view_id"]): x for x in rules}
+            check("one rules record per parent and view, naming both formats' requests, readback clean",
+                  len(rules) == len(pairs) and R.verify_compare_rules(tmp / "rules", tmp / "req") == [])
+            check("each rules record saw exactly the objects the models are offered",
+                  all(by[(x["parent_command_id"], x["view_id"])]["object_ids"] == x["object_ids"]
+                      and sorted(m[1] for m in x["mapping"][:-1]) == sorted(x["object_ids"]) for x in rows))
+    counts = P.request_counts([{"parent_command_id": "a", "view_id": "v", "object_count": 3,
+                                "models": {KEYS[0]: {"context_status": "within_context_limit"},
+                                           KEYS[1]: {"context_status": "context_budget_exceeded"}}}])
+    check("context exclusions are counted per model", counts["context_budget_exceeded"] == {KEYS[0]: 0, KEYS[1]: 1})
+
+
+def main() -> int:
+    D = importlib.import_module("grounding.inference.iref_vla_compare.design")
+    P = importlib.import_module("grounding.inference.iref_vla_compare.prepare")
+    R = importlib.import_module("grounding.inference.iref_vla_compare.rules")
+    check_design(D)
+    check_chain(D, P, R)
+    print(f"\n{len(PASSES)} passed, {len(FAILS)} failed")
+    return 1 if FAILS else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
