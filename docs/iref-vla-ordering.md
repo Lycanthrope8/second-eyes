@@ -124,8 +124,8 @@ fixed scene document. No significance test, generalization interval, format winn
 Paper 1 claim follows. Restricted shares are not calibrated probabilities. The grid is a diagnostic: voting over it is
 not a deployable system, and no prompt, threshold or aggregation is tuned after seeing the answers.
 
-## Windows line endings
+## The model description's bytes
 
-The base requests pinned the model description's bytes as checked out on Windows (CRLF). Pass the laptop's
-working-tree file to `prepare`, and give the RTX PC that same file for `run`; a copy with LF line endings has a
-different hash and is refused (`E_ORDER_MODEL`).
+The base requests pinned the model description's exact bytes (`57ad40a0…` on the project lead's laptop). Pass
+that file to `prepare`, and give the RTX PC the same file for `run` (the transfer package carries it); any
+other copy, including one with different line endings, has a different hash and is refused (`E_ORDER_MODEL`).

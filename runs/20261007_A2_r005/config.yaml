@@ -1,0 +1,29 @@
+# Run config, format v1 (defined in schemas/run-config.v1.json).
+# Made by:   python tools/runs.py new <phase> --purpose "..." --operator "..."
+# Check it:  python tools/runs.py check <run ID>
+# Fill the optional fields that apply to this run and leave the rest null.
+
+# Identity (filled by the tool)
+config_version: 1
+run_id: "20261007_A2_r005"
+phase: "A2"
+created: "2026-10-07T02:38:49-04:00"  # local time with UTC offset
+
+# Required (given to the tool)
+purpose: "A2.3c crossed code-assignment and choices-order diagnostic (D94)"  # one line: why this run exists
+operator: "JH"  # who ran it
+
+# Code (filled by the tool)
+git_commit: "5326f8eb7aaff7ea44c5aacf08ecd0f2502af617"
+git_dirty: false  # true if the repository had uncommitted changes (files in .gitignore don't count)
+
+# Optional: leave null when a field doesn't apply
+model_checkpoint: null  # model file name (--checkpoint fills it)
+model_sha256: null  # SHA-256 of that file (--checkpoint fills it)
+prompt_version: null  # version of the prompt template
+schema_version: null  # version of the model's output/scene schema (proposal section 6.2)
+layout_id: null  # which prop layout
+headset_os_build: null  # ro.build.fingerprint (--headset fills it)
+drone_firmware: null
+lighting: null  # lighting conditions
+notes: "cuda float32 on RTX PRO 6000 Blackwell (driver 596.71); torch 2.11.0+cu128, transformers 4.57.6, tokenizers 0.22.2; requests-20261007-020734 (manifest f0c883d3, transfer 8e72fe81); model description: the transferred byte-exact copy (57ad40a0); canaries 3/3 and repeat controls 128/128, largest difference 0.0; 4,536 of 4,536 cells; outputs in raw/order; scored on the laptop into scores-transfer-20261007-020734"  # anything else
