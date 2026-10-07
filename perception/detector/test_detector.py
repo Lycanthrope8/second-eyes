@@ -272,6 +272,27 @@ def check_scheduling():
     lo, hi = cal["offset_range_s"]
     check("eight pulses at spread phases pin the offset within 0.05 s, with a range of at most 0.15 s",
           cal["method"] == "clock.sync pulses" and lo - 0.051 <= SHIFT <= hi + 0.051 and hi - lo <= 0.151, str(cal))
+    print("-- stale frames during profiling passes, placed by step")
+    passes, rows2 = [], []
+    t_done = T0 + 100.0
+    for k in range(3):
+        start = T0 + 20 + 30 * k                     # pass k: pre at start, 280 steps 5 frames apart, readback, 3 frames
+        pre_f = 10_000 * (k + 1)
+        steps = [pre_f + 5 + 5 * i for i in range(280)]
+        rb = steps[-1] + 5
+        done = rb + 3
+        t_done = start + (done - pre_f) / 72.0
+        passes.append({"ev": "detector.profile", "utc_us": int(t_done * 1e6), "data": {"pass": k + 1, "spacing": 4,
+                       "completed": True, "error": None, "pre_frame": pre_f, "readback_frame": rb, "done_frame": done,
+                       "step_frames": steps}})
+    heavy_t = [p["utc_us"] / 1e6 - (p["data"]["done_frame"] - p["data"]["step_frames"][11]) / 72.0 for p in passes]
+    for j in range(1, 130):
+        a, b = T0 + j - 1, T0 + j
+        rows2.append({"_t": T0 + j, "stale_frame_count": sum(1 for x in heavy_t if a <= x < b)})
+    pm = DP.profile_misses(rows2, [0.0], passes, 72.0)
+    first = sum(pm["mid"]["steps"][0:20])
+    check("a step that misses alone in every pass shows up in the first step range (3 of 3 stale frames there)",
+          abs(first - 3.0) < 1e-9 and abs(pm["mid"]["stale"] - 3.0) < 1e-9, str(round(first, 3)))
 
 
 def main() -> int:

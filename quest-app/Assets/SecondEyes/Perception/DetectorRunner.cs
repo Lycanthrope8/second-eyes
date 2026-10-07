@@ -47,8 +47,9 @@ namespace SecondEyes.Perception
         [Header("Running (D88)")]
         [SerializeField] private bool useGpu = true;
         [SerializeField] private Mode mode = Mode.Scan;
-        [Tooltip("Scheduling steps (layers) per rendered frame to choose from; 0 dispatches the whole network in one frame.")]
-        [SerializeField] private int[] stepsChoices = { 4, 8, 16, 32, 64, 0 };
+        // Scheduling steps (layers) per rendered frame to choose from; 0 dispatches the whole network in one frame. Not
+        // serialized: a list saved in the scene would hide values added here later (r044 lost 4 that way).
+        private static readonly int[] stepsChoices = { 4, 8, 16, 32, 64, 0 };
         [SerializeField] private int stepsIndex = 1;
         [SerializeField] private float keyframeRateHz = 1f;
         [SerializeField] private int hoversPerScan = 3;

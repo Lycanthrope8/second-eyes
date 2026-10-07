@@ -187,6 +187,12 @@ less, under 1% stale frames, parity, memory). Each step's output goes to the pro
    Freeze the fastest schedule that meets both criteria; commit that schedule file and record it as a decision.
 3. Confirmation: a fresh ten-minute session of repeated scans with the frozen schedule, analyzed the same way.
 
+Without per-frame GPU times (r044: FrameTimingManager reported none), `python -m perception.detector estimate <run>`
+aligns shape-based work estimates to the run's runtime layer list, fits a miss threshold to the observed fixed-count
+runs, reports any single step above it, and writes balanced schedules marked `est` (estimates, to be validated on the
+headset like measured ones). `analysis/detector_phases.py` also places the stale frames seen during profiling passes
+by step.
+
 If no schedule meets both criteria, or this needs substantial new profiling or runtime infrastructure, stop: the next
 step is CPU sequential operation, after confirming CPU parity (`python -m perception.detector parity 20261006_A1_r042`).
 

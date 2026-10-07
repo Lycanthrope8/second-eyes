@@ -212,6 +212,51 @@ def gpu_stages(gpu, events, window, refresh) -> dict:
     return out
 
 
+def profile_misses(rows, offsets, events, refresh) -> dict:
+    """Stale frames during profiling passes (each step alone in its frame, empty frames between), placed by step.
+
+    Frame times come from the pass's completion (the detector.profile event) counted back at the refresh rate; the app
+    keeps its frame rate during passes (its own frame times show few over-budget frames), so this is close. Each
+    one-second bucket's stale frames are spread evenly over the steps that ran in it, at every equally good clock
+    offset; the result shows whether single steps alone produce misses, and roughly which ones (D89)."""
+    passes = [e for e in events if e["ev"] == "detector.profile" and e["data"]["completed"]]
+    if not passes:
+        return None
+    nsteps = max(len(e["data"]["step_frames"]) for e in passes)
+    per_offset = []
+    for off in offsets:
+        steps = [0.0] * nsteps
+        pre = readback = 0.0
+        stale_total, buckets = 0.0, 0
+        for e in passes:
+            d, done_t = e["data"], e["utc_us"] / 1e6
+            at = lambda f: done_t - (d["done_frame"] - f) / refresh  # noqa: E731
+            start, end = at(d["pre_frame"]), done_t
+            for r in rows:
+                a, b = r["_t"] - 1 + off, r["_t"] + off
+                if b <= start or a >= end:
+                    continue
+                s = P.number(r, "stale_frame_count") or 0.0
+                if not s:
+                    buckets += 1
+                    continue
+                inside = [i for i, f in enumerate(d["step_frames"]) if a <= at(f) < b]
+                marks = len(inside) + (a <= at(d["pre_frame"]) < b) + (a <= at(d["readback_frame"]) < b)
+                stale_total += s
+                buckets += 1
+                if marks == 0:
+                    continue
+                share = s / marks
+                for i in inside:
+                    steps[i] += share
+                pre += share * (a <= at(d["pre_frame"]) < b)
+                readback += share * (a <= at(d["readback_frame"]) < b)
+        per_offset.append({"offset": off, "steps": steps, "pre": pre, "readback": readback, "stale": stale_total,
+                           "buckets": buckets})
+    mid = per_offset[len(per_offset) // 2]
+    return {"passes": len(passes), "steps": nsteps, "by_offset": per_offset, "mid": mid}
+
+
 def _phase_at(rows, offset, events, window, refresh) -> dict:
     a, b = window
     res = [e for e in events if e["ev"] == "detector.result" and e["data"].get("path") == "camera"
@@ -281,7 +326,8 @@ def analyze(raw: Path, refresh: float, limit_gib: float) -> dict:
         segs.append(seg)
     limit_mb = limit_gib * 1024
     return {"raw": str(raw), "ovr_files": used, "ovr_rows": len(rows), "calibration": cal, "refresh_hz": refresh,
-            "memory_limit_mb": limit_mb, "segments": segs, "gpu_timing": {k: gm[k] for k in ("lag", "spread_ms", "entries", "reason")}}
+            "memory_limit_mb": limit_mb, "segments": segs, "gpu_timing": {k: gm[k] for k in ("lag", "spread_ms", "entries", "reason")},
+            "profile": profile_misses(rows, off, events, refresh)}
 
 
 def rate(x):
@@ -361,6 +407,17 @@ def print_report(rep: dict) -> None:
         print(f"    headset available memory >= 1 GiB: {verdict(avail is not None and avail >= 1024)} ({fmt(avail)} MB)")
         print(f"    no detector result after release: {verdict(s['results_after_release'] == 0)} "
               f"({s['results_after_release']})")
+    pm = rep.get("profile")
+    if pm:
+        m = pm["mid"]
+        print(f"== profiling passes: {pm['passes']} passes of {pm['steps']} single steps; {m['stale']:.0f} stale frames "
+              f"in {m['buckets']} buckets during the passes (middle offset)")
+        if m["stale"]:
+            ranges = [(k, min(k + 19, pm["steps"] - 1)) for k in range(0, pm["steps"], 20)]
+            print("  stale frames placed by step (spread evenly over the steps in each bucket), at each offset:")
+            for o in pm["by_offset"]:
+                cells = ", ".join(f"{a}-{b}: {sum(o['steps'][a:b + 1]):.1f}" for a, b in ranges)
+                print(f"    offset {o['offset']:+.2f} s: preprocessing {o['pre']:.1f}; {cells}; readback {o['readback']:.1f}")
 
 
 def verdict(ok: bool) -> str:

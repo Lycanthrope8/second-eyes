@@ -28,6 +28,13 @@ def main(argv=None) -> int:
     s.add_argument("--budgets", default="", help="per-frame GPU budgets in ms, comma-separated; default: 40, 55 "
                                                  "and 70 percent of the measured headroom")
     s.add_argument("--out", default=None, help="folder for the schedule files (default perception/detector/schedules)")
+    s = sub.add_parser("estimate", help="shape-based cost ESTIMATES and balanced schedules when GPU timing is "
+                                        "unavailable (D89)")
+    s.add_argument("target", help="a run whose log has detector.layers and detector.load (the runtime layer list)")
+    s.add_argument("--observed", default="8:1.44,16:2.56,32:5.55",
+                   help="steps per frame:stale per keyframe measured on the headset, for fitting the miss threshold "
+                        "(default: r043)")
+    s.add_argument("--out", default=None)
     s = sub.add_parser("snapshot", help="a saved camera canvas against the headset's detections for it")
     s.add_argument("target")
     s.add_argument("--image", required=True)
@@ -106,6 +113,48 @@ def main(argv=None) -> int:
             print(f"wrote {path}")
         print(S.report(schedules, costs))
         return 0
+    if a.cmd == "estimate":
+        from . import estimate as E
+        import json as _json
+        events = []
+        for path in Q.session_logs(a.target):
+            events += [_json.loads(x) for x in Path(path).read_text(encoding="utf-8").splitlines() if x.strip()]
+        layers = next((e["data"] for e in events if e["ev"] == "detector.layers"), None)
+        load = next((e["data"] for e in events if e["ev"] == "detector.load"), None)
+        if layers is None or load is None:
+            print("the run has no detector.layers or detector.load event")
+            return 2
+        al = E.align(E.node_work(), layers["types"])
+        if al["unmatched_steps"]:
+            print(f"alignment failed: runtime steps {al['unmatched_steps'][:10]} have no ONNX node; types "
+                  f"{[layers['types'][i] for i in al['unmatched_steps'][:10]]}")
+            return 1
+        w = [x + E.OVERHEAD for x in al["step_work"]]
+        total = sum(w) + E.PRE_WORK
+        observed = {int(k): float(v) for k, v in (x.split(":") for x in a.observed.split(","))}
+        fit = E.fit_threshold(w, observed)
+        absorbed = sorted({op for _, op, _ in al["absorbed"]})
+        print(f"aligned {len(E.node_work())} ONNX nodes to {len(w)} runtime steps; absorbed node types: {absorbed}")
+        heavy = [i for i, x in enumerate(w) if x > fit["threshold"]]
+        print("steps whose estimated work alone exceeds the fitted miss threshold: "
+              + (", ".join(f"#{i} {layers['types'][i]} ({100 * w[i] / total:.1f}%)" for i in heavy) or "none"))
+        plans = []
+        budget = fit["threshold"] * 0.9
+        g = E._greedy([min(x, budget) for x in w], budget, min(E.PRE_WORK, budget))
+        for n in sorted({len(g["slices"]) if g else 0, 16, 20, 24, 28, 32} - {0}):
+            p = E.partition(w, n)
+            plans.append((n, p))
+        for line in E.report_lines(w, fit, plans):
+            print(line)
+        run = Path(a.target).name if Path(a.target).is_file() else a.target
+        out = Path(a.out) if a.out else E.ESTIMATE_DIR
+        out.mkdir(parents=True, exist_ok=True)
+        for n, p in plans:
+            rec = E.schedule_record(p, n, load, layers, run, fit, total)
+            path = out / f"{rec['schedule_id']}.json"
+            path.write_text(_json.dumps(rec, indent=1) + "\n", encoding="utf-8")
+            print(f"wrote {path}")
+        return 0
     events = Q.results(Q.session_logs(a.target, getattr(a, "include_before_run", False)))
     if a.cmd == "snapshot":
         rep = Q.snapshot(events, a.image, a.id)
@@ -126,12 +175,26 @@ def main(argv=None) -> int:
               + (f"; verified threshold crossings {len(x['crossings'])}" if x["crossings"] else "")
               + (f"; unresolved borderlines {x['borderline']}" if x["borderline"] else "")
               + (f"; failures {x['failures']}" if x["failures"] else ""))
-    if rep["missing_gpu_images"]:
-        print(f"parity images never run on the GPU backend: {rep['missing_gpu_images']}")
-    print(f"PARITY {'PASSED' if rep['parity_pass'] else 'FAILED'} (GPU backend, exact canvases; criteria in D85)"
-          + (" with strict agreement on every canvas" if rep["strict"] else
-             (" with verified crossings or unresolved borderlines listed above" if rep["parity_pass"] else "")))
-    return 0 if rep["parity_pass"] else 1
+    code = 0
+    for backend in ("gpu_compute", "cpu"):
+        rows = [x for x in rep["rows"] if x["path"] == "tensor" and x["backend"] == backend and x["kind"] == "reference"]
+        if not rows:
+            continue
+        missing = sorted({e["id"] for e in ref["images"]} - {x["image"] for x in rows})
+        ok = not missing and all(x["pass"] for x in rows)
+        strict = ok and all(x["strict"] for x in rows)
+        extra = [x for x in rep["rows"] if x["kind"] == "extra" and x["backend"] == backend]
+        ok = ok and all(x["pass"] for x in extra)
+        code |= 0 if ok else 1
+        print(f"PARITY {'PASSED' if ok else 'FAILED'} ({backend} backend, exact canvases"
+              + (f" and {len(extra)} pushed canvas results" if extra else "") + "; criteria in D85)"
+              + (" with strict agreement on every canvas" if strict else
+                 (" with verified crossings or unresolved borderlines listed above" if ok else ""))
+              + (f"; never run: {missing}" if missing else ""))
+    if not any(x["path"] == "tensor" and x["kind"] == "reference" for x in rep["rows"]):
+        print("PARITY FAILED: no exact-canvas results in these logs")
+        return 1
+    return code
 
 
 if __name__ == "__main__":
