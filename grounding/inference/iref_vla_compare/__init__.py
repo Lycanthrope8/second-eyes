@@ -8,7 +8,7 @@ import importlib
 
 _LAZY = {"prepare_compare": "prepare", "verify_compare_requests": "prepare", "run_compare_rules": "rules",
          "verify_compare_rules": "rules", "smoke": "run", "run_compare": "run", "verify_compare_results": "run", "score_compare": "score",
-         "verify_compare_scores": "score"}
+         "verify_compare_scores": "score", "run_audit": "audit"}
 __all__ = list(_LAZY)
 
 

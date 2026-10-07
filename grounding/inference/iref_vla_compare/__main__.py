@@ -29,6 +29,9 @@ def main(argv=None) -> int:
         if name == "run":
             s.add_argument("--smoke", required=True)
             s.add_argument("--resume", action="store_true")
+    au = sub.add_parser("audit", help="export and check the canary parents' exact inputs (A2.3e)")
+    for n in ("--requests", "--bundle", "--tokenizer-small", "--tokenizer-large", "--out"):
+        au.add_argument(n, required=True)
     sc = sub.add_parser("score", help="score both runs and the rules against the pinned annotations (laptop)")
     for n in ("--requests", "--rules", "--small-run", "--large-run", "--bundle", "--annotations", "--out"):
         sc.add_argument(n, required=True)
@@ -69,6 +72,16 @@ def main(argv=None) -> int:
             print(f"  forward median {f['median']:.1f} ms, p95 {f['p95']:.1f} ms; peak GPU bytes {x['peak_gpu_bytes']}")
             print(f"written to {a.out}")
             return 1 if c["context_budget_exceeded"] or c["execution_failed"] else 0
+        if a.command == "audit":
+            from .audit import run_audit
+            x = run_audit(requests=a.requests, bundle=a.bundle, tokenizer_small=a.tokenizer_small,
+                          tokenizer_large=a.tokenizer_large, out=a.out)
+            print(f"audited {len(x['requests'])} requests of {len(x['parents'])} parents: {x['checks']} checks, "
+                  f"{len(x['failed'])} failed")
+            for rid, name in x["failed"]:
+                print(f"  FAILED {rid}: {name}")
+            print(f"written to {a.out}")
+            return 0 if x["passed"] else 1
         if a.command == "score":
             from .score import score_compare
             x = score_compare(requests=a.requests, rules=a.rules, small_run=a.small_run, large_run=a.large_run,

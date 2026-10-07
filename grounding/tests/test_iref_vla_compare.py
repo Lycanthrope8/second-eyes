@@ -349,16 +349,70 @@ def check_scoring(D, P, R, RUN, S):
         check("an edited outcome is caught by readback even when re-hashed", S.verify_compare_scores(bad) != [])
 
 
+def check_audit(D, P, AU):
+    print("-- the A2.3e input audit (labelled tokenizer doubles)")
+    SB = importlib.import_module("grounding.tests.test_iref_vla_pilot_scoring")
+    A = SB.pilot_helpers()
+    PI = importlib.import_module("grounding.inference.iref_vla.prepare")
+    RUNM = importlib.import_module("grounding.inference.iref_vla_compare.run")
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        bundle = SB.scoring_bundle(tmp, A)
+        ann = SB.annotation_bundle(tmp / "annotations.json", SB.TARGETS)
+        src = PI.read_bundle(bundle)
+        eligible = PI.eligible_parents(src)
+        pilot = sorted(eligible, key=lambda p: (hs("fixture-pilot\n" + p), p))[:1]
+        pol = json.loads(D.POLICY_PATH.read_text(encoding="utf-8"))
+        pol["population"] = {"rule": "fixture", "expected_eligible": len(eligible), "expected_remaining": len(eligible) - 1,
+                             "excluded": {"what": "fixture", "salt": "fixture-pilot\n", "count": 1,
+                                          "selected_sha256": hashlib.sha256((pilot[0] + "\n").encode()).hexdigest()}}
+        pol["selection"]["count"] = len(eligible) - 1
+        pol["expected"] = {"parents": len(eligible) - 1, "parent_views": 2 * (len(eligible) - 1), "requests": 4 * (len(eligible) - 1)}
+        pp = tmp / "policy.json"
+        pp.write_text(json.dumps(pol), encoding="utf-8")
+        toks = {k: A.OffsetCharTokenizer() for k in KEYS}
+        P.prepare_compare(bundle=bundle, tokenizer_small=None, tokenizer_large=None, out=tmp / "req", policy=pp, tokenizers=toks)
+        rows = jsonl(tmp / "req" / "request-index.jsonl")
+        with SB.Watch([ann]) as w:
+            r = outcome(lambda: AU.run_audit(requests=tmp / "req", bundle=bundle, tokenizer_small=None, tokenizer_large=None,
+                                             out=tmp / "input-audit", tokenizers=toks))
+        check("the audit completes with every check passing and the annotations inaccessible",
+              r[0] == "ok" and r[1]["passed"] and not w.denied, str(r)[:300])
+        if r[0] != "ok":
+            return
+        longest = {k: max(rows, key=lambda x: (x["models"][k]["input_tokens"], x["request_index"]))["request_id"] for k in KEYS}
+        want = [rows[0]["parent_command_id"]] + [p for p in dict.fromkeys(x["parent_command_id"] for x in rows if x["request_id"] in longest.values())
+                                                 if p != rows[0]["parent_command_id"]]
+        check("the audited parents are those of the runs' canaries (first request; longest, ties to the later index)",
+              r[1]["parents"] == want and len(r[1]["requests"]) == 4 * len(want))
+        a = json.loads((tmp / "input-audit" / "requests" / r[1]["requests"][0] / "audit.json").read_text())
+        prompt = (tmp / "input-audit" / "requests" / r[1]["requests"][0] / "prompt.txt").read_bytes().decode("utf-8")
+        check("the exported prompt and spans rebuild the turns: system message, choices line, document, open assistant turn",
+              prompt[a["char_spans"]["system_message"][0]:a["char_spans"]["system_message"][1]] in prompt
+              and prompt[a["char_spans"]["document"][0]:].endswith("<|im_end|>\n<|im_start|>assistant\n")
+              and prompt[a["char_spans"]["choices_line"][0]:a["char_spans"]["choices_line"][1]].startswith('{"choices":'))
+        leak = AU.audit_request(rows[0], prompt.replace('"choices"', '"choices","target_id":"x"', 1),
+                                {k: [] for k in KEYS}, toks, importlib.import_module("grounding.inference.iref_vla.protocol").load_protocol(tmp / "req" / "protocol.json"),
+                                (bundle / rows[0]["source_document_path"]).read_bytes(), {"text": "x"},
+                                importlib.import_module("grounding.inference.iref_vla_compare.design").load_policy(tmp / "req" / "policy.json"))
+        failed = {c["check"] for c in leak["checks"] if not c["passed"]}
+        check("a prompt carrying a target field fails the rebuild and leak checks",
+              "no annotation ID, target field or rules outcome appears in the prompt" in failed
+              and "the prompt is exactly the protocol's system turn, the user turn and an open assistant turn" in failed)
+
+
 def main() -> int:
     D = importlib.import_module("grounding.inference.iref_vla_compare.design")
     P = importlib.import_module("grounding.inference.iref_vla_compare.prepare")
     R = importlib.import_module("grounding.inference.iref_vla_compare.rules")
     RUN = importlib.import_module("grounding.inference.iref_vla_compare.run")
     S = importlib.import_module("grounding.inference.iref_vla_compare.score")
+    AU = importlib.import_module("grounding.inference.iref_vla_compare.audit")
     check_design(D)
     check_chain(D, P, R)
     check_runs(D, P, RUN)
     check_scoring(D, P, R, RUN, S)
+    check_audit(D, P, AU)
     print(f"\n{len(PASSES)} passed, {len(FAILS)} failed")
     return 1 if FAILS else 0
 
