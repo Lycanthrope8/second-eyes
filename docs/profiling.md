@@ -196,6 +196,19 @@ by step.
 If no schedule meets both criteria, or this needs substantial new profiling or runtime infrastructure, stop: the next
 step is CPU sequential operation, after confirming CPU parity (`python -m perception.detector parity 20261006_A1_r042`).
 
+## A1.10c CPU sequential confirmation (D90)
+
+One ten-minute run at the unchanged workload, recorded and analyzed like the GPU runs. Build from a clean commit.
+Reboot and settle, OVR Metrics' CSV on, create the run (purpose "A1.10c D90 CPU confirmation: CPU backend, whole
+network per frame, scan mode 1 Hz, 10 minutes"), start the app, press X. With the detector off: press the left
+thumbstick for CPU, push it left or right to `whole network per frame`, up or down to `scan`; the overlay reads
+`off | CPU | scan | whole network per frame`. Start `python tools/profile.py record <run> --minutes 11`, press Y, and
+leave it about 10.5 minutes (the overlay counts the scans); press Y, wait for `off`, quit. Then
+`python tools/logs.py pull <run>`, `python analysis/detector_phases.py <run>`,
+`python -m perception.detector parity <run>` and `python analysis/profile.py summary <run>`. It passes with
+p95 capture-to-result of 500 ms or less and under 1% stale frames over the scans and over the buckets overlapping
+inference (judged at the least favourable clock offset), parity and the memory margins; then A1.10d.
+
 ## Comparing two runs
 
 ```
