@@ -1,0 +1,33 @@
+{
+  "format": 2,
+  "name": "qwen2.5-7b-instruct",
+  "role": "A2.3d's larger off-device reference model: an empirical reference, not an assumed upper bound; PC only",
+  "hf_repo": "Qwen/Qwen2.5-7B-Instruct",
+  "hf_revision": "a09a35458c702b33eeacc393d103063234e8bc28",
+  "pinned_from": "huggingface_hub HfApi().model_info(files_metadata=True) on the lab RTX PC, 7 October 2026",
+  "license": {"card": "apache-2.0", "file": "LICENSE"},
+  "architecture": {
+    "num_hidden_layers": 28,
+    "num_attention_heads": 28,
+    "num_key_value_heads": 4,
+    "hidden_size": 3584,
+    "vocab_size": 152064,
+    "tie_word_embeddings": false,
+    "min_max_position_embeddings": 8192
+  },
+  "precision": "loaded as float32 (about 30.5 GB of weights); the published shards are bfloat16",
+  "files": {
+    "config.json": {"bytes": 663, "kind": "config"},
+    "generation_config.json": {"bytes": 243, "kind": "config"},
+    "model.safetensors.index.json": {"bytes": 27752, "kind": "config"},
+    "model-00001-of-00004.safetensors": {"bytes": 3945441440, "kind": "weights", "sha256": "a1333e6293854747c481288ea83b348226af178dd565c49b6f9495ba1966aba7"},
+    "model-00002-of-00004.safetensors": {"bytes": 3864726352, "kind": "weights", "sha256": "f5d25a2772cb825164a2a2c0fb6d51a87e282abf21e4dd75bc5cfb3cd0ea6185"},
+    "model-00003-of-00004.safetensors": {"bytes": 3864726424, "kind": "weights", "sha256": "8efdec4c1bc12317ae1a38dc42b595ce777738a64deea3fcb8a0a91381bcdfd5"},
+    "model-00004-of-00004.safetensors": {"bytes": 3556377672, "kind": "weights", "sha256": "1a72d403cdf0c1ec3cb7f289f17b394a01e64394c2e9b3c0f94dbce3faf879bd"},
+    "tokenizer.json": {"bytes": 7031645, "kind": "tokenizer"},
+    "tokenizer_config.json": {"bytes": 7305, "kind": "tokenizer"},
+    "vocab.json": {"bytes": 2776833, "kind": "tokenizer"},
+    "merges.txt": {"bytes": 1671839, "kind": "tokenizer"},
+    "LICENSE": {"bytes": 11343, "kind": "license"}
+  }
+}
