@@ -1,0 +1,46 @@
+{
+ "format_version": 1,
+ "record_type": "iref_ordering_policy",
+ "policy_id": "iref.order.crossed_cyclic.v1",
+ "decision": "D94",
+ "brief": "Second Eyes A2.3c implementation brief, 6 October 2026",
+ "design": {
+  "name": "crossed_cyclic",
+  "rule": "code of object O[i] = C[(i + a) mod n]; object at choices-list position j = O[(j + p) mod n]; choices[j] = [C[(j + p + a) mod n], O[(j + p) mod n]]; [K, ASK] last; all positions zero-based",
+  "canonical_order": "base request index, then a, then p, all ascending",
+  "variant_id": "{base request ID}.a{a:02d}.p{p:02d}"
+ },
+ "schedule": {
+  "salt": "second-eyes/a23c/order/v1\n",
+  "rule": "the identity cells first, in base request order; then every other cell by SHA-256 of UTF-8(salt + variant ID), ascending, ties by variant ID"
+ },
+ "canary": {
+  "base_request_index": 1,
+  "cells": [[0, 0], [1, 0], [0, 1]],
+  "atol": 1e-05,
+  "rtol": 1e-05,
+  "rule": "|production - independent| <= atol + rtol * |independent| for every offered logit, and the same selected code and object"
+ },
+ "repeat_control": {
+  "atol": 1e-05,
+  "rtol": 1e-05,
+  "rule": "|new - old| <= atol + rtol * |old| for every offered logit, with the same chosen code and decoded object or ASK"
+ },
+ "progress_interval": 100,
+ "expected": {
+  "bases": 128,
+  "cells": 4536,
+  "identity_cells": 128,
+  "nonidentity_cells": 4408,
+  "bases_by_object_count": {"3": 8, "4": 22, "5": 26, "6": 34, "7": 20, "8": 14, "9": 2, "10": 2},
+  "cells_by_view": {"full_inventory": 3004, "source_known_nyu": 1532}
+ },
+ "pins": {
+  "selected_parents_sha256": "8c826ba35fb8f96425e88f83aa6d0b1d4a0a0815f4a0cdcc3e8303f59e4f8b0a",
+  "base_results_sha256": "7e55838296119ba7f34bedf908232b9c1c1e3c71719f0b8ef0f97f719d1ed282",
+  "base_scores_summary_sha256": "9a7231ae04b2f8cb0184e1a1c2df2c56f7eb66ebc3ddfb5c58863d6dd4386efb",
+  "base_scores_report_sha256": "b3e569365e11bddafe5a403d661f33055e8ca39fa42553065cdfbc66583ea99e"
+ },
+ "context_limit_tokens": 8192,
+ "continuation_tokens": 1
+}
