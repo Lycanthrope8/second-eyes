@@ -1,301 +1,383 @@
-# Second Eyes · Handover
+# Second Eyes · Handover for the A2.5 implementation chat
 
-Written 2026-10-01, at the end of A1.8, to start A2 in a new chat. Update it at every handover.
+Date: 7 October 2026, written by Claude at the end of a long, many-times-compacted chat. It replaces the earlier
+handover (`Second_Eyes_Handover_2026-10-07.md`), which predates A2.3c's closure, A2.3d and A2.3e. Read it fully before
+acting. The code and committed records are in the public repository **https://github.com/Lycanthrope8/second-eyes**
+(clone it; `github.com` is reachable from the sandbox, the GitHub REST API is often rate-limited, so use `git clone`).
 
-**For the assistant in a new chat:** read this file first, then check every fact you use in the files it points to. This
-file summarizes; the repository decides. Don't rely on memory, yours or a summary's: when this file and a record
-disagree, the record wins, and the disagreement is worth reporting.
+**Corrected on 8 October 2026** with ChatGPT's review of this handover (`Second_Eyes_Claude_Handover_Review_2026-10-08.md`,
+against `168344e`); its replacement wording is applied below. Since then, in the commit that added this file to the
+repository: the A2.3e records follow-up of section 0 is done (`notes/phases/A2.3e_checks.md` section 5), and A2.5
+delivery 1's first step, the fixture and reference bundle, is built and verified (D100, D101;
+`notes/phases/A2.5_d1_replay.md`).
 
-## The project lead's standing constraints
+---
 
-These apply to every chat, every phase, until the project lead changes them. The quotes are the project lead's own
-words.
+## 0. Start here
 
-1. **Approval first** (2026-09-27): *"Throughout this chat you must not assume anything and do it on your own. You must
-   ask me for approval."* Propose before building or changing anything, in the repository or on the headset, including
-   small fixes noticed along the way. Where there's a choice, give the options with a recommendation. If something is
-   unclear or inconsistent, raise it instead of fixing it quietly; if an interpretation is needed, state it and ask.
-2. **Few steps per response** (2026-09-27): *"Do not try to finish a lot of steps in one response."* One step or
-   sub-step per response, delivered and tested before the next.
-3. **No far-future planning** (2026-09-27): *"I don't want you to overthink about too far future."* The Go/No-go gates
-   may end or change the plan, so plan up to the next gate.
-4. **Easy to understand later** (2026-09-27): *"Do it in such a way that in future it takes less time for me to
-   understand everything"*, with a repository that is well structured and easy to maintain.
-5. **Every computation on the Quest counts** (2026-09-27): *"I don't want to waste any computational power."*
-6. **Later, not now:** Vicon until it is actually used (2026-09-27, D10); participants and Vicon until they are needed
-   (2026-10-01); S0 items 5 and 6, storage and experiment tracking, until headset feasibility is known (D1).
-7. **Earlier chats** (2026-10-01): *"If you must look into any chats, just refer to the chat named "A1 Complete (Except
-   Object Detector and Speech)." Don't look into any other chats because I don't want you to be confused."* Only that
-   chat, and only when needed; the repository still decides.
+1. **Baseline and one records follow-up.** The current repository baseline is `168344e`, which contains the
+   legacy-header regeneration repair and D99. The repository and updated A2 report record the corrected costs
+   regeneration as complete. Do not reapply the repair by default. Obtain the corrected folder's full manifest hash and
+   successful readback if they are not already in the records, and append them to the A2.3e phase note. ChatGPT has
+   checked the correction rule and expected values, but has not independently reviewed the regenerated folder/readback.
+   This narrow records follow-up does not reopen A2.3 or block A2.5 delivery 1.
+2. **Then A2.5, delivery 1: frozen-request replay on the headset** (section 7). D98 defines A2.5; D99 records the
+   project lead's input and protocol decisions; the implementation order is approved.
+3. **Working rules** (section 2) matter as much as the facts: ChatGPT designs, Claude implements, the project lead runs
+   every acceptance and commits.
 
-**A slip to avoid:** in A1.8c's results round the assistant added two tool changes nobody had asked for
-(`runs.py set`, the load-jump report). Useful, but they should have been proposed first, under constraint 1.
+## 1. The project in one paragraph
 
-**Direction, 2026-10-01:** finish the whole pipeline first: build every stage of the system before participants and
-Vicon. This doesn't mean closing Gate A first. The order is A2, then A1.10, then A1.11, with on-device speech (A1.9)
-last, before the pilot study; commands are typed text until then (D62, D63). The project lead may split the project
-into one repository per paper after meeting the advisor next week; don't restructure the repository before the
-project lead decides.
+Second Eyes (proposal Revision 3, September 2026; A2 replaced by the Revision 3.1 supplement, 1 October 2026): a
+micro-UAV pre-scans a region the user cannot see; a Meta Quest 3 turns the observations into a semantic memory; the user
+then tasks the drone in natural language about things only the drone has seen, with all AI inference on the headset at
+deployment. A sub-billion-parameter model decides what the user means, deterministic geometry decides where to go, and
+the drone's flight controller flies. Phases: A0 scope/IRB, A1 headset feasibility, A2 grounding, A3 Wizard-of-Oz
+elicitation, A4 pre-scan without a drone, A5 drone purchase, A6 drone integration, A7 goal execution, A8 experiment, A9
+pilot study, A10 formal study; Track B (SpatialLM, Gate D) runs in parallel. Gates A–F are in the proposal's section 11.
 
-## 1. Sources
+## 2. People, roles and working rules
 
-| What | Where |
-|---|---|
-| The plan | `Second_Eyes_Research_Proposal_Revision_3.pdf`, in the Claude project's files. Phase IDs (S0, A0–A10, B1–B3) follow its Section 10 and its Phases part |
-| The plan's A2 revision | `Second_Eyes___Revision_3_1_supplement_A2_and_the_sections_it_touches.pdf`, in the Claude project's files; text in `docs/plan/revision-3.1-supplement.md`. Replaces Revision 3's A2 card and every passage A2 touches (D63) |
-| Decisions and open items | `notes/decisions.md`: D1–D65, and the open items O3–O21 at its top |
-| Failures, including the assistant's own errors | `notes/failures.md` |
-| Limitations for the papers | `notes/limitations.md` |
-| Phase and sub-step notes | `notes/phases/`: S0, A1.7d, A1.8b, A1.8c, and `_template.md` |
-| Facts about tools, runtimes and procedures | `docs/` (see section 5) |
-| Status | the table in `README.md` |
-| Earlier chats | only the chat the project lead names (constraint 7), and only when needed; the repository wins when they disagree |
+- **Project lead: Jubayer Hossain** ("JH" in run configs). Runs every acceptance on his Windows laptop, the lab RTX PC
+  (over Remote Desktop) and the Quest 3. Pastes console output back, commits and pushes himself, and decides.
+- **ChatGPT** owns the research design. It writes the briefs and correction instructions and reviews uploaded archives.
+  A brief is authoritative for its increment.
+- **Claude** implements:
+  - read the whole brief and the actual repository first;
+  - report a material contradiction or an open design question before coding, and disclose routine choices;
+  - never redesign, tune after seeing results, commit, push, reset or unstage;
+  - stop at the brief's stopping point.
+- **Delivery pattern:**
+  - a ZIP of new or changed files (`Expand-Archive -Force` when it updates existing files);
+  - shared notes (`notes/decisions.md`, `notes/limitations.md`, `notes/failures.md`, `README.md`, `docs/README.md`)
+    changed only by one-off Python scripts that insert or replace one line at a stable anchor, keep the file's line
+    endings, skip what is present, and are run once and deleted;
+  - a PowerShell sequence with the expected output and hashes;
+  - narrow `git add` lists. Do not stage the unrelated pre-existing AndroidManifest/O25 and solution-file changes in
+    these records commits. Intended future brief-scoped changes are reviewed on their own merits.
+- **Test discipline:**
+  - expectations derived by hand before the code;
+  - suites runnable directly and module-style;
+  - relevant earlier suites rerun;
+  - labelled sandbox rehearsals, never called acceptance.
+- **Verification habit.** When outputs come back, Claude re-verifies them in the sandbox with independently written code
+  (readbacks, recomputation from raw rows) before writing acceptance records, and records discrepancies honestly as
+  "Claude's error" in `notes/failures.md`.
+- **Records:**
+  - `notes/decisions.md`: an Open table (`| ID | Question | Needed by | Options so far |`) and a Decided table, newest first.
+  - `notes/phases/<ID>_<name>.md`: what was built, configuration, key numbers with run IDs, decisions, failures,
+    deviations, open issues, paper hooks; acceptance sections are appended.
+  - Runs: `python tools/runs.py new A2 --purpose "..." --operator "JH"`, then `runs.py note <id> "..."` and `runs.py check`.
+    `raw/` is Git-ignored and only `config.yaml` is committed.
+- **Style:** plain, precise English; every number traceable to a run or artifact; no claim beyond the evidence.
+- **Sandbox limits for Claude:**
+  - commands stop after 300 s, and background processes die, so split long jobs;
+  - Hugging Face is unreachable, but the pinned tokenizer files are in the repository;
+  - there is no PyTorch, GPU, Unity or Android NDK: Quest code is written blind, built and run by the project lead.
 
-## 2. The project in brief
+## 3. Machines, paths and environments
 
-A micro-UAV pre-scans a workspace the user can't see; a Meta Quest 3 turns the drone's observations into a semantic
-memory of objects and positions; the user tasks the drone in natural language about things only the drone has seen
-("inspect the box behind the table"). A sub-billion-parameter language model on the headset decides what the user
-means, once per command; deterministic geometry decides where the drone goes. All AI inference runs on the headset at
-deployment. Track A (Paper 1) is the critical path; Track B (SpatialLM on the RTX workstation) runs alongside and
-never blocks it.
+**Laptop (Windows):**
+- repository `C:\Users\jubay\second-eyes`; data `C:\Users\jubay\second-eyes-data`;
+- `.venv`: Python 3.11.9, transformers 4.57.6, tokenizers 0.22.2, jsonschema 4.26.0;
+- Git `core.autocrlf=true`;
+- CPU AMD64 Family 25 Model 80, 16 logical CPUs, Windows 10.0.26200.
 
-## 3. Where things stand
+**Lab RTX PC (Remote Desktop):**
+- repository `C:\Users\jhossai3\second-eyes`;
+- Python `C:\Users\jhossai3\second-eyes-venvs\a2-gpu\Scripts\python.exe` (3.12.10, torch 2.11.0+cu128, CUDA 12.8,
+  transformers 4.57.6, tokenizers 0.22.2);
+- NVIDIA RTX PRO 6000 Blackwell (96 GB), driver 596.71, 127 GB RAM, about 1.5 TB free;
+- data `C:\Users\jhossai3\second-eyes-data`; transfers `C:\Users\jhossai3\second-eyes-transfer`;
+- laptop files reached as `\\tsclient\C\Users\jubay\...` (Remote Desktop drive redirection).
 
-S0 closed on 2026-09-27 (`notes/phases/S0_infrastructure.md`). A1, headset feasibility, follows an 11-step roadmap
-agreed at its start:
+**Quest 3:**
+- Unity 6000.3, Meta XR SDK 207, URP, 72 Hz;
+- llama.cpp b11277 (eae11d22) through the project's `libse_llama`;
+- Qwen2.5-0.5B-Instruct as GGUF Q8_0 (531 MB) in the app's data folder;
+- runs plugged in (D22); logs pulled with adb; OVR Metrics for frames.
 
-| Step | What | Status | Evidence |
-|---|---|---|---|
-| A1.1 | Headset baseline | done | `20260927_A1_r001`, `docs/setup/quest3.md` |
-| A1.2 | Headset cleanup | closed, no changes: the busy processes are the XR system itself | D11, D26 |
-| A1.3 | App with passthrough, overlay, 72 Hz | done | `r002`, `r003`; D12–D15 |
-| A1.4 | Event log on the headset, log pull | done | `r004`, `r005`; D16–D19, `docs/logging.md` |
-| A1.5 | Hand tracking and stop button | done | `r006`; D20, D21 |
-| A1.6 | Cost of the empty app | tools done (`r007`); the measurement folded into A1.7d | D24, D25 |
-| A1.7 | Language model on the headset with Meta's runner (path A) | done: correct, but too slow and drops frames | `r008`–`r022`, `notes/phases/A1.7d_model_cost.md` |
-| A1.8 | Token probabilities and caching; path B, llama.cpp | done (A1.8a–d) | `r023`–`r036`, A1.8b and A1.8c notes; D53–D60 |
-| A1.9 | Offline speech recognition, push-to-talk | **open**: last, before A9 (D63) | |
-| A1.10 | Object detector on passthrough, alone and beside the model | **open**: after A2 (D63) | `docs/meta-ai.md` has the starting point |
-| A1.11 | Everything together, 30-minute soak: Gate A evidence | **open**: after A1.10 (D63); Gate A per O19 | |
+**Model folders** (Git-ignored):
+- 0.5B: `grounding\models\qwen2.5-0.5b-instruct\hf` on the RTX PC, revision `7ae557604adf67be50417f59c2c2f167def9a775`.
+- 7B, RTX PC: `grounding\models\qwen2.5-7b-instruct\hf`, revision `a09a35458c702b33eeacc393d103063234e8bc28`, Apache-2.0.
+- 7B, laptop: tokenizer files only, in `grounding\models\qwen2.5-7b-instruct\tokenizer`.
+- Tokenizers: the 7B's `vocab.json`, `merges.txt` and `tokenizer_config.json` are byte-identical to the 0.5B's pinned
+  files, plus `tokenizer.json` `c0382117…`.
 
-**Gate A** is open. For the language model alone: the frame rate holds (2 stale frames in 10 minutes of commands),
-memory fits (+1.07 GB, about 2 GB left free), no throttling in 10 minutes, and with the scene cached the panel as
-built takes about 1.1 s of the 3 s latency budget: the greedy answer (0.8 s), then the candidates' scores (0.30 s).
-The 0.6 s given earlier, here and in the A1 report, was an estimate for a scores-only design (the command's pass,
-0.3 s, plus the scores), which no run measured as such (`notes/failures.md`). Speech, the detector and the 30-minute
-soak are still to measure.
+**The RTX PC's untracked run configs.** A run created there leaves an untracked `runs/<id>/config.yaml`. Once the laptop
+commits that config, the RTX PC's next `git pull` is blocked. Before pulling, move the config aside to
+`C:\Users\jhossai3\second-eyes-data\run-configs\`. This was done for r006, r007 and r008; the r004 and r005 folders are
+in `C:\Users\jhossai3\second-eyes-data\`.
 
-**Next:** A2, as the Revision 3.1 supplement plans it (D63, section 10), starting with A2.1's specification. Then
-A1.10, A1.11, and A1.9 last. How Gate A is judged while speech waits is the advisor's decision, before A1.11 (D65,
-O19).
+## 4. Status
 
-## 4. The language model on the headset (A1's outcome)
+**A1: closed for now (D93).**
+- llama.cpp is the headset runtime (D60).
+- The detector is YOLOX-Nano on the CPU, scanning at 1 Hz and released before commands (D91; r045: p95 98 ms, 0.17%
+  stale frames).
+- Speech (A1.9) is optional. A1.10d's formal conditions (D92), the 30-minute soak (A1.11) and formal Gate A are deferred
+  to the final evaluation.
 
-| Part | What | Where |
+**A2.1–A2.2: accepted.** D66–D78: contract, relations, directions, serializer, resolver; IRef-VLA scene0010_01 adapter
+(61 objects, 1,951 annotations); rules baseline; category-complete subscenes; model inputs.
+
+**A2.3a pilot** (r003) and **A2.3b scoring** (D81, D82): the 0.5B never beat always answering B.
+
+**A2.3c (D94, run `20261007_A2_r005`): closed.**
+- A crossed grid of letter assignment and list order: 4,536 cells; canaries 3 of 3 and repeat controls 128 of 128, all
+  with difference 0.0.
+- Strong answer-code sensitivity plus some list-order sensitivity; full-grid agreement close to the always-B reference.
+
+**A2.3d (D95): closed.** Runs `20261007_A2_r006` (0.5B) and `20261007_A2_r007` (7B): 1,024 of 1,024 each; 256 more
+parents; one frozen hash-based letter assignment and list order per parent and view. Correct out of 256:
+
+| View / format | 0.5B | 7B | Rules | Always B | Second position |
+|---|---|---|---|---|---|
+| full inventory / coordinates | 32 | 5 | 2 | 39 | 33 |
+| full inventory / augmented | 32 | 6 | 2 | 39 | 33 |
+| source-known / coordinates | 54 | 7 | 253 | 57 | 54 |
+| source-known / augmented | 55 | 1 | 253 | 57 | 54 |
+
+- The 7B answered ASK in 917 of 1,024 requests.
+- The 0.5B chose B or C in 973 of 1,024.
+- The rules' full-inventory failures are all `uncertain_anchor` and `unknown_category`.
+
+**A2.3e (D96): closed with documented perspective coverage pending under O27.**
+- Input audit: 128 of 128 checks.
+- Costs (PC):
+  - augmented relation construction median 30 ms (p95 179) in the full inventory, plus about 830 tokens;
+  - serialization about 30 ms; tokenization 3–6 ms.
+- 0.5B cache check (r008): 192 numerical D56 comparisons and 32 identity checks, all passed.
+  - A repeated identical request scores its last token in 19.2 ms against 90.6 ms uncached.
+  - A new command reuses about 94 tokens, because the choices line precedes the scene.
+- Perspective check blocked (O27).
+
+**A2.3: closed (D97)** "for baseline development and integration handoff. Input integrity and PC cache checks accepted.
+Published-data perspective coverage remains pending under O27." The blockers justify the deferral; they do not show that
+no suitable resource exists; no viewpoint result is claimed.
+
+**Percentile rule (D97).** Nearest rank: the sorted value at zero-based index ceil(p × n) − 1.
+- The earlier index round(p × (n − 1)) changed only the n = 256 cells.
+- A2.3e's costs are regenerated from saved measurements (`costs-20261007-174912-p95`, manifest `dd1acc12…`, at
+  `168344e`), and A2.3d's per-format table is corrected.
+- Folders made under the old rule record no rule and still verify.
+
+**Sequence (D97):** A2.5 base-model Quest integration → A2.6 development and baseline assessment → A2.4 fine-tuning →
+the export and evaluation checks again. The final held-out commands stay closed.
+
+## 5. Commits since A1's closure
+
+`22ad1df` A1 closed (r047 config only) · `5326f8e` A2.3c code · `d0ed082` A2.3c closed, A1 records (D93) · `7ab2917`
+7B pins and acquisition · `b4fb0bd` A2.3d preparation and rules · `bc330e9` smoke check and runs · `9e8f8b0` runs
+r006/r007 and scoring · `4ae9c07` input audit · `75d385d` A2.3d closed, D96 · `eabc0d3` costs and cache check ·
+`695aa27` A2.3e results, O27 · `c21bf2b` A2.3 closed (D97), A2.5 defined (D98); its message says the costs were
+regenerated, but that happened only after the repair (`notes/failures.md`) · `168344e` the regeneration repair, costs
+regenerated, D99: the current baseline.
+
+## 6. Key artifacts and hashes
+
+| Artifact | Where | Identity |
 |---|---|---|
-| Model | Qwen2.5-0.5B-Instruct, pinned to commit `7ae55760…` in its description (D61) | `grounding/models/qwen2.5-0.5b-instruct.json` |
-| Headset file | GGUF, 8-bit (Q8_0), 531 MB, SHA-256 starting `dd753cd6` | made by `grounding/export_gguf.py`; pushed by `grounding/llama_headset.py push-model` into `/sdcard/Android/data/com.secondeyes.quest/files/` |
-| Runtime | llama.cpp `b11277` (`eae11d22`) | pinned in `native/llama.cpp.pin`; fetched and built by `tools/build_llama.py` |
-| Our C interface | load with options, prompt with scene cache, greedy answer, candidate scoring in one batch (`se_score_many`) | `native/se_llama.h`, `native/se_llama.cpp`; tests in `native/tests/` |
-| Command-line test program | runs a job on the headset from `adb shell` | `native/se_llama_cli.cpp`; `docs/setup/llama-headset.md` |
-| In Unity | P/Invoke, one worker thread for every native call, the panel | `quest-app/Assets/SecondEyes/Grounding/LlamaNative.cs`, `LlamaRuntime.cs`, `ChatPanel.cs` |
-| Configuration | flash attention automatic, weights repacked, memory-mapped, 16 sequences, **2 threads** | D58, D59 |
-| Prompt format, scoring | answer prefix, candidate suffix, which objects are candidates | `grounding/scene.py`; prompts in `grounding/prompts/` (copies in the Unity project) |
-| References | greedy answers: `20260929_A1_r016`; candidate log-probabilities from PyTorch 32-bit: `20260930_A1_r026` | |
-| Checks | `grounding/check_headset.py <run> --reference 20260929_A1_r016 20260930_A1_r026` | judged as D56 sets out |
+| A2.2d bundle | `second-eyes-data\iref-model-inputs\a22d-20261005-153413` | preparation index `44a994b4…` |
+| Annotations (pinned) | `second-eyes-data\iref-out\a22a-20261004-211140\again\reference_only\iref-annotations.json` | `06cfdfb4c8b55fdbd8f86ae35030471d5f5a793fe9ebf144f067649e7d4ce72b` |
+| A2.3a requests; r003 | `iref-pilot\requests-20261005-212446`; `runs\20261005_A2_r003\raw\pilot` | manifest `a09d9d51…`; results `7e558382…` |
+| A2.3b scores | `iref-pilot-scoring\scores-20261006-021046` | summary `9a7231ae…`, report `b3e56936…` |
+| A2.3c requests; run r005; scores | `iref-order\requests-20261007-020734`; `runs\20261007_A2_r005`; `iref-order\scores-transfer-20261007-020734` | manifest `f0c883d3…`; run zip `75023049…`; scores summary `f48afcc8…` |
+| A2.3d requests | `iref-compare\requests-20261007-115636` (also on the RTX PC) | manifest `0e49a9f6ed1bd07569ed0a24ec5753cbc4c26a55d1389f0e2240695f8bfe3db0`; selection `b42e752f…` |
+| A2.3d rules | `iref-compare\rules-20261007-115636` | manifest `151b0e82f0a94ddf…` |
+| Runs r006, r007 | `runs\20261007_A2_r006`, `runs\20261007_A2_r007` (`raw\results`, smoke records) | zips `d7f2f8ba…`, `4f7bf7cc…`; manifests `f06cb6c6…`, `de52909b…` |
+| A2.3d scores | `iref-compare\scores-20261007-115636` | manifest `3c92ac4e843704a821f16718635f7815a2bfc78a1ac38c0e2ff517df43e33f57` |
+| A2.3d review archive | `A2_3d-review-20261007-165741.zip` | given to Claude; ChatGPT reviewed A2.3d |
+| Input audit | `iref-compare\input-audit-20261007-171707` | manifest `150bd6f17702564fd3839896d18120178321f9311302805df19ad9c03174842b` |
+| Costs (original); regenerated | `iref-compare\costs-20261007-174912`; `costs-20261007-174912-p95` | regenerated manifest `dd1acc12058faf4ad8038dd2342ca3cababf8d04db40905417572d2dd5421060` |
+| Run r008 (cache check) | `runs\20261007_A2_r008\raw\cache` | zip `db0f776f…`; manifest `7ee088478b96c8f4f10116a13ea7590453ee2ad922a2056d67a7512c08b76505` |
 
-**D56's rule:** scores pass when the best candidate and the order of the plausible ones (share at least 1%) equal
-PyTorch's, and the cached path's shares lie within a total variation distance of 0.05.
+## 7. A2.5: base-model Quest integration (D98, D99)
 
-**Numbers in the app, 2 threads** (`notes/phases/A1.8c_llama_app.md`): load 1.1–1.5 s; first command 1.3 s to the
-first token (the scene is evaluated); with the scene cached 0.3 s to the first token, 0.03 s per token, the 15-token
-answer at 0.8 s, scoring five objects 0.30 s; 72.5 fps with 0 seconds below 71 while answering; app +1.07 GB.
-Meta's runner for comparison, at 50 steps per frame: 24.8 s per answer and 37.1 fps while answering, 43.3 fps over
-the run (A1.7d; while answering it gave 13.4, 37.1 and 64.6 fps at 150, 50 and 15 steps).
+**Objective.** Typed command plus a versioned scene snapshot → prompt → local offered-letter scoring → object-ID
+mapping → structurally validated target proposal shown in the app.
+- Qwen2.5-0.5B-Instruct through the accepted llama.cpp integration, with D59's two threads and the app's scheduling
+  constraints.
+- All runtime inference and grounding preparation run on the headset; the PC only prepares, references and analyses.
+- No drone motion, speech, detector concurrency, soak, Gate A or accuracy claim.
 
-**Reproduced is not correct.** "Equal to the PC" means the headset reproduces the model, not that the model is right.
-Zero-shot, it answers `a17-fixed` ("Inspect the box behind the table.") with `box_1`; the expected `box_2` ranks third
-in PyTorch's scores (`r026`). The other three presets are right. Each prompt file records its expected target.
+**D99, the project lead's decisions:**
+1. **O21 resolved for A2.5:** PC-entered commands through an **ADB inbox**, plus **on-panel presets**, both feeding **one
+   request-processing path**. A headset keyboard is deferred, and ADB is development transport only.
+2. **Inbox protocol:**
+   - write under a temporary name, then rename when complete;
+   - each request carries a unique request ID and the expected scene identity and revision;
+   - each is processed once, with an acknowledgement and result under the same ID;
+   - stale scene bindings are rejected explicitly.
+3. **Timing:** "app-observed command to validated target proposal", with the intake method stated.
+   - Log detection, parsing and validation, queueing, inference start and end, and the outcome; for presets, from the
+     button event.
+   - The reported app-side total includes parsing/validation and queueing from app observation of a ready inbox
+     request, or from the preset button event, through the validated target proposal or other terminal outcome.
+     Report delivery/polling outside that boundary separately where measurable. Never subtract unsynchronized PC and
+     headset clocks. Inference-only time is a component, not the end-to-end result.
+   - This is partial runtime evidence, not the speech gate.
+4. **Number formatting:** test the existing serializer against goldens first, and avoid a general Python-compatible
+   formatter unless needed. Any new canonical serialization is versioned with matching PC references, and frozen replay
+   prompts stay byte for byte. Preserve numeric values, units, schema semantics and unknowns. Shortest-round-trip output
+   is not itself a proof of byte equality across languages. Compare against goldens; version any required canonical
+   rendering policy and create matching PC references. Original replay prompts remain byte-identical.
+5. **Snapshots:** annotated 3-, 6- and 10-object snapshots with their provenance verified. Dataset commands and written
+   integration fixtures are labelled apart; written ones are implementation checks, not benchmark or held-out data.
+6. **Stable choices:**
+   - letters and list order come from the scene's inventory identity, the stable object IDs and a fixed salt;
+   - command text and targets are excluded, and choices stay before the scene;
+   - the mapping identity is recorded;
+   - a scene or inventory change invalidates incompatible cache state, and a pose change invalidates the affected
+     prefix even when the mapping is unchanged.
+7. **Runtime identity:** before replay, record the actual GGUF hash, quantization, llama.cpp build, context allocation
+   and KV-cache types, and verify that this is the accepted A1 artifact. Memory is as the runtime reports it; "about
+   100 MB" of KV cache is only an estimate until measured. The proposed context allocation is 8,192 tokens under the
+   accepted brief; keep the actual runtime identity checks.
+8. **D56, unchanged:**
+   - every mismatch is reported individually, and an 8-bit-versus-float32 difference is no exemption;
+   - if replay fails, run the same GGUF on desktop llama.cpp to separate export from integration errors;
+   - implementation progress and replay acceptance are separate statuses.
+9. **References:** replay may reuse the float32 results (r006) only where prompt bytes, token IDs and mappings match
+   exactly. Interactive prompts need fresh PC references (RTX PC, float32, A2.3a's TorchModel path).
 
-**Why 2 threads:** the app's extra threads get cores 3–5 only; four llama.cpp threads on three cores wait for each
-other at every step, and a token took 3.45 s (D59).
+**The brief's other requirements (D98):**
+- **Replay first.**
+  - Use the 32 A2.3e requests (16 cases by `costs.select_cases`, both formats), the 8 audit requests (r0001–r0004 and
+    r0329–r0332) and the longest A2.3d request per format, deduplicated, with the list frozen before testing.
+  - Check token IDs and special tokens, final-position logits for the offered letters, letter-to-object mapping, K as
+    ASK, exact ties to K, and explicit errors for overflow, invalid input and non-finite scores.
+  - Keep the 8,192-token ceiling, never truncate, and record the context allocation.
+  - Preserve the best candidate and the ranking over the union of candidates with at least 1% restricted share in
+    either compared path. Apply D56's TVD ≤0.05 requirement to the cached Quest path against the pinned float
+    reference, and the A2 cache-check requirement to cache-on against cache-off. The original D56 requires
+    best/plausible-order agreement for the uncached path against float and reports its distribution difference; it
+    does not independently impose the same ≤0.05 uncached-to-float TVD ceiling. Save every offered score and
+    restricted share and report each mismatch. Log-probability equality is not the acceptance criterion. Quantization
+    is not an exemption (recorded as D101).
+  - Save every offered logit, restricted share, mapping, decision, input and token hash, identity and cache state per
+    path; pass flags alone are not enough.
+- **Interactive:**
+  - `coordinates_v2` is the first interactive implementation, not a format winner. The augmented format is replay-only
+    initially, with relation-construction cost excluded from those replay timings; it remains relevant to later
+    training work;
+  - the prompt is built on the headset, with golden comparisons against the PC serializer;
+  - the whole 3–10-object snapshot is offered, with no command-dependent cropping;
+  - prompt order is not changed; the reusable prefix with stable choices is measured first.
+- **Caching:** only exactly equal tokens under the same model, tokenizer, runtime configuration and positions.
+  - The boundary comes from actual token sequences.
+  - Reuse is based on actual token identity and compatible positions/state; reset when compatibility cannot be
+    established. Passing pose-related invalidation checks is not evidence of viewpoint grounding and does not close O27.
+  - It must handle a new command in the same scene, a repeated command, changed attributes or geometry, changed
+    inventory, mapping, order, pose, format, model or tokenizer, and cancellation, scene replacement and pause/resume.
+  - Cache ownership is bounded and released explicitly.
+- **Outcomes:** object selected, ASK, invalid or stale request, context overflow, execution failure, cancelled.
+  - An object selection is checked: the letter was offered, the object belongs to the active snapshot, and the scene and
+    mapping revision still match.
+  - Structural validity does not establish semantic correctness. A selected object may be correct or incorrect; the
+    structural checks establish offered membership, active object membership and matching scene/mapping revision only.
+  - Inference stays off the main thread; overlapping submissions are queued or rejected explicitly; a cancelled or
+    superseded request never publishes a late proposal.
+  - The proposal goes through a replaceable interface for later goal execution.
+- **Measurements:** model loading; the first command with an empty cache; a different command with the same scene; a
+  repeated identical request; the first command after invalidation.
+  - Report median and p95 (corrected rule), the input, reused and suffix token counts, resident and peak memory with the
+    cache allocation, and frame behavior (OVR convention).
+  - Include cancellation and lifecycle results, on 3-, 6- and 10-object snapshots with a fixed modest command sequence.
+  - No soak.
+  - Record memory against the existing app limit, approximately 5.75 GiB, and check UI responsiveness. Report median and
+    nearest-rank p95 with sample counts and timing boundaries. A2.5 adds no new latency threshold or soak requirement
+    and cannot close Gate A.
+- **Acceptance:** replay passes token and mapping checks and D56; interactive prompts match their versioned PC
+  references; caching and invalidation behave; typed requests give valid structured outcomes; cancellation, stale-result
+  rejection and lifecycle checks pass; resources and limitations are recorded. Use focused offline checks and on-headset
+  self-checks through the existing harness, with no new Unity test framework.
+- **Deliverables:** code, the fixture and reference bundle, raw headset scores and events, the resource report, the
+  phase note, and reproducible laptop and headset instructions.
 
-## 5. Repository map
+**Approved order of work:**
+1. **Replay:**
+   - the fixture and reference bundle builder on the PC, from existing artifacts with an exact-match check against r006;
+   - a headset replay mode, uncached and cached through `se_eval(tokens, n, keep)`;
+   - a laptop D56 comparison;
+   - a desktop llama.cpp fallback if needed.
+2. The C# `coordinates_v2` serializer and the stable letter policy, with golden PC references and fresh PC float32
+   references for interactive prompts.
+3. The cache manager and the interactive pipeline, with the **common request-intake interface** wired here, so that ADB
+   and presets cannot behave differently.
+4. ADB inbox intake, presets and the UI: target highlight, cancellable workflow, structured outcomes.
+5. The measurement run, the phase note and acceptance.
 
-| Folder | Holds |
-|---|---|
-| `tools/` | `runs.py` (run registry: `new`, `check`, `note`, `set`), `logs.py` (pull headset logs into a run), `profile.py` (record a measurement from the PC), `build_llama.py` (fetch and build llama.cpp) |
-| `analysis/` | `eventlog.py` (read and check event logs), `profile.py` (summarize, compare and tabulate measurements) |
-| `grounding/` | the language model's PC side: exports (ONNX, GGUF), references, headset checks, `scene.py`, prompts, model descriptions. A2's code goes here |
-| `native/` | `se_llama`, our C interface over llama.cpp, its test program and tests |
-| `quest-app/` | the Unity project; our code in `Assets/SecondEyes/` (`App/`, `Logging/`, `Grounding/`, `Editor/`); versions in `quest-app/README.md` |
-| `perception/`, `drone-bridge/` | placeholders for A4 and A6 |
-| `schemas/` | `run-config.v1.json`, `log-event.v1.json` |
-| `docs/` | `conventions.md`, `logging.md`, `profiling.md`, `meta-ai.md`, `llama-cpp.md`, `setup/` (`quest3.md`, `quest-model.md`, `llama-headset.md`), `plan/` (`revision-3.1-supplement.md`, the plan's text, verbatim) |
-| `notes/` | decisions, failures, limitations, phase notes |
-| `runs/` | one folder per run: `config.yaml` tracked, `raw/` ignored (D8) |
+**What exists on the headset side:**
+- **`native/se_llama.h`:**
+  - `se_load_ex(path, n_ctx, n_threads, n_seq, flags)`, `se_tokenize` (parses special tokens, adds none), `se_piece`;
+  - `se_n_cached`, `se_eval(tokens, n, keep)` (keep a cached prefix and evaluate after it), `se_argmax`,
+    `se_logprob(token)`, `se_logits(out, max)` (the raw row);
+  - `se_score`, `se_score_many`, `se_memory_kb(peak)`.
+- **`Grounding/LlamaNative.cs`:** the C# bindings. It lacks `se_logits`, `se_logprob` and `se_score`. The repository's
+  native API already declares the required raw-logit and prefix operations. First verify the deployed library's
+  identity/API against the accepted build under D99. A C# binding addition should suffice if the installed library
+  matches that API; do not assume a rebuild or its absence before this check.
+- **`Grounding/LlamaRuntime.cs`:** one worker thread off Unity's main thread, 2 threads (D59).
+- **`Grounding/ChatPanel.cs`:** the preset panel (D49), with prompt files `grounding/prompts/a17-*.json` and a copy in
+  the app.
+- **`Grounding/CommandSchedule.cs`:** the A1.10 fixed command schedule.
+- **`Logging/EventLog.cs`:** the JSONL event log, schema `schemas/log-event.v1.json`.
+- **The serializer to port** is `grounding/serialization/serializer.py`. Its output is a header line, an objects line, a
+  pose line (`pose_kind: none` in the room data), the command line last, and for `coordinates_relations_v2` the relation
+  tables. The A2.3a prompt wrapper and system message are in `grounding/inference/iref_vla/pilot-protocol.v1.json`.
 
-Not in Git: `runs/*/raw/`, model files, `build/`, `native/out/`, `third_party/`, Unity's generated folders.
-Qwen's tokenizer files are tracked (D35), in `quest-app/Assets/SecondEyes/Models/<model>/`.
+## 8. Decisions D93–D99 and open items
 
-## 6. How we work
+- **D93** A1 closed for now.
+- **D94** A2.3c.
+- **D95** A2.3d.
+- **D96** A2.3e.
+- **D97** A2.3 closed, with the percentile rule and the sequence.
+- **D98** A2.5 defined.
+- **D99** A2.5's input and protocol decisions (committed in `168344e`; resolves O21 for A2.5).
 
-**Steps and approvals** (constraints 1 and 2). Each step is proposed first: what, how, its test, and any choice with
-a recommendation. The project lead approves, usually by picking an option, and the approval becomes a D-entry. Nothing
-changes on the headset without approval (`docs/setup/quest3.md`). Reading and analysing files the project lead sends,
-to answer what was asked, has been done directly; anything that builds or changes something waits for approval.
+Open items:
+- **O3, O4, O7–O10:** infrastructure.
+- **O13:** hand models.
+- **O14:** graphics memory after headset off and on.
+- **O16:** permissions for speech.
+- **O19:** Gate A while speech waits.
+- **O20:** Gate B thresholds.
+- **O21:** typed input. Resolved for A2.5 by D99; a headset keyboard is deferred; input is not to be decided again.
+- **O22:** the resolver's open choices.
+- **O24:** ECMAScript labels.
+- **O25:** MRUK permissions in the manifest.
+- **O26:** inference-interval frame acceptance.
+- **O27:** perspective coverage, pending.
 
-**Instructions.** Numbered steps labeled **[PC]**, **[Unity]** or **[Headset]**, with commands to copy into Windows
-PowerShell. Keep commands and run notes in plain ASCII. The newest run's ID is captured with
-`$run = (Get-ChildItem runs -Directory -Filter "*_A1_r*" | Sort-Object Name | Select-Object -Last 1).Name`.
+## 9. Pending actions, in order
 
-**Deliveries.** Changed files come as one zip with repository-relative paths, unzipped at the repository's root with
-`Expand-Archive -Force $HOME\Downloads\<zip> .`, then committed. Git's LF→CRLF warnings are harmless.
+1. **A2.3e records follow-up** (section 0): append the corrected folder's full manifest hash and successful readback to
+   `notes/phases/A2.3e_checks.md` section 5.
+2. **A2.5 delivery 1 (replay).**
 
-**Runs.** Every measurement or result is a run: `python tools/runs.py new <phase> --purpose "..." --operator JH`
-(`--headset` records the headset's build, `--checkpoint` hashes a model). IDs are `YYYYMMDD_<phase>_rNNN`, numbered
-per phase, never reset (D3, D5). Commit before a run, or it is marked `git_dirty` (D6, D51). Afterwards
-`runs.py note` and `runs.py set <run> purpose "..."` record what happened.
+## 10. Lessons and gotchas
 
-**Measurements on the headset** follow `docs/profiling.md`: reboot, about two minutes in Home, OVR Metrics' CSV on,
-headset plugged in (D22) and kept on (O14), `tools/profile.py record`, then `tools/logs.py pull` and
-`analysis/profile.py summary`. Comparisons follow D24 and D52.
+- **Keep old wording renderable.** When a report's rendering changes, keep the original wording for folders made
+  earlier, or their readback fails (this repair). Test legacy folders with the old code's output, not a re-render.
+- **Dictionary order and float sums.** Cross-version floating-point accumulation can change last bits. Preserve frozen
+  artifacts and use an explicit accumulation/rounding policy or declared numerical comparison where sums are needed. Do
+  not silently regenerate byte-pinned summaries on another Python version and expect identical hashes. Use explicit
+  output ordering rather than incidental dictionary order.
+- **Hashes and line endings.** Hashes are of bytes, and CRLF versus LF changes them; transfer the exact file a manifest
+  pinned.
+- **Selection rules must match.** A canary or case-selection rule copied into a second tool must match the first
+  exactly (the audit nearly broke ties the other way).
+- **The RTX PC's run configs** block pulls (section 3).
+- **Missing output in a paste** usually means a long command was still running; check before committing.
+- **Speed.** jsonschema over large arrays is slow; check those structures directly.
 
-**Records.** Decisions in `notes/decisions.md`; every failure in `notes/failures.md`, the assistant's own errors
-marked as such; limitations in `notes/limitations.md`; a phase note from the template when a phase or sub-step ends;
-facts in `docs/`. Every number traces to a run ID.
+## 11. A good first message in the new chat
 
-**Testing before delivery.** Python tools are tested on copies of real run files; native code is built and tested on
-Linux with a tiny model (`native/tests/`), with portable builds (`-DGGML_NATIVE=OFF`); C# is checked against
-stand-ins where practical. Unity, the Android build and the headset are only on the project lead's side, so their
-first real test is always the project lead's run.
+"Read the handover. Then start A2.5 delivery 1, frozen-request replay, under D98 and D99: the PC fixture and reference
+bundle builder, the headset replay mode (uncached and cached), and the laptop D56 comparison."
 
-**The assistant's sandbox** has no GPU, no Unity and no Android NDK. It reaches GitHub and PyPI but not Hugging Face,
-so real model weights stay on the project lead's PCs. Uploads with the same file name overwrite each other (four
-`sampler.jsonl` became one): ask for one run's files at a time, or one zip per run.
-
-**Communication.** The project lead likes reasons explained, short summaries when asked for, and one question at a
-time with options to pick.
-
-## 7. Setup
-
-| | |
-|---|---|
-| Working PC | Windows; repository at `C:\Users\jubay\second-eyes`, Python environment `.venv`; `adb` on PATH; CMake and Ninja inside `.venv` |
-| Unity | 6000.3.25f1; Android NDK 27.2.12479018 inside Unity's Android module (found by `build_llama.py`); Meta XR Core SDK 207.0.0; OpenXR 1.18.0; Inference Engine 2.2.1 |
-| Headset | Meta Quest 3, developer mode; OS build in `docs/setup/quest3.md`; app `com.secondeyes.quest`; OVR Metrics Tool installed |
-| Lab PC | NVIDIA RTX 6000 Pro, reached by Remote Desktop; operating system, CUDA, Python and free disk to confirm at A2's start |
-| Repository | GitHub `Lycanthrope8/second-eyes`, private |
-| Operator | JH, also the project lead who approves decisions |
-
-## 8. Open items and loose ends
-
-**Open items** (`notes/decisions.md`): O3 coordinate frames and units in logs · O4 recording Vicon for clock
-alignment · O7 where Track B lives · O8 Git tag names for gates · O9 raw-data storage · O10 experiment tracking and
-figure scripts · O13 drawing hand and controller models · O14 graphics memory grows about 1.6 GB per headset off-on ·
-O16 where three Android permissions come from · O19 how Gate A is judged while speech waits (with the advisor) · O20
-Gate B's thresholds (with the advisor) · O21 how typed commands reach the app for A2.5.
-
-**Loose ends from A1:**
-
-- **Latency against prompt length.** A1's checklist asks for this curve, and A2 needs it to turn a scene format's
-  length into headset seconds. The data so far: whole prompt 1.39 s for 230 tokens from the command line at 2
-  threads, and 1.3 s to the first token in the app, so command-line numbers carry over to the app. Measure a few
-  prompt lengths with `llama_headset.py` early in A2.
-- **Battery drain.** The proposal's soak measures it, but runs are plugged in (D22). A1.11 needs an unplugged run or
-  a recorded decision.
-- **Latency percentiles and memory per component.** The proposal's tables want the 90th percentile and PSS per
-  component; the tools report medians, ranges and the app's total so far.
-- **The panel's new default** (`startWithLlama`, D60) wasn't compiled by the assistant: the C# stand-ins were lost
-  with a machine change. The first Unity build checks it; the panel should then show "Runtime: llama.cpp" with
-  Backend and Weights greyed out.
-- **A1's phase note** is written when A1 closes, from the sub-step notes.
-- **A0** (scope freeze, IRB submission, thresholds agreed with the advisor) hasn't been part of these chats. Ask
-  about its status when it matters: Gate B's thresholds are proposed defaults until agreed (O20), and A3 needs IRB
-  approval (participants wait, constraint 6).
-- **Experiment tracking.** D1 defers it until Gate A, but A2's training runs start before Gate A. Ask whether run
-  records are enough for A2 or tracking comes earlier.
-
-## 9. Lessons and pitfalls
-
-- Unity misread model data stored past 2 GiB: keep one word table, weights file under 2 GiB (D47).
-- Meta's runner: its GPU path allows no buffer over 128 MiB, 32-bit weights get the app killed, and every prompt pass
-  blocks the app (D54, A1.7d).
-- llama.cpp with flash attention isn't batch-invariant: the cached and uncached paths differ by a few hundredths in
-  score, within D56's limits; turning it off made scores overconfident (D58).
-- Threads: at most the cores the app gets; 2 in the app (D59).
-- The headset coming off and on while the app runs adds about 1.6 GB (O14): runs keep the headset on.
-- The summary flags memory jumps; a model load inside the recording is reported as the load instead.
-- Windows PowerShell's `>` writes UTF-16; our tools write their own files.
-- The assistant's sandbox can change machines between turns: build natively portable.
-
-## 10. A2 · Grounding baselines
-
-**The plan** is the Revision 3.1 supplement's A2 card (D63; text in `docs/plan/revision-3.1-supplement.md`), which
-replaces Revision 3's. A2 ends at preliminary Gate B, whose thresholds are still to agree with the advisor (O20), and
-claims no Gate A pass (D65). Commands are typed text, published data is the main training source, no custom scene
-generator is built, and the natural lab commands are for evaluation only.
-
-| Step | What | Runs on |
-|---|---|---|
-| A2.1 | A short specification of the scene contract, relations, outputs and outcomes; then the validator, serializer, relation library and shared resolver, checked with independently reviewed fixtures | any PC |
-| A2.2 | Published data, starting with an IRef-VLA subset: access, an adapter and scene-disjoint splits; 50–100 natural lab-member text commands collected and held out | a PC with room for the data |
-| A2.3 | Rules, zero-shot Qwen2.5-0.5B-Instruct and a larger reference model on equivalent scene evidence; two formats shortlisted | any PC; the larger model on the RTX |
-| A2.4 | A bounded, matched LoRA comparison of direct selection and query parsing | RTX |
-| A2.5 | The exported grounder checked against the PC and measured in the Quest app, from typed submission to validated goal, grounding-only (O21) | RTX, then the headset |
-| A2.6 | Preliminary Gate B on frozen evaluations, with public data and lab commands reported separately | any PC |
-
-**What A1 gives A2:** candidate scoring is already the "direct selection" design, with confidences; any fine-tuned
-model becomes a GGUF for the same runtime, and the headset's command line can check its scores against PyTorch's
-(D56) in minutes. **What A1 doesn't give:** any evidence of correctness. A1 checked that the headset reproduces the
-model; on its four prompts the model is right on three and wrong on "the box behind the table". Measuring and
-improving correctness over many commands is A2's job.
-
-**Where A2 runs:** almost all of it on the lab PC through Remote Desktop, so being in the lab isn't needed. Long jobs
-keep running when Remote Desktop is disconnected, but not after signing out or a forced restart. The headset is
-needed only for the latency curve (section 8) and A2.5, from whichever PC it is plugged into.
-
-**To settle when A2 first needs the lab PC:** its operating system, CUDA and Python versions and free disk; how models
-move between the lab PC and the PC the headset is plugged into (Git carries code, not models); which larger reference
-model to use; A0's status.
-
-**Needed from the project lead:** access to the lab PC; the data-access requests, which start with A2 (ScanNet where
-the chosen files need it); about an hour of lab members' time for the 50–100 commands, which can be collected
-remotely.
-
-## 11. Starting a new chat
-
-Make the zip from a clean, pushed working copy (tracked files only, a few MB):
-
-```
-git status
-git rev-parse --short HEAD
-git archive --format=zip -o "$HOME\Downloads\second-eyes-src.zip" HEAD
-```
-
-Open the new chat inside the Claude project, so it sees the proposal and its supplement and can read the chat the
-prompt names. Upload the zip and paste the prompt below, with the commit's short hash and that chat's name filled in.
-
-> We're continuing the Second Eyes project. Attached is second-eyes-src.zip, the repository at commit `<short hash>`.
-> The proposal, Second_Eyes_Research_Proposal_Revision_3.pdf, and its Revision 3.1 supplement are in this project's
-> files.
->
-> Read HANDOVER.md first, then check what you need in the files it points to. Don't rely on memory or summaries:
-> the repository decides.
->
-> My standing constraints, from the start of the project:
->
-> 1. Don't assume anything and don't do anything on your own. Propose first and wait for my approval, even for small
->    fixes. Where there's a choice, give me the options with your recommendation. If something is unclear or
->    inconsistent, ask; don't fix it quietly.
-> 2. One step at a time. Don't try to finish many steps in one response.
-> 3. Don't plan too far ahead. The Go/No-go gates may end or change things, so plan up to the next gate.
-> 4. Keep everything easy for me to understand later: clear records and a well-structured repository.
-> 5. Every computation on the Quest 3 counts. Don't waste its compute or memory.
-> 6. Vicon and participants wait until I actually need them. Storage and experiment tracking wait until headset
->    feasibility is settled.
-> 7. If you must look into any chats, just refer to the chat named "<chat name>." Don't look into any other chats
->    because I don't want you to be confused.
->
-> Start by telling me briefly what you understood. Then propose the next step and wait for my approval.
+Reports: the available A1 report is historical through A1.8; D91–D93 and the current handover carry the later detector
+results and closure until the report is updated. `Second_Eyes_A2_Report.pdf` is current through 7 October evening,
+including A2.3's closure, D98, D99 and `168344e`.

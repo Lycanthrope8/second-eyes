@@ -1,0 +1,59 @@
+{
+  "format_version": 1,
+  "record_type": "a25_replay_policy",
+  "policy_id": "a25.replay.frozen_requests.v1",
+  "decisions": ["D98", "D99"],
+  "purpose": "A2.5 delivery 1: freeze the replay requests, their float32 references and the written integration fixtures for the headset replay, built on the PC from existing artifacts only; no model runs here",
+  "model_key": "qwen2.5-0.5b-instruct",
+  "inputs": {
+    "requests_manifest_sha256": "0e49a9f6ed1bd07569ed0a24ec5753cbc4c26a55d1389f0e2240695f8bfe3db0",
+    "scores_manifest_sha256": "3c92ac4e843704a821f16718635f7815a2bfc78a1ac38c0e2ff517df43e33f57",
+    "scores_files_read": ["manifest.json"],
+    "small_run_id": "20261007_A2_r006",
+    "small_run_manifest_sha256_prefix": "f06cb6c6",
+    "small_run_manifest_rule": "r006's full manifest hash is the one the pinned A2.3d scores manifest records under inputs.small_run_manifest_sha256; it must begin with the recorded prefix"
+  },
+  "selection": {
+    "sources": ["a23e_case", "a23e_audit", "longest_in_format"],
+    "rules": {
+      "a23e_case": "costs.select_cases over the request index, each chosen parent/view pair's requests in request order, expanded exactly as cache.py does",
+      "a23e_audit": "audit.audit_parents over the request index, each parent's requests in request order, expanded exactly as audit.py does",
+      "longest_in_format": "for each format, across both views, the request with the largest (input tokens of model_key, request index): the runs' canary rule applied within each format, so ties go to the later request"
+    },
+    "expected": {
+      "a23e_case_requests": 32,
+      "a23e_audit_request_ids": ["r0001", "r0002", "r0003", "r0004", "r0329", "r0330", "r0331", "r0332"]
+    },
+    "order": "request index; a request chosen by several sources appears once and lists every source",
+    "list_encoding": "request IDs in order, UTF-8, one LF after every ID including the last"
+  },
+  "boundaries": {
+    "keep_before_last_token": "keep the first n - 1 of n tokens (a repeated identical request); verified when the prompt's text before the last token re-tokenizes to exactly those n - 1 tokens",
+    "keep_before_command_line": "keep the tokens before the document's last line, which must be the command line {\"command\": ...}; verified when the prompt's text before that line re-tokenizes to an exact prefix of the frozen tokens"
+  },
+  "headset": {
+    "vocab_size": 151936,
+    "vocab_size_source": "grounding/models/qwen2.5-0.5b-instruct.json architecture.vocab_size",
+    "input_checks": ["prompt_bytes", "mapping", "token_ids", "tokenization", "context"],
+    "input_check_rule": "the checks run in this order and the first failure decides the outcome: prompt_bytes and mapping and token_ids fail as invalid_input, tokenization as tokenization_mismatch, context as context_budget_exceeded; a request that passes all five is evaluated"
+  },
+  "written_fixtures": {
+    "label": "written_integration_fixture: an implementation check written for A2.5, not dataset data and not a benchmark (D99(5)); each stops at one input check, before any evaluation",
+    "mapping": [["A", "written_object_a"], ["B", "written_object_b"], ["K", "ASK"]],
+    "document_lines": ["{\"written_fixture\":\"implementation check, not dataset data\"}", "{\"command\":\"written fixture command\"}"],
+    "overflow_filler": {"text_before_number": "{\"written_fixture_filler\":", "text_after_number": "}"},
+    "overflow_rule": "filler lines numbered 1, 2, ... go before the command line; the fewest that make the prompt's tokens plus the continuation exceed the context limit",
+    "fixtures": [
+      {"request_id": "written.context_overflow", "expected_outcome": "context_budget_exceeded", "expected_reason": "context_budget_exceeded",
+       "change": "the overflow document: the fewest filler lines that exceed the context limit"},
+      {"request_id": "written.prompt_hash_mismatch", "expected_outcome": "invalid_input", "expected_reason": "prompt_hash_mismatch",
+       "change": "the stored bytes have the command text's first letter upper-cased; prompt_sha256 stays the original prompt's"},
+      {"request_id": "written.mapping_ask_not_last", "expected_outcome": "invalid_input", "expected_reason": "mapping_invalid",
+       "change": "the choice K/ASK is listed first instead of last; mapping_sha256 is recomputed for the changed lists"},
+      {"request_id": "written.code_token_mismatch", "expected_outcome": "invalid_input", "expected_reason": "code_token_mismatch",
+       "change": "code A carries token ID 33 instead of the protocol's 32; mapping_sha256 is recomputed for the changed lists"},
+      {"request_id": "written.token_out_of_vocabulary", "expected_outcome": "invalid_input", "expected_reason": "token_out_of_vocabulary",
+       "change": "the last token ID becomes vocab_size; token_ids_sha256 is recomputed for the changed list"}
+    ]
+  }
+}
