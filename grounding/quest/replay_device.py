@@ -22,6 +22,7 @@ import shutil
 from pathlib import Path
 
 from ..evaluation.iref_vla.protocol import EvaluationInputError, encode_json, issue
+from .publish import publish
 from .replay_bundle import verify_replay_bundle
 from .runtime_identity import REPO, Adb, file_sha256
 
@@ -159,7 +160,7 @@ def pull(*, run_id, results=None, adb=None, repo=None, progress=print) -> dict:
                    "done": {k: done.get(k) for k in ("requests", "written", "fixtures", "fixtures_as_expected",
                                                      "self_checks_passed", "total_ms")} if isinstance(done, dict) else None}
         (staging / "pull.json").write_bytes(encode_json(receipt))
-        os.rename(staging, dest)
+        publish(staging, dest)
     except BaseException:
         shutil.rmtree(staging, ignore_errors=True)
         raise

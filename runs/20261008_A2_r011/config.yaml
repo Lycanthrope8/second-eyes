@@ -1,0 +1,29 @@
+# Run config, format v1 (defined in schemas/run-config.v1.json).
+# Made by:   python tools/runs.py new <phase> --purpose "..." --operator "..."
+# Check it:  python tools/runs.py check <run ID>
+# Fill the optional fields that apply to this run and leave the rest null.
+
+# Identity (filled by the tool)
+config_version: 1
+run_id: "20261008_A2_r011"
+phase: "A2"
+created: "2026-10-08T16:14:58-04:00"  # local time with UTC offset
+
+# Required (given to the tool)
+purpose: "A2.5 delivery 1: identical-GGUF desktop diagnosis"  # one line: why this run exists
+operator: "JH"  # who ran it
+
+# Code (filled by the tool)
+git_commit: "50207a9e3876bbdb861d43d217a296b220ca792b"
+git_dirty: true  # true if the repository had uncommitted changes (files in .gitignore don't count)
+
+# Optional: leave null when a field doesn't apply
+model_checkpoint: null  # model file name (--checkpoint fills it)
+model_sha256: null  # SHA-256 of that file (--checkpoint fills it)
+prompt_version: null  # version of the prompt template
+schema_version: null  # version of the model's output/scene schema (proposal section 6.2)
+layout_id: null  # which prop layout
+headset_os_build: null  # ro.build.fingerprint (--headset fills it)
+drone_firmware: null
+lighting: null  # lighting conditions
+notes: "Never used: created by a re-run of Claude's desktop sequence while the host build was failing; no data (notes/failures.md)."  # anything else

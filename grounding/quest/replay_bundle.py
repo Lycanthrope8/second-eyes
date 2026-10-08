@@ -31,6 +31,7 @@ import tempfile
 from pathlib import Path
 
 from ..evaluation.iref_vla import output
+from .publish import publish
 from ..evaluation.iref_vla.protocol import (EvaluationInputError, EvaluationOutputError, encode_json, encode_jsonl, issue,
                                              runtime, sha256, strict_json)
 from ..inference.iref_vla.choices import build_prompt, choices_line
@@ -519,7 +520,7 @@ def build_replay_bundle(*, requests, small_run, scores, tokenizer_dir, out, poli
         bad = verify_replay_bundle(staging, requests=requests, small_run=small_run, scores=scores, tokenizer=tok)
         if bad:
             raise RuntimeError("the bundle failed readback: " + "; ".join(bad[:5]))
-        os.rename(staging, out)
+        publish(staging, out)
     except OSError as e:
         shutil.rmtree(staging, ignore_errors=True)
         raise EvaluationOutputError([issue(str(out), "E_EVAL_OUTPUT_IO", f"{type(e).__name__}: {e}")]) from e

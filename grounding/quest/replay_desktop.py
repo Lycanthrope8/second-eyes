@@ -29,6 +29,7 @@ import time
 from pathlib import Path
 
 from ..evaluation.iref_vla import output
+from .publish import publish
 from ..evaluation.iref_vla.protocol import EvaluationInputError, EvaluationOutputError, encode_json, issue
 from . import replay_inputs as RI
 from .replay_bundle import verify_replay_bundle
@@ -291,6 +292,7 @@ def run_desktop(*, bundle, out, model=None, library=None, native=None, progress=
                              "verbose": "on during the load only", "file": "startup-log.txt",
                              "bytes": (staging / "startup-log.txt").stat().st_size if (staging / "startup-log.txt").is_file() else -1,
                              "error": cap_error},
+                 "code": {f"grounding/quest/{c.name}": file_sha256(c) for c in sorted(Path(__file__).parent.glob("*.py"))},
                  "host": {"platform": platform.platform(), "machine": platform.machine(), "processor": platform.processor(),
                           "cpu_count": os.cpu_count(), "python": sys.version.split()[0], "library": str(library),
                           "library_sha256": file_sha256(library) if library.is_file() else None,
@@ -332,7 +334,7 @@ def run_desktop(*, bundle, out, model=None, library=None, native=None, progress=
                 "end_peak_kb": native.memory_kb(True), "finished_utc": datetime.datetime.now(datetime.timezone.utc).isoformat()}
         (staging / "done.json").write_bytes(encode_json(done))
         native.free()
-        os.rename(staging, out)
+        publish(staging, out)
     except OSError as e:
         native.free()
         raise EvaluationOutputError([issue(str(out), "E_EVAL_OUTPUT_IO", f"{type(e).__name__}: {e}")]) from e
@@ -340,7 +342,10 @@ def run_desktop(*, bundle, out, model=None, library=None, native=None, progress=
         native.free()
         failed = out.parent / f"{out.name}.failed"
         if not failed.exists():
-            os.rename(staging, failed)   # kept as evidence, never published as a finished result
+            try:
+                publish(staging, failed)   # kept as evidence, never published as a finished result
+            except OSError:
+                pass                       # the staging folder then stays where it is, still evidence
         raise
     done["folder"] = str(out)
     return done

@@ -141,6 +141,11 @@ def main() -> int:
         d = DK.run_desktop(out=tmp / "d0", native=FakeNative(bundle, 300000), **common)
         check("the desktop replay writes every request and fixture, self-checks passing",
               d["written"] == d["requests"] and d["fixtures_as_expected"] == 5 and d["self_checks_passed"], str(d))
+        ident = json.loads((tmp / "d0" / "identity.json").read_text(encoding="utf-8"))
+        here = REPO / "grounding" / "quest" / "replay_desktop.py"
+        check("the desktop identity records the SHA-256 of the code that ran, replay_desktop.py included",
+              ident["code"].get("grounding/quest/replay_desktop.py") == hashlib.sha256(here.read_bytes()).hexdigest()
+              and "grounding/quest/publish.py" in ident["code"])
         log = (tmp / "d0" / "startup-log.txt").read_text(encoding="utf-8")
         check("the runtime's stderr during the load lands in startup-log.txt", KV_LINE in log)
         s = RC.compare_replay(bundle=bundle, results=tmp / "d0", out=tmp / "c0")
@@ -222,6 +227,35 @@ def main() -> int:
               refused(lambda: DK.run_desktop(out=tmp / "x2", **common)))
         check("the comparison refuses an existing destination",
               refused(lambda: RC.compare_replay(bundle=bundle, results=tmp / "d0", out=tmp / "c0")))
+    print("-- publishing a folder (a simulated Windows file lock)")
+    PB = importlib.import_module("grounding.quest.publish")
+    real = os.rename
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        (tmp / "s").mkdir()
+        calls = []
+        def flaky(a, b):
+            calls.append(1)
+            if len(calls) <= 2:
+                raise PermissionError(13, "Access is denied")
+            real(a, b)
+        os.rename = flaky
+        try:
+            k = PB.publish(tmp / "s", tmp / "o", sleep=lambda s: None)
+        finally:
+            os.rename = real
+        check("two refused renames, then the folder is published on the third try", k == 3 and (tmp / "o").is_dir())
+        (tmp / "s2").mkdir()
+        os.rename = lambda a, b: (_ for _ in ()).throw(PermissionError(13, "Access is denied"))
+        try:
+            PB.publish(tmp / "s2", tmp / "o2", sleep=lambda s: None)
+            raised = False
+        except PermissionError:
+            raised = True
+        finally:
+            os.rename = real
+        check("a lock that never clears still fails, after the last try, and nothing is published",
+              raised and (tmp / "s2").is_dir() and not (tmp / "o2").exists())
     print(f"\n{len(PASSES)} passed, {len(FAILS)} failed")
     return 0 if not FAILS else 1
 

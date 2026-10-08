@@ -33,6 +33,7 @@ import zipfile
 from pathlib import Path
 
 from ..evaluation.iref_vla import output
+from .publish import publish
 from ..evaluation.iref_vla.protocol import (EvaluationInputError, EvaluationOutputError, encode_json, issue, runtime,
                                              sha256, strict_json)
 from . import binaries as B
@@ -449,7 +450,7 @@ def check_runtime_identity(*, out, adb=None, repo=None, policy=None, progress=pr
                     "policy_sha256": sha256(pol_path.read_bytes()), "files": files, "code": code_hashes(),
                     "runtime": runtime()}
         output._write_file(staging / "manifest.json", encode_json(manifest))
-        os.rename(staging, out)
+        publish(staging, out)
     except OSError as e:
         shutil.rmtree(staging, ignore_errors=True)
         raise EvaluationOutputError([issue(str(out), "E_EVAL_OUTPUT_IO", f"{type(e).__name__}: {e}")]) from e
