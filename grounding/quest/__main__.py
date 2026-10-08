@@ -1,8 +1,12 @@
-"""Command line for A2.5's PC side (D98, D99): `replay-bundle` and `verify-replay-bundle` (laptop).
+"""Command line for A2.5's PC side (D98, D99): `replay-bundle`, `verify-replay-bundle` and `runtime-identity` (laptop).
 
-Exit 0 complete, or a clean readback; 1 a readback that found problems; 2 invalid input, a pinned-identity, selection,
-token, boundary or reference mismatch, or an existing destination (nothing published); 3 an output error or an
-unexpected failure (nothing published)."""
+replay-bundle and verify-replay-bundle: exit 0 complete, or a clean readback; 1 a readback that found problems; 2 invalid
+input, a pinned-identity, selection, token, boundary or reference mismatch, or an existing destination (nothing
+published); 3 an output error or an unexpected failure (nothing published).
+
+runtime-identity: exit 0 current deployed identity verified (A1.8c continuity linked or unverified, as printed); 1 a
+check failed or continuity is contradicted; 2 incomplete (nothing failed, something could not be established); 3 not
+run (an existing destination, an unreadable policy or an output error). The evidence folder is published for 0, 1 and 2."""
 from __future__ import annotations
 
 import argparse
@@ -28,7 +32,13 @@ def main(argv=None) -> int:
     v.add_argument("--bundle", required=True)
     for n in ("--requests", "--small-run", "--scores", "--tokenizer-dir"):
         v.add_argument(n)
+    ri = sub.add_parser("runtime-identity", help="the installed app's native library and model file, checked on the laptop "
+                                                 "with read-only adb")
+    ri.add_argument("--out", required=True)
+    ri.add_argument("--adb", default="adb", help="the adb executable (default: adb on PATH)")
     a = ap.parse_args(argv)
+    if a.command == "runtime-identity":
+        return _runtime_identity(a)
     try:
         from . import replay_bundle as RB
         from ..inference.iref_vla_compare import design as D
@@ -88,6 +98,33 @@ def main(argv=None) -> int:
     except Exception as e:  # noqa: BLE001
         print(f"failure, nothing published: {type(e).__name__}: {e}", file=sys.stderr)
         return 3
+
+
+def _runtime_identity(a) -> int:
+    from . import runtime_identity as RI
+    try:
+        rec = RI.check_runtime_identity(out=a.out, adb=RI.Adb(a.adb), progress=lambda m: print(f"  ... {m}", flush=True))
+    except EvaluationInputError as e:
+        for i in e.issues:
+            print(f"not run: {i['code']} at {i['path']}: {i['message']}", file=sys.stderr)
+        return 3
+    except EvaluationOutputError as e:
+        for i in e.issues:
+            print(f"not run: output error {i['code']} at {i['path']}: {i['message']}", file=sys.stderr)
+        return 3
+    for k in RI.CURRENT:
+        c = rec["checks"][k]
+        print(f"  {k}: {c['status']} - {c['detail']}")
+    c = rec["continuity"]
+    print(f"  A1.8c continuity: {c['status']} - {c['reason']}")
+    for r in c["records"]:
+        print(f"    {r['run']}: " + ("no build record here" if not r["found"] else
+                                     f"libse_llama.so {r.get('libse_llama_sha256')}; matches: {'yes' if r.get('matches_deployed') else 'no'}"))
+    if rec.get("error"):
+        print(f"  unexpected error, evidence kept: {rec['error']}")
+    print(rec["status"]["line"])
+    print(f"written to {a.out}")
+    return rec["status"]["exit_code"]
 
 
 if __name__ == "__main__":
