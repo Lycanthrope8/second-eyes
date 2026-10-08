@@ -220,6 +220,8 @@ namespace SecondEyes.Grounding.Replay
             string stamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
             string bundleDir = BundleDir, dir = Path.Combine(ResultsRoot, stamp);
             string appVersion = Application.version, unity = Application.unityVersion, device = SystemInfo.deviceModel;
+            if (Directory.Exists(dir))   // never written into: a second press within the same second gets refused
+                return "Replay not started: results folder " + stamp + " already exists. Nothing was written; press Replay again.";
             Directory.CreateDirectory(dir);
             var total = Stopwatch.StartNew();
             Say("Replay: reading the bundle...");

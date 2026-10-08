@@ -221,3 +221,75 @@ Tests:
 - `python grounding/tests/test_quest_replay_device.py`.
 - The C# logic was compiled at C# 9 with .NET 8 in Claude's sandbox, and checked against vectors this Python code made
   from the real bundle. It is not part of the repository's suites.
+
+## Step 3: the comparison (D101)
+
+```text
+python -m grounding.quest replay-compare --bundle DIR --results DIR --run RUN_ID [--push-receipt FILE]
+```
+
+It reads a results folder from the headset (`replay-pull`) or from the desktop diagnosis (`replay-desktop`) against the
+frozen bundle. It writes `runs/<id>/raw/compare/<UTC time>/` (`comparisons.jsonl`, `summary.json`, `report.md`,
+`manifest.json`) whatever the verdict.
+
+Collection completeness is not acceptance. The comparison enforces everything itself:
+
+- **The input chain.** The results' identity names the bundle's own headset files by SHA-256. The push receipt, if
+  given, names the same files and the bundle's root manifest.
+- **Coverage.** The results are exactly the bundle's requests in order, and the fixtures exactly its written fixtures,
+  each stopped before evaluation. Every self-check passed.
+- **Every record:**
+  - its input checks passed with the device's own hashes equal to the bundle's;
+  - the native tokenization equals the frozen IDs;
+  - its evaluations are exactly D103's schedule, each returning 0 with the expected cache count;
+  - every scored path is a full finite row with the bundle's mapping, and its recorded decision is the one its saved
+    float32 logits give.
+- **D101, five comparisons per request:**
+  - U against float32: best candidate and ranking, TVD reported;
+  - R and P against float32: best candidate, ranking, and TVD at most 0.05;
+  - R and P against U: the same three.
+
+  Shares are recomputed from the saved float32 logits over every offered code, K included, and exact ties go to K.
+  Ranking compares every pair in the union of codes with at least 1% share on either path. Every mismatch is listed
+  with its changed pairs.
+- **Runtime reporting.** Each field comes with the startup-log lines that support it, kept at their reported precision:
+  file type, context, per-sequence context, batch, attention setting and its resolution, unified cache, KV buffer, and
+  K and V types and sizes. A missing line leaves the field missing, never filled in from defaults.
+
+Replay acceptance passes only when every check and all comparisons pass. Exit codes: 0 pass; 1 fail; 2 unreadable
+inputs; 3 an output error.
+
+## The desktop diagnosis (D98)
+
+```text
+python tools/build_llama.py host
+python -m grounding.quest replay-desktop --bundle DIR --run RUN_ID [--model PATH] [--library PATH]
+```
+
+This replays the same frozen bundle through the same input checks and U/R/P schedule, with the same GGUF:
+
+- the model is checked against the full accepted SHA-256 `dd753cd6…`;
+- it runs on the pinned llama.cpp and wrapper, built for this PC and called through `ctypes`;
+- it keeps the requested settings: 8,192 tokens of context, 2 threads, 16 sequences, flags 0;
+- it writes the headset's files in the headset's format, with a `host` block (platform, processor, Python, the
+  library's SHA-256 and the host build record) instead of the app's.
+
+llama.cpp's startup lines are captured the same way, from this process's `stderr` around the load only.
+`replay-compare` reads the result unchanged.
+
+On Windows the host build needs a C++ compiler on PATH, for example MSVC from a Developer PowerShell. The library it
+builds uses this PC's native instruction set, so its arithmetic differs from the headset's ARM build by design.
+
+The diagnosis helps localize a headset discrepancy; it does not establish its cause on its own. Nothing here changes
+quantization, repacking, attention, prompts, boundaries or tolerances. A failed run is kept beside its destination as
+`<time>.failed`, never published as a finished result.
+
+Tests:
+
+```text
+python grounding/tests/test_quest_replay_compare.py
+```
+
+These use a fixture bundle and a labelled fake native library. The comparison was also checked against ChatGPT's
+independent recomputation of run `20261008_A2_r009`: the same 21 cache-comparison failures, choices, TVDs to ten digits
+and changed pairs.

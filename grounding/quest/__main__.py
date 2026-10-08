@@ -1,5 +1,5 @@
 """Command line for A2.5's PC side (D98, D99, D103): `replay-bundle`, `verify-replay-bundle`, `runtime-identity`,
-`replay-push` and `replay-pull` (laptop).
+`replay-push`, `replay-pull`, `replay-compare` and `replay-desktop` (laptop or PC).
 
 replay-bundle and verify-replay-bundle: exit 0 complete, or a clean readback; 1 a readback that found problems; 2 invalid
 input, a pinned-identity, selection, token, boundary or reference mismatch, or an existing destination (nothing
@@ -10,7 +10,11 @@ check failed or continuity is contradicted; 2 incomplete (nothing failed, someth
 run (an existing destination, an unreadable policy or an output error). The evidence folder is published for 0, 1 and 2.
 
 replay-push and replay-pull: exit 0 done; 2 refused (no single device, no app folder, a bundle that does not read back,
-an unknown run or results folder, or an existing destination), with nothing changed; 3 an output error."""
+an unknown run or results folder, or an existing destination), with nothing changed; 3 an output error.
+
+replay-compare: exit 0 replay acceptance passes (every structural check and all D101 comparisons); 1 it fails (the folder
+is written either way); 2 unreadable inputs; 3 an output error. replay-desktop: exit 0 done; 2 refused (a bundle that
+does not read back, another model file, no host build); 3 a failure (kept beside the destination as .failed)."""
 from __future__ import annotations
 
 import argparse
@@ -48,7 +52,19 @@ def main(argv=None) -> int:
     pl.add_argument("--run", required=True)
     pl.add_argument("--results", help="a results folder name (default: the newest with done.json)")
     pl.add_argument("--adb", default="adb")
+    cp = sub.add_parser("replay-compare", help="step 3: a replay's raw results against the frozen bundle (D101, five per request)")
+    cp.add_argument("--bundle", required=True)
+    cp.add_argument("--results", required=True, help="a pulled headset results folder or a desktop results folder")
+    cp.add_argument("--run", required=True, help="the run that receives raw/compare/<UTC time>/")
+    cp.add_argument("--push-receipt", help="replay-push's receipt, to tie the bundle's root manifest to the pushed files")
+    dk = sub.add_parser("replay-desktop", help="the desktop diagnosis: the same bundle and schedule with the host build")
+    dk.add_argument("--bundle", required=True)
+    dk.add_argument("--run", required=True, help="the run that receives raw/desktop/<UTC time>/")
+    dk.add_argument("--model", help="the GGUF (default: grounding/models/qwen2.5-0.5b-instruct/gguf/...q8_0.gguf)")
+    dk.add_argument("--library", help="the host build of the wrapper (default: native/out/host/)")
     a = ap.parse_args(argv)
+    if a.command in ("replay-compare", "replay-desktop"):
+        return _analysis(a)
     if a.command == "runtime-identity":
         return _runtime_identity(a)
     if a.command in ("replay-push", "replay-pull"):
@@ -131,7 +147,8 @@ def _device(a) -> int:
         print(f"  requests written {d.get('written')} of {d.get('requests')}; result lines {c['results_lines']}, "
               f"matching done.json: {'yes' if c['lines_match_done'] else 'no'}; fixtures as expected "
               f"{d.get('fixtures_as_expected')} of {d.get('fixtures')}; self-checks passed: {d.get('self_checks_passed')}")
-        print("complete" if r["complete"] else "INCOMPLETE: see pull.json")
+        print("collection complete (structure and D101 are checked by replay-compare)" if r["complete"]
+              else "collection INCOMPLETE: see pull.json")
         return 0
     except EvaluationInputError as e:
         for i in e.issues:
@@ -139,6 +156,56 @@ def _device(a) -> int:
         return 2
     except OSError as e:
         print(f"output error: {e}", file=sys.stderr)
+        return 3
+
+
+def _stamped(run_id, kind) -> Path:
+    import datetime
+    from . import replay_device as RD
+    folder = RD._run_folder(RD.REPO, run_id)
+    return folder / "raw" / kind / datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d-%H%M%S")
+
+
+def _analysis(a) -> int:
+    try:
+        if a.command == "replay-compare":
+            from . import replay_compare as RC
+            out = _stamped(a.run, "compare")
+            s = RC.compare_replay(bundle=a.bundle, results=a.results, out=out, push_receipt=a.push_receipt)
+            v = s["verdict"]
+            print(f"replay acceptance: {v['replay_acceptance']}; {v['d101_failures']} of {v['comparisons']} D101 comparisons "
+                  f"fail across {v['requests_with_a_failure']} requests; {v['structural_problems']} structural problem(s); "
+                  f"K/V reporting: {v['k_v_reporting']}")
+            for name, p in s["per_comparison"].items():
+                mx = "-" if p["max_tvd"] is None else f"{p['max_tvd']:.10f}"
+                print(f"  {name:16} pass {p['pass']:>2}/{p['compared']}  best {p['best_candidate_failures']}  ranking "
+                      f"{p['ranking_failures']}  TVD>0.05 {p['tvd_over_0_05']}  max TVD {mx}")
+            for p in s["problems"][:10]:
+                print(f"  problem: {p}")
+            kv = s["startup_log"].get("kv")
+            if kv:
+                print(f"  K ({kv['k_type']}) {kv['k_size']}, V ({kv['v_type']}) {kv['v_size']}, total {kv['size']} "
+                      f"(startup log line {kv['line']})")
+            print(f"written to {out}")
+            return 0 if v["replay_acceptance"] == "pass" else 1
+        from . import replay_desktop as DK
+        out = _stamped(a.run, "desktop")
+        d = DK.run_desktop(bundle=a.bundle, out=out, model=a.model, library=a.library,
+                           progress=lambda m: print(f"  ... {m}", flush=True))
+        print(f"desktop replay: {d['written']}/{d['requests']} requests written, {d['fixtures_as_expected']}/{d['fixtures']} "
+              f"fixtures as expected, self-checks passed: {d['self_checks_passed']}; {d['total_ms'] / 60000:.1f} min")
+        print(f"written to {out}")
+        return 0
+    except EvaluationInputError as e:
+        for i in e.issues:
+            print(f"refused: {i['message']}", file=sys.stderr)
+        return 2
+    except EvaluationOutputError as e:
+        for i in e.issues:
+            print(f"output error: {i['message']}", file=sys.stderr)
+        return 3
+    except Exception as e:  # noqa: BLE001
+        print(f"failure: {type(e).__name__}: {e}", file=sys.stderr)
         return 3
 
 
