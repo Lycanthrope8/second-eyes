@@ -80,6 +80,11 @@ namespace SecondEyes.Grounding
         private int llamaThreads = 2;
         private Button runtimeButton;
         private Text runtimeLabel;
+        // A2.5 (D103): the frozen-request replay, one explicit action, disabled while it runs
+        private Button replayButton;
+        private Text replayLabel;
+        private Replay.ReplayRunner replay;
+        private bool replaying, panelModelUsed;
         private const string AnswerPrefix = "{\"action\": \"INSPECT\", \"target\": \"";   // as grounding/scene.py
         private const string CandidateSuffix = "\"}";
         private static readonly System.Text.RegularExpressions.Regex ObjectLine =
@@ -106,6 +111,11 @@ namespace SecondEyes.Grounding
             {
                 llama.Dispose();    // frees llama.cpp's model on its worker thread
                 llama = null;
+            }
+            if (replay != null)
+            {
+                replay.Dispose();   // frees the replay's own model on its worker thread
+                replay = null;
             }
         }
 
@@ -162,7 +172,7 @@ namespace SecondEyes.Grounding
 
         private async void LoadModel()
         {
-            if (loaded || loading || config == null)
+            if (loaded || loading || config == null || replaying)
             {
                 return;
             }
@@ -180,6 +190,8 @@ namespace SecondEyes.Grounding
             config.backendType = useGpu ? Unity.InferenceEngine.BackendType.GPUCompute : Unity.InferenceEngine.BackendType.CPU;
             SetField(working, "streamingAssetFileName", chosen);
             loading = true;
+            panelModelUsed = true;   // the replay then stays off for this session (A2.5)
+            UpdateReplayButton();
             loadButton.interactable = false;
             backendButton.interactable = weightsButton.interactable = false;   // fixed from here on
             loadLabel.text = "Loading...";
@@ -389,6 +401,8 @@ namespace SecondEyes.Grounding
                 return;
             }
             loading = true;
+            panelModelUsed = true;   // the replay then stays off for this session (A2.5)
+            UpdateReplayButton();
             loadButton.interactable = runtimeButton.interactable = false;
             loadLabel.text = "Loading...";
             SetStatus("Loading model with llama.cpp...");
@@ -834,7 +848,7 @@ namespace SecondEyes.Grounding
             canvasObject.GetComponent<Canvas>().renderMode = RenderMode.WorldSpace;
             canvasObject.GetComponent<CanvasScaler>().dynamicPixelsPerUnit = 4f;   // sharper text in world space
             panel = (RectTransform)canvasObject.transform;
-            panel.sizeDelta = new Vector2(640f, 666f);
+            panel.sizeDelta = new Vector2(640f, 728f);   // one row more for Replay (A2.5)
             panel.localScale = Vector3.one * 0.001f;
             panel.position = new Vector3(0f, -100f, 0f);   // out of sight until Place() runs
 
@@ -891,7 +905,49 @@ namespace SecondEyes.Grounding
 
             Label(panel, "AnswerTitle", 20f, 488f, 600f, 28f, 18, FontStyle.Bold).text = "Answer";
             answer = Label(panel, "Answer", 20f, 518f, 600f, 130f, 18, FontStyle.Normal);
+            replayButton = RowButton("Replay", 20f, 600f, out replayLabel, StartReplay, 664f);
+            replayLabel.text = "Replay frozen requests (A2.5)";
+            UpdateReplayButton();
             UpdateLabels();
+        }
+
+        /// <summary>A2.5 (D103): Replay is available when a bundle has been pushed, no replay runs, and no panel model
+        /// was loaded in this session: the replay loads its own, with 8,192 tokens of context, and frees it after.</summary>
+        private void UpdateReplayButton()
+        {
+            if (replayButton != null) replayButton.interactable = !replaying && !panelModelUsed && Replay.ReplayRunner.BundlePresent;
+        }
+
+        private async void StartReplay()
+        {
+            if (replaying || panelModelUsed) return;
+            string path = Path.Combine(Application.persistentDataPath, ggufFile);
+            if (!File.Exists(path))
+            {
+                SetStatus("llama.cpp's model isn't on the headset. Push it: python grounding/llama_headset.py push-model");
+                return;
+            }
+            replaying = true;
+            bool loadWas = loadButton.interactable;
+            loadButton.interactable = false;
+            UpdateReplayButton();
+            replay = new Replay.ReplayRunner(System.Threading.SynchronizationContext.Current, SetStatus);
+            try
+            {
+                SetStatus(await replay.RunAsync(path));
+            }
+            catch (Exception e)
+            {
+                Fail("replay", e.GetType().Name + ": " + e.Message);
+            }
+            finally
+            {
+                replay.Dispose();
+                replay = null;
+                replaying = false;
+                loadButton.interactable = loadWas;
+                UpdateReplayButton();
+            }
         }
 
         private Button RowButton(string name, float x, float width, out Text label, UnityEngine.Events.UnityAction onClick,

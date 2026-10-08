@@ -45,6 +45,10 @@ Defined in v1:
 | `hands.state` | `left_tracked`, `right_tracked` (true or false) | at startup, then whenever either hand starts or stops being tracked (A1.5) |
 | `control.stop` | `source` (`button_b`) | when the stop button, B on the right controller, is pressed (A1.5) |
 | `model.load` | `file`, `copied` (whether this start first copied the model out of the app), `ms`, `backend`, `execution_mode`, `steps_per_frame` (Meta's runner); for llama.cpp `runtime` (`llama.cpp`), `threads`, `llama_cpp` (its release) and `memory_kb` (the app's memory right after loading) instead of `steps_per_frame` (A1.8c, D58) | once, when the on-device model has loaded (A1.7c-2) |
+| `replay.start` | `results` (the results folder's name), `requests`, `fixtures`, `requests_sha256` | when a frozen-request replay starts, after its bundle reads back (A2.5, D103) |
+| `replay.load` | `results`, `ms`, `n_ctx_requested`, `n_ctx` (the allocation `se_n_ctx` returns), `threads`, `llama_cpp`, `capture_bytes` and `capture_error` (the startup-log capture) | once the replay's own model has loaded (A2.5, D103) |
+| `replay.request` | `request_id`, `U`, `R`, `P` (each path's chosen code, or `error` or `skipped`) | after each replayed request (A2.5, D103) |
+| `replay.end` | `results`, `written`, `fixtures_as_expected`, `ms` | when the replay has written `done.json` (A2.5, D103) |
 | `model.setting` | `repeat`, `steps_per_frame` (Meta's runner) or `threads` (llama.cpp), `pause_s` | when the panel's Repeat, Steps or Threads changes (D50, D58); before the first, Repeat is off and the setting is `model.load`'s |
 | `model.request` | `request` (counted from 1 per session), `prompt_id` (the prompt file's ID: the fixed prompt or a preset, D49; `typed` for other text), `prompt_tokens`, `prompt_token_ids` (list); for llama.cpp also `runtime`, `cached_tokens` (how many came from the cache, the scene) and `scene_ms` (its time when it wasn't cached) | when Send is pressed, before the model starts (A1.7c-2, D43) |
 | `model.token` | `request`, `index` (from 0), `text`, `ms` (since the request) | for each piece of the answer as it arrives (D43) |

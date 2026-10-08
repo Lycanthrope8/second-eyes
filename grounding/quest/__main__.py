@@ -1,4 +1,5 @@
-"""Command line for A2.5's PC side (D98, D99): `replay-bundle`, `verify-replay-bundle` and `runtime-identity` (laptop).
+"""Command line for A2.5's PC side (D98, D99, D103): `replay-bundle`, `verify-replay-bundle`, `runtime-identity`,
+`replay-push` and `replay-pull` (laptop).
 
 replay-bundle and verify-replay-bundle: exit 0 complete, or a clean readback; 1 a readback that found problems; 2 invalid
 input, a pinned-identity, selection, token, boundary or reference mismatch, or an existing destination (nothing
@@ -6,7 +7,10 @@ published); 3 an output error or an unexpected failure (nothing published).
 
 runtime-identity: exit 0 current deployed identity verified (A1.8c continuity linked or unverified, as printed); 1 a
 check failed or continuity is contradicted; 2 incomplete (nothing failed, something could not be established); 3 not
-run (an existing destination, an unreadable policy or an output error). The evidence folder is published for 0, 1 and 2."""
+run (an existing destination, an unreadable policy or an output error). The evidence folder is published for 0, 1 and 2.
+
+replay-push and replay-pull: exit 0 done; 2 refused (no single device, no app folder, a bundle that does not read back,
+an unknown run or results folder, or an existing destination), with nothing changed; 3 an output error."""
 from __future__ import annotations
 
 import argparse
@@ -36,9 +40,19 @@ def main(argv=None) -> int:
                                                  "with read-only adb")
     ri.add_argument("--out", required=True)
     ri.add_argument("--adb", default="adb", help="the adb executable (default: adb on PATH)")
+    pu = sub.add_parser("replay-push", help="push a replay bundle's headset files to the app (never the references)")
+    pu.add_argument("--bundle", required=True)
+    pu.add_argument("--run", required=True, help="the run that receives the push receipt")
+    pu.add_argument("--adb", default="adb")
+    pl = sub.add_parser("replay-pull", help="pull a finished replay results folder and its event log into a run")
+    pl.add_argument("--run", required=True)
+    pl.add_argument("--results", help="a results folder name (default: the newest with done.json)")
+    pl.add_argument("--adb", default="adb")
     a = ap.parse_args(argv)
     if a.command == "runtime-identity":
         return _runtime_identity(a)
+    if a.command in ("replay-push", "replay-pull"):
+        return _device(a)
     try:
         from . import replay_bundle as RB
         from ..inference.iref_vla_compare import design as D
@@ -97,6 +111,34 @@ def main(argv=None) -> int:
         return 3
     except Exception as e:  # noqa: BLE001
         print(f"failure, nothing published: {type(e).__name__}: {e}", file=sys.stderr)
+        return 3
+
+
+def _device(a) -> int:
+    from . import replay_device as RD
+    from .runtime_identity import Adb
+    say = lambda m: print(f"  ... {m}", flush=True)  # noqa: E731
+    try:
+        if a.command == "replay-push":
+            r = RD.push(bundle=a.bundle, run_id=a.run, adb=Adb(a.adb), progress=say)
+            print("pushed to " + RD.REMOTE_BUNDLE + ": " + ", ".join(f"{f['name']} ({f['bytes']:,} bytes)" for f in r["files"]))
+            print(f"  bundle manifest {r['bundle_manifest_sha256']}; the references stayed on the laptop")
+            print(f"receipt {r['receipt']}")
+            return 0
+        r = RD.pull(run_id=a.run, results=a.results, adb=Adb(a.adb), progress=say)
+        d, c = r["done"] or {}, r["checks"]
+        print(f"pulled {r['results']} into {r['folder']}: {len(r['files'])} files; missing: {', '.join(r['missing']) or 'none'}")
+        print(f"  requests written {d.get('written')} of {d.get('requests')}; result lines {c['results_lines']}, "
+              f"matching done.json: {'yes' if c['lines_match_done'] else 'no'}; fixtures as expected "
+              f"{d.get('fixtures_as_expected')} of {d.get('fixtures')}; self-checks passed: {d.get('self_checks_passed')}")
+        print("complete" if r["complete"] else "INCOMPLETE: see pull.json")
+        return 0
+    except EvaluationInputError as e:
+        for i in e.issues:
+            print(f"refused: {i['message']}", file=sys.stderr)
+        return 2
+    except OSError as e:
+        print(f"output error: {e}", file=sys.stderr)
         return 3
 
 

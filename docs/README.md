@@ -19,7 +19,7 @@ How things work now. Edited in place when something changes; log the change and 
 - `iref-vla-pilot-scoring.md`: the A2.3b scoring of the saved pilot against the source annotations, with the matched rules baseline: the two commands, their input checks, the metrics, the exit codes and what the figures do not establish
 - `iref-vla-ordering.md`: the A2.3c crossed code-assignment and choices-order diagnostic: the design, the three commands (prepare, run, score), the canary and repeat-control gate, the metrics, the exit codes and what the figures do not establish
 - `iref-vla-compare.md`: the A2.3d comparison of rules, a 0.5B and a 7B model: the model pins and acquisition, the selection and the frozen letter and list-order policy, and the prepare and rules commands
-- `quest-replay.md`: A2.5's frozen-request replay (delivery 1): the fixture and reference bundle built on the PC, the headset's ordered input checks and written fixtures, and the build and readback commands
+- `quest-replay.md`: A2.5's frozen-request replay (delivery 1): the fixture and reference bundle built on the PC, the headset's ordered input checks and written fixtures, the headset replay (paths U, R and P, the startup-log capture, the results files) and the push and pull helpers
 - `quest-runtime-identity.md`: A2.5's runtime identity check: the installed app's native library and model file against the build record and the accepted A1 artifacts, the two verdicts, the evidence and the command
 - `detector.md`: the on-device object detector (A1.10b, A1.10c): the replaceable detector package, the PC reference and parity rule, the Unity setup and the headset checks
 - `setup/quest3.md`: the headset's exact state and how to undo every change

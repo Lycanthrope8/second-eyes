@@ -38,6 +38,13 @@ namespace SecondEyes.Grounding
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern int se_score_many(IntPtr s, int[] tokens, int[] lengths, int n, [Out] double[] logprobs);
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern long se_memory_kb(int peak);
+        // A2.5 (D103): the replay's raw scores and the runtime's own report
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern void se_set_verbose(int on);
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern int se_flags(IntPtr s);
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern int se_n_vocab(IntPtr s);
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern double se_logprob(IntPtr s, int token);
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int se_logits(IntPtr s, [Out] float[] logits, int max);
 
         /// <summary>A NUL-terminated UTF-8 copy of a string, as the C side expects.</summary>
         public static byte[] Utf8(string text)

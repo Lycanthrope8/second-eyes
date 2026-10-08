@@ -41,7 +41,7 @@ namespace SecondEyes.Grounding
             public double Ms;
         }
 
-        private const int Sequences = 16;   // se_score_many scores up to Sequences - 1 candidates per batch
+        public const int Sequences = 16;   // se_score_many scores up to Sequences - 1 candidates per batch
         private readonly SynchronizationContext main;
         private readonly BlockingCollection<Action> work = new BlockingCollection<Action>();
         private readonly Thread worker;
@@ -101,6 +101,47 @@ namespace SecondEyes.Grounding
                 SystemInfo = LlamaNative.Str(LlamaNative.se_system_info()).Trim();
                 return watch.Elapsed.TotalMilliseconds;
             });
+        }
+
+        /// <summary>A2.5 (D103): loads like LoadAsync, keeping llama.cpp's own startup lines. Verbose logging is on and
+        /// stderr is redirected into capturePath for the load only; both are undone however the load ends. If the capture
+        /// cannot start, the load runs without it and captureError says why. Returns the load time in ms.</summary>
+        public Task<double> LoadCapturedAsync(string path, int nCtx, int threads, int flags, string capturePath,
+                                              Action<string> captureError)
+        {
+            return Run(() =>
+            {
+                if (model != IntPtr.Zero) throw new InvalidOperationException("The model is already loaded.");
+                Replay.StderrCapture capture = null;
+                try { capture = Replay.StderrCapture.Begin(capturePath); }
+                catch (Exception e) { captureError?.Invoke(e.Message); }
+                var watch = Stopwatch.StartNew();
+                try
+                {
+                    if (capture != null) LlamaNative.se_set_verbose(1);
+                    model = LlamaNative.se_load_ex(LlamaNative.Utf8(path), nCtx, threads, Sequences, flags);
+                }
+                finally
+                {
+                    LlamaNative.se_set_verbose(0);
+                    if (capture != null)
+                    {
+                        capture.Dispose();
+                        if (capture.RestoreError != null) captureError?.Invoke(capture.RestoreError);
+                    }
+                }
+                double ms = watch.Elapsed.TotalMilliseconds;
+                if (model == IntPtr.Zero) throw new InvalidOperationException(LlamaNative.LastError());
+                Version = LlamaNative.Str(LlamaNative.se_llama_version());
+                SystemInfo = LlamaNative.Str(LlamaNative.se_system_info()).Trim();
+                return ms;
+            });
+        }
+
+        /// <summary>A2.5: runs job on the worker thread with the loaded model's native handle.</summary>
+        public Task<T> WithModel<T>(Func<IntPtr, T> job)
+        {
+            return Run(() => job(Loaded()));
         }
 
         public Task SetThreadsAsync(int threads)

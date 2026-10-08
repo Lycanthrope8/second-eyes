@@ -125,3 +125,99 @@ Exit codes:
 - 3: an output error or an unexpected failure; nothing is published.
 
 Tests: `python grounding/tests/test_quest_replay_bundle.py [--tokenizer-dir DIR]`.
+
+## Step 2: the headset replay (D103)
+
+### On the headset
+
+The panel has a **Replay frozen requests (A2.5)** button: one explicit action, disabled while a replay runs. It is
+available only when two things hold:
+
+- a bundle has been pushed;
+- no panel model has been loaded in the session.
+
+The replay loads its own model and frees it afterwards, so two models are never in memory together.
+
+The code is in `quest-app/Assets/SecondEyes/Grounding/Replay/`:
+
+- `ReplayCore.cs`: plain C#. It holds the records, the hash rules, the ordered input checks, the scoring, the self-checks
+  and a JSON writer. It is a port of `grounding/quest/replay_inputs.py` and must match it.
+- `StderrCapture.cs`: the capture of `stderr` around the load.
+- `ReplayRunner.cs`: the run itself.
+- `LlamaNative.cs` and `LlamaRuntime.cs` add the bindings and two worker-thread entries:
+  - `LoadCapturedAsync` loads with the capture;
+  - `WithModel` runs the replay's native calls on the worker thread.
+
+In order:
+
+1. **Bundle.** `files/replay/bundle/` is read and checked against its own manifest (file hashes, counts, the order of
+   the checks).
+2. **Self-checks.** These run with synthetic rows and records: the scoring, exact ties going to K, non-finite values
+   being errors, and the order of the input checks. A failure stops the replay before the model loads.
+3. **Load.**
+   - What's requested: 8,192 tokens of context, 2 threads (D59), 16 sequences, flags 0 (the accepted settings).
+   - Verbose logging is on and `stderr` (file descriptor 2, process-wide) is redirected to `startup-log.txt` for
+     `se_load_ex` only. The original descriptor is flushed and restored however the load ends.
+   - Recorded: the requested context and the `se_n_ctx` allocation, apart; `se_llama_version`, `se_system_info`,
+     `se_n_vocab`, `se_n_seq` and `se_flags`; the process's memory (VmRSS, VmHWM) before and after the load.
+   - A vocabulary that differs from the bundle's stops the replay.
+4. **Fixtures.** Each written fixture goes through the ordered input checks, the native tokenizer included, and must
+   stop at its expected check. None is evaluated.
+5. **Requests.** Each request, in the bundle's order, passes the input checks. These include `se_tokenize` on the
+   complete prompt bytes, compared token by token with the frozen IDs; a difference stops the request, with its
+   position. Then three paths, all from slices of the frozen list:
+   - **U:** all n tokens with keep 0;
+   - **R:** right after U, keep n − 1 and evaluate the last token;
+   - **P:** clear; the tokens before the command line with keep 0; then the rest with keep k.
+
+   `se_n_cached` is checked after every evaluation, and the intermediate prefix of P is never scored. A path whose
+   evaluation fails, or whose cache count differs, keeps its record and is not scored. R is skipped when U did not
+   complete.
+
+For each scored path, the full final row is copied (`se_logits`), and a non-finite value anywhere is an error. The
+offered logits are written as float32, readable back bit for bit. Log-probabilities come from `se_logprob` and are
+reported only. Shares are taken over every offered code, K included, and exact ties go to K.
+
+The output goes to `files/replay/results/<UTC time>/`:
+
+| File | Content |
+|---|---|
+| `identity.json` | The bundle's hashes, the model file, the requested and allocated settings, the runtime's report, memory, the capture's scope, size and any error, and the app and event-log identity |
+| `startup-log.txt` | llama.cpp's own startup lines, raw |
+| `selfchecks.json` | Every self-check |
+| `fixtures.jsonl` | One line per written fixture |
+| `results.jsonl` | One line per request, written as it completes |
+| `done.json` | Counts and times, written last; a folder without it is unfinished |
+
+The session's event log gets `replay.start`, `replay.load`, `replay.request` and `replay.end` (`docs/logging.md`). The
+D101 comparisons are made on the laptop, never on the headset.
+
+### On the laptop
+
+```text
+python -m grounding.quest replay-push --bundle DIR --run RUN_ID [--adb PATH]
+python -m grounding.quest replay-pull --run RUN_ID [--results NAME] [--adb PATH]
+```
+
+**`replay-push`:**
+- reads the bundle back on its own;
+- pushes only `headset/` into `files/replay/bundle/` and checks each file's size on the headset;
+- writes a receipt with every file's SHA-256 to `runs/<id>/raw/replay/push-<time>.json`.
+
+The float32 references never leave the laptop.
+
+**`replay-pull`:**
+- copies the newest results folder that has `done.json`, or the one named, into `runs/<id>/raw/replay/<results>/`;
+- also copies the session's event log that `identity.json` names, as `events.jsonl`;
+- records what arrived in `pull.json`: hashes, missing files, and whether the result lines match `done.json`.
+
+It never writes over an existing folder.
+
+Neither helper installs, launches or reruns the app.
+
+Exit codes: 0 done; 2 refused, with nothing changed; 3 an output error.
+
+Tests:
+- `python grounding/tests/test_quest_replay_device.py`.
+- The C# logic was compiled at C# 9 with .NET 8 in Claude's sandbox, and checked against vectors this Python code made
+  from the real bundle. It is not part of the repository's suites.
