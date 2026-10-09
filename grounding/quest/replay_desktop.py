@@ -257,7 +257,7 @@ def run_desktop(*, bundle, out, model=None, library=None, native=None, progress=
     cons = {"context_limit_tokens": hm["context_limit_tokens"], "continuation_tokens": hm["continuation_tokens"],
             "vocab_size": hm["vocab_size"], "object_codes": hm["object_codes"], "ask_code": hm["ask_code"],
             "ask_target": hm["ask_target"], "code_token_ids": dict(zip(hm["choice_codes"], hm["choice_token_ids"]))}
-    stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d-%H%M%S")
+    stamp = out.name   # the records name the folder they are in (the command line names it by its UTC start)
     out.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix=f".{out.name}.partial-", dir=str(out.parent)))
     total = time.perf_counter()

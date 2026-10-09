@@ -143,6 +143,8 @@ def main() -> int:
               d["written"] == d["requests"] and d["fixtures_as_expected"] == 5 and d["self_checks_passed"], str(d))
         ident = json.loads((tmp / "d0" / "identity.json").read_text(encoding="utf-8"))
         here = REPO / "grounding" / "quest" / "replay_desktop.py"
+        check("identity.json and done.json name the folder they are in",
+              ident["results"] == "d0" and json.loads((tmp / "d0" / "done.json").read_text(encoding="utf-8"))["results"] == "d0")
         check("the desktop identity records the SHA-256 of the code that ran, replay_desktop.py included",
               ident["code"].get("grounding/quest/replay_desktop.py") == hashlib.sha256(here.read_bytes()).hexdigest()
               and "grounding/quest/publish.py" in ident["code"])

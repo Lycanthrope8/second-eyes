@@ -26,4 +26,4 @@ layout_id: null  # which prop layout
 headset_os_build: null  # ro.build.fingerprint (--headset fills it)
 drone_firmware: null
 lighting: null  # lighting conditions
-notes: ""  # anything else
+notes: "Desktop diagnosis (D98): host build se_llama.dll aa241e18 (b11277, MSVC 19.44, AVX2); replay raw/desktop/20261008-203602 (41/41, 125.5 min); comparison raw/compare/20261008-224139: 68 of 205 fail, 0 structural problems."  # anything else
