@@ -91,6 +91,10 @@ def main(argv=None) -> int:
     gl.add_argument("--run", required=True)
     gl.add_argument("--results")
     gl.add_argument("--adb", default="adb")
+    ip = sub.add_parser("interactive-pull", help="pull a finished interactive-check results folder (delivery 3) and its event log into a run")
+    ip.add_argument("--run", required=True)
+    ip.add_argument("--results")
+    ip.add_argument("--adb", default="adb")
     pv = sub.add_parser("provenance-collect", help="read-only: the conversion and configuration provenance (records and metadata)")
     pv.add_argument("--model-dir", help="default: grounding/models/qwen2.5-0.5b-instruct")
     pv.add_argument("--out-root", required=True, help="the folder that receives provenance-<UTC time>/")
@@ -98,7 +102,7 @@ def main(argv=None) -> int:
     a = ap.parse_args(argv)
     if a.command == "provenance-collect":
         return _provenance(a)
-    if a.command.startswith("golden-"):
+    if a.command.startswith("golden-") or a.command == "interactive-pull":
         return _golden(a)
     if a.command in ("replay-repeat", "repeat-compare"):
         return _repeat(a)
@@ -264,6 +268,16 @@ def _golden(a) -> int:
         if a.command == "golden-push":
             r = GD.push_goldens(goldens=a.goldens, run_id=a.run, adb=Adb(a.adb), progress=say)
             print(f"pushed {len(r['files'])} files to {r['remote']} (golden-manifest.json last); receipt {r['receipt']}")
+            return 0
+        if a.command == "interactive-pull":
+            r = GD.pull_interactive(run_id=a.run, results=a.results, adb=Adb(a.adb), progress=say)
+            d, c = r["done"] or {}, r["checks"]
+            print(f"pulled {r['results']} into {r['folder']}; missing: {', '.join(r['missing']) or 'none'}")
+            print(f"  outcomes without the cache: {c['off']['statuses']}; with it: {c['prefix']['statuses']}; "
+                  f"lines match done.json: {'yes' if c['lines_match_done'] else 'no'}")
+            print(f"  prompts equal to the goldens: {d.get('prompts_equal_goldens')} of {d.get('requests')}; same choice with and "
+                  f"without the cache: {d.get('same_choice')}; same offered logits: {d.get('same_offered_logits')}; "
+                  f"the cache reused tokens on {d.get('prefix_kept_some')}")
             return 0
         r = GD.pull_goldens(run_id=a.run, results=a.results, adb=Adb(a.adb), progress=say)
         d, c = r["done"] or {}, r["checks"]

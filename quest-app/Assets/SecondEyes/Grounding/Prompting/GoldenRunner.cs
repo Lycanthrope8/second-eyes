@@ -41,7 +41,7 @@ namespace SecondEyes.Grounding.Prompting
         private void Say(string text) { main.Post(_ => status(text), null); }
         private void Event(string ev, string json) { main.Post(_ => EventLog.Write(ev, json), null); }
 
-        private sealed class Goldens
+        internal sealed class Goldens
         {
             public string ManifestSha256, AssetSha256;
             public PromptAsset Asset;
@@ -52,7 +52,7 @@ namespace SecondEyes.Grounding.Prompting
         private static readonly UTF8Encoding Utf8 = new UTF8Encoding(false, true);
 
         /// <summary>Every file against the golden manifest; throws with the reason.</summary>
-        private static Goldens Read(string dir)
+        internal static Goldens Read(string dir)
         {
             var g = new Goldens();
             byte[] mb = File.ReadAllBytes(Path.Combine(dir, "golden-manifest.json"));

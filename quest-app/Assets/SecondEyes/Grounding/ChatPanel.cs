@@ -87,6 +87,9 @@ namespace SecondEyes.Grounding
         // A2.5 delivery 2 (D104): the on-device golden self-check, beside Replay, sharing its busy flag
         private Button goldenButton;
         private Text goldenLabel;
+        private Button interactiveButton;
+        private Text interactiveLabel;
+        private Interactive.InteractiveRunner interactive;
         private Prompting.GoldenRunner golden;
         private bool replaying, panelModelUsed;
         private const string AnswerPrefix = "{\"action\": \"INSPECT\", \"target\": \"";   // as grounding/scene.py
@@ -914,10 +917,12 @@ namespace SecondEyes.Grounding
 
             Label(panel, "AnswerTitle", 20f, 488f, 600f, 28f, 18, FontStyle.Bold).text = "Answer";
             answer = Label(panel, "Answer", 20f, 518f, 600f, 130f, 18, FontStyle.Normal);
-            replayButton = RowButton("Replay", 20f, 290f, out replayLabel, StartReplay, 664f);
+            replayButton = RowButton("Replay", 20f, 190f, out replayLabel, StartReplay, 664f);
             replayLabel.text = "Replay (A2.5 d1)";
-            goldenButton = RowButton("Golden", 330f, 290f, out goldenLabel, StartGolden, 664f);
+            goldenButton = RowButton("Golden", 225f, 190f, out goldenLabel, StartGolden, 664f);
             goldenLabel.text = "Golden check (A2.5 d2)";
+            interactiveButton = RowButton("Interactive", 430f, 190f, out interactiveLabel, StartInteractive, 664f);
+            interactiveLabel.text = "Interactive check (A2.5 d3)";
             UpdateReplayButton();
             UpdateLabels();
         }
@@ -928,9 +933,42 @@ namespace SecondEyes.Grounding
         {
             if (replayButton != null) replayButton.interactable = !replaying && !panelModelUsed && Replay.ReplayRunner.BundlePresent;
             if (goldenButton != null) goldenButton.interactable = !replaying && !panelModelUsed && Prompting.GoldenRunner.GoldensPresent;
+            if (interactiveButton != null) interactiveButton.interactable = !replaying && !panelModelUsed && Prompting.GoldenRunner.GoldensPresent;
         }
 
         /// <summary>A2.5 delivery 2: the on-device golden self-check; like Replay, it loads its own model and frees it.</summary>
+        private async void StartInteractive()
+        {
+            if (replaying || panelModelUsed) return;
+            string path = Path.Combine(Application.persistentDataPath, ggufFile);
+            if (!File.Exists(path))
+            {
+                SetStatus("llama.cpp's model isn't on the headset. Push it: python grounding/llama_headset.py push-model");
+                return;
+            }
+            replaying = true;
+            bool loadWas = loadButton.interactable;
+            loadButton.interactable = false;
+            UpdateReplayButton();
+            interactive = new Interactive.InteractiveRunner(System.Threading.SynchronizationContext.Current, SetStatus);
+            try
+            {
+                SetStatus(await interactive.CheckAsync(path));
+            }
+            catch (Exception e)
+            {
+                Fail("interactive", e.GetType().Name + ": " + e.Message);
+            }
+            finally
+            {
+                interactive.Dispose();
+                interactive = null;
+                replaying = false;
+                loadButton.interactable = loadWas;
+                UpdateReplayButton();
+            }
+        }
+
         private async void StartGolden()
         {
             if (replaying || panelModelUsed) return;

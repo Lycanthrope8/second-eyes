@@ -25,6 +25,8 @@ from .runtime_identity import REPO, Adb, file_sha256
 REMOTE_GOLDENS = APP_DIR + "/prompting/goldens"
 REMOTE_RESULTS = APP_DIR + "/prompting/results"
 RESULT_FILES = ("identity.json", "selfchecks.json", "results.jsonl", "done.json")
+REMOTE_INTERACTIVE = APP_DIR + "/interactive/results"
+INTERACTIVE_FILES = ("identity.json", "outcomes-off.jsonl", "outcomes-prefix.jsonl", "done.json")
 
 
 def push_goldens(*, goldens, run_id, adb=None, repo=None, progress=print) -> dict:
@@ -67,22 +69,51 @@ def push_goldens(*, goldens, run_id, adb=None, repo=None, progress=print) -> dic
     return receipt
 
 
-def pull_goldens(*, run_id, results=None, adb=None, repo=None, progress=print) -> dict:
+def _golden_checks(staging, done) -> dict:
+    rows = [json.loads(x) for x in (staging / "results.jsonl").read_text(encoding="utf-8").splitlines() if x.strip()] \
+        if (staging / "results.jsonl").is_file() else []
+    return {"result_lines": len(rows), "all_ok_lines": sum(r.get("all_ok") is True for r in rows),
+            "lines_match_done": isinstance(done, dict) and done.get("checked") == len(rows)
+            and done.get("all_ok") == sum(r.get("all_ok") is True for r in rows)}
+
+
+def _interactive_checks(staging, done) -> dict:
+    out = {}
+    for mode in ("off", "prefix"):
+        f = staging / f"outcomes-{mode}.jsonl"
+        rows = [json.loads(x) for x in f.read_text(encoding="utf-8").splitlines() if x.strip()] if f.is_file() else []
+        statuses = {}
+        for r in rows:
+            statuses[r.get("status")] = statuses.get(r.get("status"), 0) + 1
+        out[mode] = {"lines": len(rows), "statuses": dict(sorted(statuses.items(), key=lambda kv: str(kv[0]))),
+                     "kept_tokens_total": sum(int(r.get("kept_tokens") or 0) for r in rows)}
+    out["lines_match_done"] = isinstance(done, dict) and done.get("off") == out["off"]["lines"] and done.get("prefix") == out["prefix"]["lines"]
+    return out
+
+
+def pull_interactive(*, run_id, results=None, adb=None, repo=None, progress=print) -> dict:
+    """The newest finished interactive-check folder (or the named one), into the run's raw/interactive."""
+    return pull_goldens(run_id=run_id, results=results, adb=adb, repo=repo, progress=progress, remote=REMOTE_INTERACTIVE,
+                        files=INTERACTIVE_FILES, kind="interactive", summarize=_interactive_checks)
+
+
+def pull_goldens(*, run_id, results=None, adb=None, repo=None, progress=print, remote=REMOTE_RESULTS, files=RESULT_FILES,
+                 kind="goldens", summarize=None) -> dict:
     adb, repo = adb if adb is not None else Adb(), Path(repo) if repo is not None else REPO
     folder = _run_folder(repo, run_id)
     serial = _one_device(adb)
-    code, out, _ = adb.shell("ls", "-1", REMOTE_RESULTS)
+    code, out, _ = adb.shell("ls", "-1", remote)
     names = sorted(x.strip() for x in out.splitlines() if RESULTS_NAME.fullmatch(x.strip())) if code == 0 else []
     if results is not None:
         if results not in names:
-            _fail(f"no golden results folder {results!r} on the headset; found {names}")
+            _fail(f"no {kind} results folder {results!r} on the headset; found {names}")
         chosen = results
     else:
-        finished = [n for n in names if _remote_size(adb, f"{REMOTE_RESULTS}/{n}/done.json") is not None]
+        finished = [n for n in names if _remote_size(adb, f"{remote}/{n}/done.json") is not None]
         if not finished:
-            _fail(f"no finished golden results folder (with done.json) on the headset; found {names}")
+            _fail(f"no finished {kind} results folder (with done.json) on the headset; found {names}")
         chosen = finished[-1]
-    dest = folder / "raw" / "goldens" / chosen
+    dest = folder / "raw" / kind / chosen
     if dest.exists():
         _fail(f"{dest} exists: already pulled (nothing is overwritten)")
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -91,9 +122,9 @@ def pull_goldens(*, run_id, results=None, adb=None, repo=None, progress=print) -
     staging.mkdir()
     try:
         missing = []
-        for name in RESULT_FILES:
+        for name in files:
             progress(f"pulling {name}")
-            code, _, _ = adb.pull(f"{REMOTE_RESULTS}/{chosen}/{name}", staging / name)
+            code, _, _ = adb.pull(f"{remote}/{chosen}/{name}", staging / name)
             if code != 0 or not (staging / name).is_file():
                 missing.append(name)
         ident = _read_json(staging / "identity.json")
@@ -105,16 +136,13 @@ def pull_goldens(*, run_id, results=None, adb=None, repo=None, progress=print) -
         else:
             missing.append("events.jsonl")
         done = _read_json(staging / "done.json")
-        rows = [json.loads(x) for x in (staging / "results.jsonl").read_text(encoding="utf-8").splitlines() if x.strip()] \
-            if (staging / "results.jsonl").is_file() else []
-        checks = {"result_lines": len(rows), "all_ok_lines": sum(r.get("all_ok") is True for r in rows),
-                  "lines_match_done": isinstance(done, dict) and done.get("checked") == len(rows)
-                  and done.get("all_ok") == sum(r.get("all_ok") is True for r in rows)}
-        receipt = {"format_version": 1, "record_type": "a25_golden_pull", "pulled_utc": _stamp(), "device": serial,
+        checks = (summarize or _golden_checks)(staging, done)
+        receipt = {"format_version": 1, "record_type": "a25_golden_pull" if kind == "goldens" else f"a25_{kind}_pull", "pulled_utc": _stamp(), "device": serial,
                    "results": chosen, "complete": not missing and checks["lines_match_done"],
                    "files": {p.name: {"bytes": p.stat().st_size, "sha256": file_sha256(p)} for p in sorted(staging.iterdir())},
                    "missing": missing, "checks": checks,
-                   "done": {k: done.get(k) for k in ("goldens", "checked", "all_ok", "total_ms")} if isinstance(done, dict) else None}
+                   "done": ({k: done.get(k) for k in ("goldens", "checked", "all_ok", "total_ms")} if kind == "goldens" else done)
+                   if isinstance(done, dict) else None}
         (staging / "pull.json").write_bytes(encode_json(receipt))
         publish(staging, dest)
     except BaseException:

@@ -51,6 +51,9 @@ Defined in v1:
 | `replay.end` | `results`, `written`, `fixtures_as_expected`, `ms` | when the replay has written `done.json` (A2.5, D103) |
 | `prompting.golden.start` | `results`, `goldens`, `golden_manifest_sha256` | when the on-device golden check starts, after its files match the golden manifest (A2.5, D104) |
 | `prompting.golden.end` | `results`, `checked`, `all_ok` | when the golden check has written `done.json` (A2.5, D104) |
+| `interactive.start` | `results`, `requests`, `golden_manifest_sha256` | when the interactive check starts, after its golden files match the manifest (A2.5 delivery 3) |
+| `interactive.outcome` | `results`, `request_id`, `cache_mode`, `status`, `kept_tokens`, `total_ms` | after each request's outcome is written (A2.5 delivery 3) |
+| `interactive.end` | `results`, `prompts_equal_goldens`, `same_choice` | when the interactive check has written `done.json` (A2.5 delivery 3) |
 | `model.setting` | `repeat`, `steps_per_frame` (Meta's runner) or `threads` (llama.cpp), `pause_s` | when the panel's Repeat, Steps or Threads changes (D50, D58); before the first, Repeat is off and the setting is `model.load`'s |
 | `model.request` | `request` (counted from 1 per session), `prompt_id` (the prompt file's ID: the fixed prompt or a preset, D49; `typed` for other text), `prompt_tokens`, `prompt_token_ids` (list); for llama.cpp also `runtime`, `cached_tokens` (how many came from the cache, the scene) and `scene_ms` (its time when it wasn't cached) | when Send is pressed, before the model starts (A1.7c-2, D43) |
 | `model.token` | `request`, `index` (from 0), `text`, `ms` (since the request) | for each piece of the answer as it arrives (D43) |

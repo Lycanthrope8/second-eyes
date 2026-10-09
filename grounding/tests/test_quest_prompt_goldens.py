@@ -236,6 +236,27 @@ def main() -> int:
         rp = GD.pull_goldens(run_id="20261009_A2_r014", adb=dev, repo=repo, progress=lambda m: None)
         check("the newest finished results folder and its event log arrive, the receipt complete",
               rp["complete"] and rp["checks"]["lines_match_done"] and (Path(rp["folder"]) / "events.jsonl").is_file())
+        print("-- the interactive check's pull (delivery 3, labelled fake device)")
+        ib = f"{GD.REMOTE_INTERACTIVE}/20261009-110000"
+        out = lambda s, k: json.dumps({"status": s, "kept_tokens": k}).encode() + b"\n"  # noqa: E731
+        dev.files.update({f"{ib}/identity.json": json.dumps({"event_log": log}).encode(),
+                          f"{ib}/outcomes-off.jsonl": out("completed", 0) + out("ask", 0),
+                          f"{ib}/outcomes-prefix.jsonl": out("completed", 0) + out("ask", 41),
+                          f"{ib}/done.json": json.dumps({"requests": 2, "off": 2, "prefix": 2, "prompts_equal_goldens": 2,
+                                                         "same_choice": 2, "same_offered_logits": 1, "prefix_kept_some": 1}).encode()})
+        ri = GD.pull_interactive(run_id="20261009_A2_r014", adb=dev, repo=repo, progress=lambda m: None)
+        c = ri["checks"]
+        check("the interactive results land in raw/interactive with their event log, the receipt complete",
+              ri["complete"] and Path(ri["folder"]).parent == repo / "runs" / "20261009_A2_r014" / "raw" / "interactive"
+              and (Path(ri["folder"]) / "events.jsonl").is_file() and json.loads((Path(ri["folder"]) / "pull.json").read_text())["record_type"] == "a25_interactive_pull")
+        check("the receipt counts each pass's statuses and reused tokens, and keeps done.json whole",
+              c["off"]["statuses"] == {"ask": 1, "completed": 1} and c["prefix"]["kept_tokens_total"] == 41
+              and ri["done"]["same_offered_logits"] == 1 and c["lines_match_done"])
+        dev.files[f"{ib}x/done.json"] = b"{}"
+        dev.files[f"{GD.REMOTE_INTERACTIVE}/20261009-120000/identity.json"] = b"{}"
+        msg = refused(lambda: GD.pull_interactive(run_id="20261009_A2_r014", results="20261009-130000", adb=dev, repo=repo,
+                                                  progress=lambda m: None), EI) or ""
+        check("an interactive results folder that is not on the headset is refused, naming the kind", "no interactive results folder" in msg, msg[:100])
     print(f"\n{len(PASSES)} passed, {len(FAILS)} failed")
     return 0 if not FAILS else 1
 
