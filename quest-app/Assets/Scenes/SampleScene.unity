@@ -722,7 +722,7 @@ MonoBehaviour:
   - {fileID: 4900000, guid: 03508d8ccec30ea47a11a6e490899912, type: 3}
   - {fileID: 4900000, guid: 529628567babd734ca99aaf8805aecd3, type: 3}
   - {fileID: 4900000, guid: ccd8733f50ba2d745a65cff5ca7296e5, type: 3}
-  loadAtStart: 1
+  loadAtStart: 0
   repeatPauseS: 5
   stepsChoices: 96000000320000000f000000
   ggufFile: qwen2.5-0.5b-instruct-q8_0.gguf
