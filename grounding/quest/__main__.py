@@ -1,6 +1,6 @@
 """Command line for A2.5's PC side (D98, D99, D103): `replay-bundle`, `verify-replay-bundle`, `runtime-identity`,
-`replay-push`, `replay-pull`, `replay-compare`, `replay-desktop`, and the diagnostic's `replay-repeat` and `repeat-compare`
-(laptop or PC).
+`replay-push`, `replay-pull`, `replay-compare`, `replay-desktop`, the diagnostic's `replay-repeat` and `repeat-compare`, and
+delivery 2's `golden-build`, `golden-verify`, `golden-references`, `golden-push` and `golden-pull` (laptop or PC).
 
 replay-bundle and verify-replay-bundle: exit 0 complete, or a clean readback; 1 a readback that found problems; 2 invalid
 input, a pinned-identity, selection, token, boundary or reference mismatch, or an existing destination (nothing
@@ -72,7 +72,28 @@ def main(argv=None) -> int:
     rc.add_argument("--bundle", required=True)
     rc.add_argument("--results", required=True)
     rc.add_argument("--run", required=True, help="the run that receives raw/repeat-compare/<UTC time>/")
+    gb = sub.add_parser("golden-build", help="delivery 2: the PC's goldens for the headset's prompt builder (D104)")
+    gb.add_argument("--bundle", required=True, help="the accepted A2.2d bundle (a22d-20261005-153413)")
+    gb.add_argument("--out-root", required=True, help="a folder that receives goldens-<UTC time>/")
+    gb.add_argument("--tokenizer-dir", help="default: grounding/models/qwen2.5-0.5b-instruct/hf (pinned by hash)")
+    gv = sub.add_parser("golden-verify", help="read a goldens folder back, rebuilding every document and prompt")
+    gv.add_argument("--goldens", required=True)
+    gv.add_argument("--tokenizer-dir", help="also check every tokenization with the pinned tokenizer")
+    gr = sub.add_parser("golden-references", help="fresh float32 references for every golden (A2.3a's TorchModel)")
+    gr.add_argument("--goldens", required=True)
+    gr.add_argument("--device", choices=("cpu", "cuda"), default="cpu")
+    gr.add_argument("--model-dir", help="default: grounding/models/qwen2.5-0.5b-instruct/hf (pinned by hash)")
+    gp = sub.add_parser("golden-push", help="push the goldens' headset part to the app")
+    gp.add_argument("--goldens", required=True)
+    gp.add_argument("--run", required=True)
+    gp.add_argument("--adb", default="adb")
+    gl = sub.add_parser("golden-pull", help="pull a finished golden-check results folder and its event log into a run")
+    gl.add_argument("--run", required=True)
+    gl.add_argument("--results")
+    gl.add_argument("--adb", default="adb")
     a = ap.parse_args(argv)
+    if a.command.startswith("golden-"):
+        return _golden(a)
     if a.command in ("replay-repeat", "repeat-compare"):
         return _repeat(a)
     if a.command in ("replay-compare", "replay-desktop"):
@@ -176,6 +197,56 @@ def _stamped(run_id, kind) -> Path:
     from . import replay_device as RD
     folder = RD._run_folder(RD.REPO, run_id)
     return folder / "raw" / kind / datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d-%H%M%S")
+
+
+def _golden(a) -> int:
+    import datetime
+    from . import prompt_goldens as PG
+    stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d-%H%M%S")
+    try:
+        if a.command == "golden-build":
+            out = Path(a.out_root) / f"goldens-{stamp}"
+            r = PG.build_goldens(bundle=a.bundle, out=out, tokenizer_dir=a.tokenizer_dir)
+            c = r["counts"]
+            print(f"goldens: {c['snapshots']} snapshots, {c['goldens']} goldens ({c['dataset_commands']} dataset commands, "
+                  f"{c['written_fixtures']} written fixtures); tokenizer {r['tokenizer']}")
+            print(f"written to {out}")
+            return 0
+        if a.command == "golden-verify":
+            from ..preparation.iref_vla import tokens as T
+            tok = T.load_pinned_tokenizer(a.tokenizer_dir) if a.tokenizer_dir else None
+            bad = PG.verify_goldens(a.goldens, tokenizer=tok)
+            print(f"readback of {a.goldens}{' with the tokenizer' if tok else ''}: " + ("clean" if not bad else f"{len(bad)} problem(s)"))
+            for b in bad[:20]:
+                print(f"  {b}")
+            return 0 if not bad else 1
+        if a.command == "golden-references":
+            out = Path(a.goldens).parent / f"{Path(a.goldens).name}-references-{stamp}"
+            m = PG.golden_references(goldens=a.goldens, out=out, model_dir=a.model_dir, device=a.device)
+            print(f"references: {m['references']} on {m['device_requested']} in {m['seconds']} s; canary {m['canary']}")
+            print(f"written to {out}")
+            return 0
+        from . import golden_device as GD
+        from .runtime_identity import Adb
+        say = lambda m: print(f"  ... {m}", flush=True)  # noqa: E731
+        if a.command == "golden-push":
+            r = GD.push_goldens(goldens=a.goldens, run_id=a.run, adb=Adb(a.adb), progress=say)
+            print(f"pushed {len(r['files'])} files to {r['remote']} (golden-manifest.json last); receipt {r['receipt']}")
+            return 0
+        r = GD.pull_goldens(run_id=a.run, results=a.results, adb=Adb(a.adb), progress=say)
+        d, c = r["done"] or {}, r["checks"]
+        print(f"pulled {r['results']} into {r['folder']}; missing: {', '.join(r['missing']) or 'none'}")
+        print(f"  goldens equal the PC's: {d.get('all_ok')} of {d.get('checked')} checked ({d.get('goldens')} shipped); "
+              f"result lines match done.json: {'yes' if c['lines_match_done'] else 'no'}")
+        return 0
+    except EvaluationInputError as e:
+        for i in e.issues:
+            print(f"refused: {i['message']}", file=sys.stderr)
+        return 2
+    except EvaluationOutputError as e:
+        for i in e.issues:
+            print(f"output error: {i['message']}", file=sys.stderr)
+        return 3
 
 
 def _repeat(a) -> int:

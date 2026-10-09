@@ -21,6 +21,7 @@ How things work now. Edited in place when something changes; log the change and 
 - `iref-vla-compare.md`: the A2.3d comparison of rules, a 0.5B and a 7B model: the model pins and acquisition, the selection and the frozen letter and list-order policy, and the prepare and rules commands
 - `quest-replay.md`: A2.5's frozen-request replay (delivery 1): the fixture and reference bundle built on the PC, the headset's ordered input checks and written fixtures, the headset replay (paths U, R and P, the startup-log capture, the results files), the push and pull helpers, the D101 comparison (step 3) and the desktop diagnosis
 - `quest-runtime-identity.md`: A2.5's runtime identity check: the installed app's native library and model file against the build record and the accepted A1 artifacts, the two verdicts, the evidence and the command
+- `quest-prompting.md`: A2.5 delivery 2: the headset's prompt builder, the PC's goldens (snapshots, prompt asset, token IDs, float32 references), the on-device golden check and the commands
 - `detector.md`: the on-device object detector (A1.10b, A1.10c): the replaceable detector package, the PC reference and parity rule, the Unity setup and the headset checks
 - `setup/quest3.md`: the headset's exact state and how to undo every change
 - `setup/quest-model.md`: how a language model gets into the Quest app
