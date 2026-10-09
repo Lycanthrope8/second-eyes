@@ -54,6 +54,12 @@ Defined in v1:
 | `interactive.start` | `results`, `requests`, `golden_manifest_sha256` | when the interactive check starts, after its golden files match the manifest (A2.5 delivery 3) |
 | `interactive.outcome` | `results`, `request_id`, `cache_mode`, `status`, `kept_tokens`, `total_ms` | after each request's outcome is written (A2.5 delivery 3) |
 | `interactive.end` | `results`, `prompts_equal_goldens`, `same_choice` | when the interactive check has written `done.json` (A2.5 delivery 3) |
+| `interactive.session.start` | `session`, `scenes`, `load_ms` | when a delivery-4 session is ready: scenes read, model loaded, inbox watched (A2.5 delivery 4) |
+| `interactive.scene` | `snapshot_id`, `objects`, `epoch` | when the session binds a scene; each switch is a new epoch (A2.5 delivery 4) |
+| `interactive.result` | `request_id`, `source`, `status`, `reason`, `execution_path`, `app_observed_ms` | after each answered request, inbox or preset (A2.5 delivery 4) |
+| `interactive.inbox.unanswerable` | `file`, `reason` | an inbox file without a usable request ID; kept in inbox/processed (A2.5 delivery 4) |
+| `interactive.inbox.error` | `error` | an error while scanning the inbox; the loop continues (A2.5 delivery 4) |
+| `interactive.worker.error` | `request_id`, `error` | an error while answering a request; the worker continues (A2.5 delivery 4) |
 | `model.setting` | `repeat`, `steps_per_frame` (Meta's runner) or `threads` (llama.cpp), `pause_s` | when the panel's Repeat, Steps or Threads changes (D50, D58); before the first, Repeat is off and the setting is `model.load`'s |
 | `model.request` | `request` (counted from 1 per session), `prompt_id` (the prompt file's ID: the fixed prompt or a preset, D49; `typed` for other text), `prompt_tokens`, `prompt_token_ids` (list); for llama.cpp also `runtime`, `cached_tokens` (how many came from the cache, the scene) and `scene_ms` (its time when it wasn't cached) | when Send is pressed, before the model starts (A1.7c-2, D43) |
 | `model.token` | `request`, `index` (from 0), `text`, `ms` (since the request) | for each piece of the answer as it arrives (D43) |

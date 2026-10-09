@@ -22,7 +22,7 @@ How things work now. Edited in place when something changes; log the change and 
 - `quest-replay.md`: A2.5's frozen-request replay (delivery 1): the fixture and reference bundle built on the PC, the headset's ordered input checks and written fixtures, the headset replay (paths U, R and P, the startup-log capture, the results files), the push and pull helpers, the D101 comparison (step 3), the desktop diagnosis and the read-only provenance collector
 - `quest-runtime-identity.md`: A2.5's runtime identity check: the installed app's native library and model file against the build record and the accepted A1 artifacts, the two verdicts, the evidence and the command
 - `quest-prompting.md`: A2.5 delivery 2: the headset's prompt builder, the PC's goldens (snapshots, prompt asset, token IDs, float32 references), the on-device golden check and the commands
-- `quest-interactive.md`: A2.5 delivery 3: the interactive pipeline on the headset (one request type for every intake, the exact-prefix cache as a switch, structured outcomes), the Interactive check and `interactive-pull`
+- `quest-interactive.md`: A2.5 delivery 3: the interactive pipeline on the headset (one request type for every intake, the exact-prefix cache as a switch, structured outcomes), the Interactive check and `interactive-pull`; delivery 4's session (ADB inbox, presets, cancel, `inbox-send`, `outbox-pull`)
 - `detector.md`: the on-device object detector (A1.10b, A1.10c): the replaceable detector package, the PC reference and parity rule, the Unity setup and the headset checks
 - `setup/quest3.md`: the headset's exact state and how to undo every change
 - `setup/quest-model.md`: how a language model gets into the Quest app

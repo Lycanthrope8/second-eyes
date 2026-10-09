@@ -91,6 +91,20 @@ def main(argv=None) -> int:
     gl.add_argument("--run", required=True)
     gl.add_argument("--results")
     gl.add_argument("--adb", default="adb")
+    isd = sub.add_parser("inbox-send", help="send one request to the headset's ADB inbox (delivery 4); a session must be running")
+    isd.add_argument("--run", required=True)
+    isd.add_argument("--goldens", required=True, help="the goldens folder: its snapshots and commands")
+    isd.add_argument("--snapshot", required=True, help="an object count (3, 6 or 10) or a snapshot ID")
+    src = isd.add_mutually_exclusive_group(required=True)
+    src.add_argument("--command-file", help="a golden command file, e.g. commands/iref.input....json")
+    src.add_argument("--text", help="a written command text (labelled written: an implementation check only)")
+    src.add_argument("--dataset", type=int, help="the snapshot's N-th golden dataset command (1-based)")
+    isd.add_argument("--request-id")
+    isd.add_argument("--resend", action="store_true", help="deliver this request ID again on purpose (to check duplicate handling)")
+    isd.add_argument("--adb", default="adb")
+    opl = sub.add_parser("outbox-pull", help="pull the headset's acknowledgements, results and session log into a run")
+    opl.add_argument("--run", required=True)
+    opl.add_argument("--adb", default="adb")
     ip = sub.add_parser("interactive-pull", help="pull a finished interactive-check results folder (delivery 3) and its event log into a run")
     ip.add_argument("--run", required=True)
     ip.add_argument("--results")
@@ -102,6 +116,8 @@ def main(argv=None) -> int:
     a = ap.parse_args(argv)
     if a.command == "provenance-collect":
         return _provenance(a)
+    if a.command in ("inbox-send", "outbox-pull"):
+        return _inbox(a)
     if a.command.startswith("golden-") or a.command == "interactive-pull":
         return _golden(a)
     if a.command in ("replay-repeat", "repeat-compare"):
@@ -199,6 +215,38 @@ def _device(a) -> int:
         return 2
     except OSError as e:
         print(f"output error: {e}", file=sys.stderr)
+        return 3
+
+
+def _inbox(a) -> int:
+    from . import inbox as IB
+    from .runtime_identity import Adb
+    say = lambda m: print(f"  ... {m}", flush=True)  # noqa: E731
+    try:
+        if a.command == "inbox-send":
+            r = IB.inbox_send(run_id=a.run, goldens=a.goldens, snapshot=a.snapshot, command_file=a.command_file, text=a.text,
+                              dataset=a.dataset, request_id=a.request_id, resend=a.resend, adb=Adb(a.adb), progress=say)
+            q = r["request"]
+            print(f"sent {r['request_id']} to {r['remote']} ({q['command_kind']}: {q['command']['text']!r}; snapshot "
+                  f"{q['expected_scene']['snapshot_id'][-8:]}); PC push and rename {r['pc_push_and_rename_s']} s; receipt {r['receipt']}")
+            return 0
+        r = IB.outbox_pull(run_id=a.run, adb=Adb(a.adb), progress=say)
+        print(f"pulled {len(r['files'])} files into {r['folder']} (session {r['session']})")
+        for rid, s in sorted(r["requests"].items()):
+            ms = s.get("app_observed_ms")
+            print(f"  {rid}: ack {s.get('ack', '-')}; {s.get('status', 'no result yet')}"
+                  + (f" ({s['reason']})" if s.get("reason") else "") + (f", target {s['target']}" if s.get("target") else "")
+                  + (f", path {s['execution_path']}" if s.get("execution_path") else "")
+                  + (f", {ms / 1000:.1f} s app-observed" if isinstance(ms, (int, float)) else "")
+                  + (f", {s['duplicates']} duplicate(s) ignored" if s.get("duplicates") else ""))
+        return 0
+    except EvaluationInputError as e:
+        for i in e.issues:
+            print(f"refused: {i['message']}", file=sys.stderr)
+        return 2
+    except EvaluationOutputError as e:
+        for i in e.issues:
+            print(f"output error: {i['message']}", file=sys.stderr)
         return 3
 
 

@@ -52,3 +52,30 @@ python -m grounding.quest interactive-pull --run RUN [--results NAME]
 
 It prints each pass's statuses, whether the result lines match `done.json`, the prompts equal to the goldens, and the
 choices and offered logits that agree with and without the cache.
+
+## The session (delivery 4)
+
+The panel's row **Session (A2.5 d4)** has four buttons: start or end, Scene (3, 6 or 10 objects), Preset (the scene's
+next golden dataset command) and Cancel.
+
+A running session answers the ADB inbox. Requests are pushed under a temporary name and renamed when complete, and each
+request ID is processed once. Every request is answered under its ID: `outbox/(ID).ack.json`, then
+`outbox/(ID).result.json`.
+
+A request bound to another scene is refused (`stale_scene_binding`), and so is a result that finishes after a scene
+switch (`stale_result_scene_changed`).
+
+Cancel works in two ways:
+
+- queued requests are answered as cancelled at once;
+- a running evaluation finishes, and its result is answered as cancelled.
+
+The session is operational, so it runs path U only.
+
+```text
+python -m grounding.quest inbox-send --run RUN --goldens DIR --snapshot 3 --dataset 1 [--request-id ID] [--resend]
+python -m grounding.quest inbox-send --run RUN --goldens DIR --snapshot 3 --text "the chair by the window"
+python -m grounding.quest outbox-pull --run RUN
+```
+
+Design and protocol: `notes/phases/A2.5_d4_intake.md`. Tests: `python grounding/tests/test_quest_inbox.py`.

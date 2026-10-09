@@ -34,7 +34,7 @@ namespace SecondEyes.Grounding
     /// right-click the component for the same actions without a headset; the answer then also goes to the Console.
     /// The right thumbstick's click puts the panel in front again.
     /// </summary>
-    public class ChatPanel : MonoBehaviour
+    public partial class ChatPanel : MonoBehaviour
     {
         [Tooltip("Meta's provider asset, filled by Second Eyes > Fill chat provider.")]
         [SerializeField] private UnityInferenceEngineProvider provider;
@@ -110,6 +110,7 @@ namespace SecondEyes.Grounding
 
         private void OnDestroy()
         {
+            if (interactiveSession != null) { interactiveSession.Dispose(); interactiveSession = null; }
             if (working != null)
             {
                 Destroy(working);   // Meta's OnDisable on the copy then releases the model
@@ -860,7 +861,7 @@ namespace SecondEyes.Grounding
             canvasObject.GetComponent<Canvas>().renderMode = RenderMode.WorldSpace;
             canvasObject.GetComponent<CanvasScaler>().dynamicPixelsPerUnit = 4f;   // sharper text in world space
             panel = (RectTransform)canvasObject.transform;
-            panel.sizeDelta = new Vector2(640f, 728f);   // one row more for Replay (A2.5)
+            panel.sizeDelta = new Vector2(640f, 776f);   // two rows more: Replay and checks (A2.5), and the session (A2.5 d4)
             panel.localScale = Vector3.one * 0.001f;
             panel.position = new Vector3(0f, -100f, 0f);   // out of sight until Place() runs
 
@@ -923,6 +924,7 @@ namespace SecondEyes.Grounding
             goldenLabel.text = "Golden check (A2.5 d2)";
             interactiveButton = RowButton("Interactive", 430f, 190f, out interactiveLabel, StartInteractive, 664f);
             interactiveLabel.text = "Interactive check (A2.5 d3)";
+            BuildSessionRow();
             UpdateReplayButton();
             UpdateLabels();
         }
