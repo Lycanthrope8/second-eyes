@@ -102,6 +102,17 @@ def main(argv=None) -> int:
     isd.add_argument("--request-id")
     isd.add_argument("--resend", action="store_true", help="deliver this request ID again on purpose (to check duplicate handling)")
     isd.add_argument("--adb", default="adb")
+    ib = sub.add_parser("inbox-batch", help="send every golden dataset command of one snapshot to the inbox (delivery 5's measurement)")
+    ib.add_argument("--run", required=True)
+    ib.add_argument("--goldens", required=True)
+    ib.add_argument("--snapshot", required=True, help="an object count (3, 6 or 10) or a snapshot ID")
+    ib.add_argument("--prefix", default="m", help="request IDs are PREFIX + object count + '-' + index (default m)")
+    ib.add_argument("--adb", default="adb")
+    mr = sub.add_parser("measure-report", help="the measurement report of a pulled session (delivery 5)")
+    mr.add_argument("--run", required=True)
+    mr.add_argument("--goldens", required=True)
+    mr.add_argument("--references", help="the D2 CPU float32 baseline folder, for the descriptive agreement")
+    mr.add_argument("--pull", help="a pulled outbox folder (default: the run's newest)")
     opl = sub.add_parser("outbox-pull", help="pull the headset's acknowledgements, results and session log into a run")
     opl.add_argument("--run", required=True)
     opl.add_argument("--adb", default="adb")
@@ -116,7 +127,7 @@ def main(argv=None) -> int:
     a = ap.parse_args(argv)
     if a.command == "provenance-collect":
         return _provenance(a)
-    if a.command in ("inbox-send", "outbox-pull"):
+    if a.command in ("inbox-send", "outbox-pull", "inbox-batch", "measure-report"):
         return _inbox(a)
     if a.command.startswith("golden-") or a.command == "interactive-pull":
         return _golden(a)
@@ -223,6 +234,17 @@ def _inbox(a) -> int:
     from .runtime_identity import Adb
     say = lambda m: print(f"  ... {m}", flush=True)  # noqa: E731
     try:
+        if a.command == "inbox-batch":
+            sent = IB.inbox_batch(run_id=a.run, goldens=a.goldens, snapshot=a.snapshot, prefix=a.prefix, adb=Adb(a.adb), progress=say)
+            print(f"sent {len(sent)} requests: {', '.join(r['request_id'] for r in sent)}")
+            return 0
+        if a.command == "measure-report":
+            from . import measure as MS
+            s = MS.measure_report(run_id=a.run, goldens=a.goldens, references=a.references, pull=a.pull)
+            from pathlib import Path as _P
+            print((_P(s["folder"]) / "report.md").read_text(encoding="utf-8"))
+            print(f"written to {s['folder']}")
+            return 0
         if a.command == "inbox-send":
             r = IB.inbox_send(run_id=a.run, goldens=a.goldens, snapshot=a.snapshot, command_file=a.command_file, text=a.text,
                               dataset=a.dataset, request_id=a.request_id, resend=a.resend, adb=Adb(a.adb), progress=say)

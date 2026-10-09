@@ -79,3 +79,15 @@ python -m grounding.quest outbox-pull --run RUN
 ```
 
 Design and protocol: `notes/phases/A2.5_d4_intake.md`. Tests: `python grounding/tests/test_quest_inbox.py`.
+
+## Measurement (delivery 5)
+
+```text
+python -m grounding.quest inbox-batch --run RUN --goldens DIR --snapshot 3        # every dataset command of the 3-object scene
+python -m grounding.quest outbox-pull --run RUN                                   # also brings the session's load log
+python -m grounding.quest measure-report --run RUN --goldens DIR --references REFS
+```
+
+The report covers app-observed latency per scene size and intake, stage times, tokens, memory as the runtime reports it,
+and the PC's push times kept apart. Agreement with the CPU baseline is descriptive only. Design:
+`notes/phases/A2.5_d5_measurement.md`. Tests: `python grounding/tests/test_quest_measure.py`.

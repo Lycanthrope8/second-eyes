@@ -142,7 +142,7 @@ def outbox_pull(*, run_id, adb=None, repo=None, progress=print) -> dict:
             if adb.pull(f"{OUTBOX}/{n}", staging / "outbox" / n)[0] != 0:
                 _fail(f"pulling {n} failed")
         if sessions:
-            for n in ("session.json", "outcomes.jsonl"):
+            for n in ("session.json", "outcomes.jsonl", "startup-log.txt"):
                 progress(f"pulling the session {sessions[-1]}'s {n}")
                 adb.pull(f"{SESSIONS}/{sessions[-1]}/{n}", staging / "session" / n)
         summary = {}
@@ -166,3 +166,20 @@ def outbox_pull(*, run_id, adb=None, repo=None, progress=print) -> dict:
         shutil.rmtree(staging, ignore_errors=True)
         raise
     return dict(receipt, folder=str(dest))
+
+
+def inbox_batch(*, run_id, goldens, snapshot, prefix="m", adb=None, repo=None, progress=print) -> list:
+    """Every golden dataset command of one snapshot, as separate requests (prefix + object count + "-" + index), in
+    order. The headset's session must be bound to that snapshot, or each is refused as a stale binding."""
+    head = Path(goldens) / "headset"
+    rows = [json.loads(x) for x in (head / "goldens.jsonl").read_text(encoding="utf-8").splitlines() if x.strip()]
+    counts = {}
+    for r in rows:
+        if r["snapshot_id"] not in counts:
+            counts[r["snapshot_id"]] = len(json.loads((head / r["scene_file"]).read_text(encoding="utf-8"))["objects"])
+    pick = [sid for sid, n in counts.items() if sid == str(snapshot) or str(n) == str(snapshot)]
+    if len(pick) != 1:
+        _fail(f"snapshot {snapshot!r} names {len(pick)} golden snapshots; give an object count ({sorted(counts.values())}) or a snapshot ID")
+    n = sum(r["snapshot_id"] == pick[0] and r["kind"] == "dataset_command" for r in rows)
+    return [inbox_send(run_id=run_id, goldens=goldens, snapshot=pick[0], dataset=k, request_id=f"{prefix}{counts[pick[0]]}-{k:02d}",
+                       adb=adb, repo=repo, progress=progress) for k in range(1, n + 1)]

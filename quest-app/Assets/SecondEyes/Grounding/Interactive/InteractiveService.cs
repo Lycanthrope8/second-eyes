@@ -99,14 +99,23 @@ namespace SecondEyes.Grounding.Interactive
             Scenes.Sort((a, b) => a.Objects.CompareTo(b.Objects));
             SetScene(0);
             Say("Session: loading the model...");
+            long rssBefore = LlamaRuntime.MemoryKb(false), peakBefore = LlamaRuntime.MemoryKb(true);
+            string captureError = null, capturePath = Path.Combine(dir, "startup-log.txt");
             runtime = new LlamaRuntime(main);
-            double loadMs = await runtime.LoadAsync(modelPath, Pipeline.ContextTokens, ReplayRunner.Threads, ReplayRunner.Flags);
+            double loadMs = await runtime.LoadCapturedAsync(modelPath, Pipeline.ContextTokens, ReplayRunner.Threads, ReplayRunner.Flags,
+                                                            capturePath, e => captureError = captureError == null ? e : captureError + "; " + e);
+            long rssAfter = LlamaRuntime.MemoryKb(false), peakAfter = LlamaRuntime.MemoryKb(true);
             log = new StreamWriter(Path.Combine(dir, "outcomes.jsonl"), false, new UTF8Encoding(false));
             File.WriteAllText(Path.Combine(dir, "session.json"), new JsonWriter().BeginObj().Key("record_type").S("a25_interactive_session")
                 .Key("session").S(sessionStamp).Key("purpose").S("operational").Key("cache_mode").S("Off").Key("execution_path").S("U")
                 .Key("golden_manifest_sha256").S(goldens.ManifestSha256).Key("prompt_asset_sha256").S(goldens.AssetSha256)
                 .Key("model").S(modelPath).Key("context_tokens").I(Pipeline.ContextTokens).Key("flags").I(ReplayRunner.Flags)
                 .Key("llama_cpp").S(runtime.Version).Key("load_ms").D(loadMs).Key("app_version").S(Application.version)
+                .Key("memory_kb").BeginObj().Key("source").S("the wrapper's se_memory_kb: resident (VmRSS) and peak (VmHWM)")
+                .Key("before_load_rss").I(rssBefore).Key("before_load_peak").I(peakBefore)
+                .Key("after_load_rss").I(rssAfter).Key("after_load_peak").I(peakAfter).End()
+                .Key("startup_log").BeginObj().Key("file").S("startup-log.txt").Key("verbose").S("on during the load only")
+                .Key("capture_error").S(captureError).End()
                 .Key("event_log").S(EventLog.FilePath).Key("event_session").S(EventLog.SessionId).End().ToString() + "\n", new UTF8Encoding(false));
             stop = new CancellationTokenSource();
             CancellationToken ct = stop.Token;
@@ -270,7 +279,8 @@ namespace SecondEyes.Grounding.Interactive
         {
             string line = "{\"record_type\":\"a25_interactive_result\",\"request_id\":" + Canon.Enc(JNode.Str(t.RequestId))
                           + ",\"session\":\"" + sessionStamp + "\",\"scene_epoch\":" + t.SceneEpoch
-                          + ",\"outcome\":" + o.ToJson() + ",\"times\":" + t.Times.ToJson() + "}";
+                          + ",\"outcome\":" + o.ToJson() + ",\"times\":" + t.Times.ToJson()
+                          + ",\"memory_kb\":{\"rss\":" + LlamaRuntime.MemoryKb(false) + ",\"peak\":" + LlamaRuntime.MemoryKb(true) + "}}";
             if (t.Source == "adb_inbox") WriteAtomic(Path.Combine(OutboxDir, t.RequestId + ".result.json"), line);
             lock (logGate)
             {
