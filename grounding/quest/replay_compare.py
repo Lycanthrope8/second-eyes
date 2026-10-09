@@ -47,6 +47,12 @@ from .replay_bundle import verify_replay_bundle
 PLAUSIBLE, TVD_MAX = 0.01, 0.05
 COMPARISONS = (("U", "float32", False), ("R", "float32", True), ("P", "float32", True), ("R", "U", True), ("P", "U", True))
 ACCEPTED_RUNTIME = {"threads": 2, "n_seq": 16, "flags": 0, "version": "b11277 (eae11d22)"}   # D58, D59; runtime-identity policy
+# Documented naming discrepancies, accepted as they are: the folder name, the name its records carry, and why. Raw records
+# are never rewritten to agree.
+KNOWN_NAME_DISCREPANCIES = {
+    "20261008-203602": ("20261008-203604", "run 20261008_A2_r010: the desktop driver took its own timestamp two seconds "
+                                           "after the command named the folder (notes/phases/A2.5_d1_replay.md, section 6)"),
+}
 LOG_FIELDS = {
     "file_type": re.compile(r"^print_info: file type\s*=\s*(.+?)\s*$"),
     "n_seq_max": re.compile(r"^llama_context: n_seq_max\s*=\s*(\S+)\s*$"),
@@ -121,6 +127,13 @@ def startup_fields(text: str) -> dict:
     return out
 
 
+def _read_json(path):
+    try:
+        return json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
 def _lines(path):
     rows = []
     for k, line in enumerate(Path(path).read_text(encoding="utf-8").splitlines(), start=1):
@@ -174,10 +187,15 @@ def compare_replay(*, bundle, results, out, push_receipt=None) -> dict:
         recs = _lines(b / "headset" / "requests.jsonl")
         fixes = _lines(b / "headset" / "fixtures-written.jsonl")
         refs = {x["request_id"]: x["reference"] for x in _lines(b / "reference" / "references.jsonl")}
-        ident = json.loads((r / "identity.json").read_text(encoding="utf-8"))
     except (OSError, ValueError, KeyError) as e:
-        raise EvaluationInputError([issue(str(r), "E_REPLAY_COMPARE", f"unreadable input: {e}")]) from None
-    problems, ask, n_vocab = [], hm["ask_code"], hm["vocab_size"]
+        raise EvaluationInputError([issue(str(b), "E_REPLAY_COMPARE", f"unreadable bundle file: {e}")]) from None
+    if not r.is_dir():
+        raise EvaluationInputError([issue(str(r), "E_REPLAY_COMPARE", "no results folder")])
+    problems, reporting, notes, ask, n_vocab = [], [], [], hm["ask_code"], hm["vocab_size"]
+    ident = _read_json(r / "identity.json")
+    if not isinstance(ident, dict):
+        problems.append("identity: identity.json is missing or unreadable; everything else is still checked")
+        ident = {}
     # inputs: the chain from the root manifest to what the device read
     fh = root["files"]
     want_chain = {"manifest_sha256": fh["headset/replay-manifest.json"], "requests_sha256": fh["headset/requests.jsonl"],
@@ -205,11 +223,29 @@ def compare_replay(*, bundle, results, out, push_receipt=None) -> dict:
     got_rt = {"requested_n_ctx": req.get("n_ctx"), "requested_threads": req.get("threads"), "requested_n_seq": req.get("n_seq"),
               "requested_flags": req.get("flags"), "n_vocab": rt.get("n_vocab"), "version": rt.get("version")}
     problems += [f"runtime: {k} is {got_rt[k]!r}, not {v!r}" for k, v in want_rt.items() if got_rt[k] != v]
+    for key in ("n_seq", "flags"):   # what the runtime reports back; threads are requested and passed, never read back
+        if rt.get(key) != ACCEPTED_RUNTIME[key]:
+            problems.append(f"runtime: the reported {key} is {rt.get(key)!r}, not {ACCEPTED_RUNTIME[key]!r}")
     allocated = rt.get("n_ctx")
     if not isinstance(allocated, int) or allocated < hm["context_limit_tokens"]:
         problems.append(f"runtime: the allocated context {allocated!r} is below the protocol's {hm['context_limit_tokens']}")
-    log = startup_fields((r / "startup-log.txt").read_text(encoding="utf-8", errors="replace")) \
-        if (r / "startup-log.txt").is_file() else {"missing": list(LOG_FIELDS), "kv_types_reported": False}
+    log_file = r / "startup-log.txt"
+    log = startup_fields(log_file.read_text(encoding="utf-8", errors="replace")) \
+        if log_file.is_file() else {"missing": list(LOG_FIELDS), "kv_types_reported": False}
+    cap = ident.get("capture") or {}
+    if cap.get("file") != "startup-log.txt":
+        problems.append(f"capture: the identity names {cap.get('file')!r} as the capture file, not startup-log.txt")
+    if log_file.is_file():
+        if cap.get("bytes") != log_file.stat().st_size:
+            problems.append(f"capture: the identity records {cap.get('bytes')!r} bytes; startup-log.txt has {log_file.stat().st_size}")
+    else:
+        reporting.append("no startup-log.txt")
+        if cap.get("bytes") not in (None, -1):
+            problems.append(f"capture: the identity records {cap.get('bytes')!r} bytes, but there is no startup-log.txt")
+    if cap.get("error"):
+        reporting.append(f"capture error: {cap['error']}")
+    if not log.get("kv_types_reported"):
+        reporting.append("K/V types and sizes: no runtime line (missing: " + ", ".join(log.get("missing", [])) + ")")
     # self-checks and fixtures
     sc = json.loads((r / "selfchecks.json").read_text(encoding="utf-8")) if (r / "selfchecks.json").is_file() else {}
     if not (sc.get("all_passed") is True and sc.get("checks") and all(c.get("passed") for c in sc["checks"])):
@@ -263,6 +299,23 @@ def compare_replay(*, bundle, results, out, push_receipt=None) -> dict:
             else:
                 row.update({"pass": False, "failed": ["path not scored"], "tvd": None})
             rows.append(row)
+    # completion and naming, against the files themselves
+    done = _read_json(r / "done.json")
+    if not isinstance(done, dict):
+        problems.append("completion: done.json is missing or unreadable (an unfinished or damaged run)")
+    else:
+        want_done = {"record_type": "a25_replay_done", "requests": len(recs), "written": len(results), "fixtures": len(fixes),
+                     "fixtures_as_expected": sum(x.get("as_expected") is True for x in fx),
+                     "self_checks_passed": sc.get("all_passed")}
+        problems += [f"completion: done.json says {k} {done.get(k)!r}; the files give {v!r}"
+                     for k, v in want_done.items() if done.get(k) != v]
+    for source, named in (("identity.json", ident.get("results")), ("done.json", (done or {}).get("results"))):
+        if named is not None and named != r.name:
+            known = KNOWN_NAME_DISCREPANCIES.get(r.name)
+            if known and named == known[0]:
+                notes.append(f"{source} names the results {named}; the folder is {r.name}. Accepted as documented: {known[1]}")
+            else:
+                problems.append(f"naming: {source} names the results {named!r}; the folder is {r.name!r}")
     # summary
     per = {}
     for a, bname, judge in COMPARISONS:
@@ -281,11 +334,14 @@ def compare_replay(*, bundle, results, out, push_receipt=None) -> dict:
                "verdict": {"replay_acceptance": "pass" if accepted else "fail", "structural_problems": len(problems),
                            "d101_failures": len(failures), "comparisons": len(rows),
                            "requests_with_a_failure": len({x["request_id"] for x in failures}),
-                           "k_v_reporting": "reported by the runtime" if log.get("kv_types_reported") else "incomplete"},
-               "per_comparison": per, "problems": problems,
+                           "k_v_reporting": "reported by the runtime" if log.get("kv_types_reported") else "incomplete",
+                           "runtime_reporting": "complete" if not reporting else "incomplete"},
+               "per_comparison": per, "problems": problems, "reporting_issues": reporting, "notes": notes,
                "failures": [{k: x.get(k) for k in ("request_id", "comparison", "choice_a", "choice_b", "tvd", "failed",
                                                      "changed_pairs")} for x in failures],
-               "inputs": chain, "runtime": {"reported": got_rt, "allocated_n_ctx": allocated,
+               "inputs": chain, "runtime": {"reported": got_rt, "allocated_n_ctx": allocated, "reported_n_seq": rt.get("n_seq"),
+                                            "reported_flags": rt.get("flags"),
+                                            "threads": "requested and passed to the loader; not read back by the runtime",
                                             "system_info": rt.get("system_info"), "load_ms": rt.get("load_ms")},
                "startup_log": log, "fixtures": len(fx), "self_checks": len(sc.get("checks") or [])}
     files = {"comparisons.jsonl": encode_jsonl(rows), "summary.json": encode_json(summary),
@@ -336,6 +392,8 @@ def render(s) -> str:
             L.append(f"- `{name}`: {log[name]['value']} (line {', '.join(map(str, log[name]['lines']))})")
         else:
             L.append(f"- `{name}`: not found")
-    if s["problems"]:
-        L += ["", "Structural problems:", ""] + [f"- {p}" for p in s["problems"]]
+    L += ["", f"Threads: {s['runtime']['threads']}. Runtime reporting: {v['runtime_reporting']}."]
+    for title, key in (("Structural problems", "problems"), ("Reporting issues", "reporting_issues"), ("Notes", "notes")):
+        if s[key]:
+            L += ["", title + ":", ""] + [f"- {p}" for p in s[key]]
     return "\n".join(L) + "\n"

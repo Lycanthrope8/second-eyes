@@ -256,8 +256,20 @@ Collection completeness is not acceptance. The comparison enforces everything it
   file type, context, per-sequence context, batch, attention setting and its resolution, unified cache, KV buffer, and
   K and V types and sizes. A missing line leaves the field missing, never filled in from defaults.
 
-Replay acceptance passes only when every check and all comparisons pass. Exit codes: 0 pass; 1 fail; 2 unreadable
-inputs; 3 an output error.
+Since 9 October it also checks:
+
+- the completion record (`done.json`) against the files;
+- the runtime's reported sequence count and flags, not only the requested ones;
+- the capture metadata against the captured file.
+
+Statuses are kept apart. A capture error or a missing K/V line makes runtime reporting incomplete, not a structural
+problem. A missing identity or completion record is a problem, and everything else is still compared.
+
+Threads are requested and passed to the loader, with no runtime readback. Documented naming discrepancies, only r010's
+so far, are accepted as notes, and raw records are never rewritten.
+
+Replay acceptance passes only when every structural check and all comparisons pass. Exit codes: 0 pass; 1 fail; 2
+unreadable inputs; 3 an output error.
 
 ## The desktop diagnosis (D98)
 
@@ -293,3 +305,38 @@ python grounding/tests/test_quest_replay_compare.py
 These use a fixture bundle and a labelled fake native library. The comparison was also checked against ChatGPT's
 independent recomputation of run `20261008_A2_r009`: the same 21 cache-comparison failures, choices, TVDs to ten digits
 and changed pairs.
+
+## The repeatability and context-history diagnostic (ChatGPT's proposal)
+
+```text
+python -m grounding.quest replay-repeat --bundle DIR --run RUN_ID [--model PATH] [--library PATH]
+python -m grounding.quest repeat-compare --bundle DIR --results DIR --run RUN_ID
+```
+
+This is diagnostic evidence, not a replacement acceptance set. Adoption is the project lead's.
+
+**The run** uses fixed requests, r0001, r0004 and r0329, in bundle order:
+
+- **Inputs:** the same GGUF, and the same host DLL as run `20261008_A2_r010` (SHA-256 `aa241e18…`). Any other DLL is
+  refused before anything runs. The requested settings are those of `replay-desktop`.
+- **Schedule:** for each request, a freshly loaded context runs the input checks, then U, R, P and U' (a second full
+  evaluation with keep 0). It is freed, and the same sequence runs once more in another fresh context.
+- **Kept:** each load's startup log, every evaluation's cache count, and every scored path's raw offered logits and
+  full-row SHA-256.
+- **Stopping:** it stops after these six sequences, with no retry. A failure keeps what was written as `<time>.failed`.
+
+**The analysis** (`repeat-compare`):
+
+- D101's five comparisons on each U/R/P sequence;
+- descriptively, with the same calculations, U' against U in the same context and each path across the two contexts.
+  Raw equality of the offered logits and of the full row is a fact, not a threshold;
+- cautious readings on repeatability, context-history dependence and stable differences between paths. None of them
+  alone establishes a kernel or cache defect.
+
+Exit codes: 0 done (or no problem in the analysis); 1 problems in the records; 2 refused; 3 stopped or an output error.
+
+Tests:
+
+```text
+python grounding/tests/test_quest_replay_repeat.py
+```

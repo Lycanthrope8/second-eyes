@@ -201,6 +201,41 @@ def main() -> int:
             s = tampered(label.replace(" ", "_"), edit)
             check(f"reported: {label}", s["verdict"]["replay_acceptance"] == "fail" and any(why in p for p in s["problems"]),
                   str(s["problems"][:2]))
+        def edit_json(t, file, fn):
+            d = json.loads((t / file).read_text(encoding="utf-8"))
+            fn(d)
+            (t / file).write_text(json.dumps(d), encoding="utf-8")
+
+        more = [("done.json with another written count", lambda t: edit_json(t, "done.json", lambda d: d.update(written=99)), "completion"),
+                ("no done.json", lambda t: (t / "done.json").unlink(), "completion"),
+                ("a reported sequence count of 8", lambda t: edit_json(t, "identity.json", lambda d: d["runtime"].update(n_seq=8)),
+                 "the reported n_seq"),
+                ("reported flags of 1", lambda t: edit_json(t, "identity.json", lambda d: d["runtime"].update(flags=1)), "the reported flags"),
+                ("capture bytes that differ from the file",
+                 lambda t: edit_json(t, "identity.json", lambda d: d["capture"].update(bytes=1)), "capture"),
+                ("records naming another folder", lambda t: edit_json(t, "identity.json", lambda d: d.update(results="x")), "naming"),
+                ("no identity.json", lambda t: (t / "identity.json").unlink(), "identity")]
+        for label, edit, why in more:
+            s = tampered(label.replace(" ", "_").replace(".", ""), edit)
+            check(f"reported: {label}", s["verdict"]["replay_acceptance"] == "fail" and any(why in p for p in s["problems"]),
+                  str(s["problems"][:2]))
+        ce = tmp / "ce" / "d0"   # the copy keeps the name its records carry
+        shutil.copytree(tmp / "d0", ce)
+        edit_json(ce, "identity.json", lambda d: d["capture"].update(error="no file"))
+        s = RC.compare_replay(bundle=bundle, results=ce, out=tmp / "c-ce")
+        check("a capture error makes runtime reporting incomplete, apart from structure and D101",
+              s["verdict"]["runtime_reporting"] == "incomplete" and not s["problems"] and s["verdict"]["replay_acceptance"] == "pass")
+        r010 = tmp / "named" / "20261008-203602"
+        shutil.copytree(tmp / "d0", r010)
+        for f in ("identity.json", "done.json"):
+            edit_json(r010, f, lambda d: d.update(results="20261008-203604"))
+        s = RC.compare_replay(bundle=bundle, results=r010, out=tmp / "c-r010")
+        check("r010's documented folder-name discrepancy is accepted as a note; its records are not rewritten",
+              not s["problems"] and len(s["notes"]) == 2 and json.loads((r010 / "done.json").read_text())["results"] == "20261008-203604")
+        other = tmp / "named" / "20261008-999999"
+        shutil.copytree(r010, other)
+        s = RC.compare_replay(bundle=bundle, results=other, out=tmp / "c-other")
+        check("the same discrepancy in any other folder is a naming problem", any("naming" in p for p in s["problems"]))
         root = hashlib.sha256((bundle / "manifest.json").read_bytes()).hexdigest()
         hs = {n_: hashlib.sha256((bundle / "headset" / n_).read_bytes()).hexdigest()
               for n_ in ("replay-manifest.json", "requests.jsonl", "fixtures-written.jsonl")}

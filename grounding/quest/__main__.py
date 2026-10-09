@@ -1,5 +1,6 @@
 """Command line for A2.5's PC side (D98, D99, D103): `replay-bundle`, `verify-replay-bundle`, `runtime-identity`,
-`replay-push`, `replay-pull`, `replay-compare` and `replay-desktop` (laptop or PC).
+`replay-push`, `replay-pull`, `replay-compare`, `replay-desktop`, and the diagnostic's `replay-repeat` and `repeat-compare`
+(laptop or PC).
 
 replay-bundle and verify-replay-bundle: exit 0 complete, or a clean readback; 1 a readback that found problems; 2 invalid
 input, a pinned-identity, selection, token, boundary or reference mismatch, or an existing destination (nothing
@@ -62,7 +63,18 @@ def main(argv=None) -> int:
     dk.add_argument("--run", required=True, help="the run that receives raw/desktop/<UTC time>/")
     dk.add_argument("--model", help="the GGUF (default: grounding/models/qwen2.5-0.5b-instruct/gguf/...q8_0.gguf)")
     dk.add_argument("--library", help="the host build of the wrapper (default: native/out/host/)")
+    rr = sub.add_parser("replay-repeat", help="the fixed repeatability and context-history diagnostic (ChatGPT's proposal)")
+    rr.add_argument("--bundle", required=True)
+    rr.add_argument("--run", required=True, help="the run that receives raw/repeat/<UTC time>/")
+    rr.add_argument("--model")
+    rr.add_argument("--library")
+    rc = sub.add_parser("repeat-compare", help="the diagnostic's D101 comparisons and descriptive comparisons")
+    rc.add_argument("--bundle", required=True)
+    rc.add_argument("--results", required=True)
+    rc.add_argument("--run", required=True, help="the run that receives raw/repeat-compare/<UTC time>/")
     a = ap.parse_args(argv)
+    if a.command in ("replay-repeat", "repeat-compare"):
+        return _repeat(a)
     if a.command in ("replay-compare", "replay-desktop"):
         return _analysis(a)
     if a.command == "runtime-identity":
@@ -164,6 +176,42 @@ def _stamped(run_id, kind) -> Path:
     from . import replay_device as RD
     folder = RD._run_folder(RD.REPO, run_id)
     return folder / "raw" / kind / datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d-%H%M%S")
+
+
+def _repeat(a) -> int:
+    from . import replay_repeat as RR
+    try:
+        if a.command == "replay-repeat":
+            out = _stamped(a.run, "repeat")
+            d = RR.run_repeat(bundle=a.bundle, out=out, model=a.model, library=a.library,
+                              progress=lambda m: print(f"  ... {m}", flush=True))
+            print(f"diagnostic: {d['sequences']}/{d['expected_sequences']} sequences written in {d['total_ms'] / 60000:.1f} min")
+            print(f"written to {out}")
+            return 0
+        out = _stamped(a.run, "repeat-compare")
+        s = RR.compare_repeat(bundle=a.bundle, results=a.results, out=out)
+        f = s["facts"]
+        print(f"D101 on each U/R/P sequence: {f['d101_failures']} of {f['d101_comparisons']} fail (diagnostic; acceptance unchanged)")
+        print(f"full rows identical across contexts: {f['repeat_pairs_full_row_identical']} of {f['repeat_pairs']}; "
+              f"U' identical to U: {f['uprime_full_row_identical']} of {f['uprime_pairs']}; "
+              f"path differences identical across contexts: {f['path_differences_identical']} of {f['path_difference_pairs']}")
+        for x in s["statements"]:
+            print(f"  - {x}")
+        for p in s["problems"]:
+            print(f"  problem: {p}")
+        print(f"written to {out}")
+        return 1 if s["problems"] else 0
+    except EvaluationInputError as e:
+        for i in e.issues:
+            print(f"refused: {i['message']}", file=sys.stderr)
+        return 2
+    except EvaluationOutputError as e:
+        for i in e.issues:
+            print(f"output error: {i['message']}", file=sys.stderr)
+        return 3
+    except Exception as e:  # noqa: BLE001
+        print(f"stopped: {type(e).__name__}: {e} (what was written is kept as <folder>.failed)", file=sys.stderr)
+        return 3
 
 
 def _analysis(a) -> int:
