@@ -78,7 +78,7 @@ namespace SecondEyes.Grounding.Interactive
                         CommandText = g.Texts[row["command_file"].Text] };
                     InteractiveOutcome o = await runtime.WithModel(s => {
                         var vec = new float[LlamaNative.se_n_vocab(s)];
-                        return Pipeline.Run(r, g.Asset, new LlamaAdapter(s), cache, vec, null);
+                        return Pipeline.Run(r, g.Asset, new LlamaAdapter(s), cache, ExecutionPurpose.Diagnostic, vec, null);
                     });
                     w.WriteLine(o.ToJson());
                     w.Flush();
@@ -110,6 +110,8 @@ namespace SecondEyes.Grounding.Interactive
             var off = await Pass(g, CacheMode.Off, Path.Combine(dir, "outcomes-off.jsonl"), stamp);
             var prefix = await Pass(g, CacheMode.ExactPrefix, Path.Combine(dir, "outcomes-prefix.jsonl"), stamp);
             int promptsEqual = 0, sameChoice = 0, sameOffered = 0, kept = 0, completedOrAsk = 0;
+            Func<List<InteractiveOutcome>, string, int> n = (list, f) => list.FindAll(x => x.Status == f || x.AskBasis == f
+                                                                                    || "path_" + x.ExecutionPath == f).Count;
             for (int k = 0; k < g.Rows.Count; k++)
             {
                 if (off[k].PromptSha256 == g.Rows[k]["prompt_sha256"].Text && prefix[k].PromptSha256 == off[k].PromptSha256) promptsEqual++;
@@ -125,7 +127,12 @@ namespace SecondEyes.Grounding.Interactive
                 .Key("llama_cpp").S(runtime.Version).Key("load_ms").D(loadMs).Key("app_version").S(appVersion)
                 .Key("event_log").S(EventLog.FilePath).Key("session").S(EventLog.SessionId).End().ToString());
             WriteJson(Path.Combine(dir, "done.json"), new JsonWriter().BeginObj().Key("record_type").S("a25_interactive_done")
-                .Key("results").S(stamp).Key("requests").I(g.Rows.Count).Key("off").I(off.Count).Key("prefix").I(prefix.Count)
+                .Key("results").S(stamp).Key("purpose").S("diagnostic").Key("requests").I(g.Rows.Count).Key("off").I(off.Count).Key("prefix").I(prefix.Count)
+                .Key("off_completed").I(n(off, "completed")).Key("off_ask_model_selected").I(n(off, "model_selected"))
+                .Key("off_ask_exact_tie").I(n(off, "exact_tie")).Key("off_refused").I(n(off, "refused")).Key("off_failed").I(n(off, "failed"))
+                .Key("off_path_u").I(n(off, "path_U")).Key("prefix_path_u").I(n(prefix, "path_U")).Key("prefix_path_p").I(n(prefix, "path_P"))
+                .Key("prefix_completed").I(n(prefix, "completed")).Key("prefix_ask_model_selected").I(n(prefix, "model_selected"))
+                .Key("prefix_ask_exact_tie").I(n(prefix, "exact_tie")).Key("prefix_refused").I(n(prefix, "refused")).Key("prefix_failed").I(n(prefix, "failed"))
                 .Key("completed_or_ask_both").I(completedOrAsk).Key("prompts_equal_goldens").I(promptsEqual)
                 .Key("prefix_kept_some").I(kept).Key("same_choice").I(sameChoice).Key("same_offered_logits").I(sameOffered)
                 .Key("total_ms").D(total.Elapsed.TotalMilliseconds)

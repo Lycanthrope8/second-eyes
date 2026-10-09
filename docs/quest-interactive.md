@@ -20,18 +20,22 @@ Phase note: `notes/phases/A2.5_d3_interactive.md`.
 3. **Tokens:** the prompt is tokenized natively, and refused if it would not fit 8,192 tokens with one continuation
    position.
 4. **The cache plan,** by mode:
-   - `Off` (the default) evaluates in full;
-   - `ExactPrefix` keeps the longest common prefix with the previous request on the same snapshot, at most n − 1. Another
-     snapshot invalidates it, and a failure resets it.
+   - `Off`, the default and the only operational mode: prior KV cleared, complete prompt (path `U`);
+   - `ExactPrefix`, diagnostic execution only: the longest common prefix with the previous request on the same snapshot,
+     at most n − 1 (path `P`). Another snapshot invalidates it, and a failure resets it. An operational request with it
+     is refused (`prefix_reuse_not_accepted`).
 5. **Evaluation and scoring:** offered letters only; exact ties go to K; a non-finite output fails.
 6. **The outcome:**
-   - a status: `completed`, `ask`, `refused`, `failed` or `cancelled`, with a reason;
+   - a status: `completed`, `ask`, `refused`, `failed` or `cancelled`, with a reason. An ASK records its basis:
+     `model_selected` or `exact_tie`. Technical failures are never an ASK;
+   - the purpose and the execution path that actually ran;
    - the target object;
    - the offered logits, shares and log-probabilities, and the margin;
    - the tokens kept and evaluated, and the time of each stage.
 
-The cache's numerical acceptance is delivery 1's open question (D101). Turning `ExactPrefix` on for interactive use is
-the project lead's decision.
+Three statuses are kept separate: the functional implementation, uncached numerical acceptance against float32, and
+cached numerical acceptance under D56/D101. Enabling prefix reuse operationally needs cached numerical acceptance, or an
+explicit amendment by the project lead.
 
 ## The Interactive check
 

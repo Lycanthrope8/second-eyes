@@ -14,9 +14,10 @@ namespace SecondEyes.Grounding.Interactive
     //   3. a cache plan;
     //   4. evaluation;
     //   5. offered-letter scoring.
-    // The cache is a switch. Off evaluates every request in full (the replay's U path). ExactPrefix keeps the longest
-    // common token prefix of the same snapshot. Its numerical acceptance is delivery 1's open question (D101), and each
-    // outcome records which path ran.
+    // Off is the default: every request clears the prior KV state and evaluates its complete prompt (the replay's U path).
+    // ExactPrefix keeps the longest common token prefix of the same snapshot (the replay's P path). It is confined to
+    // diagnostic execution: an operational request with it is refused. Enabling it operationally needs cached numerical
+    // acceptance under D56/D101, or an explicit amendment by the project lead. Each outcome records the path that ran.
 
     /// <summary>The native calls the pipeline needs (LlamaNative on the headset, a fake in tests).</summary>
     public interface INative
@@ -31,6 +32,10 @@ namespace SecondEyes.Grounding.Interactive
 
     public enum CacheMode { Off, ExactPrefix }
 
+    /// <summary>Operational requests (the presets and the ADB inbox) may use only Off. Diagnostic execution (the
+    /// Interactive check) may also use ExactPrefix.</summary>
+    public enum ExecutionPurpose { Operational, Diagnostic }
+
     /// <summary>What every intake (panel, presets, the ADB inbox) hands the pipeline, so they cannot behave differently.</summary>
     public sealed class InteractiveRequest
     {
@@ -41,7 +46,10 @@ namespace SecondEyes.Grounding.Interactive
 
     public sealed class InteractiveOutcome
     {
-        public string RequestId, Source, Status = "failed", Reason, Detail = "", CacheMode;
+        public string RequestId, Source, Status = "failed", Reason, Detail = "", CacheMode, Purpose;
+        public string ExecutionPath = "none";   // "U": prior KV cleared, complete prompt; "P": a cached prefix kept; "none": no evaluation
+        public string AskBasis;                 // for ASK only: "model_selected" (K had the top offered score) or "exact_tie" (the tie rule)
+        public int PriorCachedTokens = -1;
         public string ChoiceCode, TargetObjectId, PromptSha256, MappingSha256;
         public string[] TiedCodes = new string[0];
         public int Tokens = -1, KeptTokens = 0, EvaluatedTokens = 0;
@@ -54,7 +62,9 @@ namespace SecondEyes.Grounding.Interactive
         {
             var w = new JsonWriter().BeginObj().Key("record_type").S("a25_interactive_outcome").Key("request_id").S(RequestId)
                 .Key("source").S(Source).Key("status").S(Status).Key("reason").S(Reason).Key("detail").S(Detail)
-                .Key("cache_mode").S(CacheMode).Key("choice_code").S(ChoiceCode).Key("target_object_id").S(TargetObjectId)
+                .Key("cache_mode").S(CacheMode).Key("purpose").S(Purpose).Key("execution_path").S(ExecutionPath)
+                .Key("prior_cached_tokens").I(PriorCachedTokens).Key("ask_basis").S(AskBasis)
+                .Key("choice_code").S(ChoiceCode).Key("target_object_id").S(TargetObjectId)
                 .Key("tied_codes").Strs(TiedCodes).Key("margin").D(Margin).Key("prompt_sha256").S(PromptSha256)
                 .Key("mapping_sha256").S(MappingSha256).Key("tokens").I(Tokens).Key("kept_tokens").I(KeptTokens)
                 .Key("evaluated_tokens").I(EvaluatedTokens).Key("offered").BeginArr();
@@ -106,10 +116,14 @@ namespace SecondEyes.Grounding.Interactive
 
         /// <summary>One request, start to finish. Never throws: every way out is a structured outcome.</summary>
         public static InteractiveOutcome Run(InteractiveRequest r, PromptAsset asset, INative native, PrefixCache cache,
-                                             float[] row, Func<bool> cancelled)
+                                             ExecutionPurpose purpose, float[] row, Func<bool> cancelled)
         {
-            var o = new InteractiveOutcome { RequestId = r.RequestId, Source = r.Source, CacheMode = cache.Mode.ToString() };
+            var o = new InteractiveOutcome { RequestId = r.RequestId, Source = r.Source, CacheMode = cache.Mode.ToString(),
+                                             Purpose = purpose == ExecutionPurpose.Diagnostic ? "diagnostic" : "operational" };
             var total = Stopwatch.StartNew();
+            if (cache.Mode != CacheMode.Off && purpose != ExecutionPurpose.Diagnostic)
+                return Stop(o, "refused", "prefix_reuse_not_accepted", "prefix reuse is confined to diagnostic execution until cached "
+                            + "numerical acceptance (D56/D101) or an explicit project-lead amendment", total);
             var clock = Stopwatch.StartNew();
             JNode scene, command;
             List<KeyValuePair<string, string>> mapping;
@@ -153,10 +167,12 @@ namespace SecondEyes.Grounding.Interactive
             if (t.Length + Continuation > ContextTokens)
                 return Stop(o, "refused", "context_budget_exceeded", t.Length + " tokens + " + Continuation + " > " + ContextTokens, total);
             string key = r.SnapshotId + "|" + r.SnapshotSha256;
-            int keep = cache.Plan(t, key, native.Cached());
+            o.PriorCachedTokens = native.Cached();
+            int keep = cache.Plan(t, key, o.PriorCachedTokens);
             var rest = new int[t.Length - keep];
             Array.Copy(t, keep, rest, 0, rest.Length);
             if (cancelled != null && cancelled()) return Stop(o, "cancelled", "cancelled_before_evaluation", "", total);
+            o.ExecutionPath = keep == 0 ? "U" : "P";
             clock.Restart();
             int rc = native.Eval(rest, keep);
             o.EvalMs = clock.Elapsed.TotalMilliseconds;
@@ -193,7 +209,11 @@ namespace SecondEyes.Grounding.Interactive
             o.TiedCodes = s.Tied;
             o.Reason = s.Reason;
             if (s.Choice == asset.AskCode)
-                return Stop(o, "ask", s.Reason, "the model chose ASK, or the top offered scores tied", total);
+            {
+                o.AskBasis = s.Tied != null && s.Tied.Length > 1 ? "exact_tie" : "model_selected";
+                return Stop(o, "ask", s.Reason, o.AskBasis == "exact_tie" ? "the top offered scores tied exactly; the tie rule gives ASK"
+                                                                          : "the model's top offered score was ASK", total);
+            }
             o.TargetObjectId = targets[Array.IndexOf(codes, s.Choice)];
             return Stop(o, "completed", s.Reason, "", total);
         }
