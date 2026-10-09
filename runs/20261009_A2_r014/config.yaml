@@ -5,16 +5,16 @@
 
 # Identity (filled by the tool)
 config_version: 1
-run_id: "20261008_A2_r013"
+run_id: "20261009_A2_r014"
 phase: "A2"
-created: "2026-10-08T21:43:31-04:00"  # local time with UTC offset
+created: "2026-10-09T02:02:09-04:00"  # local time with UTC offset
 
 # Required (given to the tool)
-purpose: "A2.5 delivery 1: desktop repeatability and context-history diagnostic (ChatGPT's proposal)"  # one line: why this run exists
+purpose: "A2.5 delivery 2: on-device golden check"  # one line: why this run exists
 operator: "JH"  # who ran it
 
 # Code (filled by the tool)
-git_commit: "460e91d4fc6fb798f7a431e2395ac90d37f3b1d8"
+git_commit: "b7bd58873e09ee87213148bf16410754fecddd66"
 git_dirty: true  # true if the repository had uncommitted changes (files in .gitignore don't count)
 
 # Optional: leave null when a field doesn't apply
@@ -23,7 +23,7 @@ model_sha256: null  # SHA-256 of that file (--checkpoint fills it)
 prompt_version: null  # version of the prompt template
 schema_version: null  # version of the model's output/scene schema (proposal section 6.2)
 layout_id: null  # which prop layout
-headset_os_build: null  # ro.build.fingerprint (--headset fills it)
+headset_os_build: "oculus/eureka/eureka:14/UP1A.231005.007.A1/52433670048800520:user/abl_signing_keys:release,amss_signing_keys:release,release-keys"  # ro.build.fingerprint (--headset fills it)
 drone_firmware: null
 lighting: null  # lighting conditions
-notes: "Repeatability and context-history diagnostic (ChatGPT's proposal): raw/repeat/20261009-014332 (6/6 sequences, 19.1 min); raw/repeat-compare/20261009-020241. For the tested requests, host and sequence: rows repeat 12/12 across fresh contexts, U' equals U 6/6, path differences stable 6/6; D101 16 of 30 (diagnostic). Saved offered logits and log-probabilities equal r010's on the same requests (8 Oct local, across UTC midnight); full rows across runs not established. Confirmed by ChatGPT (9 Oct)."  # anything else
+notes: "Delivery 2 golden check (D104): identity verified (new APK, library c366cf34); golden check 32/32 equal (raw/goldens/20261009-060351). References: the D2 CPU float32/eager baseline (torch 2.14.0+cpu, transformers 4.57.6), not evidence of equivalence to r006 on CUDA. ChatGPT's review (9 Oct): valid; two implementation corrections followed."  # anything else

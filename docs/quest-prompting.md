@@ -18,7 +18,7 @@ The design is D104 (confirmed by the project lead; ChatGPT's review pending). Th
   - a strict JSON reader that keeps field order and number text;
   - the canonical writer (`codec.enc` and `codec.number`, with floats as Python's `repr`, by exact integer arithmetic);
   - the objects, pose and command lines;
-  - the serialized-order mapping (letters over object IDs in ordinal order, K for ASK last);
+  - the serialized-order mapping (letters over object IDs in Python's string order, K for ASK last);
   - the choices line and the prompt.
 - **`GoldenCore.cs`**, plain C#: rebuilds one golden and compares its document, mapping, mapping hash, prompt bytes and,
   if given a tokenizer, its token IDs.
@@ -66,7 +66,12 @@ tokenizer it checks every tokenization too.
 
 - offered logits, log-probabilities, shares, the choice (exact ties to K) and the margin;
 - the model is A2.3a's `TorchModel`: float32, eager attention, the checkpoint checked against its pins;
-- the device is recorded, and a canary compares the two forward paths.
+- the device is recorded;
+- the pilot protocol's canary must accept before anything is published. Every offered logit must be within
+  1e-5 + 1e-5 × |independent| of the independent forward path, with the same choice (exact ties to K).
+  - Both outputs are validated first: non-empty, numeric, finite, offered IDs inside the row, equal lengths.
+  - A failed canary, or a bad row later, publishes nothing and keeps its diagnostics in `<out>.failed`.
+  - The canary's offered values and decision go into the manifest.
 
 ## On the headset
 
@@ -90,3 +95,13 @@ Tests:
 - `python grounding/tests/test_quest_prompt_goldens.py`;
 - the C# logic was checked at C# 9 with .NET 8 in Claude's sandbox, against the Python serializer, the prompt builder and
   fixture goldens. That check is not part of the repository's suites.
+
+## Ordering and the on-device self-checks
+
+The headset's C# core sorts strings as Python does: by Unicode code point (`Canon.ComparePython`), for colour lists and
+object IDs. UTF-16 code-unit order (`CompareOrdinal`) differs when a supplementary-plane character meets a character from
+U+E000 up. The schema allows such colour labels. Object IDs are ASCII-constrained.
+
+Before every golden check, `PromptSelfChecks` runs on the headset and writes `selfchecks.json`. It holds the comparer and
+an object row to Python's own output: `sorted()` and `serializer._object_row`. A failure stops the check before the model
+loads, and `golden-pull` fetches the file with the results.

@@ -43,6 +43,37 @@ namespace SecondEyes.Grounding.Prompting
         public bool AllOk { get { return Error == null && DocumentOk && MappingOk && MappingHashOk && PromptOk && TokensOk != false; } }
     }
 
+    /// <summary>On-device regression checks of the prompt core, run before every golden check (ChatGPT's review of
+    /// delivery 2). The expected texts are Python's own output: sorted() and serializer._object_row.</summary>
+    public static class PromptSelfChecks
+    {
+        public sealed class Result { public string Name; public bool Passed; public string Detail; }
+
+        public static List<Result> Run()
+        {
+            var r = new List<Result>();
+            Action<string, bool, string> add = (n, ok, d) => r.Add(new Result { Name = n, Passed = ok, Detail = d });
+            string smile = "\U0001F600", fullZ = "\uFF5A", privateUse = "\uE000";
+            add("a supplementary-plane character sorts after U+FF5A by code point, though its UTF-16 code units sort first",
+                Canon.ComparePython(smile, fullZ) > 0 && string.CompareOrdinal(smile, fullZ) < 0, "");
+            add("U+E000 sorts before a supplementary-plane character", Canon.ComparePython(privateUse, smile) < 0, "");
+            add("a prefix sorts first, and equal strings compare equal",
+                Canon.ComparePython("a", "ab") < 0 && Canon.ComparePython("ab", "a") > 0 && Canon.ComparePython("x", "x") == 0, "");
+            var labels = new List<string> { fullZ, smile, privateUse, "red" };
+            labels.Sort(Canon.ComparePython);
+            add("four labels sort as Python's sorted() does: red, U+E000, U+FF5A, U+1F600",
+                string.Join("|", labels) == string.Join("|", new[] { "red", privateUse, fullZ, smile }), string.Join("|", labels));
+            JNode o = JParse.Parse("{\"object_id\":\"o1\",\"category\":{\"state\":\"unknown\"},\"attributes\":{\"colours\":{\"state\":\"known\"," +
+                "\"value\":[\"\\uff5a\",\"\\ud83d\\ude00\",\"red\"],\"evidence\":{\"kind\":\"annotated\",\"assumptions\":[]}}}," +
+                "\"geometry\":{\"center_m\":{\"state\":\"unknown\"},\"size_m\":{\"state\":\"unknown\"},\"rotation_xyzw\":{\"state\":\"unknown\"}}," +
+                "\"semantic_front\":{\"state\":\"unknown\"}}");
+            string row = Canon.Enc(Coordinates.ObjectRow(o));
+            add("an object row's colours sort as Python's _object_row does",
+                row == "[\"o1\",null,[\"red\",\"" + fullZ + "\",\"" + smile + "\"],null,null,null,null,null,[]]", row);
+            return r;
+        }
+    }
+
     public static class GoldenCheck
     {
         private static readonly UTF8Encoding Utf8 = new UTF8Encoding(false);

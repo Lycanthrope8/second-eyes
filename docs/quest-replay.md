@@ -340,3 +340,27 @@ Tests:
 ```text
 python grounding/tests/test_quest_replay_repeat.py
 ```
+
+## Conversion and configuration provenance (read-only)
+
+```text
+python -m grounding.quest provenance-collect --out-root DIR [--model-dir DIR] [--search DIR ...]
+```
+
+It changes nothing, downloads nothing, loads no model and runs no inference. It writes only `provenance-<UTC time>/`.
+
+- **`originals/`:** byte-for-byte copies of the historical records:
+  - the model folder's `export.json`;
+  - the Hugging Face snapshot's `config.json`, `generation_config.json` and download metadata;
+  - the JSON records of run `20261007_A2_r006`, found by its pinned manifest hash under the `--search` folders and
+    `runs/20261007_A2_r006`.
+- **`observed.json`:** today's observations: hashes, the GGUF header's metadata and tensor shapes, and the converter
+  script's hash.
+- **`summary.json` and `report.md`:** the comparison, each item agreeing, differing or missing, never filled in:
+  - the checkpoint chain: the description's revision, the download metadata, r006's checkpoint evidence, and today's
+    weight hashes;
+  - the conversion record against the accepted GGUF and the pinned llama.cpp release;
+  - `config.json` against the GGUF's `qwen2.*` keys, tensor layout, tied embeddings and rope scaling.
+
+Exit codes: 0 everything agrees; 1 something differs or is missing (the folder is written either way); 2 refused; 3 an
+output error. Tests: `python grounding/tests/test_quest_provenance.py`.

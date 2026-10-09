@@ -274,8 +274,54 @@ def _shares(logits):
     return [v / z for v in e]
 
 
+def _validated(row, offered_ids, where) -> list:
+    """The final position's row, refused when empty, non-numeric, non-finite, or too short for an offered token ID."""
+    from ..inference.iref_vla.choices import last_position
+    row = last_position(row)
+    if not row or any(isinstance(x, bool) or not isinstance(x, (int, float)) or not math.isfinite(x) for x in row):
+        raise ValueError(f"{where}: an empty, non-numeric or non-finite row")
+    if max(offered_ids) >= len(row):
+        raise ValueError(f"{where}: an offered token ID lies outside the {len(row)}-value row")
+    return [float(x) for x in row]
+
+
+class _Checked:
+    """The model, with both of its outputs validated before anything compares them (the pilot's canary calls these)."""
+
+    def __init__(self, model, offered_ids):
+        self._m, self._ids, self.rows = model, offered_ids, {}
+
+    def forward_last(self, ids):
+        self.rows["production"] = _validated(self._m.forward_last(ids), self._ids, "production")
+        return self.rows["production"]
+
+    def independent_last(self, ids):
+        self.rows["independent"] = _validated(self._m.independent_last(ids), self._ids, "independent")
+        if len(self.rows["independent"]) != len(self.rows.get("production", self.rows["independent"])):
+            raise ValueError("the production and independent rows differ in length")
+        return self.rows["independent"]
+
+    def __getattr__(self, name):
+        return getattr(self._m, name)
+
+
+def _keep_failed(out, record):
+    failed = out.parent / f"{out.name}.failed"
+    k = 1
+    while failed.exists():
+        k += 1
+        failed = out.parent / f"{out.name}.failed-{k}"
+    failed.mkdir(parents=True)
+    (failed / "failure.json").write_bytes(encode_json(record))
+    return failed
+
+
 def golden_references(*, goldens, out, model_dir=None, device="cpu", model_loader=None, protocol=None) -> dict:
-    """Fresh float32 references for every golden, into a new folder."""
+    """Fresh float32 references for every golden, into a new folder, published only after the pilot protocol's canary
+    accepts: every offered logit within atol + rtol x |independent| of the independent path, and the same choice, with
+    exact ties to K. Both outputs are validated first. A failure refuses publication and keeps its diagnostics in
+    <out>.failed."""
+    from ..inference.iref_vla import run as PILOT
     out = output.refuse_existing(out)
     g = Path(goldens)
     bad = verify_goldens(g, protocol=protocol)
@@ -291,18 +337,33 @@ def golden_references(*, goldens, out, model_dir=None, device="cpu", model_loade
         model = TorchModel.load(model_dir, device, proto)
     else:
         model = model_loader(model_dir, device, proto)
+    info = model.info() if hasattr(model, "info") else {}
+    base = {"goldens_manifest_sha256": sha256((g / "manifest.json").read_bytes()), "device_requested": device,
+            "model_info": info, "checkpoint_evidence": evidence, "runtime": runtime()}
     t0 = time.perf_counter()
-    canary = None
+    first = rows[0]
+    checked = _Checked(model, first["code_token_ids"])
+    crow = {"request_id": first["request_id"],
+            "mapping": [[c, tg, i] for c, tg, i in zip(first["codes"], first["targets"], first["code_token_ids"])]}
+    try:
+        canary, error = PILOT._canary(checked, crow, first["token_ids"], proto), None
+    except Exception as e:  # noqa: BLE001 - a malformed or non-finite output, or a refused score
+        canary, error = None, f"{type(e).__name__}: {e}"
+    decision = "accepted" if canary is not None and canary["accepted"] else "refused"
+    canary_record = {"rule": proto["canary"]["rule"], "decision": decision, "record": canary, "error": error}
+    if decision != "accepted":
+        kept = _keep_failed(out, dict(base, record_type="a25_golden_references_failure", canary=canary_record))
+        _fail(g, f"the canary failed ({error or 'outside tolerance or another choice'}); nothing was published; "
+                 f"diagnostics kept in {kept}")
     refs = []
-    for k, r in enumerate(rows):
-        row = model.forward_last(r["token_ids"])
-        if k == 0:
-            other = model.independent_last(r["token_ids"])
-            canary = {"request_id": r["request_id"], "same_argmax": max(range(len(row)), key=row.__getitem__) ==
-                      max(range(len(other)), key=other.__getitem__), "max_abs_difference": max(abs(a - b) for a, b in zip(row, other))}
+    for r in rows:
+        try:
+            row = _validated(model.forward_last(r["token_ids"]), r["code_token_ids"], r["request_id"])
+        except ValueError as e:
+            kept = _keep_failed(out, dict(base, record_type="a25_golden_references_failure", canary=canary_record,
+                                          error=str(e), references_so_far=refs))
+            _fail(g, f"{e}; nothing was published; diagnostics kept in {kept}")
         offered = [row[i] for i in r["code_token_ids"]]
-        if not all(math.isfinite(x) for x in row):
-            _fail(g, f"{r['request_id']}: a non-finite logit")
         m = max(row)
         lse = m + math.log(math.fsum(math.exp(x - m) for x in row))
         top = max(offered)
@@ -316,12 +377,9 @@ def golden_references(*, goldens, out, model_dir=None, device="cpu", model_loade
                      "choice_code": proto["ask_code"] if len(tied) > 1 else tied[0],
                      "selection_reason": "exact_score_tie" if len(tied) > 1 else "max_offered_logit",
                      "tied_codes": tied if len(tied) > 1 else [], "margin": ordered[0] - ordered[1]})
-    info = model.info() if hasattr(model, "info") else {}
-    man = {"format_version": 1, "record_type": "a25_golden_references_manifest", "policy_id": POLICY_ID,
-           "goldens_manifest_sha256": sha256((g / "manifest.json").read_bytes()), "device_requested": device,
-           "model_info": info, "checkpoint_evidence": evidence, "canary": canary,
-           "seconds": round(time.perf_counter() - t0, 3), "references": len(refs), "runtime": runtime(),
-           "code": {f"grounding/quest/{p.name}": sha256(p.read_bytes()) for p in sorted(Path(__file__).parent.glob("*.py"))}}
+    man = dict(base, format_version=1, record_type="a25_golden_references_manifest", policy_id=POLICY_ID, canary=canary_record,
+               seconds=round(time.perf_counter() - t0, 3), references=len(refs),
+               code={f"grounding/quest/{p.name}": sha256(p.read_bytes()) for p in sorted(Path(__file__).parent.glob("*.py"))})
     out.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix=f".{out.name}.partial-", dir=str(out.parent)))
     try:

@@ -24,7 +24,7 @@ from .runtime_identity import REPO, Adb, file_sha256
 
 REMOTE_GOLDENS = APP_DIR + "/prompting/goldens"
 REMOTE_RESULTS = APP_DIR + "/prompting/results"
-RESULT_FILES = ("identity.json", "results.jsonl", "done.json")
+RESULT_FILES = ("identity.json", "selfchecks.json", "results.jsonl", "done.json")
 
 
 def push_goldens(*, goldens, run_id, adb=None, repo=None, progress=print) -> dict:

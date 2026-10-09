@@ -214,6 +214,28 @@ namespace SecondEyes.Grounding.Prompting
             }
         }
 
+        /// <summary>Python's string order: lexicographic by Unicode code point. UTF-16 code-unit order (CompareOrdinal)
+        /// differs when a supplementary-plane character, stored as a surrogate pair, meets a character from U+E000 up.
+        /// A lone surrogate counts as its own code point, as in Python.</summary>
+        public static int ComparePython(string a, string b)
+        {
+            int i = 0, j = 0;
+            while (i < a.Length && j < b.Length)
+            {
+                int ca = CodePoint(a, i), cb = CodePoint(b, j);
+                if (ca != cb) return ca < cb ? -1 : 1;
+                i += ca > 0xFFFF ? 2 : 1;
+                j += cb > 0xFFFF ? 2 : 1;
+            }
+            return i < a.Length ? 1 : j < b.Length ? -1 : 0;
+        }
+
+        private static int CodePoint(string s, int i)
+        {
+            return char.IsHighSurrogate(s[i]) && i + 1 < s.Length && char.IsLowSurrogate(s[i + 1])
+                ? char.ConvertToUtf32(s[i], s[i + 1]) : s[i];
+        }
+
         /// <summary>json.dumps(text, ensure_ascii=False).</summary>
         public static void Quote(StringBuilder sb, string s)
         {
@@ -355,7 +377,7 @@ namespace SecondEyes.Grounding.Prompting
         public static List<JNode> SortedObjects(JNode scene)
         {
             var objects = new List<JNode>(scene["objects"].Items);
-            objects.Sort((a, b) => string.CompareOrdinal(a["object_id"].Text, b["object_id"].Text));
+            objects.Sort((a, b) => Canon.ComparePython(a["object_id"].Text, b["object_id"].Text));
             return objects;
         }
 
@@ -369,7 +391,7 @@ namespace SecondEyes.Grounding.Prompting
             if (colours.Kind == JKind.Array)
             {
                 var list = new List<JNode>(colours.Items);
-                list.Sort((a, b) => string.CompareOrdinal(a.Text, b.Text));
+                list.Sort((a, b) => Canon.ComparePython(a.Text, b.Text));
                 sortedColours = JNode.Arr(list);
             }
             JNode rotation = gm["rotation_xyzw"];

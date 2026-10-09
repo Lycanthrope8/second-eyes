@@ -115,6 +115,13 @@ namespace SecondEyes.Grounding.Prompting
             var total = Stopwatch.StartNew();
             Say("Golden check: reading the goldens...");
             Goldens g = await Task.Run(() => Read(goldenDir));
+            var checks = PromptSelfChecks.Run();
+            bool checksOk = checks.TrueForAll(c => c.Passed);
+            var sj = new JsonWriter().BeginObj().Key("record_type").S("a25_prompt_selfchecks").Key("checks").BeginArr();
+            foreach (var c in checks) sj.BeginObj().Key("name").S(c.Name).Key("passed").B(c.Passed).Key("detail").S(c.Detail).End();
+            WriteJson(Path.Combine(dir, "selfchecks.json"), sj.End().Key("all_passed").B(checksOk).End().ToString());
+            if (!checksOk)
+                return "Golden check stopped: a prompt self-check failed (prompting/results/" + stamp + "/selfchecks.json).";
             Event("prompting.golden.start", new JsonWriter().BeginObj().Key("results").S(stamp).Key("goldens").I(g.Rows.Count)
                 .Key("golden_manifest_sha256").S(g.ManifestSha256).End().ToString());
             Say("Golden check: loading the model for its tokenizer...");
@@ -151,6 +158,7 @@ namespace SecondEyes.Grounding.Prompting
                 .Key("event_log").S(EventLog.FilePath).Key("session").S(EventLog.SessionId).End().ToString());
             WriteJson(Path.Combine(dir, "done.json"), new JsonWriter().BeginObj().Key("record_type").S("a25_golden_done")
                 .Key("results").S(stamp).Key("goldens").I(g.Rows.Count).Key("checked").I(results.Count).Key("all_ok").I(ok)
+                .Key("self_checks_passed").B(checksOk)
                 .Key("total_ms").D(total.Elapsed.TotalMilliseconds)
                 .Key("finished_utc").S(DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture)).End().ToString());
             Event("prompting.golden.end", new JsonWriter().BeginObj().Key("results").S(stamp).Key("checked").I(results.Count)

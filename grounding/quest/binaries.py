@@ -161,8 +161,9 @@ def _value(r, vtype, what, depth=0):
     raise Unsupported(f"unsupported GGUF value type {vtype}: {what}")
 
 
-def gguf_header(path) -> dict:
-    """The GGUF header of the file at path: version, metadata (arrays summarized) and tensor-type counts."""
+def gguf_header(path, details=False) -> dict:
+    """The GGUF header of the file at path: version, metadata (arrays summarized) and tensor-type counts. With details,
+    also every metadata value (arrays as summaries) and each tensor's name and shape. Only the header is read."""
     with open(path, "rb") as f:
         f.seek(0, 2)
         size = f.tell()
@@ -180,14 +181,13 @@ def gguf_header(path) -> dict:
         for k in range(kvs):
             key = r.string(f"metadata key {k}")
             meta[key] = _value(r, r.u32(f"type of {key}"), key)
-        types = Counter()
+        types, shapes = Counter(), {}
         for k in range(tensors):
-            r.string(f"tensor {k} name")
+            name = r.string(f"tensor {k} name")
             dims = r.u32(f"tensor {k} dimensions")
             if dims > 8:
                 raise Unsupported(f"tensor {k} has {dims} dimensions")
-            for _ in range(dims):
-                r.u64(f"tensor {k} shape")
+            shapes[name] = [r.u64(f"tensor {k} shape") for _ in range(dims)]
             types[GGML_TYPES.get(r.u32(f"tensor {k} type"), "unknown")] += 1
             r.u64(f"tensor {k} offset")
     ft = meta.get("general.file_type")
@@ -195,4 +195,5 @@ def gguf_header(path) -> dict:
             "architecture": meta.get("general.architecture"), "name": meta.get("general.name"),
             "file_type": ft, "file_type_name": FILE_TYPES.get(ft) if isinstance(ft, int) else None,
             "quantization_version": meta.get("general.quantization_version"),
-            "tensor_types": dict(sorted(types.items()))}
+            "tensor_types": dict(sorted(types.items())),
+            **({"metadata": meta, "tensor_shapes": shapes} if details else {})}

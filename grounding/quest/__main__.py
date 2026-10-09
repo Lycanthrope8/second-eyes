@@ -91,7 +91,13 @@ def main(argv=None) -> int:
     gl.add_argument("--run", required=True)
     gl.add_argument("--results")
     gl.add_argument("--adb", default="adb")
+    pv = sub.add_parser("provenance-collect", help="read-only: the conversion and configuration provenance (records and metadata)")
+    pv.add_argument("--model-dir", help="default: grounding/models/qwen2.5-0.5b-instruct")
+    pv.add_argument("--out-root", required=True, help="the folder that receives provenance-<UTC time>/")
+    pv.add_argument("--search", action="append", default=[], help="a folder to search for run 20261007_A2_r006's records (repeatable)")
     a = ap.parse_args(argv)
+    if a.command == "provenance-collect":
+        return _provenance(a)
     if a.command.startswith("golden-"):
         return _golden(a)
     if a.command in ("replay-repeat", "repeat-compare"):
@@ -190,6 +196,32 @@ def _device(a) -> int:
     except OSError as e:
         print(f"output error: {e}", file=sys.stderr)
         return 3
+
+
+def _provenance(a) -> int:
+    import datetime
+    from . import provenance as PV
+    from .runtime_identity import REPO
+    out = Path(a.out_root) / ("provenance-" + datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d-%H%M%S"))
+    try:
+        s = PV.collect(model_dir=a.model_dir or REPO / "grounding" / "models" / "qwen2.5-0.5b-instruct", out=out, search=a.search)
+    except EvaluationInputError as e:
+        for i in e.issues:
+            print(f"refused: {i['message']}", file=sys.stderr)
+        return 2
+    except EvaluationOutputError as e:
+        for i in e.issues:
+            print(f"output error: {i['message']}", file=sys.stderr)
+        return 3
+    c = s["counts"]
+    print(f"provenance: {c['agrees']} agree, {c['differs']} differ, {c['missing']} missing (read-only; nothing else was written)")
+    for r in s["comparison"]:
+        if r["status"] != "agrees":
+            print(f"  {r['status']}: {r['item']}")
+    for m in s["missing"]:
+        print(f"  missing: {m}")
+    print(f"written to {out}")
+    return 0 if c["differs"] == 0 and c["missing"] == 0 else 1
 
 
 def _stamped(run_id, kind) -> Path:

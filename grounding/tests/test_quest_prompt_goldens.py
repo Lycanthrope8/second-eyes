@@ -167,9 +167,53 @@ def main() -> int:
               and abs(a_score["restricted_share"] - share_a) < 1e-12 and abs(a_score["log_prob"] - (2 - lse)) < 1e-12)
         check("an exact tie at the top goes to K, with both codes listed",
               refs[0]["choice_code"] == "K" and refs[0]["tied_codes"] == ["A", "B"] and refs[0]["selection_reason"] == "exact_score_tie")
-        check("the manifest pins the goldens and records the canary",
+        c = m["canary"]
+        check("the manifest pins the goldens and records the accepted canary with its offered values",
               m["goldens_manifest_sha256"] == hashlib.sha256((tmp / "g" / "manifest.json").read_bytes()).hexdigest()
-              and m["canary"]["same_argmax"] and m["canary"]["max_abs_difference"] == 0.0)
+              and c["decision"] == "accepted" and c["record"]["within_tolerance"] and c["record"]["max_abs_difference"] == 0.0
+              and c["record"]["production_choice"] == c["record"]["independent_choice"] == "K"
+              and len(c["record"]["production_offered_logits"]) == len(golds[0]["codes"]))
+
+        class Variant(FakeModel):
+            """Labelled double: the independent path (or both) altered as the case says."""
+            def __init__(self, first_ids, independent=None, production=None):
+                super().__init__(first_ids)
+                self._ind, self._prod = independent, production
+
+            def forward_last(self, ids):
+                row = FakeModel.forward_last(self, ids)
+                return self._prod(row) if self._prod else row
+
+            def independent_last(self, ids):
+                row = FakeModel.forward_last(self, ids)
+                return self._ind(row) if self._ind else row
+
+        def lifted(row, k=33, by=10.0):
+            row = list(row)
+            row[k] += by
+            return row
+
+        first = golds[0]["token_ids"]
+        cases = [("another choice, 10 apart", dict(independent=lambda r: lifted(r)), "outside tolerance or another choice"),
+                 ("a non-finite production output", dict(production=lambda r: [float("nan")] + list(r[1:])), "non-finite"),
+                 ("an independent row shorter than the production row", dict(independent=lambda r: list(r[:50])), "differ in length"),
+                 ("an empty row", dict(production=lambda r: []), "empty")]
+        for k, (label, kw2, why) in enumerate(cases):
+            dest = tmp / f"ref-bad{k}"
+            msg = refused(lambda: PG.golden_references(goldens=tmp / "g", out=dest,
+                                                       model_loader=lambda d, dev, pr: Variant(first, **kw2)), EI) or ""
+            fail = json.loads((tmp / f"ref-bad{k}.failed" / "failure.json").read_text(encoding="utf-8")) \
+                if (tmp / f"ref-bad{k}.failed").is_dir() else {}
+            check(f"the canary refuses {label}: nothing published, diagnostics kept",
+                  why in msg and not dest.exists() and fail.get("canary", {}).get("decision") == "refused", msg[:120])
+        fail = json.loads((tmp / "ref-bad0.failed" / "failure.json").read_text(encoding="utf-8"))["canary"]["record"]
+        check("the refused canary keeps both paths' offered values and choices (K against B, 10 apart)",
+              fail["production_choice"] == "K" and fail["independent_choice"] == "B" and fail["max_abs_difference"] == 10.0
+              and not fail["accepted"] and len(fail["independent_offered_logits"]) == len(golds[0]["codes"]))
+        m2 = PG.golden_references(goldens=tmp / "g", out=tmp / "ref-near",
+                                  model_loader=lambda d, dev, pr: Variant(first, independent=lambda r: lifted(r, k=34, by=1e-6)))
+        check("a difference within atol + rtol on a code below the top is accepted",
+              m2["canary"]["decision"] == "accepted" and 0 < m2["canary"]["record"]["max_abs_difference"] <= 2e-5)
         print("-- the device helpers (labelled fake device)")
         TD = importlib.import_module("grounding.tests.test_quest_replay_device")
         GD = importlib.import_module("grounding.quest.golden_device")
@@ -185,6 +229,7 @@ def main() -> int:
         base = f"{GD.REMOTE_RESULTS}/20261009-100000"
         log = TD.APP + "/logs/s1.jsonl"
         dev.files.update({f"{base}/identity.json": json.dumps({"event_log": log}).encode(),
+                          f"{base}/selfchecks.json": b'{"all_passed":true}\n',
                           f"{base}/results.jsonl": b'{"all_ok":true}\n{"all_ok":true}\n',
                           f"{base}/done.json": json.dumps({"goldens": 2, "checked": 2, "all_ok": 2, "total_ms": 1}).encode(),
                           log: b"{}\n"})
