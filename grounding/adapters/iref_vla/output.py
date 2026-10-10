@@ -19,7 +19,7 @@ from pathlib import Path
 import jsonschema
 
 from ...contract import validate as contract
-from . import pinned as K
+from .convert import K, using
 from .convert import convert_annotations, convert_commands, convert_scene, crosscheck_graph
 from .sources import AdapterInputError, AdapterOutputError, Issues, issue
 
@@ -177,7 +177,7 @@ def _publish(out: Path, files: dict) -> None:
         raise
 
 
-def run_import(objects, regions, vocabulary, out, *, statements=None, graph=None, pins=K.PINNED) -> dict:
+def _run_import(objects, regions, vocabulary, out, *, statements=None, graph=None, pins=K.PINNED) -> dict:
     """Import the pinned sample into a new folder `out`; returns the import report.
 
     pins verifies every supplied file's size and SHA-256 against Appendix A; the command line always passes it.
@@ -227,3 +227,10 @@ def run_import(objects, regions, vocabulary, out, *, statements=None, graph=None
     files["reference_only/import-report.json"] = encode(report)
     _publish(out, files)
     return report
+
+
+def run_import(objects, regions, vocabulary, out, *, statements=None, graph=None, pins=K.PINNED, identity=None) -> dict:
+    """Import into a new folder `out` under identity (None: the pinned sample, as A2.2a); returns the import report.
+    pins verifies every supplied file's size and SHA-256; pins=None skips that check (hand-written fixtures only)."""
+    with using(identity):
+        return _run_import(objects, regions, vocabulary, out, statements=statements, graph=graph, pins=pins)

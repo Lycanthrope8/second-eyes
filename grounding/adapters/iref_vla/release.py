@@ -52,6 +52,7 @@ from collections import Counter
 from pathlib import Path
 
 from . import convert as V1C
+from . import output as V1O
 from . import pinned as V1
 from .sources import Issues, read_csv, read_json
 from ...subscenes.iref_vla import selector as SEL
@@ -295,11 +296,12 @@ def _lists(name, data):
 
 
 
-def read_source(path, source):
+def read_source(path, source, only=None):
     """(scenes, official lists, other text files) of one source. scenes maps a scene name to {kind: bytes}. A .txt file
     counts as an official list only outside the scenes' own folders (the scenes found in this source), and only when
     every line is a scene name of this source; other text files are named, not read further. A folder is walked; a zip
-    is read member by member, the four kinds and .txt files only."""
+    is read member by member, the four kinds and .txt files only. only, a set of scene names, restricts reading to those
+    scenes: every other scene's files are never read."""
     if source not in SOURCES:
         raise ReleaseError(f"{source!r} is not a release source; one of {', '.join(SOURCES)}")
     path = Path(path)
@@ -310,6 +312,8 @@ def read_source(path, source):
                 if info.is_dir():
                     continue
                 hit = _scene_member(info.filename)
+                if hit and only is not None and hit[0] not in only:
+                    continue
                 if hit:
                     scenes.setdefault(hit[0], {})[hit[1]] = z.read(info)
                 elif info.filename.lower().endswith(".txt"):
@@ -319,6 +323,8 @@ def read_source(path, source):
             if not f.is_file():
                 continue
             hit = _scene_member(f.relative_to(path).as_posix())
+            if hit and only is not None and hit[0] not in only:
+                continue
             if hit:
                 scenes.setdefault(hit[0], {})[hit[1]] = f.read_bytes()
             elif f.suffix.lower() == ".txt":
@@ -679,6 +685,65 @@ def write_proposal(proposal, out) -> Path:
         lines.append(f"Official lists for {s}: {', '.join(c['lists'])}; retained scenes in no list: {c['retained_not_listed']}; "
                      f"listed scenes not retained: {c['listed_not_retained']}.")
     return _write(out, {"proposal.json": _dumps(proposal), "report.md": "\n".join(lines) + "\n"})
+
+
+# --------------------------------------------------------------------------------------------- conversion (A2.6b)
+ROLE_KINDS = {"objects": "object_result.csv", "regions": "region_result.csv", "graph": "scene_graph.json",
+              "statements": "referential_statements.json"}
+
+
+def release_identity(source, scene, files, partition) -> object:
+    """The conversion identity of one release scene: A2.2a's converter and validation, renamed for the scene. A2.6
+    converts ScanNet scenes of the development partition and the legacy group only; closed partitions are never read."""
+    if source != "Scannet" or not re.fullmatch(SOURCES[source][2], scene):
+        raise ReleaseError(f"A2.6 converts ScanNet release scenes only, not {source}/{scene}")
+    if partition not in ("development", "legacy-development"):
+        raise ReleaseError(f"{scene} is in {partition!r}; only development and legacy scenes are converted")
+    P = V1C.PINNED_IDENTITY
+    fl = {role: {"name": f"{scene}_{kind}", "path": f"{SOURCE_ZIPS[source]}:{source}/{scene}/{scene}_{kind}",
+                 "bytes": len(files[kind]), "sha256": _sha(files[kind])} for role, kind in ROLE_KINDS.items()}
+    fl["vocabulary"] = dict(P.FILES["vocabulary"])
+    values = dict(vars(P))
+    values.update(
+        FILES=fl, URL_PREFIX=zip_url(source) + "#", SCENE_NAME=scene, REGION_ID="0", SOURCE_ID="iref_scannet",
+        SCENE_ID=f"iref.scannet.{scene}.full", FRAME_ID=f"iref.scannet.{scene}.native",
+        MAP_ID=f"iref.scannet.nyu.{scene}.v1", COMMAND_PREFIX=f"iref.scannet.{scene}.r0.e.",
+        PINNED={"repository": P.REPOSITORY, "commit": P.COMMIT, "url_prefix": zip_url(source) + "#", "files": fl},
+        ORIGIN=f"the published IRef-VLA aligned-scene origin of ScanNet {scene} (ScanNet's axis alignment was applied "
+               f"upstream; not recentred)",
+        SOURCE_DESCRIPTION=f"IRef-VLA's ScanNet release scene {scene} ({SOURCE_ZIPS[source]}): published annotations of "
+                           f"a ScanNet scan, used under the project lead's ScanNet Terms of Use. Development material "
+                           f"({partition}), not held-out evaluation data",
+        MAP_DESCRIPTION=f"IRef-VLA ScanNet release scene {scene}: raw source labels to NYU labels, used as both the "
+                        f"standardized and the model-visible label. The model vocabulary is the whole pinned NYU "
+                        f"vocabulary except its 'unknown' sentinel",
+        EXPRESSION_DESCRIPTION=f"an expression of IRef-VLA's ScanNet release scene {scene}, unchanged; the source gives "
+                               f"no user pose and no action",
+        RELEASE_VERSION=RELEASE_VERSION)
+    return V1C.Identity(**values)
+
+
+def import_release_scene(source, scene, files, vocabulary_bytes, out, *, partition, expected_sha256) -> dict:
+    """A2.2a's import of one release scene into a new folder `out`, under its release identity, with A2.2a's whole
+    validation. Its input files must equal the hashes the inventory recorded (expected_sha256: kind -> SHA-256)."""
+    if partition not in ("development", "legacy-development"):   # closed partitions are refused before any reading
+        raise ReleaseError(f"{scene} is in {partition!r}; only development and legacy scenes are converted")
+    got = {k: _sha(files[k]) for k in KINDS}
+    if got != expected_sha256:
+        raise ReleaseError(f"{scene}: its files differ from the inventory's recorded hashes")
+    ident = release_identity(source, scene, files, partition)
+    tmp = Path(tempfile.mkdtemp(prefix=f".{scene}-sources-"))
+    try:
+        paths = {}
+        for role, kind in ROLE_KINDS.items():
+            paths[role] = tmp / ident.FILES[role]["name"]
+            paths[role].write_bytes(files[kind])
+        paths["vocabulary"] = tmp / VOCABULARY["name"]
+        paths["vocabulary"].write_bytes(vocabulary_bytes)
+        return V1O.run_import(paths["objects"], paths["regions"], paths["vocabulary"], out, statements=paths["statements"],
+                              graph=paths["graph"], pins=ident.PINNED, identity=ident)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 # --------------------------------------------------------------------------------------------- the summary

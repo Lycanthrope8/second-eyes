@@ -14,8 +14,53 @@ import math
 import re
 from dataclasses import dataclass
 
-from . import pinned as K
+import contextlib
+import contextvars
+
+from . import pinned as _PINNED
 from .sources import Issues, decimal_id, label, number, read_csv, read_json
+
+class Identity:
+    """What a conversion names: the source files, the scene, its frame, map and command identities, and the record
+    descriptions. PINNED_IDENTITY holds A2.2a's exact values, so the pinned conversion is unchanged; A2.6's release
+    reader builds one per release scene (iref_vla_release)."""
+
+    def __init__(self, **values):
+        self.__dict__.update(values)
+
+
+PINNED_IDENTITY = Identity(
+    **{k: v for k, v in vars(_PINNED).items() if k.isupper()},
+    ORIGIN="the published IRef-VLA aligned-scene origin of ScanNet scene0010_01 (ScanNet's axis alignment was applied upstream; not recentred)",
+    SOURCE_DESCRIPTION="IRef-VLA's public ScanNet sample scene0010_01: published annotations of a ScanNet scan. Development material, not held-out evaluation data",
+    MAP_DESCRIPTION="IRef-VLA ScanNet sample scene0010_01: raw source labels to NYU labels, used as both the standardized and the model-visible label. The model vocabulary is the whole pinned NYU vocabulary except its 'unknown' sentinel",
+    EXPRESSION_DESCRIPTION="an expression of IRef-VLA's public ScanNet sample scene0010_01, unchanged; the source gives no user pose and no action",
+)
+_CURRENT = contextvars.ContextVar("iref_vla_identity", default=PINNED_IDENTITY)
+
+
+class _Current:
+    """K: the identity in force (PINNED_IDENTITY unless a conversion sets another), read like the pinned module."""
+
+    def __getattr__(self, name):
+        return getattr(_CURRENT.get(), name)
+
+
+K = _Current()
+
+
+@contextlib.contextmanager
+def using(identity):
+    """Converts under identity; None keeps the identity already in force."""
+    if identity is None:
+        yield
+        return
+    token = _CURRENT.set(identity)
+    try:
+        yield
+    finally:
+        _CURRENT.reset(token)
+
 
 GROUP_FIELDS = ("r", "g", "b", "scheme", "scheme_percentage", "scheme_average_dist")
 OBJECT_HEADER = ("object_id", "region_id", "raw_label", "nyu_id", "nyu40_id", "nyu_label", "nyu40_label",
@@ -74,6 +119,7 @@ class SceneStage:
     source: dict          # source object ID -> parsed CSV values, for cross-checks only
     region: dict          # {"id", "label"}
     hashes: dict          # role -> SHA-256 of the scene-side input bytes
+    identity: object = None   # the Identity the scene was converted under; later stages convert under it too
 
 
 # ------------------------------------------------------------------------------------------------- scene stage
@@ -172,7 +218,7 @@ def _object_rows(data, issues):
     return parsed, short
 
 
-def convert_scene(objects: bytes, regions: bytes, vocabulary: bytes) -> SceneStage:
+def _convert_scene(objects: bytes, regions: bytes, vocabulary: bytes) -> SceneStage:
     """The scene v2 record, its category map and the two inventory views, from scene-side inputs only."""
     issues = Issues()
     vocab = _vocabulary(vocabulary, issues)
@@ -236,21 +282,17 @@ def convert_scene(objects: bytes, regions: bytes, vocabulary: bytes) -> SceneSta
         "evidence_profile": "annotated", "category_map": K.MAP_ID,
         "coordinate_frame": {
             "frame_id": K.FRAME_ID, "units": "m", "handedness": "right", "up_axis": "+z",
-            "origin": "the published IRef-VLA aligned-scene origin of ScanNet scene0010_01 (ScanNet's axis alignment "
-                      "was applied upstream; not recentred)",
+            "origin": K.ORIGIN,
             "conversion": {"kind": "dataset_identity", "source_id": K.SOURCE_ID, "source_frame_id": K.FRAME_ID,
                            "source_to_scene": copy.deepcopy(K.IDENTITY_MATRIX)}},
         "sources": [{"source_id": K.SOURCE_ID, "kind": "dataset",
-                     "description": "IRef-VLA's public ScanNet sample scene0010_01: published annotations of a ScanNet "
-                                    "scan. Development material, not held-out evaluation data",
+                     "description": K.SOURCE_DESCRIPTION,
                      "release": f"IRef-VLA commit {K.COMMIT}; scene-side inputs: "
                                 + "; ".join(f"{paths[r]} sha256 {hashes[r]}" for r in paths)}],
         "assumptions": [], "objects": records}
     category_map = {
         "schema_version": 1, "record_type": "category_map", "map_id": K.MAP_ID,
-        "description": "IRef-VLA ScanNet sample scene0010_01: raw source labels to NYU labels, used as both the "
-                       "standardized and the model-visible label. The model vocabulary is the whole pinned NYU "
-                       "vocabulary except its 'unknown' sentinel",
+        "description": K.MAP_DESCRIPTION,
         "release": f"IRef-VLA commit {K.COMMIT}; {paths['objects']} sha256 {hashes['objects']}; "
                    f"{paths['vocabulary']} sha256 {hashes['vocabulary']}",
         "model_vocabulary": sorted(v for v in vocab.values() if v != K.UNKNOWN_SENTINEL),
@@ -296,7 +338,7 @@ def _expressions(statements: bytes, stage: SceneStage):
     return data["regions"][stage.region["id"]]
 
 
-def convert_commands(statements: bytes, stage: SceneStage) -> list:
+def _convert_commands(statements: bytes, stage: SceneStage) -> list:
     """One v1 command per distinct expression, from the expression keys and the scene identity only."""
     expressions, issues, out = _expressions(statements, stage), Issues(), {}
     f = K.FILES["statements"]["name"]
@@ -312,8 +354,7 @@ def convert_commands(statements: bytes, stage: SceneStage) -> list:
             "schema_version": 1, "record_type": "command_context", "command_id": cid, "text": text,
             "scene_id": K.SCENE_ID, "scene_revision": 0,
             "sources": [{"source_id": K.SOURCE_ID, "kind": "dataset",
-                         "description": "an expression of IRef-VLA's public ScanNet sample scene0010_01, unchanged; "
-                                        "the source gives no user pose and no action",
+                         "description": K.EXPRESSION_DESCRIPTION,
                          "release": f"IRef-VLA commit {K.COMMIT}; expression keys of {K.FILES['statements']['path']}"}],
             "assumptions": [],
             "user_pose": {"pose_kind": "none", "frame_id": K.FRAME_ID, "scene_revision": 0,
@@ -427,7 +468,7 @@ def _agrees(f, path, stage, sid, cls, position, size, issues):
                    f"size {size!r} but object {sid}'s CSV box volume (lx*ly*lz) is {src['volume']!r}")
 
 
-def convert_annotations(statements: bytes, stage: SceneStage) -> dict:
+def _convert_annotations(statements: bytes, stage: SceneStage) -> dict:
     """Every source annotation, unchanged, with its references mapped; checked against the scene-side CSV."""
     expressions, issues = _expressions(statements, stage), Issues()
     f = K.FILES["statements"]["name"]
@@ -467,7 +508,7 @@ def convert_annotations(statements: bytes, stage: SceneStage) -> dict:
 
 
 # ------------------------------------------------------------------------------------------------- graph check
-def crosscheck_graph(graph: bytes, stage: SceneStage) -> dict:
+def _crosscheck_graph(graph: bytes, stage: SceneStage) -> dict:
     """Compare the source graph's objects with the object CSV; report omissions. Repairs nothing."""
     f, issues = K.FILES["graph"]["name"], Issues()
     data = read_json(f, graph, issues)
@@ -528,3 +569,26 @@ def crosscheck_graph(graph: bytes, stage: SceneStage) -> dict:
             "compared": ["labels and IDs", "centre", "size", "volume", "colour slots"],
             "omitted_from_graph": {stage.object_ids[s]: s for s in sorted(stage.source, key=int) if s not in seen},
             "relationship_kinds": sorted(region["relationships"]) if isinstance(region["relationships"], dict) else []}
+
+
+def convert_scene(objects: bytes, regions: bytes, vocabulary: bytes, identity=None) -> SceneStage:
+    """The scene stage under identity (None: the identity in force, PINNED_IDENTITY by default)."""
+    with using(identity):
+        stage = _convert_scene(objects, regions, vocabulary)
+        stage.identity = _CURRENT.get()
+    return stage
+
+
+def convert_commands(statements: bytes, stage: SceneStage) -> list:
+    with using(stage.identity):
+        return _convert_commands(statements, stage)
+
+
+def convert_annotations(statements: bytes, stage: SceneStage) -> dict:
+    with using(stage.identity):
+        return _convert_annotations(statements, stage)
+
+
+def crosscheck_graph(graph: bytes, stage: SceneStage) -> dict:
+    with using(stage.identity):
+        return _crosscheck_graph(graph, stage)
