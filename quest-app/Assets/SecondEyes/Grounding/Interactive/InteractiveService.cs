@@ -105,6 +105,11 @@ namespace SecondEyes.Grounding.Interactive
             double loadMs = await runtime.LoadCapturedAsync(modelPath, Pipeline.ContextTokens, ReplayRunner.Threads, ReplayRunner.Flags,
                                                             capturePath, e => captureError = captureError == null ? e : captureError + "; " + e);
             long rssAfter = LlamaRuntime.MemoryKb(false), peakAfter = LlamaRuntime.MemoryKb(true);
+            StartupGuard.Result guard = await runtime.WithModel(s => StartupGuard.Run(goldens.Asset, goldens.Rows, goldens.Texts,
+                                                                                     b => new LlamaAdapter(s).Tokenize(b)));
+            Event("interactive.startup_check", guard.WriteTo(new JsonWriter().BeginObj().Key("session").S(sessionStamp)).End().ToString());
+            if (!guard.Ok)   // D104: refuse to serve requests (the panel's failure path ends the session)
+                throw new InvalidOperationException("the startup check failed (" + guard.FirstFailure + "); no request will be served");
             log = new StreamWriter(Path.Combine(dir, "outcomes.jsonl"), false, new UTF8Encoding(false));
             File.WriteAllText(Path.Combine(dir, "session.json"), new JsonWriter().BeginObj().Key("record_type").S("a25_interactive_session")
                 .Key("session").S(sessionStamp).Key("purpose").S("operational").Key("cache_mode").S("Off").Key("execution_path").S("U")
@@ -116,7 +121,9 @@ namespace SecondEyes.Grounding.Interactive
                 .Key("after_load_rss").I(rssAfter).Key("after_load_peak").I(peakAfter).End()
                 .Key("startup_log").BeginObj().Key("file").S("startup-log.txt").Key("verbose").S("on during the load only")
                 .Key("capture_error").S(captureError).End()
-                .Key("event_log").S(EventLog.FilePath).Key("event_session").S(EventLog.SessionId).End().ToString() + "\n", new UTF8Encoding(false));
+                .Key("event_log").S(EventLog.FilePath).Key("event_session").S(EventLog.SessionId).Key("startup_check_ok").B(guard.Ok)
+                .Key("goldens_equal").I(guard.GoldensEqual).Key("prompt_self_checks_passed").I(guard.SelfChecksPassed).End().ToString() + "\n",
+                new UTF8Encoding(false));
             stop = new CancellationTokenSource();
             inboxStop = new CancellationTokenSource();
             CancellationToken ct = stop.Token, inboxCt = CancellationTokenSource.CreateLinkedTokenSource(ct, inboxStop.Token).Token;

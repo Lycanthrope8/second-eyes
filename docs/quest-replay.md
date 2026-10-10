@@ -364,3 +364,17 @@ It changes nothing, downloads nothing, loads no model and runs no inference. It 
 
 Exit codes: 0 everything agrees; 1 something differs or is missing (the folder is written either way); 2 refused; 3 an
 output error. Tests: `python grounding/tests/test_quest_provenance.py`.
+
+## The bounded batch-arithmetic diagnostic (desktop)
+
+```text
+python -m grounding.quest batch-diagnostic --bundle DIR --out-root DIR [--model PATH] [--library PATH]
+python -m grounding.quest batch-compare --results DIR --r013 DIR
+```
+
+It runs four fixed request/m pairs (r0004/2, r0329/2, r0001/64, r0001/63), each in a fresh context: U, recompute-m
+(keep n − m, the last m tokens in one batch), then U′. It uses run r010's host DLL and the accepted GGUF.
+
+`batch-compare` checks the controls first: U′ = U, U = r013's U, the cache counts and the inputs. Only then does it
+compare each pair's prediction. Specification: `notes/phases/A2.5_d1_replay.md`, section 12. Tests: `python
+grounding/tests/test_quest_batch_diagnostic.py`.

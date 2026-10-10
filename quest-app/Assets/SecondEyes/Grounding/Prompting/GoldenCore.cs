@@ -74,6 +74,53 @@ namespace SecondEyes.Grounding.Prompting
         }
     }
 
+    /// <summary>D104's startup check (ChatGPT's r016 review): before any request is served, the prompt self-checks and the
+    /// reconstruction of every golden for the loaded asset (document, mapping, mapping hash, prompt and the native token
+    /// IDs). Any failure refuses processing. An automatic guard, not an acceptance experiment.</summary>
+    public static class StartupGuard
+    {
+        public sealed class Result
+        {
+            public bool Ok;
+            public int SelfChecks, SelfChecksPassed, Goldens, GoldensEqual;
+            public string FirstFailure;
+
+            public JsonWriter WriteTo(JsonWriter w)
+            {
+                return w.Key("startup_check").BeginObj().Key("ok").B(Ok).Key("prompt_self_checks").I(SelfChecks)
+                    .Key("prompt_self_checks_passed").I(SelfChecksPassed).Key("goldens").I(Goldens).Key("goldens_equal").I(GoldensEqual)
+                    .Key("first_failure").S(FirstFailure).End();
+            }
+        }
+
+        public static Result Run(PromptAsset asset, List<JNode> rows, Dictionary<string, string> texts, Func<byte[], int[]> tokenize)
+        {
+            var r = new Result();
+            List<PromptSelfChecks.Result> checks = PromptSelfChecks.Run();
+            r.SelfChecks = checks.Count;
+            r.SelfChecksPassed = checks.FindAll(c => c.Passed).Count;
+            if (r.SelfChecksPassed != r.SelfChecks) r.FirstFailure = "prompt self-check: " + checks.Find(c => !c.Passed).Name;
+            foreach (JNode g in rows)
+            {
+                r.Goldens++;
+                string why;
+                try
+                {
+                    GoldenResult gr = GoldenCheck.Check(asset, g, texts[g["scene_file"].Text], texts[g["command_file"].Text], tokenize);
+                    why = gr.AllOk ? null : (gr.Error ?? "rebuilt bytes or native tokens differ");
+                }
+                catch (Exception e)
+                {
+                    why = e.GetType().Name + ": " + e.Message;
+                }
+                if (why == null) r.GoldensEqual++;
+                else if (r.FirstFailure == null) r.FirstFailure = "golden " + g["request_id"].Text + ": " + why;
+            }
+            r.Ok = r.Goldens > 0 && r.GoldensEqual == r.Goldens && r.SelfChecksPassed == r.SelfChecks;
+            return r;
+        }
+    }
+
     public static class GoldenCheck
     {
         private static readonly UTF8Encoding Utf8 = new UTF8Encoding(false);

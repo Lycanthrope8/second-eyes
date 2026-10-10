@@ -103,3 +103,10 @@ On the headset:
 Batch request IDs are unique per run by default (the run's number plus `m`, for example `r020m3-01`). The headset's
 outbox keeps results across sessions, so `inbox-send` refuses an ID for which it already holds a result. The report also
 gives unqueued app-observed latency, and the time outside inference and queueing.
+
+**Failure handling and the startup check** (ChatGPT's r016 review):
+
+- Tokenization, evaluation and scoring failures are explicit `failed` outcomes with reasons, and they reset the cache.
+- The cache is committed only after valid scoring.
+- Before any request, the interactive check and the session run D104's startup check: the prompt self-checks, and the
+  reconstruction of every golden down to its native tokens. If it fails, they refuse.

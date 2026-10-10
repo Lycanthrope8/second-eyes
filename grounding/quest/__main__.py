@@ -118,6 +118,14 @@ def main(argv=None) -> int:
     opl = sub.add_parser("outbox-pull", help="pull the headset's acknowledgements, results and session log into a run")
     opl.add_argument("--run", required=True)
     opl.add_argument("--adb", default="adb")
+    bd = sub.add_parser("batch-diagnostic", help="the approved bounded batch-arithmetic diagnostic on the desktop: four fixed request/m pairs")
+    bd.add_argument("--bundle", required=True, help="the A2.5 replay bundle (the same as r013's)")
+    bd.add_argument("--out-root", required=True, help="the folder that receives batch-<UTC time>/")
+    bd.add_argument("--model")
+    bd.add_argument("--library")
+    bcp = sub.add_parser("batch-compare", help="the diagnostic's comparison: controls (U' = U, U = r013's U) first, then the predictions")
+    bcp.add_argument("--results", required=True, help="a batch-<UTC time> folder")
+    bcp.add_argument("--r013", required=True, help="run 20261008_A2_r013's repeat results folder (raw/repeat/20261009-014332)")
     ip = sub.add_parser("interactive-pull", help="pull a finished interactive-check results folder (delivery 3) and its event log into a run")
     ip.add_argument("--run", required=True)
     ip.add_argument("--results")
@@ -129,6 +137,8 @@ def main(argv=None) -> int:
     a = ap.parse_args(argv)
     if a.command == "provenance-collect":
         return _provenance(a)
+    if a.command in ("batch-diagnostic", "batch-compare"):
+        return _batch(a)
     if a.command in ("inbox-send", "outbox-pull", "inbox-batch", "measure-report"):
         return _inbox(a)
     if a.command.startswith("golden-") or a.command == "interactive-pull":
@@ -228,6 +238,32 @@ def _device(a) -> int:
         return 2
     except OSError as e:
         print(f"output error: {e}", file=sys.stderr)
+        return 3
+
+
+def _batch(a) -> int:
+    import datetime
+    from . import batch_diagnostic as BD
+    try:
+        if a.command == "batch-diagnostic":
+            out = Path(a.out_root) / ("batch-" + datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d-%H%M%S"))
+            d = BD.run_batch_diagnostic(bundle=a.bundle, out=out, model=a.model, library=a.library,
+                                        progress=lambda m: print(f"  ... {m}", flush=True))
+            print(f"{d['contexts']} of {d['expected_contexts']} contexts, {d['path_evaluations']} path evaluations, "
+                  f"{d['total_ms'] / 60000:.1f} min; written to {d['folder']}")
+            return 0
+        res = Path(a.results)
+        s = BD.compare_batch_diagnostic(results=res, r013=a.r013, out=res.parent / f"{res.name}-compare")
+        print((Path(s["folder"]) / "report.md").read_text(encoding="utf-8"))
+        print(f"written to {s['folder']}")
+        return 0 if s["controls_hold"] else 1
+    except EvaluationInputError as e:
+        for i in e.issues:
+            print(f"refused: {i['message']}", file=sys.stderr)
+        return 2
+    except EvaluationOutputError as e:
+        for i in e.issues:
+            print(f"output error: {i['message']}", file=sys.stderr)
         return 3
 
 

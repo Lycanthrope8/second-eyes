@@ -61,6 +61,8 @@ namespace SecondEyes.Grounding.Interactive
         private void Event(string ev, string json) { main.Post(_ => EventLog.Write(ev, json), null); }
         private static void WriteJson(string path, string json) { File.WriteAllText(path, json + "\n", new UTF8Encoding(false)); }
 
+        private static void WriteJson(string path, JsonWriter open, StartupGuard.Result guard) { WriteJson(path, guard.WriteTo(open).End().ToString()); }
+
         public void Dispose() { if (runtime != null) runtime.Dispose(); runtime = null; }
 
         private async Task<List<InteractiveOutcome>> Pass(GoldenRunner.Goldens g, CacheMode mode, string file, string stamp)
@@ -107,6 +109,14 @@ namespace SecondEyes.Grounding.Interactive
             Say("Interactive check: loading the model...");
             runtime = new LlamaRuntime(main);
             double loadMs = await runtime.LoadAsync(modelPath, Pipeline.ContextTokens, ReplayRunner.Threads, ReplayRunner.Flags);
+            StartupGuard.Result guard = await runtime.WithModel(s => StartupGuard.Run(g.Asset, g.Rows, g.Texts, b => new LlamaAdapter(s).Tokenize(b)));
+            Event("interactive.startup_check", guard.WriteTo(new JsonWriter().BeginObj().Key("results").S(stamp)).End().ToString());
+            if (!guard.Ok)
+            {
+                WriteJson(Path.Combine(dir, "identity.json"), guard.WriteTo(new JsonWriter().BeginObj().Key("record_type").S("a25_interactive_identity")
+                    .Key("results").S(stamp).Key("golden_manifest_sha256").S(g.ManifestSha256)).End().ToString());
+                return "Interactive check refused: the startup check failed (" + guard.FirstFailure + "); nothing was evaluated.";
+            }
             var off = await Pass(g, CacheMode.Off, Path.Combine(dir, "outcomes-off.jsonl"), stamp);
             var prefix = await Pass(g, CacheMode.ExactPrefix, Path.Combine(dir, "outcomes-prefix.jsonl"), stamp);
             int promptsEqual = 0, sameChoice = 0, sameOffered = 0, kept = 0, completedOrAsk = 0;
@@ -125,7 +135,7 @@ namespace SecondEyes.Grounding.Interactive
                 .Key("model").S(modelPath).Key("context_tokens").I(Pipeline.ContextTokens)
                 .Key("threads").S("requested and passed to the loader; not read back by the runtime").Key("flags").I(ReplayRunner.Flags)
                 .Key("llama_cpp").S(runtime.Version).Key("load_ms").D(loadMs).Key("app_version").S(appVersion)
-                .Key("event_log").S(EventLog.FilePath).Key("session").S(EventLog.SessionId).End().ToString());
+                .Key("event_log").S(EventLog.FilePath).Key("session").S(EventLog.SessionId), guard);
             WriteJson(Path.Combine(dir, "done.json"), new JsonWriter().BeginObj().Key("record_type").S("a25_interactive_done")
                 .Key("results").S(stamp).Key("purpose").S("diagnostic").Key("requests").I(g.Rows.Count).Key("off").I(off.Count).Key("prefix").I(prefix.Count)
                 .Key("off_completed").I(n(off, "completed")).Key("off_ask_model_selected").I(n(off, "model_selected"))

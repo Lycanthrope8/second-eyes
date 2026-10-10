@@ -160,40 +160,82 @@ namespace SecondEyes.Grounding.Interactive
             o.BuildMs = clock.Elapsed.TotalMilliseconds;
             if (cancelled != null && cancelled()) return Stop(o, "cancelled", "cancelled_before_evaluation", "", total);
             clock.Restart();
-            int[] t = native.Tokenize(prompt);
+            int[] t;
+            try
+            {
+                t = native.Tokenize(prompt) ?? new int[0];
+            }
+            catch (Exception e)   // a recoverable per-request failure: an explicit outcome, never an escape (ChatGPT, r016)
+            {
+                return Stop(o, "failed", "tokenization_exception", e.GetType().Name + ": " + e.Message, total);
+            }
             o.Tokens = t.Length;
             o.TokenizeMs = clock.Elapsed.TotalMilliseconds;
             if (t.Length == 0) return Stop(o, "failed", "tokenization_failed", native.LastError(), total);
             if (t.Length + Continuation > ContextTokens)
                 return Stop(o, "refused", "context_budget_exceeded", t.Length + " tokens + " + Continuation + " > " + ContextTokens, total);
             string key = r.SnapshotId + "|" + r.SnapshotSha256;
-            o.PriorCachedTokens = native.Cached();
-            int keep = cache.Plan(t, key, o.PriorCachedTokens);
+            int keep;
+            try
+            {
+                o.PriorCachedTokens = native.Cached();
+                keep = cache.Plan(t, key, o.PriorCachedTokens);
+            }
+            catch (Exception e)
+            {
+                cache.Reset();
+                return Stop(o, "failed", "eval_exception", e.GetType().Name + ": " + e.Message, total);
+            }
             var rest = new int[t.Length - keep];
             Array.Copy(t, keep, rest, 0, rest.Length);
             if (cancelled != null && cancelled()) return Stop(o, "cancelled", "cancelled_before_evaluation", "", total);
             o.ExecutionPath = keep == 0 ? "U" : "P";
             clock.Restart();
-            int rc = native.Eval(rest, keep);
-            o.EvalMs = clock.Elapsed.TotalMilliseconds;
             o.KeptTokens = keep;
             o.EvaluatedTokens = rest.Length;
+            int rc, cached;
+            try
+            {
+                rc = native.Eval(rest, keep);
+                cached = native.Cached();
+            }
+            catch (Exception e)
+            {
+                cache.Reset();   // the KV state is unknown after an exception: nothing may be reused
+                o.EvalMs = clock.Elapsed.TotalMilliseconds;
+                return Stop(o, "failed", "eval_exception", e.GetType().Name + ": " + e.Message, total);
+            }
+            o.EvalMs = clock.Elapsed.TotalMilliseconds;
             if (rc != 0)
             {
                 cache.Reset();
                 return Stop(o, "failed", "eval_failed", "status " + rc + ": " + native.LastError(), total);
             }
-            if (native.Cached() != t.Length)
+            if (cached != t.Length)
             {
                 cache.Reset();
-                return Stop(o, "failed", "cache_mismatch", native.Cached() + " cached positions, expected " + t.Length, total);
+                return Stop(o, "failed", "cache_mismatch", cached + " cached positions, expected " + t.Length, total);
             }
-            cache.Commit(t, key);
             clock.Restart();
-            int n = native.Logits(row);
-            PathScore s = ReplayScoring.Score(row, n, codes, ids, asset.AskCode, native.LogProb);
+            PathScore s;
+            try
+            {
+                int n = native.Logits(row);
+                s = ReplayScoring.Score(row, n, codes, ids, asset.AskCode, native.LogProb);
+            }
+            catch (Exception e)
+            {
+                cache.Reset();
+                o.ScoreMs = clock.Elapsed.TotalMilliseconds;
+                return Stop(o, "failed", "scoring_exception", e.GetType().Name + ": " + e.Message, total);
+            }
             o.ScoreMs = clock.Elapsed.TotalMilliseconds;
-            if (s.Error != null) return Stop(o, "failed", s.Error, s.NonFinite > 0 ? s.NonFinite + " non-finite values" : "", total);
+            if (s.Error != null)
+            {
+                cache.Reset();   // an invalid output is not reusable state
+                return Stop(o, "failed", s.Error, s.NonFinite > 0 ? s.NonFinite + " non-finite values" : "", total);
+            }
+            cache.Commit(t, key);   // only after valid scoring (ChatGPT, r016)
             o.Codes.AddRange(codes);
             o.Targets.AddRange(targets);
             for (int k = 0; k < codes.Length; k++)
