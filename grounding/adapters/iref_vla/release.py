@@ -105,6 +105,14 @@ DOWNLOAD_ENDPOINT = "https://airlab-cloud.andrew.cmu.edu:8080/swift/v1/AUTH_ac85
 BUCKET = "iref-vla"
 SOURCE_ZIPS = {"Matterport": "Matterport.zip", "Scannet": "Scannet.zip", "HM3D": "HM3D.zip", "Unity": "Unity.zip",
                "ARKitScenes": "ARKitScenes.zip", "3RScan": "3RScan.zip"}
+# official split lists that a source publishes outside the release, pinned (repository, commit, size, SHA-256)
+OFFICIAL_SPLITS = {
+    "Scannet": {"repository": "https://github.com/ScanNet/ScanNet", "commit": "280d42f3c585a69fa52122c5706683461e1f8b50",
+                "path": "Tasks/Benchmark", "files": {
+                    "scannetv2_train.txt": (15613, "96acca299b7855f02824c496b19077904d80996e7ced1bb9f0dac98f7dd4d0c8"),
+                    "scannetv2_val.txt": (4056, "d75d4971c3fa7128c643695840e279042c212ef904fe933bd00cf9918c61b083"),
+                    "scannetv2_test.txt": (1300, "0214c6a3b1ee516ad653393b0321e7c0394c7662a4b3702eac1ddd7fbc00f7e0")}},
+}
 LEGACY_GROUPS = frozenset({"scannet:scene0010"})
 NO_REGION = "-1"   # Unity marks objects outside every region with region -1; they belong to no region's selection
 FINGERPRINT_MIN_OBJECTS = 3
@@ -163,6 +171,50 @@ def fetch_samples(out, *, opener=urllib.request.urlopen, progress=print) -> dict
         tmp.replace(f)
         got += 1
     return {"fetched": got, "already_present": kept, "root": str(out)}
+
+
+# --------------------------------------------------------------------------------------------- official lists
+def _official_url(source, name):
+    o = OFFICIAL_SPLITS[source]
+    return o["repository"].replace("https://github.com/", "https://raw.githubusercontent.com/") + f"/{o['commit']}/{o['path']}/{name}"
+
+
+def fetch_official_splits(out, *, opener=urllib.request.urlopen, progress=print) -> dict:
+    """Downloads each source's pinned official split lists into out/<source>/, verified before they are kept."""
+    out, got = Path(out), []
+    for source, o in OFFICIAL_SPLITS.items():
+        for name, (n, h) in o["files"].items():
+            f = out / source / name
+            if f.is_file() and f.stat().st_size == n and _sha(f.read_bytes()) == h:
+                continue
+            progress(f"fetching {source}/{name}")
+            with opener(_official_url(source, name)) as r:
+                b = r.read()
+            if len(b) != n or _sha(b) != h:
+                raise ReleaseError(f"{source}/{name}: the download is {len(b)} bytes, SHA-256 {_sha(b)}; the pin is {n} bytes, {h}")
+            f.parent.mkdir(parents=True, exist_ok=True)
+            tmp = f.with_name(f.name + ".partial")
+            tmp.write_bytes(b)
+            tmp.replace(f)
+            got.append(f"{source}/{name}")
+    return {"fetched": got, "root": str(out)}
+
+
+def load_official(folder, sources) -> dict:
+    """The pinned official lists of the given sources, from folder/<source>/, each verified against its pin."""
+    lists = {}
+    for source in sources:
+        if source not in OFFICIAL_SPLITS:
+            continue
+        for name, (n, h) in OFFICIAL_SPLITS[source]["files"].items():
+            f = Path(folder) / source / name
+            if not f.is_file():
+                raise ReleaseError(f"{f} is missing; run fetch-official-splits")
+            b = f.read_bytes()
+            if len(b) != n or _sha(b) != h:
+                raise ReleaseError(f"{f} is not the pinned {source} list ({len(b)} bytes, SHA-256 {_sha(b)[:12]}...)")
+            lists[f"{source}/{name}"] = _lists(name, b)
+    return lists
 
 
 # --------------------------------------------------------------------------------------------- access
@@ -353,6 +405,7 @@ def inspect_scene(source, scene, files, vocabulary, keep_entries=False) -> dict:
     fit = Counter()
     kept_entries = []
     rel_types, relations, anchors_hist = Counter(), Counter(), Counter()
+    distractors_hist, attributes, false_texts = Counter(), Counter(), 0
     per_region = {}
     projected = {}
     for rid in regions:
@@ -401,6 +454,10 @@ def inspect_scene(source, scene, files, vocabulary, keep_entries=False) -> dict:
             rel_types[str(e.get("relation_type"))] += 1
             relations[str(e.get("relation"))] += 1
             anchors_hist[min(len(e["anchors"]), 2)] += 1
+            distractors_hist[min(len(e["distractor_ids"]), 3)] += 1
+            attributes["color"] += bool(e.get("target_color_used"))
+            attributes["size"] += bool(e.get("target_size_used"))
+            false_texts += bool(e.get("false_statements"))
             cats = frozenset([objects[e["target_index"]]["label"]] + [objects[a["index"]]["label"] for a in e["anchors"].values()])
             n = len(SEL.select(projected[rid], cats))
             fit["too_few" if n < 3 else ("fits" if n <= 10 else "over_budget")] += 1
@@ -412,8 +469,11 @@ def inspect_scene(source, scene, files, vocabulary, keep_entries=False) -> dict:
         "objects_without_region": sum(1 for v in objects.values() if v["region"] == NO_REGION),
         "entry_exclusions": dict(sorted(excluded.items())),
         "compatibility_estimate": {k: fit.get(k, 0) for k in ("too_few", "fits", "over_budget")},
-        "relation_types": dict(sorted(rel_types.items())), "relations": dict(relations.most_common(12)),
+        "relation_types": dict(sorted(rel_types.items())), "relations": dict(sorted(relations.items())),
         "anchors": {str(k): anchors_hist[k] for k in sorted(anchors_hist)},
+        "distractors": {("3+" if k == 3 else str(k)): distractors_hist[k] for k in sorted(distractors_hist)},
+        "attributes_used": {"color": attributes["color"], "size": attributes["size"]},
+        "texts_with_false_statements": false_texts,
         "labels_outside_vocabulary": sorted(l for l in labels if l not in vocabulary and l not in ("", V1.UNKNOWN_SENTINEL)),
         "frame_annotations": 0,
         "fingerprint": _sha(json.dumps(sorted([v["label"]] + [round(x, 2) for x in v["box"][3:]] for v in objects.values()),
@@ -510,11 +570,26 @@ def _share(salt, group, shares):
     return shares[-1][0]
 
 
-def propose_partitions(inventory, policy=POLICY) -> dict:
+def propose_partitions(inventory, policy=POLICY, official=None) -> dict:
     """A proposal, never frozen: each group's partition and the counts per partition. Official lists are preserved: a
-    group in a list named for validation or test never goes to training, and one in a training list goes to training."""
-    held = {s for k, v in inventory["official_lists"].items() if re.search(r"val|test", k.lower()) for s in v}
-    train = {s for k, v in inventory["official_lists"].items() if re.search(r"train", k.lower()) for s in v}
+    group in a list named for validation or test never goes to training, and one in a training list goes to training.
+    official adds lists published outside the release (load_official), with their coverage of the retained scenes."""
+    lists = dict(inventory["official_lists"])
+    lists.update(official or {})
+    held = {s for k, v in lists.items() if re.search(r"val|test", k.split("/")[-1].lower()) for s in v}
+    train = {s for k, v in lists.items() if re.search(r"train", k.split("/")[-1].lower()) for s in v}
+    coverage = {}
+    for k, v in lists.items():
+        src = k.split("/")[0]
+        c = coverage.setdefault(src, {"lists": [], "listed": set()})
+        c["lists"].append(k)
+        c["listed"].update(v)
+    for src, c in coverage.items():
+        kept = {r["scene"] for r in inventory["scenes"] if r["source"] == src and r["retained"]}
+        not_listed, absent = sorted(kept - c["listed"]), sorted(c["listed"] - kept)
+        coverage[src] = {"lists": sorted(c["lists"]), "retained": len(kept), "retained_not_listed": len(not_listed),
+                         "retained_not_listed_examples": not_listed[:5], "listed_not_retained": len(absent),
+                         "listed_not_retained_examples": absent[:5]}
     shares = policy["shares"]
     heldout_shares = [s for s in shares if s[0] != "training"]
     texts = {}
@@ -549,7 +624,8 @@ def propose_partitions(inventory, policy=POLICY) -> dict:
         c["fits_estimate"] += texts.get(g, [0, 0])[1]
     return {"format_version": 1, "record_type": "a26_partition_proposal", "status": "proposed, not frozen",
             "policy": policy, "policy_sha256": _sha(json.dumps(policy, sort_keys=True).encode("utf-8")),
-            "counts": {k: counts[k] for k in sorted(counts)}, "conflicts": conflicts,
+            "counts": {k: counts[k] for k in sorted(counts)}, "conflicts": conflicts, "official_coverage": coverage,
+            "official_pins": {s: OFFICIAL_SPLITS[s] for s in coverage if s in OFFICIAL_SPLITS and official},
             "assignment": {k: assignment[k] for k in sorted(assignment)}}
 
 
@@ -599,7 +675,97 @@ def write_proposal(proposal, out) -> Path:
     for k, c in proposal["counts"].items():
         lines.append(f"| {k} | {c['groups']} | {c['scenes']} | {c['parent_texts']} | {c['fits_estimate']} |")
     lines += ["", f"Conflicts between official lists: {proposal['conflicts'] or 'none'}."]
+    for s, c in sorted(proposal.get("official_coverage", {}).items()):
+        lines.append(f"Official lists for {s}: {', '.join(c['lists'])}; retained scenes in no list: {c['retained_not_listed']}; "
+                     f"listed scenes not retained: {c['listed_not_retained']}.")
     return _write(out, {"proposal.json": _dumps(proposal), "report.md": "\n".join(lines) + "\n"})
+
+
+# --------------------------------------------------------------------------------------------- the summary
+# A2.3d's measured medians on the RTX PC (float32, eager), per request, in ms, for coordinates and augmented in the full
+# inventory, then the same in the source-known view (A2.3d_compare.md, section 10). A parent command costs four requests.
+COSTS_MS = {"0.5B": (89.0, 143.2, 70.9, 92.4), "7B": (719.9, 1031.8, 574.6, 750.5)}
+
+
+def _spread(values):
+    v = sorted(values)
+    if not v:
+        return None
+    n = len(v)
+    return [v[0], v[n // 2] if n % 2 else (v[n // 2 - 1] + v[n // 2]) / 2, v[-1]]
+
+
+def summarize(inventory, proposal=None, caps=(16, 32, 64)) -> dict:
+    """The coverage and partition summary, exact over the inventory's retained scenes; with a proposal, the development
+    caps: per cap k, every development group contributes min(k, its fitting parent commands)."""
+    kept = [r for r in inventory["scenes"] if r["retained"]]
+
+    def total(key):
+        c = Counter()
+        for r in kept:
+            c.update(r[key])
+        return c
+    s = {"format_version": 1, "record_type": "a26_release_summary", "release_version": RELEASE_VERSION,
+         "sources": {k: {f: v[f] for f in ("scenes_seen", "retained", "rejected", "groups", "texts", "entries",
+                                             "rejections", "entry_exclusions")} for k, v in inventory["sources"].items()},
+         "ancestry": dict(Counter(g["ancestry"] for g in inventory["groups"].values())),
+         "merged_by_fingerprint": len(inventory["merged_by_fingerprint"]),
+         "objects_per_scene": _spread([r["objects"] for r in kept]),
+         "objects_per_region": _spread([v["objects"] for r in kept for v in r["per_region"].values()]),
+         "relation_types": dict(total("relation_types")), "relations": dict(total("relations").most_common()),
+         "anchors": dict(total("anchors")), "distractors": dict(total("distractors")),
+         "attributes_used": dict(total("attributes_used")),
+         "texts_with_false_statements": sum(r["texts_with_false_statements"] for r in kept),
+         "texts_with_several_entries": sum(r["texts_with_several_entries"] for r in kept),
+         "frame_annotations": sum(r["frame_annotations"] for r in kept),
+         "labels_outside_vocabulary": sorted({x for r in kept for x in r["labels_outside_vocabulary"]}),
+         "compatibility_estimate": dict(total("compatibility_estimate"))}
+    if proposal is not None:
+        fits = Counter()
+        for r in kept:
+            fits[r["group"]] += r["compatibility_estimate"]["fits"]
+        dev = sorted(g for g, a in proposal["assignment"].items() if a["partition"] == "development")
+        s["partitions"] = proposal["counts"]
+        s["official_coverage"] = proposal.get("official_coverage", {})
+        s["development_fits_per_group"] = _spread([fits[g] for g in dev])
+        s["development_caps"] = []
+        for k in caps:
+            parents = sum(min(k, fits[g]) for g in dev)
+            s["development_caps"].append({"cap_per_group": k, "groups": len(dev), "parent_commands": parents,
+                                          "requests_per_model": 4 * parents,
+                                          "hours_0.5B": round(parents * sum(COSTS_MS["0.5B"]) / 3.6e6, 2),
+                                          "hours_7B": round(parents * sum(COSTS_MS["7B"]) / 3.6e6, 2)})
+    return s
+
+
+def summary_markdown(s) -> str:
+    L = ["# Release summary", ""]
+    for k, v in sorted(s["sources"].items()):
+        L.append(f"- {k}: {v['retained']} of {v['scenes_seen']} scenes retained ({v['rejected']} rejected {v['rejections'] or ''}), "
+                 f"{v['groups']} groups, {v['texts']} parent texts, {v['entries']} entries; statement exclusions "
+                 f"{v['entry_exclusions'] or 'none'}")
+    L += [f"- Groups by ancestry: {s['ancestry']}; merged by fingerprint: {s['merged_by_fingerprint']}",
+          f"- Objects per scene (min, median, max): {s['objects_per_scene']}; per region: {s['objects_per_region']}",
+          f"- Fit 3 to 10 (estimate): {s['compatibility_estimate']}",
+          f"- Relation types: {s['relation_types']}",
+          f"- Relations: {s['relations']}",
+          f"- Anchors: {s['anchors']}; distractors: {s['distractors']}; attributes used: {s['attributes_used']}",
+          f"- Texts with false statements: {s['texts_with_false_statements']}; with several entries: "
+          f"{s['texts_with_several_entries']}; frame annotations: {s['frame_annotations']}",
+          f"- Labels outside the vocabulary: {len(s['labels_outside_vocabulary'])} {s['labels_outside_vocabulary'][:12]}"]
+    if "partitions" in s:
+        L += ["", "| Partition | Groups | Scenes | Parent texts | Fit 3-10 |", "|---|---|---|---|---|"]
+        L += [f"| {k} | {c['groups']} | {c['scenes']} | {c['parent_texts']} | {c['fits_estimate']} |" for k, c in s["partitions"].items()]
+        for src, c in sorted(s["official_coverage"].items()):
+            L.append(f"\nOfficial lists ({src}): retained in no list {c['retained_not_listed']}, listed but not retained "
+                     f"{c['listed_not_retained']}.")
+        L += ["", f"Development fitting parents per group (min, median, max): {s['development_fits_per_group']}", "",
+              "| Cap per group | Groups | Parent commands | Requests per model | 0.5B hours | 7B hours |", "|---|---|---|---|---|---|"]
+        L += [f"| {c['cap_per_group']} | {c['groups']} | {c['parent_commands']} | {c['requests_per_model']} | {c['hours_0.5B']} | "
+              f"{c['hours_7B']} |" for c in s["development_caps"]]
+        L += ["", "Hours use A2.3d's median forward times on the RTX PC (four requests per parent: two formats, two views);",
+              "p95 is higher, and the new D104 requests may differ."]
+    return "\n".join(L) + "\n"
 
 
 # --------------------------------------------------------------------------------------------- command line
@@ -623,7 +789,15 @@ def main(argv=None) -> int:
     i.add_argument("--out", required=True)
     q = sub.add_parser("partition", help="propose partitions from an inventory (never frozen)")
     q.add_argument("--inventory", required=True)
+    q.add_argument("--official", help="a folder of pinned official lists (fetch-official-splits writes it)")
     q.add_argument("--out", required=True)
+    o = sub.add_parser("fetch-official-splits", help="download the pinned official split lists published outside the release")
+    o.add_argument("--out", required=True)
+    m = sub.add_parser("summarize", help="the coverage and partition summary, with development caps and their cost")
+    m.add_argument("--inventory", required=True)
+    m.add_argument("--proposal")
+    m.add_argument("--caps", type=int, nargs="+", default=[16, 32, 64])
+    m.add_argument("--out", required=True)
     a = p.parse_args(argv)
     try:
         if a.command == "fetch-samples":
@@ -650,9 +824,20 @@ def main(argv=None) -> int:
             out = write_inventory(inv, a.out)
             print((out / "report.md").read_text(encoding="utf-8"))
             print(f"written to {out}")
+        elif a.command == "fetch-official-splits":
+            print(fetch_official_splits(a.out))
+        elif a.command == "summarize":
+            inv = json.loads((Path(a.inventory) / "inventory.json").read_text(encoding="utf-8"))
+            prop = json.loads((Path(a.proposal) / "proposal.json").read_text(encoding="utf-8")) if a.proposal else None
+            s = summarize(inv, prop, tuple(a.caps))
+            md = summary_markdown(s)
+            out = _write(a.out, {"summary.json": _dumps(s), "summary.md": md})
+            print(md)
+            print(f"written to {out}")
         else:
             inv = json.loads((Path(a.inventory) / "inventory.json").read_text(encoding="utf-8"))
-            out = write_proposal(propose_partitions(inv), a.out)
+            off = load_official(a.official, sorted(inv["sources"])) if a.official else None
+            out = write_proposal(propose_partitions(inv, official=off), a.out)
             print((out / "report.md").read_text(encoding="utf-8"))
             print(f"written to {out}")
     except ReleaseError as e:

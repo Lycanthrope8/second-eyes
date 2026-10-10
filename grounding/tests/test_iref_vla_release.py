@@ -276,6 +276,66 @@ def main() -> int:
               op["matterport:5q7pvUzZiYa"] == {"partition": "training", "basis": "an official training list"}
               and op["hm3d:00238-j6fHrce9pHR"]["partition"] in ("development", "calibration", "test")
               and op["unity:loft"]["partition"] == "unassigned" and "listed as both" in op["unity:loft"]["basis"])
+        print("-- coverage, official lists and the summary")
+        sums_ok = all(sum(r["relations"].values()) == sum(r["anchors"].values()) == sum(r["distractors"].values()) == r["texts"]
+                      and sum(r["relation_types"].values()) == r["texts"] for r in inv["scenes"])
+        d14 = copy.deepcopy(doc)
+        for i, text in enumerate(list(d14["regions"]["0"])[:14]):   # 14 distinct relation names: a top-12 cut would show
+            d14["regions"]["0"][text][0]["relation"] = f"relation-{i:02d}"
+        r14 = alt("referential_statements.json", lambda b: json.dumps(d14).encode("utf-8"))
+        check("coverage counts are exact: relations, relation types, anchors and distractors each sum to the parent texts; none truncated",
+              sums_ok and len([k for k in r14["relations"] if k.startswith("relation-")]) == 14
+              and sum(r14["relations"].values()) == r14["texts"]
+              and all(r["attributes_used"]["color"] <= r["texts"] for r in inv["scenes"]), str(len(r14["relations"])))
+        fake = {"scannetv2_train.txt": b"scene0001_00\nscene0010_01\n", "scannetv2_val.txt": b"scene0002_00\n",
+                "scannetv2_test.txt": b"scene0900_00\n"}
+        saved = R.OFFICIAL_SPLITS
+        R.OFFICIAL_SPLITS = {"Scannet": dict(saved["Scannet"], files={k: (len(v), hashlib.sha256(v).hexdigest()) for k, v in fake.items()})}
+        try:
+            opener = lambda url: Head(fake[url.rsplit("/", 1)[1]], {})  # noqa: E731
+            got = R.fetch_official_splits(tmp / "official", opener=opener, progress=lambda m: None)
+            lists = R.load_official(tmp / "official", ["Scannet", "Unity"])
+            ok_fetch = len(got["fetched"]) == 3 and lists["Scannet/scannetv2_train.txt"] == ["scene0001_00", "scene0010_01"]
+            (tmp / "official" / "Scannet" / "scannetv2_val.txt").write_bytes(b"scene0003_00\n")
+            try:
+                R.load_official(tmp / "official", ["Scannet"])
+                ok_pin = False
+            except R.ReleaseError:
+                ok_pin = True
+        finally:
+            R.OFFICIAL_SPLITS = saved
+        check("official lists are fetched and loaded only as pinned; an altered list is refused", ok_fetch and ok_pin)
+        sinv = {"official_lists": {}, "scenes": [], "groups": {}}
+        for scene in ("scene0001_00", "scene0002_00", "scene0010_01", "scene0999_00"):
+            g = R.group_of("Scannet", scene)[0]
+            sinv["scenes"].append({"source": "Scannet", "scene": scene, "retained": True, "group": g, "texts": 10,
+                                   "compatibility_estimate": {"fits": 8}})
+            sinv["groups"][g] = {"scenes": [f"Scannet/{scene}"], "ancestry": "name", "legacy": g in R.LEGACY_GROUPS}
+        sp = R.propose_partitions(sinv, official=lists)
+        a, cov = sp["assignment"], sp["official_coverage"]["Scannet"]
+        check("with official lists: training from the training list, the validation list held out, the legacy rule first, coverage counted",
+              a["scannet:scene0001"]["partition"] == "training" and a["scannet:scene0002"]["partition"] in ("development", "calibration", "test")
+              and a["scannet:scene0010"]["partition"] == "legacy-development" and a["scannet:scene0999"]["basis"] == "group hash"
+              and cov["retained_not_listed"] == 1 and cov["listed_not_retained"] == 1
+              and cov["listed_not_retained_examples"] == ["scene0900_00"] and cov["retained"] == 4, str(cov))
+        summ = R.summarize(inv, prop)
+        check("the summary totals equal the inventory's, and its markdown renders",
+              summ["compatibility_estimate"]["fits"] + summ["compatibility_estimate"]["too_few"] + summ["compatibility_estimate"]["over_budget"]
+              == sum(r["texts"] for r in inv["scenes"]) and "| Cap per group |" in R.summary_markdown(summ))
+        cinv = {"official_lists": {}, "groups": {}, "scenes": [
+            {"retained": True, "group": "g1", "compatibility_estimate": {"fits": 5}},
+            {"retained": True, "group": "g2", "compatibility_estimate": {"fits": 30}},
+            {"retained": True, "group": "g2", "compatibility_estimate": {"fits": 10}},
+            {"retained": True, "group": "g3", "compatibility_estimate": {"fits": 99}}]}
+        cprop = {"counts": {}, "assignment": {"g1": {"partition": "development"}, "g2": {"partition": "development"},
+                                              "g3": {"partition": "training"}}}
+        caps = R.summarize(dict(cinv, sources={}, merged_by_fingerprint=[], scenes=[dict(x, objects=0, per_region={}, relation_types={},
+                           relations={}, anchors={}, distractors={}, attributes_used={}, texts_with_false_statements=0,
+                           texts_with_several_entries=0, frame_annotations=0, labels_outside_vocabulary=[]) for x in cinv["scenes"]]),
+                           cprop, caps=(16,))["development_caps"][0]
+        check("development caps: each development group gives min(cap, its fitting parents); four requests each; hours from A2.3d's medians",
+              caps["parent_commands"] == 5 + 16 and caps["requests_per_model"] == 84 and caps["groups"] == 2
+              and caps["hours_7B"] == round(21 * sum(R.COSTS_MS["7B"]) / 3.6e6, 2), str(caps))
         out = R.write_proposal(prop, tmp / "proposal")
         try:
             R.write_proposal(prop, tmp / "proposal")
