@@ -78,10 +78,21 @@ namespace SecondEyes.Grounding.Interactive
                         RequestId = row["request_id"].Text, Source = "golden-check", SnapshotId = row["snapshot_id"].Text,
                         SnapshotSha256 = ReplayHash.Sha256Hex(Encoding.UTF8.GetBytes(scene)), SceneText = scene,
                         CommandText = g.Texts[row["command_file"].Text] };
-                    InteractiveOutcome o = await runtime.WithModel(s => {
-                        var vec = new float[LlamaNative.se_n_vocab(s)];
-                        return Pipeline.Run(r, g.Asset, new LlamaAdapter(s), cache, ExecutionPurpose.Diagnostic, vec, null);
-                    });
+                    InteractiveOutcome o;
+                    try
+                    {
+                        o = await runtime.WithModel(s => {
+                            var vec = new float[LlamaNative.se_n_vocab(s)];
+                            return Pipeline.Run(r, g.Asset, new LlamaAdapter(s), cache, ExecutionPurpose.Diagnostic, vec, null);
+                        });
+                    }
+                    catch (Exception e)   // a structured failure, never an escape (ChatGPT's A2.5 review)
+                    {
+                        cache.Reset();
+                        o = SessionCore.Answer(r.RequestId, r.Source, "failed", "runtime_error", e.GetType().Name + ": " + e.Message);
+                        o.CacheMode = mode.ToString();
+                        o.Purpose = "diagnostic";
+                    }
                     w.WriteLine(o.ToJson());
                     w.Flush();
                     outcomes.Add(o);

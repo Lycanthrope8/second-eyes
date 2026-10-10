@@ -111,17 +111,28 @@ def main() -> int:
                                       "times": {"app_observed_ms": 3.0}}),
             out("q-001.duplicate-101500123.json", {"request_id": "q-001"}),
             (f"{IB.SESSIONS}/20261010-101000/session.json", b'{"session":"20261010-101000"}'),
-            (f"{IB.SESSIONS}/20261010-101000/outcomes.jsonl", b'{"request_id":"q-001"}\n')]))
+            (f"{IB.SESSIONS}/20261010-101000/outcomes.jsonl", b'{"request_id":"q-001"}\n'),
+            out("q-006.ack.json", {"request_id": "q-006", "status": "accepted", "reason": None}),
+            (f"{IB.SESSIONS}/20261010-095000/session.json", b'{"session":"20261010-095000","startup_check_ok":true}'),
+            (f"{IB.SESSIONS}/20261010-095000/outcomes.jsonl", b'{"request_id":"q-002"}\n')]))
         n0 = len(dev.calls)
         rp = IB.outbox_pull(run_id="20261010_A2_r017", adb=dev, repo=repo, progress=lambda m: None)
+        rp2 = IB.outbox_pull(run_id="20261010_A2_r017", adb=dev, repo=repo, progress=lambda m: None, sessions_n=2)
+        check("--sessions 2 brings both sessions' logs, and their logged results count",
+              len(rp2["lifecycle"]["sessions"]) == 2 and rp2["lifecycle"]["results_missing_from_session_logs"] == [], str(rp2["lifecycle"])[:160])
         s = rp["requests"]
         check("acknowledgements, results and duplicate notices arrive, with the newest session's log",
               Path(rp["folder"]).parent == repo / "runs" / "20261010_A2_r017" / "raw" / "outbox" and rp["session"] == "20261010-101000"
-              and (Path(rp["folder"]) / "session" / "outcomes.jsonl").is_file() and len([k for k in rp["files"] if k.startswith("outbox/")]) == 5)
+              and (Path(rp["folder"]) / "session" / "outcomes.jsonl").is_file() and len([k for k in rp["files"] if k.startswith("outbox/")]) == 6)
         check("the summary keeps each request's acknowledgement, outcome, path and app-observed time, and counts duplicates",
               s["q-001"]["ack"] == "accepted" and s["q-001"]["status"] == "completed" and s["q-001"]["target"] == "obj_2"
               and s["q-001"]["app_observed_ms"] == 17250.5 and s["q-001"]["duplicates"] == 1
               and s["q-002"]["ack"] == "rejected (stale_scene_binding)" and s["q-002"]["status"] == "refused")
+        lc = rp["lifecycle"]
+        check("the lifecycle summary covers this run's requests: accepted ones without a result are named",
+              lc["sent_this_run"] == 3 and lc["accepted"] == 2 and lc["accepted_without_result"] == ["q-006"], str(lc)[:160])
+        check("results missing from the session log are named (the fake log holds q-001 only)",
+              lc["results_missing_from_session_logs"] == ["q-002"], str(lc["results_missing_from_session_logs"]))
         check("every pulled file is hashed in the receipt",
               all(hashlib.sha256((Path(rp["folder"]) / k).read_bytes()).hexdigest() == v for k, v in rp["files"].items()))
         check("pull is read-only on the headset: only devices, ls and pull",

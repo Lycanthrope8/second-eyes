@@ -45,6 +45,10 @@ namespace SecondEyes.Grounding.Interactive
         private readonly Stopwatch clock = Stopwatch.StartNew();
         private readonly object logGate = new object();
         private CancellationTokenSource stop, inboxStop;
+        private Task inboxTask, workerTask;   // kept, so that shutdown can await them (ChatGPT's A2.5 review)
+
+        public string SessionStamp { get { return sessionStamp; } }
+        public PromptAsset Asset { get { return goldens != null ? goldens.Asset : null; } }
         private LlamaRuntime runtime;
         private GoldenRunner.Goldens goldens;
         private StreamWriter log;
@@ -127,8 +131,8 @@ namespace SecondEyes.Grounding.Interactive
             stop = new CancellationTokenSource();
             inboxStop = new CancellationTokenSource();
             CancellationToken ct = stop.Token, inboxCt = CancellationTokenSource.CreateLinkedTokenSource(ct, inboxStop.Token).Token;
-            _ = Task.Run(() => InboxLoop(inboxCt));     // both loops catch and log their own errors
-            _ = Task.Run(() => WorkerLoop(ct));
+            inboxTask = Task.Run(() => InboxLoop(inboxCt));     // both loops catch and log their own errors
+            workerTask = Task.Run(() => WorkerLoop(ct));
             Event("interactive.session.start", new JsonWriter().BeginObj().Key("session").S(sessionStamp).Key("scenes").I(Scenes.Count)
                 .Key("load_ms").D(loadMs).End().ToString());
             return "Session " + sessionStamp + " ready: " + Scenes.Count + " scenes, path U (uncached). Inbox: files/interactive/inbox.";
@@ -153,14 +157,19 @@ namespace SecondEyes.Grounding.Interactive
             SceneBinding b = Current;
             presetCount++;
             var t = new Ticket { RequestId = "preset-" + sessionStamp + "-" + presetCount.ToString("D3", CultureInfo.InvariantCulture),
-                                 Source = "preset", SceneEpoch = b.Epoch };
+                                 Source = "preset", SceneEpoch = b.Epoch, Session = sessionStamp };
             t.Times.Intake = "preset";
             t.Times.Detected = pressed;
             t.Request = new InteractiveRequest { RequestId = t.RequestId, Source = "preset", SnapshotId = b.SnapshotId,
                                                  SnapshotSha256 = b.SnapshotSha256, SceneText = b.SceneText, CommandText = p.CommandText };
             core.Claim(t.RequestId);
             t.Times.Validated = Now;
-            core.Enqueue(t);
+            if (!core.Admit(t))
+            {
+                t.Times.Outcome = Now;
+                Publish(t, SessionCore.Answer(t.RequestId, t.Source, "cancelled", "session_ended", "the session was ending; not admitted"));
+                return t.RequestId;
+            }
             t.Times.Queued = Now;
             return t.RequestId;
         }
@@ -180,16 +189,27 @@ namespace SecondEyes.Grounding.Interactive
             return gone.Count;
         }
 
-        /// <summary>Ends the session so that every accepted request is answered: the inbox stops, queued requests are
-        /// answered as cancelled (session_ended), and the running one finishes (answered as cancelled) before the model
-        /// is unloaded.</summary>
+        /// <summary>Ends the session so that every accepted request is answered and recorded before anything is closed
+        /// (ChatGPT's A2.5 review), in this order:
+        ///   1. admission closes; the queued requests are answered as cancelled (session_ended), and the running one is
+        ///      flagged;
+        ///   2. the inbox loop stops and is awaited: a handler already running finds admission closed and answers its own
+        ///      request as session_ended;
+        ///   3. the worker is awaited: it publishes the running request (answered as cancelled) and exits;
+        ///   4. only then are the log closed and the model unloaded.</summary>
         public async Task<int> EndAsync()
         {
+            List<Ticket> gone = core.Close();
+            foreach (Ticket t in gone)
+            {
+                t.Times.Outcome = Now;
+                Publish(t, SessionCore.Answer(t.RequestId, t.Source, "cancelled", "session_ended", "the session ended before this request was evaluated"));
+            }
             if (inboxStop != null) inboxStop.Cancel();
-            int n = Cancel("session_ended", "the session ended before this request was evaluated");
-            for (int k = 0; k < 900 && core.Running != null; k++) await Task.Delay(100);
+            if (inboxTask != null) await Task.WhenAny(inboxTask, Task.Delay(10000));
+            if (workerTask != null) await Task.WhenAny(workerTask, Task.Delay(120000));
             Dispose();
-            return n;
+            return gone.Count;
         }
 
         private void Ack(string id, string state, string reason, double detected)
@@ -226,7 +246,7 @@ namespace SecondEyes.Grounding.Interactive
             File.Move(file, kept);
             JNode req;
             string id, why = RequestFile.Validate(text, out req, out id);
-            var t = new Ticket { RequestId = id, Source = "adb_inbox" };
+            var t = new Ticket { RequestId = id, Source = "adb_inbox", Session = sessionStamp };
             t.Times.Intake = "adb_inbox";
             t.Times.Detected = detected;
             if (id == null || !System.Text.RegularExpressions.Regex.IsMatch(id, "^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$"))
@@ -256,7 +276,13 @@ namespace SecondEyes.Grounding.Interactive
             t.SceneEpoch = b.Epoch;
             t.Request = new InteractiveRequest { RequestId = id, Source = "adb_inbox", SnapshotId = b.SnapshotId, SnapshotSha256 = b.SnapshotSha256,
                                                  SceneText = b.SceneText, CommandText = Canon.Enc(req["command"]) };
-            core.Enqueue(t);
+            if (!core.Admit(t))   // the session is ending: answered here, never queued behind the final drain
+            {
+                Ack(id, "rejected", "session_ended", detected);
+                t.Times.Outcome = Now;
+                Publish(t, SessionCore.Answer(id, "adb_inbox", "cancelled", "session_ended", "the session was ending; not admitted"));
+                return;
+            }
             t.Times.Queued = Now;
             Ack(id, "accepted", null, detected);
         }
@@ -268,16 +294,31 @@ namespace SecondEyes.Grounding.Interactive
                 Ticket t = core.Next();
                 if (t == null)
                 {
+                    if (core.Closed) return;   // admission closed and nothing left: the session is ending
                     await Task.Delay(50);
                     continue;
                 }
+                try
+                {
+                    await Serve(t);
+                }
+                finally
+                {
+                    core.Release(t);   // only after its result is published
+                }
+            }
+        }
+
+        private async Task Serve(Ticket t)
+        {
+            {
                 InteractiveOutcome early = SessionCore.StaleAtStart(t, Current);
                 if (early != null)
                 {
                     core.Finish(t, early, Current);
                     t.Times.Outcome = Now;
                     Publish(t, early);
-                    continue;
+                    return;
                 }
                 t.Times.InferenceStart = Now;
                 InteractiveOutcome o;

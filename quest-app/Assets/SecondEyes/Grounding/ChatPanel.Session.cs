@@ -142,7 +142,16 @@ namespace SecondEyes.Grounding
 
         private void ShowOutcome(Ticket t, InteractiveOutcome o)
         {
-            if (interactiveSession == null) return;
+            InteractiveService s = interactiveSession;
+            Presentability p = s == null || s.Current == null ? Presentability.OtherSession
+                             : Presentation.Decide(s.SessionStamp, s.Current.Epoch, t);
+            if (p == Presentability.OtherSession) return;   // an ended session's late result: logged, never shown
+            if (p == Presentability.StaleScene)
+            {
+                ShowScene(null, null);   // the current scene, with no target marked
+                SetStatus(t.RequestId + ": answered for an earlier scene binding; not presented (" + o.Status + ", logged)");
+                return;
+            }
             string what = o.Status == "completed" ? "target " + o.TargetObjectId + " (" + o.ChoiceCode + ")"
                         : o.Status == "ask" ? (o.AskBasis == "exact_tie" ? "ASK (exact tie)" : "ASK (model-selected)")
                         : o.Status + ": " + o.Reason;
@@ -167,28 +176,15 @@ namespace SecondEyes.Grounding
 
         private void ShowScene(Ticket t, InteractiveOutcome o)
         {
-            if (interactiveSession == null || interactiveSession.Current == null) return;
-            InteractiveService.Scene s = interactiveSession.Scenes.Find(x => x.SnapshotId == interactiveSession.Current.SnapshotId);
+            InteractiveService svc = interactiveSession;
+            if (svc == null || svc.Current == null || svc.Asset == null) return;
+            InteractiveService.Scene s = svc.Scenes.Find(x => x.SnapshotId == svc.Current.SnapshotId);
+            bool present = t != null && o != null && Presentation.Decide(svc.SessionStamp, svc.Current.Epoch, t) == Presentability.Present;
             var sb = new StringBuilder();
             sb.Append("Scene: ").Append(s.Objects).Append(" objects (").Append(Short(s.SnapshotId)).Append(") rev ").Append(s.SceneRevision).Append('\n');
-            if (o != null && o.Codes.Count > 0)
-            {
-                for (int k = 0; k < o.Codes.Count; k++)
-                {
-                    bool chosen = o.Status == "completed" ? o.Targets[k] == o.TargetObjectId : o.Status == "ask" && o.Codes[k] == o.ChoiceCode;
-                    bool ask = k == o.Codes.Count - 1;
-                    sb.Append(chosen ? "\u25B6 " : "   ").Append(o.Codes[k]).Append("  ")
-                      .Append(ask ? "ASK" : o.Targets[k] + Category(s.Record, o.Targets[k])).Append('\n');
-                }
-            }
-            else
-            {
-                var ids = new List<string>();
-                foreach (JNode obj in s.Record["objects"].Items) ids.Add(obj["object_id"].Text);
-                ids.Sort(Canon.ComparePython);
-                foreach (string id in ids) sb.Append("   ").Append(id).Append(Category(s.Record, id)).Append('\n');
-            }
-            if (t != null)
+            foreach (string line in Presentation.SceneLines(s.Record, svc.Asset, o, present, id => Category(s.Record, id)))
+                sb.Append(line).Append('\n');   // always the current scene's own mapping (D104)
+            if (present)
                 sb.Append("Last: ").Append(t.RequestId).Append(", ").Append(o.Status).Append(o.Reason != null ? " (" + o.Reason + ")" : "")
                   .Append(", ").Append(Seconds(t.Times.AppObserved));
             boxText.fontSize = 13;

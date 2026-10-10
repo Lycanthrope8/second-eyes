@@ -1,0 +1,29 @@
+# Run config, format v1 (defined in schemas/run-config.v1.json).
+# Made by:   python tools/runs.py new <phase> --purpose "..." --operator "..."
+# Check it:  python tools/runs.py check <run ID>
+# Fill the optional fields that apply to this run and leave the rest null.
+
+# Identity (filled by the tool)
+config_version: 1
+run_id: "20261009_A2_r021"
+phase: "A2"
+created: "2026-10-09T21:55:59-04:00"  # local time with UTC offset
+
+# Required (given to the tool)
+purpose: "A2.5 delivery 1: bounded batch-arithmetic diagnostic (desktop; four fixed request/m pairs)"  # one line: why this run exists
+operator: "JH"  # who ran it
+
+# Code (filled by the tool)
+git_commit: "e8e052d7f95ced5cf7d523052e09b1181b828207"
+git_dirty: true  # true if the repository had uncommitted changes (files in .gitignore don't count)
+
+# Optional: leave null when a field doesn't apply
+model_checkpoint: null  # model file name (--checkpoint fills it)
+model_sha256: null  # SHA-256 of that file (--checkpoint fills it)
+prompt_version: null  # version of the prompt template
+schema_version: null  # version of the model's output/scene schema (proposal section 6.2)
+layout_id: null  # which prop layout
+headset_os_build: null  # ro.build.fingerprint (--headset fills it)
+drone_firmware: null
+lighting: null  # lighting conditions
+notes: "Bounded batch-arithmetic diagnostic (desktop; batch-20261010-015600): four fresh contexts, 12 path evaluations, 6.9 min; controls held (U' = U; U = r013's U); all four predictions held (r0004/2, r0329/2, r0001/64 equal; r0001/63 differs, largest offered difference 0.223; choices unchanged). Support for the batching hypothesis on these cases, not proof; not acceptance."  # anything else

@@ -110,3 +110,15 @@ gives unqueued app-observed latency, and the time outside inference and queueing
 - The cache is committed only after valid scoring.
 - Before any request, the interactive check and the session run D104's startup check: the prompt self-checks, and the
   reconstruction of every golden down to its native tokens. If it fails, they refuse.
+
+**Shutdown and presentation** (ChatGPT's A2.5 review):
+
+- **Ending a session** closes admission first: queued requests are answered as `session_ended`, and a late inbox
+  handler answers its own request the same way. Then the session awaits the inbox loop, and the worker's last
+  publication, before the log closes and the model unloads.
+- **On the panel,** a result is presented only if it comes from the current session and scene epoch. The scene view
+  always uses the current scene's own mapping.
+- **`outbox-pull --sessions N`** brings the newest N sessions' logs and prints a lifecycle summary:
+  - the startup check of each session;
+  - accepted requests without a result;
+  - results missing from the session logs.

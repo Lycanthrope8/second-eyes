@@ -117,6 +117,7 @@ def main(argv=None) -> int:
     mr.add_argument("--pull", help="a pulled outbox folder (default: the run's newest)")
     opl = sub.add_parser("outbox-pull", help="pull the headset's acknowledgements, results and session log into a run")
     opl.add_argument("--run", required=True)
+    opl.add_argument("--sessions", type=int, default=1, help="pull the newest N sessions' logs (default 1)")
     opl.add_argument("--adb", default="adb")
     bd = sub.add_parser("batch-diagnostic", help="the approved bounded batch-arithmetic diagnostic on the desktop: four fixed request/m pairs")
     bd.add_argument("--bundle", required=True, help="the A2.5 replay bundle (the same as r013's)")
@@ -297,8 +298,15 @@ def _inbox(a) -> int:
             print(f"sent {r['request_id']} to {r['remote']} ({q['command_kind']}: {q['command']['text']!r}; snapshot "
                   f"{q['expected_scene']['snapshot_id'][-8:]}); PC push and rename {r['pc_push_and_rename_s']} s; receipt {r['receipt']}")
             return 0
-        r = IB.outbox_pull(run_id=a.run, adb=Adb(a.adb), progress=say)
+        r = IB.outbox_pull(run_id=a.run, adb=Adb(a.adb), progress=say, sessions_n=a.sessions)
         print(f"pulled {len(r['files'])} files into {r['folder']} (session {r['session']})")
+        lc = r["lifecycle"]
+        print(f"  lifecycle: {lc['accepted']} of {lc['sent_this_run']} requests sent in this run were accepted; accepted without a result: "
+              f"{', '.join(lc['accepted_without_result']) or 'none'}; results missing from the session logs: "
+              f"{', '.join(lc['results_missing_from_session_logs']) or 'none'}")
+        for st in lc["sessions"]:
+            print(f"  session {st['session']}: startup check {'ok' if st['startup_check_ok'] else 'NOT ok'} "
+                  f"(self-checks {st['prompt_self_checks_passed']}/5, goldens {st['goldens_equal']}/32)")
         for rid, s in sorted(r["requests"].items()):
             ms = s.get("app_observed_ms")
             print(f"  {rid}: ack {s.get('ack', '-')}; {s.get('status', 'no result yet')}"

@@ -92,7 +92,7 @@ namespace SecondEyes.Grounding.Interactive
 
     public sealed class Ticket
     {
-        public string RequestId, Source;
+        public string RequestId, Source, Session;   // Session: the stamp of the session that admitted it
         public InteractiveRequest Request;
         public int SceneEpoch;
         public StageTimes Times = new StageTimes();
@@ -107,7 +107,9 @@ namespace SecondEyes.Grounding.Interactive
         private readonly HashSet<string> ledger = new HashSet<string>();
         private readonly LinkedList<Ticket> queue = new LinkedList<Ticket>();
         private readonly object gate = new object();
+        private bool closed;
         public Ticket Running { get; private set; }
+        public bool Closed { get { lock (gate) return closed; } }
 
         public int Processed { get { lock (gate) return ledger.Count; } }
         public int Waiting { get { lock (gate) return queue.Count; } }
@@ -116,7 +118,39 @@ namespace SecondEyes.Grounding.Interactive
         /// never processed again).</summary>
         public bool Claim(string requestId) { lock (gate) return ledger.Add(requestId); }
 
-        public void Enqueue(Ticket t) { lock (gate) queue.AddLast(t); }
+        /// <summary>Admits a ticket to the queue. False once admission is closed (the session is ending): the caller then
+        /// answers it as session_ended itself, so nothing is enqueued behind the final drain.</summary>
+        public bool Admit(Ticket t)
+        {
+            lock (gate)
+            {
+                if (closed) return false;
+                queue.AddLast(t);
+                return true;
+            }
+        }
+
+        /// <summary>Closes admission for good, returns the queued tickets (to be answered as session_ended) and flags the
+        /// running one. The running ticket stays Running until the worker has published it and called Release.</summary>
+        public List<Ticket> Close()
+        {
+            lock (gate)
+            {
+                closed = true;
+                var gone = new List<Ticket>(queue);
+                queue.Clear();
+                foreach (Ticket t in gone) { t.CancelRequested = true; t.State = "done"; }
+                if (Running != null) Running.CancelRequested = true;
+                return gone;
+            }
+        }
+
+        /// <summary>Called by the worker after a ticket's result is published. Only then is the ticket no longer running,
+        /// so shutdown cannot close the log before the last result is recorded.</summary>
+        public void Release(Ticket t) { lock (gate) { if (Running == t) Running = null; } }
+
+        /// <summary>Admission closed, nothing queued, nothing running or publishing.</summary>
+        public bool Drained { get { lock (gate) return closed && queue.Count == 0 && Running == null; } }
 
         public Ticket Next()
         {
@@ -148,11 +182,7 @@ namespace SecondEyes.Grounding.Interactive
         /// the request ran, discards the target and says why. The scores are kept as evidence.</summary>
         public InteractiveOutcome Finish(Ticket t, InteractiveOutcome o, SceneBinding current)
         {
-            lock (gate)
-            {
-                if (Running == t) Running = null;
-                t.State = "done";
-            }
+            lock (gate) t.State = "done";   // Running is cleared by Release, after publication
             if (o.Status != "completed" && o.Status != "ask") return o;   // failures and refusals keep their own reasons
             if (t.CancelRequested)
                 Discard(o, "cancelled", "cancelled_during_evaluation", "a cancel was requested while the model evaluated; the result is not used");
@@ -185,6 +215,37 @@ namespace SecondEyes.Grounding.Interactive
         {
             return new InteractiveOutcome { RequestId = requestId, Source = source, Status = status, Reason = reason,
                                             Detail = detail ?? "", CacheMode = CacheMode.Off.ToString(), Purpose = "operational" };
+        }
+    }
+
+    public enum Presentability { Present, StaleScene, OtherSession }
+
+    /// <summary>The UI boundary (ChatGPT's A2.5 review): a result may pass the worker's checks and still reach the main
+    /// thread after a scene switch or in another session. It is presented only if it belongs to the current session and
+    /// scene epoch. The scene view always uses the current scene's own mapping; a target is marked only for a presentable
+    /// result whose target is in that mapping.</summary>
+    public static class Presentation
+    {
+        public static Presentability Decide(string currentSession, int currentEpoch, Ticket t)
+        {
+            if (t == null || currentSession == null || t.Session != currentSession) return Presentability.OtherSession;
+            return t.SceneEpoch == currentEpoch ? Presentability.Present : Presentability.StaleScene;
+        }
+
+        /// <summary>The current scene's lines: its serialized-order mapping (D104), K last; the arrow only when present.</summary>
+        public static List<string> SceneLines(JNode scene, PromptAsset asset, InteractiveOutcome o, bool present,
+                                              Func<string, string> label)
+        {
+            var lines = new List<string>();
+            List<KeyValuePair<string, string>> mapping = Choices.SerializedOrder(scene, asset.ObjectCodes, asset.AskCode, asset.AskTarget);
+            foreach (KeyValuePair<string, string> m in mapping)
+            {
+                bool ask = m.Key == asset.AskCode;
+                bool chosen = present && o != null && (o.Status == "completed" ? !ask && m.Value == o.TargetObjectId
+                                                                               : o.Status == "ask" && ask);
+                lines.Add((chosen ? "\u25B6 " : "   ") + m.Key + "  " + (ask ? "ASK" : m.Value + (label != null ? label(m.Value) : "")));
+            }
+            return lines;
         }
     }
 }

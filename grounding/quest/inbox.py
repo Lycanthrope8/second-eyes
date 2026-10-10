@@ -121,7 +121,7 @@ def inbox_send(*, run_id, goldens, snapshot, command_file=None, text=None, datas
     return dict(receipt, receipt=str(receipt_path))
 
 
-def outbox_pull(*, run_id, adb=None, repo=None, progress=print) -> dict:
+def outbox_pull(*, run_id, adb=None, repo=None, progress=print, sessions_n=1) -> dict:
     repo = Path(repo) if repo is not None else REPO
     adb = adb if adb is not None else Adb()
     folder = _run_folder(repo, run_id)
@@ -132,9 +132,11 @@ def outbox_pull(*, run_id, adb=None, repo=None, progress=print) -> dict:
     names = sorted(n.strip() for n in out.splitlines() if n.strip().endswith(".json") and not n.strip().endswith(".tmp"))
     code, out, _ = adb.shell("ls", "-1", SESSIONS)
     sessions = sorted(n.strip() for n in out.splitlines() if n.strip()) if code == 0 else []
-    dest = folder / "raw" / "outbox" / _stamp()
-    if dest.exists():
-        _fail(f"{dest} already exists (nothing is overwritten)")
+    base = folder / "raw" / "outbox" / _stamp()
+    dest, k = base, 2
+    while dest.exists():   # a second pull within the same second gets its own folder; nothing is overwritten
+        dest = base.parent / f"{base.name}-{k}"
+        k += 1
     dest.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix=f".{dest.name}.partial-", dir=str(dest.parent)))
     try:
@@ -144,10 +146,12 @@ def outbox_pull(*, run_id, adb=None, repo=None, progress=print) -> dict:
             progress(f"pulling {n}")
             if adb.pull(f"{OUTBOX}/{n}", staging / "outbox" / n)[0] != 0:
                 _fail(f"pulling {n} failed")
-        if sessions:
+        for k, sess in enumerate(sessions[-sessions_n:] if sessions else []):
+            sub = staging / "session" if k == min(sessions_n, len(sessions)) - 1 else staging / "sessions" / sess
+            sub.mkdir(parents=True, exist_ok=True)
             for n in ("session.json", "outcomes.jsonl", "startup-log.txt"):
-                progress(f"pulling the session {sessions[-1]}'s {n}")
-                adb.pull(f"{SESSIONS}/{sessions[-1]}/{n}", staging / "session" / n)
+                progress(f"pulling the session {sess}'s {n}")
+                adb.pull(f"{SESSIONS}/{sess}/{n}", sub / n)
         summary = {}
         for n in names:
             rec = json.loads((staging / "outbox" / n).read_text(encoding="utf-8"))
@@ -160,7 +164,23 @@ def outbox_pull(*, run_id, adb=None, repo=None, progress=print) -> dict:
                          execution_path=o.get("execution_path"), app_observed_ms=t.get("app_observed_ms"))
             else:
                 s["duplicates"] = s.get("duplicates", 0) + 1
+        sent = {json.loads(q.read_text(encoding="utf-8"))["request_id"] for q in (folder / "raw" / "inbox").glob("send-*.json")} \
+            if (folder / "raw" / "inbox").is_dir() else set()
+        logs = [q for q in [staging / "session"] + sorted((staging / "sessions").glob("*")) if (q / "session.json").is_file()]
+        logged, starts = set(), []
+        for q in logs:
+            sj = json.loads((q / "session.json").read_text(encoding="utf-8"))
+            starts.append({"session": sj.get("session"), "startup_check_ok": sj.get("startup_check_ok"),
+                           "goldens_equal": sj.get("goldens_equal"), "prompt_self_checks_passed": sj.get("prompt_self_checks_passed")})
+            if (q / "outcomes.jsonl").is_file():
+                logged |= {json.loads(x)["request_id"] for x in (q / "outcomes.jsonl").read_text(encoding="utf-8").splitlines() if x.strip()}
+        accepted = {rid for rid in sent if summary.get(rid, {}).get("ack") == "accepted"}
+        lifecycle = {"sent_this_run": len(sent), "accepted": len(accepted),
+                     "accepted_without_result": sorted(rid for rid in accepted if "status" not in summary.get(rid, {})),
+                     "results_missing_from_session_logs": sorted(rid for rid in sent if "status" in summary.get(rid, {}) and rid not in logged),
+                     "sessions": starts}
         receipt = {"format_version": 1, "record_type": "a25_outbox_pull", "run_id": run_id, "session": sessions[-1] if sessions else None,
+                   "lifecycle": lifecycle,
                    "files": {p.relative_to(staging).as_posix(): file_sha256(p) for p in sorted(staging.rglob("*")) if p.is_file()},
                    "requests": summary}
         (staging / "pull.json").write_bytes(encode_json(receipt))

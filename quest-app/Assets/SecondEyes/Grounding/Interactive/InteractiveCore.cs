@@ -114,9 +114,30 @@ namespace SecondEyes.Grounding.Interactive
             return o;
         }
 
-        /// <summary>One request, start to finish. Never throws: every way out is a structured outcome.</summary>
+        /// <summary>One request, start to finish. Never throws: every way out is a structured outcome. Anything the stage
+        /// boundaries do not anticipate is a failed outcome too (pipeline_exception), and resets the cache.</summary>
         public static InteractiveOutcome Run(InteractiveRequest r, PromptAsset asset, INative native, PrefixCache cache,
                                              ExecutionPurpose purpose, float[] row, Func<bool> cancelled)
+        {
+            try
+            {
+                return RunStages(r, asset, native, cache, purpose, row, cancelled);
+            }
+            catch (Exception e)
+            {
+                cache.Reset();
+                var o = new InteractiveOutcome { RequestId = r != null ? r.RequestId : null, Source = r != null ? r.Source : null,
+                                                 CacheMode = cache.Mode.ToString(),
+                                                 Purpose = purpose == ExecutionPurpose.Diagnostic ? "diagnostic" : "operational" };
+                o.Status = "failed";
+                o.Reason = "pipeline_exception";
+                o.Detail = e.GetType().Name + ": " + e.Message;
+                return o;
+            }
+        }
+
+        private static InteractiveOutcome RunStages(InteractiveRequest r, PromptAsset asset, INative native, PrefixCache cache,
+                                                    ExecutionPurpose purpose, float[] row, Func<bool> cancelled)
         {
             var o = new InteractiveOutcome { RequestId = r.RequestId, Source = r.Source, CacheMode = cache.Mode.ToString(),
                                              Purpose = purpose == ExecutionPurpose.Diagnostic ? "diagnostic" : "operational" };
