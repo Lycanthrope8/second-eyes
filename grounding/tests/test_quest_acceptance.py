@@ -60,6 +60,9 @@ def make_run(repo, goldens, variant):
     else:
         res("r023-B1", S1, "refused", "stale_result_scene_changed", "U", g1, target="obj_9" if variant == "refusal_with_target" else None)
         res("r023-B2", S1, "refused", "scene_changed_before_evaluation", "none", g1)
+    if variant == "good_b_then_extra":   # r023: the first attempt met the condition; an unneeded retry did not
+        res("r023-B1-2", S1, "refused", "stale_result_scene_changed", "U", g1)
+        res("r023-B2-2", S1, "refused", "stale_scene_binding", "none", g1)
     if variant == "late_b_then_repeat":
         res("r023-B1-2", S1, "refused", "stale_result_scene_changed", "U", g1)
         res("r023-B2-2", S1, "refused", "scene_changed_before_evaluation", "none", g1)
@@ -103,7 +106,7 @@ def main() -> int:
         A = SB.pilot_helpers()
         PG.build_goldens(bundle=SB.scoring_bundle(tmp, A), out=tmp / "g", tokenizer=A.OffsetCharTokenizer(), sizes=(4, 5, 6), index_sha256_prefix=None)
         results = {}
-        for v in ("good", "late_b", "late_b_then_repeat", "missing_from_log", "refusal_with_target", "unclean_end", "tampered"):
+        for v in ("good", "late_b", "late_b_then_repeat", "good_b_then_extra", "missing_from_log", "refusal_with_target", "unclean_end", "tampered"):
             repo = tmp / f"repo-{v}"
             run = make_run(repo, tmp / "g", v)
             results[v] = AC.check_acceptance(run_id=run, goldens=tmp / "g", repo=repo)
@@ -119,9 +122,13 @@ def main() -> int:
         check("a scene switch that came too late: case B incomplete, not failed; nothing else fails",
               lb["overall"] == "incomplete" and R("late_b", "case B")[0]["result"] == "incomplete" and not any(r["result"] == "fail" for r in lb["rows"]))
         rb = results["late_b_then_repeat"]
-        check("case B repeated with fresh IDs: the latest attempt passes, the first is listed as superseded, overall pass",
+        check("case B repeated with fresh IDs: the second attempt meets the condition, the first is listed as additional, overall pass",
               rb["overall"] == "pass" and [r["result"] for r in R("late_b_then_repeat", "case B")] == ["incomplete", "pass"]
-              and "superseded" in R("late_b_then_repeat", "case B")[0]["requirement"])
+              and "additional" in R("late_b_then_repeat", "case B")[0]["requirement"])
+        ge = results["good_b_then_extra"]
+        check("the first attempt met the condition and an unneeded retry did not: case B passes on attempt 1, the retry is listed as additional",
+              ge["overall"] == "pass" and [r["result"] for r in R("good_b_then_extra", "case B")] == ["pass", "incomplete"]
+              and "met by attempt 1" in R("good_b_then_extra", "case B")[1]["limitation"], str([(r["result"], r["limitation"]) for r in R("good_b_then_extra", "case B")]))
         check("a result missing from its session log fails the accounting, naming the request",
               results["missing_from_log"]["overall"] == "fail" and "r023-A1" in R("missing_from_log", "every sent inbox request")[0]["limitation"])
         check("a refusal carrying a target fails the outcome rules",

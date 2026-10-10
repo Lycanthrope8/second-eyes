@@ -100,6 +100,12 @@ def main() -> int:
                            repo=repo, progress=lambda m: None)
         check("--resend delivers the same request ID again on purpose, with its own receipt",
               rr["resend"] and Path(rr["receipt"]).name == "send-q-006-resend2.json" and rr["request"]["request_id"] == "q-006")
+        n_push = sum(c[0] == "push" for c in dev.calls)
+        pair = [IB.inbox_send(run_id="20261010_A2_r017", goldens=tmp / "g", snapshot="4", dataset=1, request_id=f"q-p{k}", adb=dev, repo=repo,
+                              progress=lambda m: None, verified=k > 1) for k in (1, 2)]
+        check("two requests back to back (the second skips the goldens readback): both delivered, each with its own receipt",
+              sum(c[0] == "push" for c in dev.calls) == n_push + 2 and all(f"{IB.INBOX}/{r['request_id']}.json" in dev.files for r in pair)
+              and len({r["receipt"] for r in pair}) == 2)
         print("-- outbox-pull (labelled fake device)")
         out = lambda n, d: (f"{IB.OUTBOX}/{n}", json.dumps(d).encode())  # noqa: E731
         dev.files.update(dict([
@@ -135,7 +141,7 @@ def main() -> int:
               and s["q-002"]["ack"] == "rejected (stale_scene_binding)" and s["q-002"]["status"] == "refused")
         lc = rp["lifecycle"]
         check("the lifecycle summary covers this run's requests: accepted ones without a result are named",
-              lc["sent_this_run"] == 3 and lc["accepted"] == 2 and lc["accepted_without_result"] == ["q-006"], str(lc)[:160])
+              lc["sent_this_run"] == 5 and lc["accepted"] == 2 and lc["accepted_without_result"] == ["q-006"], str(lc)[:160])
         check("results missing from the session log are named (the fake log holds q-001 only)",
               lc["results_missing_from_session_logs"] == ["q-002"], str(lc["results_missing_from_session_logs"]))
         check("every pulled file is hashed in the receipt",

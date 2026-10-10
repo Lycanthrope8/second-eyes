@@ -6,8 +6,9 @@ identity folder, the operator checklist and the recorded source identity. It wri
 summary of `outbox-pull` is not relied on: every check reads the files themselves.
 
 **Request IDs** are the run's number plus the case and step: `r023-A1`, `r023-B1`, `r023-B2`, `r023-C1`, `r023-C2`,
-`r023-D1`. A repeated case uses a suffix (`r023-B1-2` with `r023-B2-2`). Each case is judged on its latest attempt;
-earlier attempts are listed as incomplete, never counted as evidence.
+`r023-D1`. A repeated case uses a suffix (`r023-B1-2` with `r023-B2-2`). A case passes when one of its attempts fully
+meets its condition. Every other attempt is listed beside it: as additional when the case passed, as incomplete when no
+attempt met the condition.
 
 **Presets** have no inbox acknowledgement, so they are taken from the session logs:
 
@@ -179,16 +180,25 @@ def check_acceptance(*, run_id, goldens, repo=None, pull=None) -> dict:
                                           and o2.get("status") == "cancelled" and o2.get("reason") == "session_ended"),
              "case C: End session while evaluating: the running request cancelled, the waiting ones session_ended")):
         att = attempts(case, steps)
-        for k, ids in enumerate(att):
+        oks = []
+        for ids in att:
             ok = test(outcome(ids[0]), outcome(ids[1]))
             if case == "C" and ok:   # its preset, answered session_ended, in the same session as this attempt
                 sc = first(ids[0])[0]
                 ok = any(x["request_id"].startswith("preset-") and x["outcome"].get("reason") == "session_ended"
                          for x in (sessions[sc]["log"] if sc in sessions else []))
-            latest = k == len(att) - 1
-            row(text + ("" if latest else f" (attempt {k + 1}, superseded)"), ", ".join(ids), ok,
-                "" if ok else "the intended running or waiting condition did not occur; repeat this case with fresh IDs",
-                incomplete=not ok or not latest)
+            oks.append(ok)
+        chosen = oks.index(True) if True in oks else None
+        for k, ids in enumerate(att):
+            if k == chosen:
+                row(text, ", ".join(ids), True)
+            elif chosen is not None:
+                row(text + f" (attempt {k + 1}, additional)", ", ".join(ids), False,
+                    "met its condition too" if oks[k] else "did not create the condition; the case is met by attempt "
+                    f"{chosen + 1}", incomplete=True)
+            else:
+                row(text + ("" if k == len(att) - 1 else f" (attempt {k + 1})"), ", ".join(ids), False,
+                    "the intended running or waiting condition did not occur; repeat this case with fresh IDs", incomplete=True)
     d = attempts("D", [1])
     if d:
         o = outcome(d[-1][0])
@@ -221,7 +231,7 @@ def check_acceptance(*, run_id, goldens, repo=None, pull=None) -> dict:
     cj = json.loads(ck.read_text(encoding="utf-8")) if ck.is_file() else {}
     row("operator: the current scene's mapping shown, the old target not highlighted (cases B and D)", "raw/operator/checklist.json",
         all(str(cj.get(k, "")).lower().startswith("y") for k in ("B", "D")), "an operator observation, not a recorded measurement")
-    overall = "pass" if all(r["result"] == "pass" or "superseded" in r["requirement"] for r in rows) else (
+    overall = "pass" if all(r["result"] == "pass" or "additional)" in r["requirement"] for r in rows) else (
         "incomplete" if not any(r["result"] == "fail" for r in rows) else "fail")
     summary = {"format_version": 1, "record_type": "a25_correction_acceptance", "run_id": run_id, "pull": src.name, "sessions": order,
                "overall": overall, "rows": rows,

@@ -98,8 +98,9 @@ def main(argv=None) -> int:
     src = isd.add_mutually_exclusive_group(required=True)
     src.add_argument("--command-file", help="a golden command file, e.g. commands/iref.input....json")
     src.add_argument("--text", help="a written command text (labelled written: an implementation check only)")
-    src.add_argument("--dataset", type=int, help="the snapshot's N-th golden dataset command (1-based)")
-    isd.add_argument("--request-id")
+    src.add_argument("--dataset", type=int, nargs="+", help="the snapshot's N-th golden dataset command (1-based); several are sent "
+                                                           "back to back in this one command, each with its own --request-id")
+    isd.add_argument("--request-id", nargs="+")
     isd.add_argument("--resend", action="store_true", help="deliver this request ID again on purpose (to check duplicate handling)")
     isd.add_argument("--wait", action="store_true", help="wait for the headset's answer and print it before returning")
     isd.add_argument("--timeout", type=float, default=180.0, help="seconds to wait with --wait (default 180)")
@@ -321,20 +322,31 @@ def _inbox(a) -> int:
             print(f"written to {s['folder']}")
             return 0
         if a.command == "inbox-send":
-            r = IB.inbox_send(run_id=a.run, goldens=a.goldens, snapshot=a.snapshot, command_file=a.command_file, text=a.text,
-                              dataset=a.dataset, request_id=a.request_id, resend=a.resend, adb=Adb(a.adb), progress=say)
-            q = r["request"]
-            print(f"sent {r['request_id']} to {r['remote']} ({q['command_kind']}: {q['command']['text']!r}; snapshot "
-                  f"{q['expected_scene']['snapshot_id'][-8:]}); PC push and rename {r['pc_push_and_rename_s']} s; receipt {r['receipt']}")
+            datasets = a.dataset or [None]
+            ids = a.request_id or [None] * len(datasets)
+            if len(ids) != len(datasets):
+                print(f"refused: {len(ids)} request ID(s) for {len(datasets)} dataset command(s); give one ID per command", file=sys.stderr)
+                return 2
+            sent = []
+            for k, (ds, rid) in enumerate(zip(datasets, ids)):   # back to back: one process, the goldens read back once
+                r = IB.inbox_send(run_id=a.run, goldens=a.goldens, snapshot=a.snapshot, command_file=a.command_file, text=a.text,
+                                  dataset=ds, request_id=rid, resend=a.resend, adb=Adb(a.adb), progress=say, verified=k > 0)
+                q = r["request"]
+                print(f"sent {r['request_id']} to {r['remote']} ({q['command_kind']}: {q['command']['text']!r}; snapshot "
+                      f"{q['expected_scene']['snapshot_id'][-8:]}); PC push and rename {r['pc_push_and_rename_s']} s; receipt {r['receipt']}")
+                sent.append(r)
+            if len(sent) > 1:
+                print(f"all {len(sent)} requests are on the headset")
             if a.wait:
-                res = IB.await_result(Adb(a.adb), r["request_id"], timeout_s=a.timeout)
-                if res is None:
-                    print(f"no answer for {r['request_id']} within {a.timeout:.0f} s: is the session running on the right scene?", file=sys.stderr)
-                    return 1
-                o, tm = res.get("outcome", {}), res.get("times", {})
-                ms = tm.get("app_observed_ms")
-                print(f"answered: {o.get('status')} ({o.get('reason')})" + (f", target {o['target_object_id']}" if o.get("target_object_id") else "")
-                      + f", path {o.get('execution_path')}, kept {o.get('kept_tokens')}" + (f", {ms / 1000:.1f} s app-observed" if isinstance(ms, (int, float)) else ""))
+                for r in sent:
+                    res = IB.await_result(Adb(a.adb), r["request_id"], timeout_s=a.timeout)
+                    if res is None:
+                        print(f"no answer for {r['request_id']} within {a.timeout:.0f} s: is the session running on the right scene?", file=sys.stderr)
+                        return 1
+                    o, tm = res.get("outcome", {}), res.get("times", {})
+                    ms = tm.get("app_observed_ms")
+                    print(f"answered {r['request_id']}: {o.get('status')} ({o.get('reason')})" + (f", target {o['target_object_id']}" if o.get("target_object_id") else "")
+                          + f", path {o.get('execution_path')}, kept {o.get('kept_tokens')}" + (f", {ms / 1000:.1f} s app-observed" if isinstance(ms, (int, float)) else ""))
             return 0
         r = IB.outbox_pull(run_id=a.run, adb=Adb(a.adb), progress=say, sessions_n=a.sessions)
         print(f"pulled {len(r['files'])} files into {r['folder']} (session {r['session']})")

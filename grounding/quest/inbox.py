@@ -74,7 +74,7 @@ def build_request(*, goldens, snapshot, request_id, command_file=None, text=None
 
 
 def inbox_send(*, run_id, goldens, snapshot, command_file=None, text=None, dataset=None, request_id=None, resend=False,
-               adb=None, repo=None, progress=print) -> dict:
+               adb=None, repo=None, progress=print, verified=False) -> dict:
     """resend delivers a request ID again on purpose, to check that the headset never processes it twice."""
     repo = Path(repo) if repo is not None else REPO
     adb = adb if adb is not None else Adb()
@@ -89,7 +89,7 @@ def inbox_send(*, run_id, goldens, snapshot, command_file=None, text=None, datas
     while receipt_path.exists():
         receipt_path = folder / "raw" / "inbox" / f"send-{request_id}-resend{k}.json"
         k += 1
-    bad = verify_goldens(goldens)
+    bad = [] if verified else verify_goldens(goldens)   # verified: an earlier send in the same command read them back
     if bad:
         _fail("the goldens do not read back: " + "; ".join(bad[:3]), str(goldens))
     req = build_request(goldens=goldens, snapshot=snapshot, request_id=request_id, command_file=command_file, text=text, dataset=dataset)
