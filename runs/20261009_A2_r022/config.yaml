@@ -1,0 +1,29 @@
+# Run config, format v1 (defined in schemas/run-config.v1.json).
+# Made by:   python tools/runs.py new <phase> --purpose "..." --operator "..."
+# Check it:  python tools/runs.py check <run ID>
+# Fill the optional fields that apply to this run and leave the rest null.
+
+# Identity (filled by the tool)
+config_version: 1
+run_id: "20261009_A2_r022"
+phase: "A2"
+created: "2026-10-09T22:28:08-04:00"  # local time with UTC offset
+
+# Required (given to the tool)
+purpose: "A2.5: headset acceptance of the startup check and lifecycle corrections"  # one line: why this run exists
+operator: "JH"  # who ran it
+
+# Code (filled by the tool)
+git_commit: "52686fb911eea98924060e8484599c5a78e041bd"
+git_dirty: true  # true if the repository had uncommitted changes (files in .gitignore don't count)
+
+# Optional: leave null when a field doesn't apply
+model_checkpoint: null  # model file name (--checkpoint fills it)
+model_sha256: null  # SHA-256 of that file (--checkpoint fills it)
+prompt_version: null  # version of the prompt template
+schema_version: null  # version of the model's output/scene schema (proposal section 6.2)
+layout_id: null  # which prop layout
+headset_os_build: "oculus/eureka/eureka:14/UP1A.231005.007.A1/52433670048800520:user/abl_signing_keys:release,amss_signing_keys:release,release-keys"  # ro.build.fingerprint (--headset fills it)
+drone_firmware: null
+lighting: null  # lighting conditions
+notes: "Headset acceptance of the shutdown and presentation corrections (52686fb): D102 after the rebuild; two sessions, startup check ok (5/5, 32/32); End session mid-request: r022m3-03 cancelled during evaluation, five waiting answered session_ended, all logged; a late preset refused stale_result_scene_changed; lifecycle 8/8. Superseded by the timeout correction (3a57c9b) and r023."  # anything else

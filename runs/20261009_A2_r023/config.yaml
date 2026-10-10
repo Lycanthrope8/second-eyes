@@ -1,0 +1,29 @@
+# Run config, format v1 (defined in schemas/run-config.v1.json).
+# Made by:   python tools/runs.py new <phase> --purpose "..." --operator "..."
+# Check it:  python tools/runs.py check <run ID>
+# Fill the optional fields that apply to this run and leave the rest null.
+
+# Identity (filled by the tool)
+config_version: 1
+run_id: "20261009_A2_r023"
+phase: "A2"
+created: "2026-10-09T23:08:42-04:00"  # local time with UTC offset
+
+# Required (given to the tool)
+purpose: "A2.5 correction acceptance (cases A-D, two sessions)"  # one line: why this run exists
+operator: "JH"  # who ran it
+
+# Code (filled by the tool)
+git_commit: "3a57c9b55db3b16a9835b6c8b2522e38b43012d1"
+git_dirty: true  # true if the repository had uncommitted changes (files in .gitignore don't count)
+
+# Optional: leave null when a field doesn't apply
+model_checkpoint: null  # model file name (--checkpoint fills it)
+model_sha256: null  # SHA-256 of that file (--checkpoint fills it)
+prompt_version: null  # version of the prompt template
+schema_version: null  # version of the model's output/scene schema (proposal section 6.2)
+layout_id: null  # which prop layout
+headset_os_build: "oculus/eureka/eureka:14/UP1A.231005.007.A1/52433670048800520:user/abl_signing_keys:release,amss_signing_keys:release,release-keys"  # ro.build.fingerprint (--headset fills it)
+drone_firmware: null
+lighting: null  # lighting conditions
+notes: "A2.5 correction acceptance (headset code 3a57c9b; laptop tools b8f448d): D102 verified after installation; three sessions, startup checks 5/5 and 32/32, clean closing records; cases A-D met (B on attempt 1, C on attempt 2 in its own session); 10 inbox requests accounted for exactly once; acceptance-check pass, independently verified. Operator acceptance completed; independent review pending."  # anything else
