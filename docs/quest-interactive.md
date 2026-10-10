@@ -99,3 +99,7 @@ On the headset:
 
 - a waiting request whose scene changed is refused before evaluation (`scene_changed_before_evaluation`);
 - End session answers every waiting request (`session_ended`) and lets the running one finish first.
+
+Batch request IDs are unique per run by default (the run's number plus `m`, for example `r020m3-01`). The headset's
+outbox keeps results across sessions, so `inbox-send` refuses an ID for which it already holds a result. The report also
+gives unqueued app-observed latency, and the time outside inference and queueing.

@@ -106,7 +106,7 @@ def main(argv=None) -> int:
     ib.add_argument("--run", required=True)
     ib.add_argument("--goldens", required=True)
     ib.add_argument("--snapshot", required=True, help="an object count (3, 6 or 10) or a snapshot ID")
-    ib.add_argument("--prefix", default="m", help="request IDs are PREFIX + object count + '-' + index (default m)")
+    ib.add_argument("--prefix", help="request IDs are PREFIX + object count + '-' + index (default: the run's number + m, e.g. r020m)")
     ib.add_argument("--all-at-once", action="store_true", help="send without waiting for each answer (requests then queue on the headset)")
     ib.add_argument("--timeout", type=float, default=180.0, help="seconds to wait for each answer when paced (default 180)")
     ib.add_argument("--adb", default="adb")

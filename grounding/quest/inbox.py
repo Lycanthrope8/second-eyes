@@ -97,6 +97,9 @@ def inbox_send(*, run_id, goldens, snapshot, command_file=None, text=None, datas
     _one_device(adb)
     if adb.shell("ls", INBOX)[0] != 0:
         _fail(f"{INBOX} is not on the headset: start a session on the panel first (this helper never launches it)")
+    if not resend and adb.shell("stat", "-c", "%s", f"{OUTBOX}/{request_id}.result.json")[0] == 0:
+        _fail(f"the headset already holds a result for request ID {request_id} from an earlier session (its outbox keeps them); "
+              f"request IDs must be new: use another --request-id, or another --prefix for a batch")
     tmp_remote, final = f"{INBOX}/{request_id}.json.tmp", f"{INBOX}/{request_id}.json"
     with tempfile.TemporaryDirectory() as td:
         local = Path(td) / f"{request_id}.json"
@@ -183,7 +186,7 @@ def await_result(adb, request_id, *, timeout_s=180.0, poll_s=1.0, sleep=time.sle
         sleep(poll_s)
 
 
-def inbox_batch(*, run_id, goldens, snapshot, prefix="m", paced=True, timeout_s=180.0, poll_s=1.0, sleep=time.sleep,
+def inbox_batch(*, run_id, goldens, snapshot, prefix=None, paced=True, timeout_s=180.0, poll_s=1.0, sleep=time.sleep,
                 adb=None, repo=None, progress=print) -> list:
     """Every golden dataset command of one snapshot, as separate requests (prefix + object count + "-" + index), in
     order. Paced (the default): each request is sent only after the previous one is answered, so no request waits in
@@ -200,6 +203,8 @@ def inbox_batch(*, run_id, goldens, snapshot, prefix="m", paced=True, timeout_s=
     if len(pick) != 1:
         _fail(f"snapshot {snapshot!r} names {len(pick)} golden snapshots; give an object count ({sorted(counts.values())}) or a snapshot ID")
     n = sum(r["snapshot_id"] == pick[0] and r["kind"] == "dataset_command" for r in rows)
+    if prefix is None:   # unique per run: the headset's outbox keeps results across sessions (r019 met r018's)
+        prefix = run_id.rsplit("_", 1)[-1] + "m"
     out = []
     for k in range(1, n + 1):
         rid = f"{prefix}{counts[pick[0]]}-{k:02d}"

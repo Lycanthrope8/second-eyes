@@ -58,8 +58,9 @@ def main() -> int:
         sent = IB.inbox_batch(run_id="20261010_A2_r018", goldens=tmp / "g", snapshot="5", adb=dev, repo=repo, progress=lambda m: None)
         five = [r for r in rows if n_of(r) == 5 and r["kind"] == "dataset_command"]
         order = [c for c in dev.calls if c[0] == "push" or c[:3] == ("shell", "stat", "-c")]
-        first_result = next(k for k, c in enumerate(order) if c[0] == "shell" and c[-1].endswith("m5-01.result.json"))
-        second_push = next(k for k, c in enumerate(order) if c[0] == "push" and c[2].endswith("m5-02.json.tmp"))
+        first_result = next(k for k, c in enumerate(order) if c[0] == "shell" and c[-1].endswith("r018m5-01.result.json")
+                            and k > next(j for j, d in enumerate(order) if d[0] == "push"))
+        second_push = next(k for k, c in enumerate(order) if c[0] == "push" and c[2].endswith("r018m5-02.json.tmp"))
         check("paced: each request is sent only after the previous one is answered", first_result < second_push)
         check("paced: each answer is read back (status, target, path, app-observed time)",
               all(s["result"] == {"status": "completed", "reason": None, "target": "obj_1", "execution_path": "U", "app_observed_ms": 12000.0} for s in sent))
@@ -73,8 +74,17 @@ def main() -> int:
             msg = "; ".join(i["message"] for i in e.issues)
         check("paced: a headset that never answers stops the batch with a clear message, after the first request",
               "no result for q5-01" in msg and "0 of" in msg and sum(c[0] == "push" for c in quiet.calls) == 1, msg[:120])
-        check("every golden dataset command of the snapshot is sent, in order, with scene-sized IDs",
-              [s["request_id"] for s in sent] == [f"m5-{k:02d}" for k in range(1, len(five) + 1)]
+        stale = Device(files={f"{IB.INBOX}/processed/old.json": b"{}", f"{IB.OUTBOX}/x018m5-01.result.json": b'{"outcome": {}}'})
+        try:
+            IB.inbox_batch(run_id="20261010_A2_r018", goldens=tmp / "g", snapshot="5", adb=stale, repo=repo, prefix="x018m",
+                           progress=lambda m: None)
+            msg = ""
+        except EI as e:
+            msg = "; ".join(i["message"] for i in e.issues)
+        check("a request ID whose result the headset already holds (an earlier session's) is refused before anything is pushed",
+              "already holds a result" in msg and not any(c[0] == "push" for c in stale.calls), msg[:120])
+        check("every golden dataset command of the snapshot is sent, in order, with run-unique, scene-sized IDs",
+              [s["request_id"] for s in sent] == [f"r018m5-{k:02d}" for k in range(1, len(five) + 1)]
               and [s["request"]["command"] for s in sent] == [json.loads((head / r["command_file"]).read_text(encoding="utf-8")) for r in five]
               and all(f"{IB.INBOX}/{s['request_id']}.json" in dev.files for s in sent))
         try:
@@ -126,6 +136,9 @@ def main() -> int:
               gi["answered_after_evaluation"] == 2 and gi["app_observed_ms"]["median"] == 17000.0 and gi["app_observed_ms"]["max"] == 23000.0, str(gi["app_observed_ms"]))
         check("queue wait and inference are the stage differences on the headset clock (queue 0 and 11000 ms; inference 10995 and 11994 ms)",
               gi["queue_ms"]["max"] == 11000.0 and gi["inference_ms"]["min"] == 10995.0 and gi["inference_ms"]["max"] == 11994.0)
+        check("unqueued app-observed time counts only requests that did not wait (one: 11.0 s); outside inference and queue: 5 and 6 ms",
+              gi["unqueued_app_observed_ms"] == {"n": 1, "min": 11000.0, "median": 11000.0, "p90": 11000.0, "max": 11000.0}
+              and gi["outside_inference_ms"]["min"] == 5.0 and gi["outside_inference_ms"]["max"] == 6.0, str(gi["outside_inference_ms"]))
         check("a stale refusal is counted, without evaluation, under its scene from the inbox receipt or as unknown",
               any(g["statuses"].get("refused") == 1 for g in s["groups"].values()))
         check("presets are a separate intake: an ASK evaluated, a cancellation counted but not timed as an answer",

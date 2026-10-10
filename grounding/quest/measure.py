@@ -98,6 +98,9 @@ def measure_report(*, run_id, goldens, references=None, pull=None, repo=None) ->
         table[key] = {"requests": len(xs), "statuses": {s: sum(x["status"] == s for x in xs) for s in sorted({x["status"] for x in xs})},
                       "answered_after_evaluation": len(ev), "app_observed_ms": stats([x["app_observed_ms"] for x in ev]),
                       "inference_ms": stats([x["inference_ms"] for x in ev]), "queue_ms": stats([x["queue_ms"] for x in ev]),
+                      "unqueued_app_observed_ms": stats([x["app_observed_ms"] for x in ev if x["queue_ms"] is not None and x["queue_ms"] < 50]),
+                      "outside_inference_ms": stats([x["app_observed_ms"] - x["inference_ms"] - x["queue_ms"] for x in ev
+                                                     if x["inference_ms"] is not None and x["queue_ms"] is not None]),
                       "tokens": stats([x["tokens"] for x in ev]),
                       "stage_ms": {k: stats([(x["stage_ms"] or {}).get(k) for x in ev]) for k in ("build", "tokenize", "eval", "score")}}
     mem = [x["memory_kb"] for x in rows if x["memory_kb"]]
@@ -131,12 +134,14 @@ def render(s) -> str:
     f = lambda st, k: "-" if not st.get("n") else f"{st[k] / 1000:.1f}"  # noqa: E731
     L = [f"# A2.5 measurement: run {s['run_id']}, session {s['session']}", "",
          f"Settings: {s['session_settings']}. Times on the {s['clock']}.", "",
-         "| Scene, intake | Requests | Statuses | Evaluated | App-observed s (median / p90 / max) | Inference s (median) | Queue s (median) | Tokens (median) |",
-         "|---|---|---|---|---|---|---|---|"]
+         "| Scene, intake | Requests | Statuses | Evaluated | App-observed s (median / p90 / max) | Unqueued app-observed s (n, median) | Inference s (median) | Queue s (median) | Outside inference and queue ms (median) | Tokens (median) |",
+         "|---|---|---|---|---|---|---|---|---|---|"]
     for k, g in s["groups"].items():
         a = g["app_observed_ms"]
+        u, o = g["unqueued_app_observed_ms"], g["outside_inference_ms"]
         L.append(f"| {k} | {g['requests']} | {g['statuses']} | {g['answered_after_evaluation']} | {f(a, 'median')} / {f(a, 'p90')} / {f(a, 'max')} | "
-                 f"{f(g['inference_ms'], 'median')} | {f(g['queue_ms'], 'median')} | {g['tokens'].get('median', '-')} |")
+                 f"{u['n']}, {f(u, 'median')} | {f(g['inference_ms'], 'median')} | {f(g['queue_ms'], 'median')} | "
+                 f"{'-' if not o.get('n') else round(o['median'])} | {g['tokens'].get('median', '-')} |")
     m = s["memory"]
     L += ["", f"Memory as the runtime reports it: buffers (MiB) {m['runtime_buffers_mib']}; around the load (kB) {m['around_load_kb']}; "
               f"after requests, resident (kB) {m['after_requests_rss_kb']} and peak (kB) {m['after_requests_peak_kb']}.", "",
