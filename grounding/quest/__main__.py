@@ -107,6 +107,8 @@ def main(argv=None) -> int:
     ib.add_argument("--goldens", required=True)
     ib.add_argument("--snapshot", required=True, help="an object count (3, 6 or 10) or a snapshot ID")
     ib.add_argument("--prefix", default="m", help="request IDs are PREFIX + object count + '-' + index (default m)")
+    ib.add_argument("--all-at-once", action="store_true", help="send without waiting for each answer (requests then queue on the headset)")
+    ib.add_argument("--timeout", type=float, default=180.0, help="seconds to wait for each answer when paced (default 180)")
     ib.add_argument("--adb", default="adb")
     mr = sub.add_parser("measure-report", help="the measurement report of a pulled session (delivery 5)")
     mr.add_argument("--run", required=True)
@@ -235,8 +237,15 @@ def _inbox(a) -> int:
     say = lambda m: print(f"  ... {m}", flush=True)  # noqa: E731
     try:
         if a.command == "inbox-batch":
-            sent = IB.inbox_batch(run_id=a.run, goldens=a.goldens, snapshot=a.snapshot, prefix=a.prefix, adb=Adb(a.adb), progress=say)
-            print(f"sent {len(sent)} requests: {', '.join(r['request_id'] for r in sent)}")
+            sent = IB.inbox_batch(run_id=a.run, goldens=a.goldens, snapshot=a.snapshot, prefix=a.prefix, paced=not a.all_at_once,
+                                  timeout_s=a.timeout, adb=Adb(a.adb), progress=lambda m: print(f"  {m}", flush=True))
+            if a.all_at_once:
+                print(f"sent {len(sent)} requests without waiting: {', '.join(r['request_id'] for r in sent)}")
+            else:
+                st = {}
+                for r in sent:
+                    st[r["result"]["status"]] = st.get(r["result"]["status"], 0) + 1
+                print(f"done: all {len(sent)} answered, one at a time ({st}). The next step can start now.")
             return 0
         if a.command == "measure-report":
             from . import measure as MS

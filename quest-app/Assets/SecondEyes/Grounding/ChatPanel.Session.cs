@@ -83,17 +83,27 @@ namespace SecondEyes.Grounding
             UpdateSessionButtons();
         }
 
-        private void EndSession()
+        private async void EndSession()
         {
-            if (interactiveSession != null) interactiveSession.Dispose();
+            InteractiveService s = interactiveSession;
+            int queued = 0;
+            if (s != null)
+            {
+                sessionStarting = true;   // keeps the row disabled while the running request finishes
+                UpdateSessionButtons();
+                SetStatus("Ending the session: answering waiting requests, letting the running one finish...");
+                try { queued = await s.EndAsync(); }
+                catch (Exception e) { Fail("session", e.GetType().Name + ": " + e.Message); s.Dispose(); }
+            }
             interactiveSession = null;
+            sessionStarting = false;
             replaying = false;
             loadButton.interactable = loadWasBeforeSession;
             boxText.fontSize = boxFontBefore > 0 ? boxFontBefore : boxText.fontSize;
-            boxText.text = text;   // the chat prompt the box showed before the interactiveSession
+            boxText.text = text;   // the chat prompt the box showed before the session
             UpdateReplayButton();
             UpdateSessionButtons();
-            SetStatus("Session ended.");
+            SetStatus("Session ended" + (queued > 0 ? "; " + queued + " waiting request(s) answered as cancelled." : "."));
         }
 
         private void NextScene()

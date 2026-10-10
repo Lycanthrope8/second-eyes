@@ -44,7 +44,7 @@ namespace SecondEyes.Grounding.Interactive
         private readonly PrefixCache cache = new PrefixCache(CacheMode.Off);
         private readonly Stopwatch clock = Stopwatch.StartNew();
         private readonly object logGate = new object();
-        private CancellationTokenSource stop;
+        private CancellationTokenSource stop, inboxStop;
         private LlamaRuntime runtime;
         private GoldenRunner.Goldens goldens;
         private StreamWriter log;
@@ -118,8 +118,9 @@ namespace SecondEyes.Grounding.Interactive
                 .Key("capture_error").S(captureError).End()
                 .Key("event_log").S(EventLog.FilePath).Key("event_session").S(EventLog.SessionId).End().ToString() + "\n", new UTF8Encoding(false));
             stop = new CancellationTokenSource();
-            CancellationToken ct = stop.Token;
-            _ = Task.Run(() => InboxLoop(ct));     // both loops catch and log their own errors
+            inboxStop = new CancellationTokenSource();
+            CancellationToken ct = stop.Token, inboxCt = CancellationTokenSource.CreateLinkedTokenSource(ct, inboxStop.Token).Token;
+            _ = Task.Run(() => InboxLoop(inboxCt));     // both loops catch and log their own errors
             _ = Task.Run(() => WorkerLoop(ct));
             Event("interactive.session.start", new JsonWriter().BeginObj().Key("session").S(sessionStamp).Key("scenes").I(Scenes.Count)
                 .Key("load_ms").D(loadMs).End().ToString());
@@ -159,15 +160,29 @@ namespace SecondEyes.Grounding.Interactive
 
         /// <summary>Cancels the queued requests at once and flags the running one. Its evaluation cannot be
         /// interrupted, so its result will be answered as cancelled.</summary>
-        public int Cancel()
+        public int Cancel() { return Cancel("cancelled_while_queued", "cancelled before evaluation"); }
+
+        private int Cancel(string reason, string detail)
         {
             List<Ticket> gone = core.CancelAll();
             foreach (Ticket t in gone)
             {
                 t.Times.Outcome = Now;
-                Publish(t, SessionCore.Answer(t.RequestId, t.Source, "cancelled", "cancelled_while_queued", "cancelled before evaluation"));
+                Publish(t, SessionCore.Answer(t.RequestId, t.Source, "cancelled", reason, detail));
             }
             return gone.Count;
+        }
+
+        /// <summary>Ends the session so that every accepted request is answered: the inbox stops, queued requests are
+        /// answered as cancelled (session_ended), and the running one finishes (answered as cancelled) before the model
+        /// is unloaded.</summary>
+        public async Task<int> EndAsync()
+        {
+            if (inboxStop != null) inboxStop.Cancel();
+            int n = Cancel("session_ended", "the session ended before this request was evaluated");
+            for (int k = 0; k < 900 && core.Running != null; k++) await Task.Delay(100);
+            Dispose();
+            return n;
         }
 
         private void Ack(string id, string state, string reason, double detected)
@@ -249,6 +264,14 @@ namespace SecondEyes.Grounding.Interactive
                     await Task.Delay(50);
                     continue;
                 }
+                InteractiveOutcome early = SessionCore.StaleAtStart(t, Current);
+                if (early != null)
+                {
+                    core.Finish(t, early, Current);
+                    t.Times.Outcome = Now;
+                    Publish(t, early);
+                    continue;
+                }
                 t.Times.InferenceStart = Now;
                 InteractiveOutcome o;
                 try
@@ -279,6 +302,7 @@ namespace SecondEyes.Grounding.Interactive
         {
             string line = "{\"record_type\":\"a25_interactive_result\",\"request_id\":" + Canon.Enc(JNode.Str(t.RequestId))
                           + ",\"session\":\"" + sessionStamp + "\",\"scene_epoch\":" + t.SceneEpoch
+                          + ",\"snapshot_id\":" + (t.Request != null ? Canon.Enc(JNode.Str(t.Request.SnapshotId)) : "null")
                           + ",\"outcome\":" + o.ToJson() + ",\"times\":" + t.Times.ToJson()
                           + ",\"memory_kb\":{\"rss\":" + LlamaRuntime.MemoryKb(false) + ",\"peak\":" + LlamaRuntime.MemoryKb(true) + "}}";
             if (t.Source == "adb_inbox") WriteAtomic(Path.Combine(OutboxDir, t.RequestId + ".result.json"), line);

@@ -29,10 +29,18 @@ def main() -> int:
     EI = importlib.import_module("grounding.evaluation.iref_vla.protocol").EvaluationInputError
 
     class Device(TD.FakeDevice):
+        """Labelled double: the replay helpers' fake device, plus an atomic rename (shell mv). With answer set, it
+        plays the headset: a request renamed into the inbox gets a result file in the outbox."""
+        answer = True
+
         def run(self, *args):
             if args[:2] == ("shell", "mv"):
                 self.calls.append(args)
                 self.files[args[3]] = self.files.pop(args[2])
+                rid = args[3].rsplit("/", 1)[-1][:-len(".json")]
+                if self.answer:
+                    self.files[f"{IB.OUTBOX}/{rid}.result.json"] = json.dumps({"request_id": rid, "outcome": {"status": "completed",
+                        "target_object_id": "obj_1", "execution_path": "U"}, "times": {"app_observed_ms": 12000.0}}).encode()
                 return 0, "", ""
             return super().run(*args)
 
@@ -49,6 +57,22 @@ def main() -> int:
         dev = Device(files={f"{IB.INBOX}/processed/old.json": b"{}"})
         sent = IB.inbox_batch(run_id="20261010_A2_r018", goldens=tmp / "g", snapshot="5", adb=dev, repo=repo, progress=lambda m: None)
         five = [r for r in rows if n_of(r) == 5 and r["kind"] == "dataset_command"]
+        order = [c for c in dev.calls if c[0] == "push" or c[:3] == ("shell", "stat", "-c")]
+        first_result = next(k for k, c in enumerate(order) if c[0] == "shell" and c[-1].endswith("m5-01.result.json"))
+        second_push = next(k for k, c in enumerate(order) if c[0] == "push" and c[2].endswith("m5-02.json.tmp"))
+        check("paced: each request is sent only after the previous one is answered", first_result < second_push)
+        check("paced: each answer is read back (status, target, path, app-observed time)",
+              all(s["result"] == {"status": "completed", "reason": None, "target": "obj_1", "execution_path": "U", "app_observed_ms": 12000.0} for s in sent))
+        quiet = Device(files={f"{IB.INBOX}/processed/old.json": b"{}"})
+        quiet.answer = False
+        try:
+            IB.inbox_batch(run_id="20261010_A2_r018", goldens=tmp / "g", snapshot="5", prefix="q", timeout_s=0.05, poll_s=0.01, adb=quiet, repo=repo,
+                           progress=lambda m: None)
+            msg = ""
+        except EI as e:
+            msg = "; ".join(i["message"] for i in e.issues)
+        check("paced: a headset that never answers stops the batch with a clear message, after the first request",
+              "no result for q5-01" in msg and "0 of" in msg and sum(c[0] == "push" for c in quiet.calls) == 1, msg[:120])
         check("every golden dataset command of the snapshot is sent, in order, with scene-sized IDs",
               [s["request_id"] for s in sent] == [f"m5-{k:02d}" for k in range(1, len(five) + 1)]
               and [s["request"]["command"] for s in sent] == [json.loads((head / r["command_file"]).read_text(encoding="utf-8")) for r in five]
@@ -84,7 +108,9 @@ def main() -> int:
                  line("m4-02", "adb_inbox", "completed", g4[1], app=23000.0, queued=6.0, start=11006.0, end=23000.0, rss=1520000),
                  line("s2", "adb_inbox", "refused", None, path="none", app=1.0, start=None, reason="stale_scene_binding"),
                  line("preset-001", "preset", "ask", g4[2], app=12000.0, queued=1.0, start=1.0, end=12000.0, choice="K"),
-                 line("preset-002", "preset", "cancelled", g4[0], app=20000.0, queued=2.0, start=8000.0, end=20000.0, reason="cancelled_during_evaluation")]
+                 line("preset-002", "preset", "cancelled", g4[0], app=20000.0, queued=2.0, start=8000.0, end=20000.0, reason="cancelled_during_evaluation"),
+                 dict(line("preset-003", "preset", "cancelled", None, path="none", app=3.0, start=None, reason="cancelled_while_queued"),
+                      snapshot_id=g4[0]["snapshot_id"])]
         (pull / "session" / "outcomes.jsonl").write_text("".join(json.dumps(x) + "\n" for x in lines), encoding="utf-8")
         refdir = tmp / "refs"
         refdir.mkdir()
@@ -103,7 +129,10 @@ def main() -> int:
         check("a stale refusal is counted, without evaluation, under its scene from the inbox receipt or as unknown",
               any(g["statuses"].get("refused") == 1 for g in s["groups"].values()))
         check("presets are a separate intake: an ASK evaluated, a cancellation counted but not timed as an answer",
-              gp["statuses"] == {"ask": 1, "cancelled": 1} and gp["answered_after_evaluation"] == 1 and gp["app_observed_ms"]["median"] == 12000.0)
+              gp["statuses"] == {"ask": 1, "cancelled": 2} and gp["answered_after_evaluation"] == 1 and gp["app_observed_ms"]["median"] == 12000.0)
+        check("a preset cancelled before it had a prompt is grouped under its scene by the result's snapshot ID",
+              not any(k.endswith(", preset") and not k.endswith("objects, preset") for k in s["groups"])
+              and "unknown scene, adb_inbox" in s["groups"], str(list(s["groups"])))
         check("llama.cpp's own buffer report is parsed in MiB",
               s["memory"]["runtime_buffers_mib"] == {"CPU_Mapped model": 500.79, "CPU_REPACK model": 500.52, "CPU KV": 96.0, "CPU compute": 300.25})
         check("resident memory after requests: max 1,520,000 kB; around the load as the session recorded",

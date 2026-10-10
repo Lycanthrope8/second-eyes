@@ -161,6 +161,15 @@ namespace SecondEyes.Grounding.Interactive
             return o;
         }
 
+        /// <summary>A ticket whose scene binding changed while it waited is answered at once, without evaluation (r018
+        /// showed the cost of evaluating it first). Null when it is still current.</summary>
+        public static InteractiveOutcome StaleAtStart(Ticket t, SceneBinding current)
+        {
+            if (current != null && current.Epoch == t.SceneEpoch) return null;
+            return Answer(t.RequestId, t.Source, "refused", "scene_changed_before_evaluation",
+                          "the current scene changed while the request waited; it was not evaluated");
+        }
+
         private static void Discard(InteractiveOutcome o, string status, string reason, string detail)
         {
             o.Detail = detail + " (it was " + o.Status + (o.ChoiceCode != null ? ", choice " + o.ChoiceCode : "") + ")";

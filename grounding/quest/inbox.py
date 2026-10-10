@@ -168,9 +168,28 @@ def outbox_pull(*, run_id, adb=None, repo=None, progress=print) -> dict:
     return dict(receipt, folder=str(dest))
 
 
-def inbox_batch(*, run_id, goldens, snapshot, prefix="m", adb=None, repo=None, progress=print) -> list:
+def await_result(adb, request_id, *, timeout_s=180.0, poll_s=1.0, sleep=time.sleep):
+    """The headset's result for one request, once it exists (results are written under a temporary name and renamed,
+    so a file that exists is complete), or None after timeout_s."""
+    path, t0 = f"{OUTBOX}/{request_id}.result.json", time.monotonic()
+    while True:
+        if adb.shell("stat", "-c", "%s", path)[0] == 0:
+            with tempfile.TemporaryDirectory() as td:
+                local = Path(td) / "result.json"
+                if adb.pull(path, local)[0] == 0:
+                    return json.loads(local.read_text(encoding="utf-8"))
+        if time.monotonic() - t0 >= timeout_s:
+            return None
+        sleep(poll_s)
+
+
+def inbox_batch(*, run_id, goldens, snapshot, prefix="m", paced=True, timeout_s=180.0, poll_s=1.0, sleep=time.sleep,
+                adb=None, repo=None, progress=print) -> list:
     """Every golden dataset command of one snapshot, as separate requests (prefix + object count + "-" + index), in
-    order. The headset's session must be bound to that snapshot, or each is refused as a stale binding."""
+    order. Paced (the default): each request is sent only after the previous one is answered, so no request waits in
+    the headset's queue and the app-observed time is the command's own (r018 sent them all at once). The headset's
+    session must be bound to that snapshot, or each is refused as a stale binding."""
+    adb = adb if adb is not None else Adb()
     head = Path(goldens) / "headset"
     rows = [json.loads(x) for x in (head / "goldens.jsonl").read_text(encoding="utf-8").splitlines() if x.strip()]
     counts = {}
@@ -181,5 +200,24 @@ def inbox_batch(*, run_id, goldens, snapshot, prefix="m", adb=None, repo=None, p
     if len(pick) != 1:
         _fail(f"snapshot {snapshot!r} names {len(pick)} golden snapshots; give an object count ({sorted(counts.values())}) or a snapshot ID")
     n = sum(r["snapshot_id"] == pick[0] and r["kind"] == "dataset_command" for r in rows)
-    return [inbox_send(run_id=run_id, goldens=goldens, snapshot=pick[0], dataset=k, request_id=f"{prefix}{counts[pick[0]]}-{k:02d}",
-                       adb=adb, repo=repo, progress=progress) for k in range(1, n + 1)]
+    out = []
+    for k in range(1, n + 1):
+        rid = f"{prefix}{counts[pick[0]]}-{k:02d}"
+        sent = inbox_send(run_id=run_id, goldens=goldens, snapshot=pick[0], dataset=k, request_id=rid, adb=adb, repo=repo,
+                          progress=lambda m: None)
+        if paced:
+            res = await_result(adb, rid, timeout_s=timeout_s, poll_s=poll_s, sleep=sleep)
+            if res is None:
+                _fail(f"no result for {rid} within {timeout_s:.0f} s: is the session running on the headset, and showing the "
+                      f"{counts[pick[0]]}-object scene? {k - 1} of {n} were answered; nothing more was sent")
+            o, tm = res.get("outcome", {}), res.get("times", {})
+            sent["result"] = {"status": o.get("status"), "reason": o.get("reason"), "target": o.get("target_object_id"),
+                              "execution_path": o.get("execution_path"), "app_observed_ms": tm.get("app_observed_ms")}
+            ms = tm.get("app_observed_ms")
+            progress(f"{rid} ({k}/{n}): {o.get('status')}" + (f", target {o['target_object_id']}" if o.get("target_object_id") else "")
+                     + (f" ({o.get('reason')})" if o.get("status") not in ("completed",) else "")
+                     + (f", {ms / 1000:.1f} s app-observed" if isinstance(ms, (int, float)) else ""))
+        else:
+            progress(f"{rid} ({k}/{n}) sent")
+        out.append(sent)
+    return out

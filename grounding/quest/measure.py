@@ -78,7 +78,7 @@ def measure_report(*, run_id, goldens, references=None, pull=None, repo=None) ->
         o, t = r["outcome"], r["times"]
         g = by_prompt.get(o.get("prompt_sha256"))
         sent = (sends.get(r["request_id"]) or [None])[0]
-        sid = g["snapshot_id"] if g else (sent["request"]["expected_scene"]["snapshot_id"] if sent else None)
+        sid = g["snapshot_id"] if g else (r.get("snapshot_id") or (sent["request"]["expected_scene"]["snapshot_id"] if sent else None))
         kind = g["kind"] if g else (sent["request"].get("command_kind") if sent else None)
         evaluated = o.get("execution_path") in ("U", "P")
         rows.append({"request_id": r["request_id"], "intake": t.get("intake") or o.get("source"), "status": o["status"], "reason": o.get("reason"),
@@ -90,7 +90,8 @@ def measure_report(*, run_id, goldens, references=None, pull=None, repo=None) ->
                      "stage_ms": o.get("ms") if evaluated else None, "memory_kb": r.get("memory_kb")})
     groups = {}
     for x in rows:
-        groups.setdefault(f"{x['objects']} objects, {x['intake']}", []).append(x)
+        scene = f"{x['objects']} objects" if x["objects"] is not None else "unknown scene"
+        groups.setdefault(f"{scene}, {x['intake']}", []).append(x)
     table = {}
     for key, xs in sorted(groups.items(), key=lambda kv: (str(kv[0]))):
         ev = [x for x in xs if x["execution_path"] in ("U", "P") and x["status"] in ("completed", "ask")]
