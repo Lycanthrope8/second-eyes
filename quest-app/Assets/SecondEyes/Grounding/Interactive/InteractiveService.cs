@@ -189,27 +189,45 @@ namespace SecondEyes.Grounding.Interactive
             return gone.Count;
         }
 
-        /// <summary>Ends the session so that every accepted request is answered and recorded before anything is closed
-        /// (ChatGPT's A2.5 review), in this order:
-        ///   1. admission closes; the queued requests are answered as cancelled (session_ended), and the running one is
-        ///      flagged;
-        ///   2. the inbox loop stops and is awaited: a handler already running finds admission closed and answers its own
-        ///      request as session_ended;
-        ///   3. the worker is awaited: it publishes the running request (answered as cancelled) and exits;
-        ///   4. only then are the log closed and the model unloaded.</summary>
-        public async Task<int> EndAsync()
+        /// <summary>Ends the session (ChatGPT's A2.5 reviews): SessionShutdown settles every task (admission closed,
+        /// queued requests answered, the inbox handler and the worker awaited through final publication), then the
+        /// closing record is written, and only then are the log closed and the model unloaded. A slow task is reported
+        /// through progress, never disposed under. A fault makes the report not clean. Never throws.</summary>
+        public async Task<ShutdownReport> EndAsync(Action<string> progress)
         {
-            List<Ticket> gone = core.Close();
-            foreach (Ticket t in gone)
+            ShutdownReport r;
+            try
             {
-                t.Times.Outcome = Now;
-                Publish(t, SessionCore.Answer(t.RequestId, t.Source, "cancelled", "session_ended", "the session ended before this request was evaluated"));
+                r = await SessionShutdown.RunAsync(core,
+                    t => { t.Times.Outcome = Now; Publish(t, SessionCore.Answer(t.RequestId, t.Source, "cancelled", "session_ended",
+                                                                                 "the session ended before this request was evaluated")); },
+                    () => { if (inboxStop != null) inboxStop.Cancel(); },
+                    inboxTask, workerTask, () => Task.Delay(10000), progress);
             }
-            if (inboxStop != null) inboxStop.Cancel();
-            if (inboxTask != null) await Task.WhenAny(inboxTask, Task.Delay(10000));
-            if (workerTask != null) await Task.WhenAny(workerTask, Task.Delay(120000));
-            Dispose();
-            return gone.Count;
+            catch (Exception e)   // not expected: RunAsync records its own faults; kept so that EndAsync never throws
+            {
+                r = new ShutdownReport();
+                r.Faults.Add("shutdown failed: " + e.GetType().Name + ": " + e.Message);
+            }
+            try
+            {
+                int lines;
+                lock (logGate) lines = Answered;
+                File.WriteAllText(Path.Combine(Root, "sessions", sessionStamp, "session-end.json"), new JsonWriter().BeginObj()
+                    .Key("record_type").S("a25_session_end").Key("session").S(sessionStamp).Key("clean").B(r.Clean)
+                    .Key("faults").Strs(r.Faults.ToArray()).Key("cancelled_queued").I(r.CancelledQueued)
+                    .Key("answered").I(lines).Key("progress_reports").I(r.ProgressReports).Key("written_ms").D(Now)
+                    .Key("written_utc").S(DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture)).End().ToString() + "\n", new UTF8Encoding(false));
+                Event("interactive.session.end", new JsonWriter().BeginObj().Key("session").S(sessionStamp).Key("clean").B(r.Clean)
+                    .Key("answered").I(lines).Key("cancelled_queued").I(r.CancelledQueued).End().ToString());
+            }
+            catch (Exception e)
+            {
+                r.Faults.Add("writing the closing record failed: " + e.GetType().Name + ": " + e.Message);
+                r.Clean = false;
+            }
+            Dispose();   // every task has completed by now (cleanly or not): nothing active remains
+            return r;
         }
 
         private void Ack(string id, string state, string reason, double detected)

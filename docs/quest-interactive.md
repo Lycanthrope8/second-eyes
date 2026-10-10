@@ -122,3 +122,12 @@ gives unqueued app-observed latency, and the time outside inference and queueing
   - the startup check of each session;
   - accepted requests without a result;
   - results missing from the session logs.
+
+**Correction acceptance (A2.5):**
+
+- **Shutdown** waits for the inbox and worker tasks to complete, never on a timeout. Each session writes a closing
+  record, `session-end.json`.
+- **`inbox-send --wait`** prints a request's answer, and **`inbox-status --ids …`** prints the answers to several.
+- **`outbox-pull --sessions N`** also brings each session's closing record and the app's event log.
+- **`acceptance-check --run RUN --goldens DIR`** checks the raw records of cases A to D and writes the acceptance table.
+- **The C# checks outside Unity** are in `tools/csharp-tests/`.

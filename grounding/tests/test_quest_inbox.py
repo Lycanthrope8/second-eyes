@@ -113,11 +113,16 @@ def main() -> int:
             (f"{IB.SESSIONS}/20261010-101000/session.json", b'{"session":"20261010-101000"}'),
             (f"{IB.SESSIONS}/20261010-101000/outcomes.jsonl", b'{"request_id":"q-001"}\n'),
             out("q-006.ack.json", {"request_id": "q-006", "status": "accepted", "reason": None}),
-            (f"{IB.SESSIONS}/20261010-095000/session.json", b'{"session":"20261010-095000","startup_check_ok":true}'),
+            (f"{IB.SESSIONS}/20261010-095000/session.json", b'{"session":"20261010-095000","startup_check_ok":true,"event_log":"/sdcard/logs/app-1.jsonl"}'),
+            ("/sdcard/logs/app-1.jsonl", b'{"seq":1,"ev":"interactive.startup_check","data":{"session":"20261010-095000"}}\n'),
+            (f"{IB.SESSIONS}/20261010-095000/session-end.json", b'{"session":"20261010-095000","clean":true}'),
             (f"{IB.SESSIONS}/20261010-095000/outcomes.jsonl", b'{"request_id":"q-002"}\n')]))
         n0 = len(dev.calls)
         rp = IB.outbox_pull(run_id="20261010_A2_r017", adb=dev, repo=repo, progress=lambda m: None)
         rp2 = IB.outbox_pull(run_id="20261010_A2_r017", adb=dev, repo=repo, progress=lambda m: None, sessions_n=2)
+        older = Path(rp2["folder"]) / "sessions" / "20261010-095000"
+        check("each session's closing record and its event log (at the path the session recorded) are pulled",
+              (older / "session-end.json").is_file() and (older / "events.jsonl").read_bytes().startswith(b'{"seq":1'))
         check("--sessions 2 brings both sessions' logs, and their logged results count",
               len(rp2["lifecycle"]["sessions"]) == 2 and rp2["lifecycle"]["results_missing_from_session_logs"] == [], str(rp2["lifecycle"])[:160])
         s = rp["requests"]
@@ -137,6 +142,9 @@ def main() -> int:
               all(hashlib.sha256((Path(rp["folder"]) / k).read_bytes()).hexdigest() == v for k, v in rp["files"].items()))
         check("pull is read-only on the headset: only devices, ls and pull",
               len(dev.calls) > n0 and all(c[0] in ("devices", "pull") or c[:2] == ("shell", "ls") for c in dev.calls[n0:]))
+        st = IB.inbox_status(adb=dev, request_ids=["q-001", "q-zzz"], timeout_s=0.05, poll_s=0.01)
+        check("inbox-status reads each answer back, and reports none for an ID without one",
+              st["q-001"]["status"] == "completed" and st["q-001"]["target"] == "obj_2" and st["q-zzz"] is None)
     print(f"\n{len(PASSES)} passed, {len(FAILS)} failed")
     return 0 if not FAILS else 1
 

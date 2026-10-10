@@ -86,14 +86,22 @@ namespace SecondEyes.Grounding
         private async void EndSession()
         {
             InteractiveService s = interactiveSession;
-            int queued = 0;
+            ShutdownReport r = null;
             if (s != null)
             {
-                sessionStarting = true;   // keeps the row disabled while the running request finishes
+                sessionStarting = true;   // keeps the row disabled until every task has completed
                 UpdateSessionButtons();
                 SetStatus("Ending the session: answering waiting requests, letting the running one finish...");
-                try { queued = await s.EndAsync(); }
-                catch (Exception e) { Fail("session", e.GetType().Name + ": " + e.Message); s.Dispose(); }
+                try
+                {
+                    r = await s.EndAsync(msg => SetStatus("Ending the session: " + msg + "..."));
+                }
+                catch (Exception e)   // EndAsync is built never to throw; if it does, the state is unknown: stay locked
+                {
+                    Fail("session", e.GetType().Name + ": " + e.Message);
+                    SetStatus("Ending the session failed unexpectedly; the session row stays locked. Restart the app.");
+                    return;   // no Dispose here, no reset: another model load must not start while work may be active
+                }
             }
             interactiveSession = null;
             sessionStarting = false;
@@ -103,7 +111,10 @@ namespace SecondEyes.Grounding
             boxText.text = text;   // the chat prompt the box showed before the session
             UpdateReplayButton();
             UpdateSessionButtons();
-            SetStatus("Session ended" + (queued > 0 ? "; " + queued + " waiting request(s) answered as cancelled." : "."));
+            if (r == null || r.Clean)
+                SetStatus("Session ended" + (r != null && r.CancelledQueued > 0 ? "; " + r.CancelledQueued + " waiting request(s) answered as cancelled." : "."));
+            else
+                SetStatus("Session ended with a fault: " + string.Join("; ", r.Faults.ToArray()));
         }
 
         private void NextScene()

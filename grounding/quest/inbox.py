@@ -149,9 +149,16 @@ def outbox_pull(*, run_id, adb=None, repo=None, progress=print, sessions_n=1) ->
         for k, sess in enumerate(sessions[-sessions_n:] if sessions else []):
             sub = staging / "session" if k == min(sessions_n, len(sessions)) - 1 else staging / "sessions" / sess
             sub.mkdir(parents=True, exist_ok=True)
-            for n in ("session.json", "outcomes.jsonl", "startup-log.txt"):
+            for n in ("session.json", "outcomes.jsonl", "startup-log.txt", "session-end.json"):
                 progress(f"pulling the session {sess}'s {n}")
                 adb.pull(f"{SESSIONS}/{sess}/{n}", sub / n)
+            try:   # the app's event log, at the path the session itself recorded
+                ev = json.loads((sub / "session.json").read_text(encoding="utf-8")).get("event_log")
+            except (OSError, ValueError):
+                ev = None
+            if ev:
+                progress(f"pulling the session {sess}'s event log")
+                adb.pull(ev, sub / "events.jsonl")
         summary = {}
         for n in names:
             rec = json.loads((staging / "outbox" / n).read_text(encoding="utf-8"))
@@ -245,4 +252,16 @@ def inbox_batch(*, run_id, goldens, snapshot, prefix=None, paced=True, timeout_s
         else:
             progress(f"{rid} ({k}/{n}) sent")
         out.append(sent)
+    return out
+
+
+def inbox_status(*, adb, request_ids, timeout_s=180.0, poll_s=1.0, sleep=time.sleep) -> dict:
+    """Each request's answer as the headset published it (status, reason, path, target, kept tokens), waiting up to
+    timeout_s for each; None for one that has no answer by then. Read-only."""
+    out = {}
+    for rid in request_ids:
+        res = await_result(adb, rid, timeout_s=timeout_s, poll_s=poll_s, sleep=sleep)
+        o = (res or {}).get("outcome", {})
+        out[rid] = None if res is None else {"status": o.get("status"), "reason": o.get("reason"), "execution_path": o.get("execution_path"),
+                                             "target": o.get("target_object_id"), "kept_tokens": o.get("kept_tokens"), "session": res.get("session")}
     return out

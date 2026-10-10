@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using SecondEyes.Grounding.Prompting;
 using SecondEyes.Grounding.Replay;
 
@@ -215,6 +216,62 @@ namespace SecondEyes.Grounding.Interactive
         {
             return new InteractiveOutcome { RequestId = requestId, Source = source, Status = status, Reason = reason,
                                             Detail = detail ?? "", CacheMode = CacheMode.Off.ToString(), Purpose = "operational" };
+        }
+    }
+
+    /// <summary>How a session ended. Clean only when every task completed without fault and nothing is left running.</summary>
+    public sealed class ShutdownReport
+    {
+        public int CancelledQueued, ProgressReports;
+        public bool Clean;
+        public readonly List<string> Faults = new List<string>();
+    }
+
+    /// <summary>The shutdown ordering of ChatGPT's A2.5 reviews, free of Unity so it is tested on a PC:
+    ///   1. admission closes; the queued tickets are answered (session_ended) and the running one is flagged;
+    ///   2. the inbox stops, and its task is awaited until it has completed, so a handler already running can finish
+    ///      its own refusal and publication;
+    ///   3. the worker's task is awaited until it has completed, through its final publication.
+    /// The periodic delay only reports that work is still active: it never authorizes disposal. A faulted or cancelled
+    /// task, or a ticket left unreleased, makes the report not clean. Nothing here throws before both tasks have
+    /// completed. Disposal is the caller's, and comes only after this returns.</summary>
+    public static class SessionShutdown
+    {
+        public static async Task<ShutdownReport> RunAsync(SessionCore core, Action<Ticket> answerQueued, Action stopInbox,
+                                                          Task inboxTask, Task workerTask, Func<Task> reportDelay, Action<string> progress)
+        {
+            var r = new ShutdownReport();
+            List<Ticket> gone = core.Close();
+            r.CancelledQueued = gone.Count;
+            foreach (Ticket t in gone)
+            {
+                try { answerQueued(t); }
+                catch (Exception e) { r.Faults.Add("answering " + t.RequestId + " failed: " + e.GetType().Name + ": " + e.Message); }
+            }
+            try { stopInbox(); }
+            catch (Exception e) { r.Faults.Add("stopping the inbox failed: " + e.GetType().Name + ": " + e.Message); }
+            await Settle(inboxTask, "inbox", r, reportDelay, progress);
+            await Settle(workerTask, "worker", r, reportDelay, progress);
+            if (!core.Drained) r.Faults.Add("a request was still running or unreleased after the worker completed");
+            r.Clean = r.Faults.Count == 0;
+            return r;
+        }
+
+        private static async Task Settle(Task task, string name, ShutdownReport r, Func<Task> reportDelay, Action<string> progress)
+        {
+            if (task == null) return;
+            while (true)
+            {
+                Task done = await Task.WhenAny(task, reportDelay());
+                if (done == task) break;
+                r.ProgressReports++;   // reporting only: the wait goes on until the task has completed
+                try { if (progress != null) progress("still waiting for the " + name + " to finish"); } catch (Exception) { }
+            }
+            if (task.IsFaulted)
+                r.Faults.Add(name + " faulted: " + (task.Exception != null ? task.Exception.GetBaseException().GetType().Name + ": "
+                                                    + task.Exception.GetBaseException().Message : "unknown"));
+            else if (task.IsCanceled)
+                r.Faults.Add(name + " was cancelled");
         }
     }
 

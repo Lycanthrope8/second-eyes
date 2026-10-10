@@ -101,6 +101,8 @@ def main(argv=None) -> int:
     src.add_argument("--dataset", type=int, help="the snapshot's N-th golden dataset command (1-based)")
     isd.add_argument("--request-id")
     isd.add_argument("--resend", action="store_true", help="deliver this request ID again on purpose (to check duplicate handling)")
+    isd.add_argument("--wait", action="store_true", help="wait for the headset's answer and print it before returning")
+    isd.add_argument("--timeout", type=float, default=180.0, help="seconds to wait with --wait (default 180)")
     isd.add_argument("--adb", default="adb")
     ib = sub.add_parser("inbox-batch", help="send every golden dataset command of one snapshot to the inbox (delivery 5's measurement)")
     ib.add_argument("--run", required=True)
@@ -115,6 +117,10 @@ def main(argv=None) -> int:
     mr.add_argument("--goldens", required=True)
     mr.add_argument("--references", help="the D2 CPU float32 baseline folder, for the descriptive agreement")
     mr.add_argument("--pull", help="a pulled outbox folder (default: the run's newest)")
+    ist = sub.add_parser("inbox-status", help="wait for and print the headset's answers to the given request IDs (read-only)")
+    ist.add_argument("--ids", nargs="+", required=True)
+    ist.add_argument("--timeout", type=float, default=180.0)
+    ist.add_argument("--adb", default="adb")
     opl = sub.add_parser("outbox-pull", help="pull the headset's acknowledgements, results and session log into a run")
     opl.add_argument("--run", required=True)
     opl.add_argument("--sessions", type=int, default=1, help="pull the newest N sessions' logs (default 1)")
@@ -127,6 +133,10 @@ def main(argv=None) -> int:
     bcp = sub.add_parser("batch-compare", help="the diagnostic's comparison: controls (U' = U, U = r013's U) first, then the predictions")
     bcp.add_argument("--results", required=True, help="a batch-<UTC time> folder")
     bcp.add_argument("--r013", required=True, help="run 20261008_A2_r013's repeat results folder (raw/repeat/20261009-014332)")
+    ac = sub.add_parser("acceptance-check", help="A2.5 correction acceptance: check the raw records of cases A to D and write the table")
+    ac.add_argument("--run", required=True)
+    ac.add_argument("--goldens", required=True)
+    ac.add_argument("--pull", help="a pulled outbox folder (default: the run's newest)")
     ip = sub.add_parser("interactive-pull", help="pull a finished interactive-check results folder (delivery 3) and its event log into a run")
     ip.add_argument("--run", required=True)
     ip.add_argument("--results")
@@ -138,8 +148,27 @@ def main(argv=None) -> int:
     a = ap.parse_args(argv)
     if a.command == "provenance-collect":
         return _provenance(a)
+    if a.command == "acceptance-check":
+        from . import acceptance as AC
+        try:
+            s = AC.check_acceptance(run_id=a.run, goldens=a.goldens, pull=a.pull)
+        except EvaluationInputError as e:
+            for i in e.issues:
+                print(f"refused: {i['message']}", file=sys.stderr)
+            return 2
+        print((Path(s["folder"]) / "report.md").read_text(encoding="utf-8"))
+        print(f"written to {s['folder']}")
+        return 0 if s["overall"] == "pass" else 1
     if a.command in ("batch-diagnostic", "batch-compare"):
         return _batch(a)
+    if a.command == "inbox-status":
+        from . import inbox as IB
+        from .runtime_identity import Adb
+        st = IB.inbox_status(adb=Adb(a.adb), request_ids=a.ids, timeout_s=a.timeout)
+        for rid, s in st.items():
+            print(f"  {rid}: " + ("no answer yet" if s is None else f"{s['status']} ({s['reason']}), path {s['execution_path']}, "
+                                  f"target {s['target']}, kept {s['kept_tokens']}, session {s['session']}"))
+        return 0 if all(v is not None for v in st.values()) else 1
     if a.command in ("inbox-send", "outbox-pull", "inbox-batch", "measure-report"):
         return _inbox(a)
     if a.command.startswith("golden-") or a.command == "interactive-pull":
@@ -297,6 +326,15 @@ def _inbox(a) -> int:
             q = r["request"]
             print(f"sent {r['request_id']} to {r['remote']} ({q['command_kind']}: {q['command']['text']!r}; snapshot "
                   f"{q['expected_scene']['snapshot_id'][-8:]}); PC push and rename {r['pc_push_and_rename_s']} s; receipt {r['receipt']}")
+            if a.wait:
+                res = IB.await_result(Adb(a.adb), r["request_id"], timeout_s=a.timeout)
+                if res is None:
+                    print(f"no answer for {r['request_id']} within {a.timeout:.0f} s: is the session running on the right scene?", file=sys.stderr)
+                    return 1
+                o, tm = res.get("outcome", {}), res.get("times", {})
+                ms = tm.get("app_observed_ms")
+                print(f"answered: {o.get('status')} ({o.get('reason')})" + (f", target {o['target_object_id']}" if o.get("target_object_id") else "")
+                      + f", path {o.get('execution_path')}, kept {o.get('kept_tokens')}" + (f", {ms / 1000:.1f} s app-observed" if isinstance(ms, (int, float)) else ""))
             return 0
         r = IB.outbox_pull(run_id=a.run, adb=Adb(a.adb), progress=say, sessions_n=a.sessions)
         print(f"pulled {len(r['files'])} files into {r['folder']} (session {r['session']})")
