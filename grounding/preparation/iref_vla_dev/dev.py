@@ -61,6 +61,7 @@ import json
 import multiprocessing
 import shutil
 import tempfile
+import time
 from collections import Counter
 from pathlib import Path
 
@@ -285,24 +286,49 @@ def sample(rows, groups, cap=CAP, salt=SAMPLING_SALT):
 
 
 # --------------------------------------------------------------------------------------------- the chain per scene
-def _scene_job(job, tokenizer=None):
+ATTEMPTS = 3
+PAUSES_S = (2.0, 6.0)
+
+
+def _transient(e) -> bool:
+    """A Windows file lock at publication (antivirus or indexer holding a new file): a PermissionError, possibly
+    wrapped by a stage's output error. Data errors are never transient."""
+    return isinstance(e, PermissionError) or "PermissionError" in str(e) or "WinError 5" in str(e)
+
+
+def _stage(fn, out: Path, attempts: list, name: str, sleep=time.sleep):
+    """Runs one stage; retries it only when it failed transiently and published nothing."""
+    for k in range(1, ATTEMPTS + 1):
+        try:
+            return fn()
+        except Exception as e:   # noqa: BLE001
+            if k == ATTEMPTS or not _transient(e) or out.exists():
+                raise
+            attempts.append({"stage": name, "attempt": k, "error": f"{type(e).__name__}: {e}"[:300]})
+            sleep(PAUSES_S[min(k, len(PAUSES_S)) - 1])
+
+
+def _scene_job(job, tokenizer=None, sleep=time.sleep):
     """Import, audit and prepare one scene into its own work folder. A failure is returned, never raised, so every
-    scene is accounted for."""
+    scene is accounted for; transient file locks are retried (each retry recorded)."""
     scene, group, partition, files, expected, vocab, work, tokenizer_dir, model_description = job
     A, P, _ = _modules()
     w = Path(work)
+    retries = []
     try:
-        R.import_release_scene("Scannet", scene, files, vocab, w / "import", partition=partition, expected_sha256=expected)
+        _stage(lambda: R.import_release_scene("Scannet", scene, files, vocab, w / "import", partition=partition,
+                                              expected_sha256=expected), w / "import", retries, "import", sleep)
         mi, ro = w / "import" / "model_inputs", w / "import" / "reference_only"
         args = dict(scene=mi / "scene.annotated.json", commands=mi / "commands", category_map=mi / "category-map.json",
                     inventory_views=ro / "inventory-views.json")
-        A.run_audit(**args, out=w / "audit", sample_only=False)
-        P.run_preparation(**args, selection_audit=w / "audit", relation_config=REL, direction_config=DIRS,
-                          tokenizer_dir=tokenizer_dir, model_description=model_description, out=w / "bundle",
-                          tokenizer=tokenizer, sample_only=False)
-        return {"scene": scene, "group": group, "partition": partition, "status": "prepared"}
+        _stage(lambda: A.run_audit(**args, out=w / "audit", sample_only=False), w / "audit", retries, "audit", sleep)
+        _stage(lambda: P.run_preparation(**args, selection_audit=w / "audit", relation_config=REL, direction_config=DIRS,
+                                         tokenizer_dir=tokenizer_dir, model_description=model_description,
+                                         out=w / "bundle", tokenizer=tokenizer, sample_only=False),
+               w / "bundle", retries, "preparation", sleep)
+        return {"scene": scene, "group": group, "partition": partition, "status": "prepared", "retries": retries}
     except Exception as e:   # noqa: BLE001 - an accepted stage's refusal is recorded against its scene
-        return {"scene": scene, "group": group, "partition": partition, "status": "failed",
+        return {"scene": scene, "group": group, "partition": partition, "status": "failed", "retries": retries,
                 "error": f"{type(e).__name__}: {e}"[:2000]}
 
 
@@ -402,6 +428,7 @@ def prepare(*, spec, zip_path, inventory_dir, vocabulary, out, work, workers=1, 
         raise DevPrepError("the inventory is not the one the specification froze")
     inv = json.loads(inv_bytes)
     expected = {r["scene"]: r["input_sha256"] for r in inv["scenes"] if r["retained"]}
+    texts = {r["scene"]: r["texts"] for r in inv["scenes"] if r["retained"]}
     vocab = Path(vocabulary).read_bytes()
     if _sha(vocab) != R.VOCABULARY["sha256"]:
         raise DevPrepError("the vocabulary is not the pinned NYU_Object_Classes.csv")
@@ -412,9 +439,12 @@ def prepare(*, spec, zip_path, inventory_dir, vocabulary, out, work, workers=1, 
     wanted = {s: (g, S["partition"]["assignment"][g]) for g in groups for s in S["scenes"][g]}
     found, _, _ = R.read_source(zip_path, "Scannet", only=set(wanted))
     jobs = [(s, g, p, found[s], expected[s], vocab, work / s, str(tokenizer_dir), str(model_description))
-            for s, (g, p) in sorted(wanted.items()) if s in found]
+            for s, (g, p) in sorted(wanted.items()) if s in found and texts.get(s, 0) > 0]
     results = [{"scene": s, "group": g, "partition": p, "status": "failed", "error": "not in the zip"}
                for s, (g, p) in sorted(wanted.items()) if s not in found]
+    results += [{"scene": s, "group": g, "partition": p, "status": "no_statements",
+                 "error": "the release has no statement for this scene (the inventory's parent texts: 0)"}
+                for s, (g, p) in sorted(wanted.items()) if s in found and texts.get(s, 0) == 0]
     work.mkdir(parents=True)
     if workers > 1 and tokenizer is None:
         ctx = multiprocessing.get_context("spawn")   # as on Windows: workers re-import, nothing is inherited
@@ -453,6 +483,7 @@ def prepare(*, spec, zip_path, inventory_dir, vocabulary, out, work, workers=1, 
     by_part = lambda rs, key: dict(Counter(r[key] for r in rs))   # noqa: E731
     counts = {
         "scenes": dict(Counter(r["status"] for r in results)),
+        "scenes_retried": sorted(r["scene"] for r in results if r.get("retries")),
         "parents": by_part(rows, "partition"), "eligible_parents": by_part([r for r in rows if r["eligible"]], "partition"),
         "exclusion_reasons": dict(sorted(reasons.items())),
         "target_status": dict(Counter(r["target_status"] for r in rows)),
@@ -489,7 +520,7 @@ def report(m) -> str:
     L = ["# A2.6b preparation (frozen before inference; awaiting review)", "",
          f"Specification `{m['hashes']['spec'][:12]}...`; requests `{m['hashes']['requests'][:12]}...`; sampling "
          f"`{m['hashes']['sampling'][:12]}...`; desktop subset `{m['hashes']['desktop'][:12]}...`.", "",
-         f"- Scenes: {c['scenes']}",
+         f"- Scenes: {c['scenes']}; retried after a transient file lock: {c['scenes_retried']}",
          f"- Parents: {c['parents']}; eligible: {c['eligible_parents']}",
          f"- Exclusion reasons: {c['exclusion_reasons']}",
          f"- Target status: {c['target_status']}; parsing label (unique targets): {c['parsing_label']}",

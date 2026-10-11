@@ -35,7 +35,8 @@ def check(name, ok, detail=""):
     print(("  ok    " if ok else "  FAIL  ") + name + ("" if ok or not detail else f"  [{detail}]"))
 
 
-SCENES = {"scene0081_00": 0, "scene0081_01": 1, "scene0063_00": 2, "scene0011_00": 3, "scene0191_00": 4, "scene0010_01": 5}
+SCENES = {"scene0081_00": 0, "scene0081_01": 1, "scene0063_00": 2, "scene0011_00": 3, "scene0191_00": 4, "scene0010_01": 5,
+          "scene0081_02": 6}   # scene0081_02: a third scan of one environment, with no statements
 KEEP = 9   # statement texts kept per scene
 
 
@@ -51,7 +52,7 @@ def build_release(samples: Path, folder: Path):
     for scene, k in SCENES.items():
         d = folder / "Scannet" / scene
         d.mkdir(parents=True)
-        keep = texts[k * KEEP:(k + 1) * KEEP]
+        keep = texts[k * KEEP:(k + 1) * KEEP] if scene != "scene0081_02" else []
         region = {t: base["regions"]["0"][t] for t in keep}
         if scene == "scene0063_00":
             a, b2 = keep[0], keep[1]
@@ -133,6 +134,44 @@ def main() -> int:
           and r3["target_status"] == "unique_target" and r3["parsing_label"] == "disagreeing" and r3["stratum"] == "relation_disagreement"
           and r4["parsing_label"] == "disagreeing" and r4["stratum"] == "near"
           and D.resolve(list(reversed([E("5", "near", ["1"]), E("5", "closest", ["1"])]))) == r3)
+    print("-- transient file locks (stub stages)")
+    slept, att = [], []
+    calls = {"n": 0}
+
+    def flaky():
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise PermissionError("[WinError 5] Access is denied")
+        return "done"
+    with tempfile.TemporaryDirectory() as td:
+        ok1 = D._stage(flaky, Path(td) / "never", att, "import", sleep=slept.append) == "done"
+        check("a transient lock is retried (twice here), each retry recorded with its pause, then the stage succeeds",
+              ok1 and len(att) == 2 and slept == [2.0, 6.0] and all(a["stage"] == "import" for a in att))
+
+        def data_error():
+            raise ValueError("E_IREF_SOURCE_SHAPE")
+        try:
+            D._stage(data_error, Path(td) / "never", [], "import", sleep=slept.append)
+            ok2 = False
+        except ValueError:
+            ok2 = True
+        (Path(td) / "published").mkdir()
+
+        def locked():
+            raise PermissionError("[WinError 5] Access is denied")
+        try:
+            D._stage(locked, Path(td) / "published", [], "import", sleep=lambda s: None)
+            ok3 = False
+        except PermissionError:
+            ok3 = True
+        always = []
+        try:
+            D._stage(locked, Path(td) / "never", always, "import", sleep=lambda s: None)
+            ok4 = False
+        except PermissionError:
+            ok4 = len(always) == D.ATTEMPTS - 1
+        check("a data error is never retried; nothing is retried once something was published; the third failure is final",
+              ok2 and ok3 and ok4)
     if not have:
         print(f"\n{len(PASSES)} passed, {len(FAILS)} failed")
         return 1
@@ -153,7 +192,7 @@ def main() -> int:
         check("freeze: official-first assignment of the fixture's real names; development, legacy, calibration, training",
               spec["development_groups"] == ["scannet:scene0063", "scannet:scene0081"] and spec["legacy_groups"] == ["scannet:scene0010"]
               and asg["scannet:scene0011"] == "calibration" and asg["scannet:scene0191"] == "training"
-              and spec["scenes"]["scannet:scene0081"] == ["scene0081_00", "scene0081_01"], str(asg))
+              and spec["scenes"]["scannet:scene0081"] == ["scene0081_00", "scene0081_01", "scene0081_02"], str(asg))
         check("freeze: the cap, salts, eligibility, desktop rule and the bootstrap's literal seed are in the hashed specification",
               spec["sampling"]["cap_per_environment"] == 64 and spec["analysis"]["bootstrap"]["seed"] == 20261010
               and spec["desktop_subset"]["parents"] == 32 and len(spec["eligibility"]) == 3
@@ -176,18 +215,41 @@ def main() -> int:
             read.append(name if isinstance(name, str) else name.filename)
             return real(self, name, *x, **k)
         zipfile.ZipFile.read = spy
+        real_import = D.R.import_release_scene
+        locks = {"scene0063_00": 1}   # its first import meets a simulated Windows file lock
+
+        def locking_import(source, scene, *x, **k):
+            if locks.get(scene):
+                locks[scene] -= 1
+                raise PermissionError("[WinError 5] Access is denied (simulated)")
+            return real_import(source, scene, *x, **k)
+        D.R.import_release_scene = locking_import
         try:
             m = D.prepare(spec=Path(spec["folder"]) / "spec.json", zip_path=zp, inventory_dir=tmp / "inventory",
                           vocabulary=vocab, out=tmp / "out", work=tmp / "work", progress=lambda msg: None,
                           review={"receipt.json": vocab})
         finally:
             zipfile.ZipFile.read = real
+            D.R.import_release_scene = real_import
         out = Path(m["folder"])
         c = m["counts"]
         check("only development and legacy scenes are read from the zip; calibration and training are never read",
               read and not any(("scene0011_00" in n or "scene0191_00" in n) for n in read)
-              and {n.split("/")[1] for n in read} == {"scene0081_00", "scene0081_01", "scene0063_00", "scene0010_01"})
-        check("every assigned scene is prepared and accounted for", c["scenes"] == {"prepared": 4}, str(c["scenes"]))
+              and {n.split("/")[1] for n in read} == {"scene0081_00", "scene0081_01", "scene0081_02", "scene0063_00", "scene0010_01"})
+        check("every assigned scene is accounted for: four prepared, and the scan without statements recorded as such",
+              c["scenes"] == {"prepared": 4, "no_statements": 1}, str(c["scenes"]))
+        scenes = {json.loads(x)["scene"]: json.loads(x) for x in (out / "scenes.jsonl").read_text(encoding="utf-8").splitlines() if x}
+        sim = scenes["scene0063_00"].get("retries") or []
+        others = {s: v for s, v in scenes.items() if v.get("retries") and s != "scene0063_00"}
+        lock = lambda r: "PermissionError" in r["error"] or "WinError" in r["error"]  # noqa: E731
+        check("a scene whose first import met a (simulated) file lock was retried, prepared, and reported with that retry; "
+              "any other retry (a real lock on this machine) is recorded as a transient lock, and its scene prepared too",
+              scenes["scene0063_00"]["status"] == "prepared" and sim and sim[0]["stage"] == "import"
+              and "simulated" in sim[0]["error"] and all(lock(r) for r in sim)
+              and all(v["status"] == "prepared" and all(lock(r) for r in v["retries"]) for v in others.values())
+              and sorted(c["scenes_retried"]) == sorted({"scene0063_00", *others}),
+              json.dumps({"retried": c["scenes_retried"], "scene0063_00": sim,
+                          "others": {s: v["retries"] for s, v in others.items()}})[:900])
         elig = [json.loads(x) for x in (out / "reference_only" / "eligibility.jsonl").read_text(encoding="utf-8").splitlines() if x]
         texts = json.loads((tmp / "release" / "Scannet" / "scene0063_00" / "scene0063_00_referential_statements.json").read_text())
         conv = importlib.import_module("grounding.adapters.iref_vla.convert")
