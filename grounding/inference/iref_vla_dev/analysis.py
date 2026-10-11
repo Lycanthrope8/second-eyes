@@ -204,7 +204,9 @@ def analyze(*, prep, scores, out, b=B, seed=SEED, desktop=None) -> dict:
         if _sha((prep / name).read_bytes()) != pman["files"][name]:
             raise EvaluationInputError([issue(str(prep / name), "E_A26C_ANALYSIS", "changed since the preparation")])
     srows, rrows = _jl(scores / "scores.jsonl"), _jl(scores / "rules-scores.jsonl")
-    strata = {(s["group"], s["stratum"]): (s["N"], s["n"]) for s in _jl(prep / "strata.jsonl") if s["stratum"]}
+    srecs = _jl(prep / "strata.jsonl")
+    strata = {(s["group"], s["stratum"]): (s["N"], s["n"]) for s in srecs if s["stratum"]}
+    zero = sorted({s["group"] for s in srecs if s["N"] == 0})
     sampling = json.loads((prep / "sampling.json").read_text(encoding="utf-8"))
     result = {"format_version": 1, "record_type": "a26c_analysis", "run_id": PF.RUN_ID,
               "configuration": {"replicates": b, "seed": seed, "generator": "Python random.Random(seed), randrange over "
@@ -217,6 +219,12 @@ def analyze(*, prep, scores, out, b=B, seed=SEED, desktop=None) -> dict:
         obs = observations(srows, rrows, part)
         aggs = {c: aggregates(obs[c], strata) for c in _combos() if c in obs}
         block = {"systems": {}, "environments": sorted({e for a in aggs.values() for e in a})}
+        block["contributing_environments"] = len(block["environments"])
+        block["assigned_environments"] = len({s["group"] for s in srecs if s.get("partition") == part})
+        block["zero_eligible_environments"] = [g for g in zero if any(s["group"] == g and s.get("partition") == part for s in srecs)]
+        flagged = {r["parent_command_id"] for r in rrows if r["partition"] == part and r.get("parsing_label") == "disagreeing"}
+        block["parsing_label_disagreeing_parents"] = {"count": len(flagged), "treatment": "kept for unique-target selection "
+                                                      "scoring; their parsing-label flags are preserved in the scores"}
         for c, agg in aggs.items():
             block["systems"][_name(c)] = {"estimate": estimate(agg), "outcome_rates_command_weighted": categories(agg),
                                           "parents": int(sum(a["n"] for a in agg.values())),
@@ -280,6 +288,9 @@ def render(r) -> str:
     L = ["# A2.6c baseline results (development and legacy reported separately)", ""]
     L += [f"- {s}" for s in r["scope"]] + [""]
     d = r["development"]
+    L += [f"Development: {d['contributing_environments']} contributing environments of {d['assigned_environments']} assigned; "
+          f"zero-eligible: {d['zero_eligible_environments'] or 'none'}. Selected parents with disagreeing parsing labels: "
+          f"{d['parsing_label_disagreeing_parents']['count']} ({d['parsing_label_disagreeing_parents']['treatment']}).", ""]
     L += ["## Development: accuracy by system, view and format", "",
           "| System | Command-weighted (95% CI) | Environment-weighted (95% CI) | Unweighted sample | Parents |",
           "|---|---|---|---|---|"]

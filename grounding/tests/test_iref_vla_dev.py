@@ -236,6 +236,12 @@ def main() -> int:
         check("only development and legacy scenes are read from the zip; calibration and training are never read",
               read and not any(("scene0011_00" in n or "scene0191_00" in n) for n in read)
               and {n.split("/")[1] for n in read} == {"scene0081_00", "scene0081_01", "scene0081_02", "scene0063_00", "scene0010_01"})
+        ex, el, pa = c["excluded_parents"], c["eligible_parents"], c["parents"]
+        check("the report's counts: contributing environments by partition, reason totals labelled view-level, and the "
+              "parent-level exclusions reconciling (excluded + eligible = parents in each partition)",
+              isinstance(c["contributing_environments"], dict) and "exclusion_reason_occurrences_view_level" in c
+              and all(ex.get(k, 0) + el.get(k, 0) == pa[k] for k in pa)
+              and "view-level occurrences" in (out / "report.md").read_text(encoding="utf-8"), str((ex, el, pa)))
         check("every assigned scene is accounted for: four prepared, and the scan without statements recorded as such",
               c["scenes"] == {"prepared": 4, "no_statements": 1}, str(c["scenes"]))
         scenes = {json.loads(x)["scene"]: json.loads(x) for x in (out / "scenes.jsonl").read_text(encoding="utf-8").splitlines() if x}

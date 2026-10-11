@@ -1,7 +1,9 @@
 """A2.6c system runs: the models through A2.3d's accepted runner, and the rules through A2.3b's accepted sequence.
 
-**Models.** `smoke` and `run` pass the read-only preflight first, then call A2.3d's `smoke` and `run_compare`
-unchanged, with the context the preflight built:
+**Models.** `smoke` and `run` refuse to start unless a passed preflight binds to exactly what they are about to run
+(`preflight.bound_context`: the frozen hashes, the preparation and bundle manifests, this code, this model's tokenizer,
+and every prompt and token hash re-derived). They then call A2.3d's `smoke` and `run_compare` unchanged, with that
+context:
 
 - float32, eager attention, evaluation mode, batch one;
 - one final-position forward with no cache, and no generation;
@@ -11,7 +13,7 @@ unchanged, with the context the preflight built:
 - the run lock, which resumes only when every frozen input, checkpoint, setting and code hash agrees;
 - every request kept, with its technical status.
 
-The preflight receipt is written beside each output. The run's results are read back against the frozen requests before
+The binding record is written beside each output. The run's results are read back against the frozen requests before
 publication (`verify_results`).
 
 **Rules.** The unchanged A2.2b parser and A2.1e resolver run per scene bundle, exactly as A2.3d's rules do (A2.3b's
@@ -75,25 +77,26 @@ def verify_results(folder, prep) -> list:
     return bad[:20]
 
 
-def _preflight(prep, work, tokenizer_dirs, tokenizers, frozen, progress):
-    toks = tokenizers or PF.load_tokenizers(tokenizer_dirs, CD.load_policy())
-    return PF.preflight(prep=prep, work=work, tokenizers=toks, frozen=frozen, progress=progress)
+def _bound(prep, work, preflight_dir, model_key, model_dir, tokenizer_dirs, tokenizers, evidence_fn, frozen):
+    """This step's context, bound to the passed preflight (PF.bound_context), with this model's own pinned tokenizer."""
+    tok = tokenizers[model_key] if tokenizers is not None \
+        else PF.load_tokenizers({model_key: tokenizer_dirs[model_key]}, CD.load_policy())[model_key]
+    return PF.bound_context(preflight_dir=preflight_dir, prep=prep, work=work, model_key=model_key, model_dir=model_dir,
+                            tokenizer=tok, frozen=frozen, evidence_fn=evidence_fn)
 
 
-def smoke(*, prep, work, model_key, model_dir, tokenizer_dirs=None, device, out, model_loader=None, tokenizers=None,
-          evidence_fn=None, frozen=PF.FROZEN, progress=print) -> dict:
-    pre = _preflight(prep, work, tokenizer_dirs, tokenizers, frozen, progress)
-    _write(Path(f"{out}.preflight.json"), encode_json(pre["receipt"]))
-    ctx = PF.context_for(pre, model_key, model_dir, evidence_fn=evidence_fn)
+def smoke(*, prep, work, preflight_dir, model_key, model_dir, tokenizer_dirs=None, device, out, model_loader=None,
+          tokenizers=None, evidence_fn=None, frozen=PF.FROZEN, progress=print) -> dict:
+    ctx, binding = _bound(prep, work, preflight_dir, model_key, model_dir, tokenizer_dirs, tokenizers, evidence_fn, frozen)
+    _write(Path(f"{out}.binding.json"), encode_json(binding))
     return CR.smoke(requests=prep, model_key=model_key, model_dir=model_dir, tokenizer_dir=None, device=device, out=out,
                     model_loader=model_loader, ctx=ctx)
 
 
-def run(*, prep, work, model_key, model_dir, tokenizer_dirs=None, device, smoke_record, out, resume=False, model_loader=None,
-        tokenizers=None, evidence_fn=None, frozen=PF.FROZEN, progress=print) -> dict:
-    pre = _preflight(prep, work, tokenizer_dirs, tokenizers, frozen, progress)
-    _write(Path(f"{out}.preflight.json"), encode_json(pre["receipt"]))
-    ctx = PF.context_for(pre, model_key, model_dir, evidence_fn=evidence_fn)
+def run(*, prep, work, preflight_dir, model_key, model_dir, tokenizer_dirs=None, device, smoke_record, out, resume=False,
+        model_loader=None, tokenizers=None, evidence_fn=None, frozen=PF.FROZEN, progress=print) -> dict:
+    ctx, binding = _bound(prep, work, preflight_dir, model_key, model_dir, tokenizer_dirs, tokenizers, evidence_fn, frozen)
+    _write(Path(f"{out}.binding.json"), encode_json(binding))
     return CR.run_compare(requests=prep, model_key=model_key, model_dir=model_dir, tokenizer_dir=None, device=device,
                           smoke_record=smoke_record, out=out, resume=resume, model_loader=model_loader, progress=progress,
                           ctx=ctx, verify_results=verify_results)

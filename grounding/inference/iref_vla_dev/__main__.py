@@ -35,12 +35,14 @@ def main(argv=None) -> int:
         if tokens:
             x.add_argument("--tokenizer-small", required=True, help="the 0.5B's pinned tokenizer folder")
             x.add_argument("--tokenizer-large", help="the 7B's acquired model folder (its pinned tokenizer files)")
-    pf = sub.add_parser("preflight", help="verify the frozen requests read-only and write the receipt")
+    pf = sub.add_parser("preflight", help="verify the frozen requests read-only; write the receipt and token hashes")
     inputs(pf)
-    pf.add_argument("--out", required=True, help="the receipt file to write")
+    pf.add_argument("--workers", type=int, default=8, help="worker processes, by scene (default 8)")
+    pf.add_argument("--out", required=True, help="the new preflight folder (receipt.json, tokens-<model>.jsonl)")
     for name in ("smoke", "run"):
         x = sub.add_parser(name, help=f"A2.3d's accepted {name}, after the preflight")
         inputs(x)
+        x.add_argument("--preflight", required=True, help="the passed preflight folder this step must bind to")
         x.add_argument("--model", required=True, choices=PF.MODEL_KEYS)
         x.add_argument("--model-dir", required=True)
         x.add_argument("--device", default="cuda")
@@ -77,21 +79,25 @@ def main(argv=None) -> int:
     a = p.parse_args(argv)
     try:
         if a.command == "preflight":
-            from ..iref_vla_compare import design as CD
             try:
-                pre = PF.preflight(prep=a.prep, work=a.work, tokenizers=PF.load_tokenizers(_tok_dirs(a), CD.load_policy()))
-                rec = pre["receipt"]
+                res = PF.preflight(prep=a.prep, work=a.work, tokenizer_dirs=_tok_dirs(a), workers=a.workers)
             except PF.PreflightError as e:
                 rec = getattr(e, "receipt", None) or {"passed": False, "problems": e.issues}
-                Path(a.out).write_bytes(encode_json(rec))
+                Path(a.out).mkdir(parents=True, exist_ok=True)
+                (Path(a.out) / "receipt-refused.json").write_bytes(encode_json(rec))
                 raise
-            Path(a.out).write_bytes(encode_json(rec))
-            print(f"preflight passed: {rec['counts']}; tokenizers {json.dumps(rec['models'])[:300]}")
+            PF.write_preflight(res, a.out)
+            rec = res["receipt"]
+            print(f"preflight passed in {rec['duration_s']} s with {rec['workers']} workers: {rec['counts']}")
+            for k, v in rec["models"].items():
+                print(f"  {k}: tokenizer {v['tokenizer_identity']}; {v['requests']} requests; "
+                      f"token IDs equal to the prepared ones: {v['same_token_ids_as_prepared']}")
+            print(f"written to {a.out}")
             return 0
         if a.command in ("smoke", "run"):
             from . import runs as RN
-            common = dict(prep=a.prep, work=a.work, model_key=a.model, model_dir=a.model_dir, tokenizer_dirs=_tok_dirs(a),
-                          device=a.device, out=a.out)
+            common = dict(prep=a.prep, work=a.work, preflight_dir=a.preflight, model_key=a.model, model_dir=a.model_dir,
+                          tokenizer_dirs=_tok_dirs(a), device=a.device, out=a.out)
             if a.command == "smoke":
                 s = RN.smoke(**common)
                 print(f"{a.model}: smoke accepted {s['accepted']}; canaries {[c['accepted'] for c in s['canaries']]}; "

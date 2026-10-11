@@ -479,19 +479,25 @@ def prepare(*, spec, zip_path, inventory_dir, vocabulary, out, work, workers=1, 
                 "target_object_id": r["target_object_id"], "target_offered": {v: r["views"][v]["target_offered"] for v in VIEWS},
                 "parsing_label": r["parsing_label"], "relations": r["relations"], "relation_types": r["relation_types"],
                 "anchor_sets": r["anchor_sets"], "entries": r["entries"], "annotation_ids": r["annotation_ids"]} for r in selected]
-    reasons = Counter(x.split(": ")[-1] for r in rows for x in r["reasons"])
+    reasons = Counter(x.split(": ")[-1] for r in rows for x in r["reasons"])   # one per view and format: occurrences
+    by_parent = {pt: dict(Counter(x for r in rows if r["partition"] == pt for x in {y.split(": ")[-1] for y in r["reasons"]}))
+                 for pt in sorted({r["partition"] for r in rows})}
     by_part = lambda rs, key: dict(Counter(r[key] for r in rs))   # noqa: E731
     counts = {
         "scenes": dict(Counter(r["status"] for r in results)),
         "scenes_retried": sorted(r["scene"] for r in results if r.get("retries")),
         "parents": by_part(rows, "partition"), "eligible_parents": by_part([r for r in rows if r["eligible"]], "partition"),
-        "exclusion_reasons": dict(sorted(reasons.items())),
+        "exclusion_reason_occurrences_view_level": dict(sorted(reasons.items())),
+        "excluded_parents_by_reason": by_parent,
+        "excluded_parents": by_part([r for r in rows if not r["eligible"]], "partition"),
         "target_status": dict(Counter(r["target_status"] for r in rows)),
-        "parsing_label": dict(Counter(r["parsing_label"] for r in rows if r["target_status"] == "unique_target")),
+        "parsing_label_disagreeing": by_part([r for r in rows if r["parsing_label"] == "disagreeing"], "partition"),
+        "parsing_label_disagreeing_selected": by_part([r for r in selected if r["parsing_label"] == "disagreeing"], "partition"),
         "selected_parents": by_part(selected, "partition"),
         "parents_with_all_four_requests": len(built), "requests": len(requests), "request_failures": len(failures),
         "zero_eligible_environments": sorted({s["group"] for s in strata if s["N"] == 0}),
-        "contributing_environments": len({s["group"] for s in strata if s["n"] > 0}),
+        "contributing_environments": {pt: len({s["group"] for s in strata if s["n"] > 0 and s["partition"] == pt})
+                                      for pt in sorted({s["partition"] for s in strata})},
         "desktop_requests": len(desktop)}
     files = {
         "spec.json": spec_bytes, "scenes.jsonl": _jsonl(results), "strata.jsonl": _jsonl(strata),
@@ -522,10 +528,12 @@ def report(m) -> str:
          f"`{m['hashes']['sampling'][:12]}...`; desktop subset `{m['hashes']['desktop'][:12]}...`.", "",
          f"- Scenes: {c['scenes']}; retried after a transient file lock: {c['scenes_retried']}",
          f"- Parents: {c['parents']}; eligible: {c['eligible_parents']}",
-         f"- Exclusion reasons: {c['exclusion_reasons']}",
-         f"- Target status: {c['target_status']}; parsing label (unique targets): {c['parsing_label']}",
+         f"- Exclusion reasons, view-level occurrences (not parents): {c['exclusion_reason_occurrences_view_level']}",
+         f"- Excluded parents: {c['excluded_parents']}; by reason (a parent may have several): {c['excluded_parents_by_reason']}",
+         f"- Target status: {c['target_status']}; disagreeing parsing labels: {c['parsing_label_disagreeing']}; among the "
+         f"selected (kept for unique-target scoring, flagged): {c['parsing_label_disagreeing_selected']}",
          f"- Selected parents: {c['selected_parents']}; with all four requests: {c['parents_with_all_four_requests']}",
          f"- Requests: {c['requests']}; request failures: {c['request_failures']}; desktop subset: {c['desktop_requests']}",
-         f"- Contributing environments: {c['contributing_environments']}; zero-eligible: {c['zero_eligible_environments']}",
+         f"- Contributing environments by partition: {c['contributing_environments']}; zero-eligible: {c['zero_eligible_environments']}",
          "", "Final counts, not planning estimates. Calibration, test and the lab commands stay closed; no Gate B."]
     return "\n".join(L) + "\n"

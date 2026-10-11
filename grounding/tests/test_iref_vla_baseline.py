@@ -162,6 +162,35 @@ def main() -> int:
             except PF.PreflightError as e:
                 ok, msg = any(i["message"].startswith(want) for i in e.issues) and hasattr(e, "receipt"), str(e)[:200]
             check(f"refused with diagnostics, the manifest made consistent: {label}", ok, msg)
+        pdir = PF.write_preflight(pre, tmp / "preflight")
+        tokdir = REPO / "quest-app" / "Assets" / "SecondEyes" / "Models" / "qwen2.5-0.5b-instruct"
+        par = PF.preflight(prep=prep, work=work, tokenizer_dirs={PF.MODEL_KEYS[0]: tokdir}, workers=2, frozen=frozen, progress=quiet)
+        check("the preflight in two spawned worker processes gives the same token rows and bundle bindings as in one",
+              par["tokens"][PF.MODEL_KEYS[0]] == pre["tokens"][PF.MODEL_KEYS[0]]
+              and par["receipt"]["binding"] == pre["receipt"]["binding"] and par["receipt"]["workers"] == 2)
+
+        class Other:
+            """Labelled double: a tokenizer that claims another identity, or this identity with altered token IDs."""
+            def __init__(self, base, identity=None, shift=False):
+                self.base, self.identity, self.shift = base, identity or base.identity, shift
+            def encode(self, text):
+                ids = list(self.base.encode(text))
+                return ids + [0] if self.shift else ids
+        refused = []
+        bent = tmp / "preflight-other-code"
+        shutil.copytree(pdir, bent)
+        rj = json.loads((bent / "receipt.json").read_text(encoding="utf-8"))
+        rj["binding"]["code"]["preflight.py"] = "0" * 64
+        (bent / "receipt.json").write_text(json.dumps(rj), encoding="utf-8")
+        for label, pd, tk in (("code", bent, tok), ("identity", pdir, Other(tok, identity="another tokenizer")),
+                              ("tokens", pdir, Other(tok, shift=True))):
+            try:
+                PF.bound_context(preflight_dir=pd, prep=prep, work=work, model_key=PF.MODEL_KEYS[0], model_dir=tmp,
+                                 tokenizer=tk, frozen=frozen, evidence_fn=lambda *x: {"revision": "fixture", "tie": "labelled", "files": {}})
+            except PF.PreflightError as e:
+                refused.append((label, "E_A26C_BINDING" in str(e)))
+        check("a step refuses a receipt from other code, a tokenizer of another identity, and token IDs that differ from "
+              "the verified ones", refused == [("code", True), ("identity", True), ("tokens", True)], str(refused))
         noref = tmp / "prep-without-answers"
         shutil.copytree(prep, noref)
         shutil.rmtree(noref / "reference_only")
@@ -169,10 +198,11 @@ def main() -> int:
         print("-- the models through A2.3d's accepted runner (labelled fake model)")
         out = tmp / "runs"
         out.mkdir()
-        common = dict(prep=noref, work=work, model_dir=out, device="cpu", tokenizers=toks, evidence_fn=ev, frozen=frozen, progress=quiet)
+        common = dict(prep=noref, work=work, preflight_dir=pdir, model_dir=out, device="cpu", tokenizers=toks, evidence_fn=ev,
+                      frozen=frozen, progress=quiet)
         sm = RN.smoke(**common, model_key=PF.MODEL_KEYS[0], out=out / "smoke-small.json", model_loader=A.loader_for(A.FakeModel()))
-        check("without reference_only the preflight and A2.3d's smoke run: canaries accepted, settings recorded, receipt beside it",
-              sm["accepted"] and sm["canaries"] and (out / "smoke-small.json.preflight.json").is_file())
+        check("without reference_only, a step bound to the preflight runs A2.3d's smoke: canaries accepted, settings recorded, "
+              "the binding record beside it", sm["accepted"] and sm["canaries"] and (out / "smoke-small.json.binding.json").is_file())
         stop = TC.Interrupting(A.FakeModel(), stop_after=5)
         try:
             RN.run(**common, model_key=PF.MODEL_KEYS[0], smoke_record=out / "smoke-small.json", out=out / "small",
@@ -250,6 +280,18 @@ def main() -> int:
               and set(m["counts"]["rules"]) <= {"correct", "resolved_other_object", "ambiguous", "insufficient_information",
                                                  "unsupported", "unsatisfiable", "no_candidate"} | {k for k in m["counts"]["rules"] if k.startswith("technical:")})
         res = AN.analyze(prep=prep, scores=tmp / "scores", out=tmp / "analysis", b=200, desktop=tmp / "desk-cmp")
+        tg = [json.loads(x) for x in (prep / "reference_only" / "targets.jsonl").read_text(encoding="utf-8").splitlines() if x]
+        flagged = sum(1 for x in tg if x["partition"] == "development" and x["parsing_label"] == "disagreeing")
+        st = [json.loads(x) for x in (prep / "strata.jsonl").read_text(encoding="utf-8").splitlines() if x]
+        dz = sorted({s["group"] for s in st if s["N"] == 0 and s["partition"] == "development"})
+        d0 = res["development"]
+        check("reporting corrections: every score carries its parsing-label flag; the analysis states the contributing, "
+              "assigned and zero-eligible development environments and the flagged selected parents, kept for scoring",
+              all("parsing_label" in r for r in srows) and d0["contributing_environments"] == len(d0["environments"])
+              and d0["assigned_environments"] == len({s["group"] for s in st if s["partition"] == "development"})
+              and d0["zero_eligible_environments"] == dz and d0["parsing_label_disagreeing_parents"]["count"] == flagged
+              and "kept for unique-target" in d0["parsing_label_disagreeing_parents"]["treatment"],
+              str((d0["contributing_environments"], d0["assigned_environments"], dz, flagged)))
         dev = res["development"]
         rel = {(x["system"], x["relation"]) for x in dev["by_relation_command_weighted"]}
         check("the analysis: ten system, view and format results, twenty paired differences, legacy separate, coverage, "

@@ -86,6 +86,7 @@ def score(*, prep, rules, runs: dict, out, frozen=PF.FROZEN) -> dict:
         target = t["target_object_id"]
         row = {k: x[k] for k in ("request_id", "partition", "group", "scene", "stratum", "parent_command_id", "view", "format")}
         row["target_offered"] = t["target_offered"][x["view"]]
+        row["parsing_label"] = t["parsing_label"]   # kept for unique-target scoring; the flag is preserved
         row["models"] = {k: {"technical_status": results[k][x["request_id"]]["technical_status"],
                              "choice_code": results[k][x["request_id"]]["choice_code"],
                              "outcome": outcome_of(results[k][x["request_id"]], target)} for k in results}
@@ -101,6 +102,7 @@ def score(*, prep, rules, runs: dict, out, frozen=PF.FROZEN) -> dict:
         r = rules_by[pv]
         rule_rows.append({k: x[k] for k in ("partition", "group", "scene", "stratum", "parent_command_id", "view")}
                          | {"outcome": rules_outcome(r, targets[x["parent_command_id"]]["target_object_id"]),
+                            "parsing_label": targets[x["parent_command_id"]]["parsing_label"],
                             "target_offered": targets[x["parent_command_id"]]["target_offered"][x["view"]], "observations": 1})
     counts = {k: dict(Counter(r["models"][k]["outcome"] for r in rows)) for k in results}
     counts["rules"] = dict(Counter(r["outcome"] for r in rule_rows))
