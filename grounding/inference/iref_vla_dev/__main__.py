@@ -71,11 +71,13 @@ def main(argv=None) -> int:
     sc.add_argument("--run-small", required=True)
     sc.add_argument("--run-large", required=True)
     sc.add_argument("--out", required=True)
+    sc.add_argument("--supersedes", help="an earlier scores folder this one replaces (its manifest hash is recorded)")
     an = sub.add_parser("analyze", help="the frozen analysis: weights, paired environment-cluster bootstrap, report")
     an.add_argument("--prep", required=True)
     an.add_argument("--scores", required=True)
     an.add_argument("--desktop-compare")
     an.add_argument("--out", required=True)
+    an.add_argument("--supersedes", help="an earlier analysis folder this one replaces (kept unchanged; its hash is recorded)")
     a = p.parse_args(argv)
     try:
         if a.command == "preflight":
@@ -133,11 +135,12 @@ def main(argv=None) -> int:
             return 0
         if a.command == "score":
             from . import score as SC
-            m = SC.score(prep=a.prep, rules=a.rules, runs={PF.MODEL_KEYS[0]: a.run_small, PF.MODEL_KEYS[1]: a.run_large}, out=a.out)
+            m = SC.score(prep=a.prep, rules=a.rules, runs={PF.MODEL_KEYS[0]: a.run_small, PF.MODEL_KEYS[1]: a.run_large}, out=a.out,
+                         supersedes=a.supersedes)
             print(f"scored: {json.dumps(m['counts'])}; written to {a.out}")
             return 0
         from . import analysis as AN
-        r = AN.analyze(prep=a.prep, scores=a.scores, out=a.out, desktop=a.desktop_compare)
+        r = AN.analyze(prep=a.prep, scores=a.scores, out=a.out, desktop=a.desktop_compare, supersedes=a.supersedes)
         print((Path(a.out) / "report.md").read_text(encoding="utf-8"))
         return 0
     except EvaluationInputError as e:

@@ -53,7 +53,11 @@ def rules_outcome(rule, target) -> str:
     return rule["outcome"]
 
 
-def score(*, prep, rules, runs: dict, out, frozen=PF.FROZEN) -> dict:
+ALWAYS_B = ("supplementary diagnostic baseline, added after ChatGPT's review: always select 'B', the second object in "
+            "sorted ID order under D104; not a frozen system")
+
+
+def score(*, prep, rules, runs: dict, out, frozen=PF.FROZEN, supersedes=None) -> dict:
     """runs: model key -> that model's run folder. Writes scores.jsonl (one row per request) and rules-scores.jsonl (one
     row per parent and view)."""
     prep, out = Path(prep), Path(out)
@@ -87,6 +91,11 @@ def score(*, prep, rules, runs: dict, out, frozen=PF.FROZEN) -> dict:
         row = {k: x[k] for k in ("request_id", "partition", "group", "scene", "stratum", "parent_command_id", "view", "format")}
         row["target_offered"] = t["target_offered"][x["view"]]
         row["parsing_label"] = t["parsing_label"]   # kept for unique-target scoring; the flag is preserved
+        maps = {k: [list(m[:2]) for m in results[k][x["request_id"]]["mapping"]] for k in results}
+        if len({json.dumps(v) for v in maps.values()}) != 1:
+            _fail(x["request_id"], "the runs recorded different mappings for one request")
+        b = dict((c, o) for c, o in next(iter(maps.values()))).get("B")
+        row["always_b"] = {"outcome": "correct" if b == target else "wrong_object", "object_id": b}
         row["models"] = {k: {"technical_status": results[k][x["request_id"]]["technical_status"],
                              "choice_code": results[k][x["request_id"]]["choice_code"],
                              "outcome": outcome_of(results[k][x["request_id"]], target)} for k in results}
@@ -106,8 +115,11 @@ def score(*, prep, rules, runs: dict, out, frozen=PF.FROZEN) -> dict:
                             "target_offered": targets[x["parent_command_id"]]["target_offered"][x["view"]], "observations": 1})
     counts = {k: dict(Counter(r["models"][k]["outcome"] for r in rows)) for k in results}
     counts["rules"] = dict(Counter(r["outcome"] for r in rule_rows))
+    counts["always_b"] = dict(Counter(r["always_b"]["outcome"] for r in rows))
     files = {"scores.jsonl": encode_jsonl(rows), "rules-scores.jsonl": encode_jsonl(rule_rows)}
-    manifest = {"format_version": 1, "record_type": "a26c_scores_manifest", "run_id": PF.RUN_ID, "frozen": dict(frozen),
+    manifest = {"format_version": 2, "record_type": "a26c_scores_manifest", "run_id": PF.RUN_ID, "frozen": dict(frozen),
+                "always_b": ALWAYS_B,
+                "supersedes": {"scores_manifest_sha256": _sha((Path(supersedes) / "manifest.json").read_bytes())} if supersedes else None,
                 "inputs": {"requests_index_sha256": _sha((prep / "requests-index.jsonl").read_bytes()),
                            "targets_sha256": _sha((prep / "reference_only" / "targets.jsonl").read_bytes()),
                            "rules_manifest_sha256": _sha((Path(rules) / "manifest.json").read_bytes()),

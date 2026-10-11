@@ -61,8 +61,10 @@ def analysis_checks(AN):
     d1, d2 = list(AN.draws(["x", "y", "z"], b=50, seed=AN.SEED)), list(AN.draws(["z", "x", "y"], b=50, seed=AN.SEED))
     check("the draws are fixed by the seed over the sorted environments; each replicate draws E with multiplicity",
           d1 == d2 and all(sum(c.values()) == 3 for c in d1) and any(max(c.values()) > 1 for c in d1))
-    check("percentile intervals interpolate linearly between order statistics (Hyndman-Fan type 7)",
-          AN.quantile([1, 2, 3, 4], 0.5) == 2.5 and math.isclose(AN.quantile([1, 2, 3, 4], 0.025), 1.075))
+    big_n = list(range(10000))
+    check("percentiles by nearest rank (D97): zero-based index ceil(p x n) - 1, exact; 249 and 9,749 of 10,000",
+          AN.quantile([1, 2, 3, 4], 0.5) == 2 and AN.quantile([1, 2, 3, 4], 0.025) == 1
+          and AN.quantile(big_n, 0.025) == 249 and AN.quantile(big_n, 0.975) == 9749)
     reps_a, reps_b = [], []
     agg2 = AN.aggregates({("A", "a"): ["correct", "wrong_object"], ("B", "a"): ["correct"], ("C", "a"): ["ask", "correct"]},
                          {("A", "a"): (5, 2), ("B", "a"): (3, 1), ("C", "a"): (2, 2)})
@@ -300,6 +302,25 @@ def main() -> int:
               and res["legacy-development"].get("note", "").startswith("one environment")
               and ("all", "above") in rel and ("all", "in") in rel and res["coverage"] and len(res["scope"]) >= 5
               and (tmp / "analysis" / "report.md").is_file())
+        sup = dev.get("supplementary_always_b", {})
+        okb = all(r["always_b"]["outcome"] in ("correct", "wrong_object") for r in srows) and all(
+            (r["always_b"]["outcome"] == "correct") == (r["always_b"]["object_id"] == next(
+                x for x in tg if x["parent_command_id"] == r["parent_command_id"])["target_object_id"]) for r in srows)
+        check("always-B: every request scored from its recorded mapping; a separate, labelled supplementary block with four "
+              "results and the four paired 0.5B minus always-B differences; the frozen results unchanged in shape",
+              okb and len(sup.get("systems", {})) == 4 and len(sup.get("paired_differences", [])) == 4
+              and "supplementary" in sup.get("label", "") and len(dev["systems"]) == 10
+              and all(x["first"].startswith(PF.MODEL_KEYS[0]) and x["second"].startswith("always_b") for x in sup["paired_differences"]))
+        tables, cur = [], []
+        for line in (tmp / "analysis" / "report.md").read_text(encoding="utf-8").splitlines():
+            if line.startswith("|"):
+                cur.append(line.count("|"))
+            elif cur:
+                tables.append(cur)
+                cur = []
+        tables += [cur] if cur else []
+        check("every Markdown table in the report has a constant number of columns (system, view and format in their own cells)",
+              tables and all(len(set(tb)) == 1 for tb in tables), str([sorted(set(tb)) for tb in tables if len(set(tb)) > 1][:3]))
         rules_sys = [k for k in dev["systems"] if k.startswith("rules")]
         check("the rules are reported per view only, never per format", rules_sys == ["rules | full_inventory", "rules | source_known_nyu"]
               or sorted(rules_sys) == ["rules | full_inventory", "rules | source_known_nyu"])

@@ -68,11 +68,11 @@ def _jl(p) -> list:
 
 
 def quantile(sorted_xs, p) -> float:
-    """Hyndman-Fan type 7: linear interpolation between order statistics."""
-    h = (len(sorted_xs) - 1) * p
-    lo = math.floor(h)
-    hi = min(lo + 1, len(sorted_xs) - 1)
-    return sorted_xs[lo] + (h - lo) * (sorted_xs[hi] - sorted_xs[lo])
+    """The project's nearest-rank convention (A2.3e, D97): the sorted value at zero-based index ceil(p x n) - 1, the rank
+    computed exactly (p as a decimal fraction): indices 249 and 9,749 for n = 10,000 at 2.5% and 97.5%."""
+    from fractions import Fraction
+    k = math.ceil(Fraction(str(p)) * len(sorted_xs)) - 1
+    return sorted_xs[max(0, min(k, len(sorted_xs) - 1))]
 
 
 # --------------------------------------------------------------------------------------------- aggregates
@@ -191,7 +191,12 @@ def coverage(eligibility, sampling) -> list:
             for s, n in tot.most_common()]
 
 
-def analyze(*, prep, scores, out, b=B, seed=SEED, desktop=None) -> dict:
+ALWAYS_B_LABEL = ("supplementary diagnostic baseline, added after ChatGPT's review (not a frozen system): always select "
+                  "'B', the second object in sorted ID order under D104; reported beside the frozen results, with the paired "
+                  "0.5B minus always-B differences on the same bootstrap draws")
+
+
+def analyze(*, prep, scores, out, b=B, seed=SEED, desktop=None, supersedes=None) -> dict:
     prep, scores, out = Path(prep), Path(scores), Path(out)
     if out.exists():
         raise EvaluationInputError([issue(str(out), "E_A26C_OUTPUT_EXISTS", "the output folder exists")])
@@ -211,13 +216,20 @@ def analyze(*, prep, scores, out, b=B, seed=SEED, desktop=None) -> dict:
     result = {"format_version": 1, "record_type": "a26c_analysis", "run_id": PF.RUN_ID,
               "configuration": {"replicates": b, "seed": seed, "generator": "Python random.Random(seed), randrange over "
                                 "the sorted contributing development environments, E draws per replicate",
-                                "interval": "95% percentile, Hyndman-Fan type 7", "sums": "math.fsum",
+                                "interval": "95% percentile by nearest rank: the sorted replicate at zero-based index "
+                                            "ceil(p x n) - 1, computed exactly (249 and 9,749 of 10,000); the A2.3e/D97 convention",
+                                "sums": "math.fsum",
                                 "estimators": ["command_weighted (N/n)", "environment_weighted (eligible relation "
                                                "proportions restored, equal environments)", "unweighted (stratified sample)"]},
               "scope": SCOPE, "coverage": coverage(_jl(prep / "reference_only" / "eligibility.jsonl"), sampling)}
     for part in ("development", "legacy-development"):
         obs = observations(srows, rrows, part)
         aggs = {c: aggregates(obs[c], strata) for c in _combos() if c in obs}
+        bobs = defaultdict(lambda: defaultdict(list))
+        for r in srows:
+            if r["partition"] == part and "always_b" in r:
+                bobs[("always_b", r["view"], r["format"])][(r["group"], r["stratum"])].append(r["always_b"]["outcome"])
+        baggs = {c: aggregates(v, strata) for c, v in bobs.items()}
         block = {"systems": {}, "environments": sorted({e for a in aggs.values() for e in a})}
         block["contributing_environments"] = len(block["environments"])
         block["assigned_environments"] = len({s["group"] for s in srecs if s.get("partition") == part})
@@ -238,10 +250,14 @@ def analyze(*, prep, scores, out, b=B, seed=SEED, desktop=None) -> dict:
                 for (e, s), outs in obs[c].items():
                     N, n = strata[(e, s)]
                     rel_aggs.setdefault((c, s), {})[e] = (N / n * sum(o == "correct" for o in outs), N)
+            breps = {c: {k: [] for k in ("command_weighted", "environment_weighted", "unweighted")} for c in baggs}
             for cnt in draws(envs, b, seed):
                 for c, agg in aggs.items():
                     for k, v in estimate(agg, cnt).items():
                         reps[c][k].append(v)
+                for c, agg in baggs.items():
+                    for k, v in estimate(agg, cnt).items():
+                        breps[c][k].append(v)
                 for (c, s), ea in rel_aggs.items():
                     den = math.fsum(cnt.get(e, 0) * d for e, (_, d) in ea.items())
                     per_rel[(c, s)].append(math.fsum(cnt.get(e, 0) * x for e, (x, _) in ea.items()) / den if den else None)
@@ -264,11 +280,35 @@ def analyze(*, prep, scores, out, b=B, seed=SEED, desktop=None) -> dict:
                 by_rel.append({"system": "all", "relation": s, "command_weighted": None, "interval": None,
                                "note": "unavailable: no eligible case"})
             block["by_relation_command_weighted"] = by_rel
+            if baggs:
+                sup = {"label": ALWAYS_B_LABEL, "systems": {}, "paired_differences": []}
+                for c, agg in baggs.items():
+                    sup["systems"][_name(c)] = {"estimate": estimate(agg), "outcome_rates_command_weighted": categories(agg),
+                                                "interval": {k: interval(v) for k, v in breps[c].items()},
+                                                "parents": int(sum(a["n"] for a in agg.values()))}
+                for c in baggs:
+                    m = (MODEL_KEYS[0], c[1], c[2])
+                    if m in reps:
+                        pt = {k: block["systems"][_name(m)]["estimate"][k] - sup["systems"][_name(c)]["estimate"][k] for k in reps[m]}
+                        sup["paired_differences"].append({"first": _name(m), "second": _name(c), "difference": pt,
+                                                          "interval": {k: interval([x - y for x, y in zip(reps[m][k], breps[c][k])])
+                                                                       for k in reps[m]}})
+                block["supplementary_always_b"] = sup
         else:
             block["note"] = "one environment: point estimates only, no environment-level interval"
+            if baggs:
+                block["supplementary_always_b"] = {"label": ALWAYS_B_LABEL, "systems": {
+                    _name(c): {"estimate": estimate(agg), "parents": int(sum(a["n"] for a in agg.values()))} for c, agg in baggs.items()}}
         result[part] = block
     if desktop is not None:
         result["desktop_comparison"] = json.loads((Path(desktop) / "summary.json").read_text(encoding="utf-8"))
+    result["analysis_version"] = "a26c.analysis.v2"
+    result["corrections"] = ["percentiles by the nearest-rank convention (A2.3e, D97), replacing linear interpolation",
+                             "report tables render system, view and format as separate columns",
+                             "always-B added as a supplementary diagnostic baseline, labelled, with paired differences"]
+    if supersedes is not None:
+        result["supersedes"] = {"analysis_sha256": _sha((Path(supersedes) / "analysis.json").read_bytes()),
+                                "note": "the original analysis is kept unchanged; this regeneration uses the saved outputs only"}
     result["inputs"] = {"scores_manifest_sha256": _sha((scores / "manifest.json").read_bytes()),
                         "preparation_manifest_sha256": _sha((prep / "manifest.json").read_bytes()),
                         "frozen": dict(PF.FROZEN)}
@@ -284,34 +324,63 @@ def _p(x):
     return "n/a" if x is None else f"{100 * x:.1f}%"
 
 
+def _cells(name) -> str:
+    """'system | view | format' as three table cells (the rules have no format)."""
+    parts = name.split(" | ")
+    return " | ".join(parts + ["(both)"] * (3 - len(parts)))
+
+
+def _ci(e, i, k):
+    return f"{_p(e[k])} ({_p(i[k]['low'])} to {_p(i[k]['high'])})" if i else _p(e[k])
+
+
 def render(r) -> str:
     L = ["# A2.6c baseline results (development and legacy reported separately)", ""]
+    if r.get("corrections"):
+        L += ["Regenerated from the saved outputs with these corrections: " + "; ".join(r["corrections"]) + ".", ""]
     L += [f"- {s}" for s in r["scope"]] + [""]
     d = r["development"]
     L += [f"Development: {d['contributing_environments']} contributing environments of {d['assigned_environments']} assigned; "
           f"zero-eligible: {d['zero_eligible_environments'] or 'none'}. Selected parents with disagreeing parsing labels: "
-          f"{d['parsing_label_disagreeing_parents']['count']} ({d['parsing_label_disagreeing_parents']['treatment']}).", ""]
-    L += ["## Development: accuracy by system, view and format", "",
-          "| System | Command-weighted (95% CI) | Environment-weighted (95% CI) | Unweighted sample | Parents |",
-          "|---|---|---|---|---|"]
+          f"{d['parsing_label_disagreeing_parents']['count']} ({d['parsing_label_disagreeing_parents']['treatment']}).", "",
+          "## Development: accuracy by system, view and format", "",
+          "| System | View | Format | Command-weighted (95% CI) | Environment-weighted (95% CI) | Unweighted sample | Parents |",
+          "|---|---|---|---|---|---|---|"]
     for name, s in sorted(d["systems"].items()):
         e, i = s["estimate"], s.get("interval", {})
-        ci = lambda k: f"{_p(e[k])} ({_p(i[k]['low'])} to {_p(i[k]['high'])})" if i else _p(e[k])  # noqa: E731
-        L.append(f"| {name} | {ci('command_weighted')} | {ci('environment_weighted')} | {_p(e['unweighted'])} | {s['parents']} |")
+        L.append(f"| {_cells(name)} | {_ci(e, i, 'command_weighted')} | {_ci(e, i, 'environment_weighted')} | "
+                 f"{_p(e['unweighted'])} | {s['parents']} |")
     L += ["", "## Development: paired differences (first minus second, command-weighted; 95% CI)", "",
-          "| First | Second | Difference (95% CI) |", "|---|---|---|"]
+          "| First (system, view, format) | Second (system, view, format) | Difference (95% CI) |", "|---|---|---|"]
     for x in d["paired_differences"]:
         i = x["interval"]["command_weighted"]
-        L.append(f"| {x['first']} | {x['second']} | {_p(x['difference']['command_weighted'])} ({_p(i['low'])} to {_p(i['high'])}) |")
+        L.append(f"| {x['first'].replace(' | ', ', ')} | {x['second'].replace(' | ', ', ')} | "
+                 f"{_p(x['difference']['command_weighted'])} ({_p(i['low'])} to {_p(i['high'])}) |")
+    sup = d.get("supplementary_always_b")
+    if sup:
+        L += ["", "## Supplementary diagnostic: always-B", "", sup["label"] + ".", "",
+              "| System | View | Format | Command-weighted (95% CI) | Environment-weighted (95% CI) | Unweighted sample | Parents |",
+              "|---|---|---|---|---|---|---|"]
+        for name, s in sorted(sup["systems"].items()):
+            e, i = s["estimate"], s.get("interval", {})
+            L.append(f"| {_cells(name)} | {_ci(e, i, 'command_weighted')} | {_ci(e, i, 'environment_weighted')} | "
+                     f"{_p(e['unweighted'])} | {s['parents']} |")
+        L += ["", "| First (system, view, format) | Second | Difference, command-weighted (95% CI) |", "|---|---|---|"]
+        for x in sup["paired_differences"]:
+            i = x["interval"]["command_weighted"]
+            L.append(f"| {x['first'].replace(' | ', ', ')} | {x['second'].replace(' | ', ', ')} | "
+                     f"{_p(x['difference']['command_weighted'])} ({_p(i['low'])} to {_p(i['high'])}) |")
     L += ["", "## Coverage of the development commands by relation", "",
           "| Relation | Parents | Eligible | Selected | Performance |", "|---|---|---|---|---|"]
     L += [f"| {c['relation']} | {c['parents']} | {c['eligible']} | {c['selected']} | {c['performance']} |" for c in r["coverage"]]
     lg = r.get("legacy-development", {})
     if lg.get("systems"):
         L += ["", "## Legacy (scannet:scene0010; one environment, point estimates)", "",
-              "| System | Command-weighted | Environment-weighted | Unweighted |", "|---|---|---|---|"]
-        L += [f"| {n} | {_p(s['estimate']['command_weighted'])} | {_p(s['estimate']['environment_weighted'])} | "
-              f"{_p(s['estimate']['unweighted'])} |" for n, s in sorted(lg["systems"].items())]
+              "| System | View | Format | Command-weighted | Environment-weighted | Unweighted |", "|---|---|---|---|---|---|"]
+        rows = dict(lg["systems"])
+        rows.update((lg.get("supplementary_always_b") or {}).get("systems", {}))
+        L += [f"| {_cells(n)} | {_p(s['estimate']['command_weighted'])} | {_p(s['estimate']['environment_weighted'])} | "
+              f"{_p(s['estimate']['unweighted'])} |" for n, s in sorted(rows.items())]
     if "desktop_comparison" in r:
         dc = r["desktop_comparison"]
         L += ["", f"## Desktop Q8_0/U comparison ({dc['label']})", "",
