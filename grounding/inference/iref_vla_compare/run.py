@@ -152,15 +152,17 @@ def _canaries(model, ctx) -> list:
 
 
 def smoke(*, requests, model_key, model_dir, tokenizer_dir, device, out, model_loader=None, tokenizer=None,
-          evidence_fn=None) -> dict:
-    """The resource smoke check: canaries and the three longest requests, then the frozen settings record."""
+          evidence_fn=None, ctx=None) -> dict:
+    """The resource smoke check: canaries and the three longest requests, then the frozen settings record. ctx: a
+    context another verified preflight built (A2.6c); None reads and verifies A2.3d's request folder, as before."""
     out = Path(out)
     if out.exists():
         _fail("E_EVAL_OUTPUT_EXISTS", [(str(out), "the smoke record already exists")])
     if device != "cuda" and model_loader is None:
         _fail("E_COMPARE_DEVICE", [("device", "the smoke check needs --device cuda (no CPU fallback)")])
-    ctx = setup(requests=requests, model_key=model_key, model_dir=model_dir, tokenizer_dir=tokenizer_dir,
-                tokenizer=tokenizer, evidence_fn=evidence_fn)
+    if ctx is None:
+        ctx = setup(requests=requests, model_key=model_key, model_dir=model_dir, tokenizer_dir=tokenizer_dir,
+                    tokenizer=tokenizer, evidence_fn=evidence_fn)
     t0 = time.perf_counter()
     model = (model_loader or TorchModel.load)(model_dir, device, ctx["model_proto"])
     load_ms = (time.perf_counter() - t0) * 1000
@@ -245,14 +247,16 @@ def _append(path: Path, row) -> None:
 
 
 def run_compare(*, requests, model_key, model_dir, tokenizer_dir, device, smoke_record, out, resume=False,
-                model_loader=None, tokenizer=None, evidence_fn=None, progress=print) -> dict:
-    """One model's run over all 1,024 requests; returns the summary (exit 1 if any request is excluded or failed)."""
+                model_loader=None, tokenizer=None, evidence_fn=None, progress=print, ctx=None, verify_results=None) -> dict:
+    """One model's run over all its requests; returns the summary (exit 1 if any request is excluded or failed). ctx and
+    verify_results: another verified preflight's context and its results readback (A2.6c); None keeps A2.3d's own."""
     out = output.refuse_existing(out)
     partial = out.parent / f"{out.name}.partial"
     if device != "cuda" and model_loader is None:
         _fail("E_COMPARE_DEVICE", [("device", "the run needs --device cuda (no CPU fallback)")])
-    ctx = setup(requests=requests, model_key=model_key, model_dir=model_dir, tokenizer_dir=tokenizer_dir,
-                tokenizer=tokenizer, evidence_fn=evidence_fn)
+    if ctx is None:
+        ctx = setup(requests=requests, model_key=model_key, model_dir=model_dir, tokenizer_dir=tokenizer_dir,
+                    tokenizer=tokenizer, evidence_fn=evidence_fn)
     sm_path = Path(smoke_record)
     try:
         sm_bytes = sm_path.read_bytes()
@@ -346,7 +350,7 @@ def run_compare(*, requests, model_key, model_dir, tokenizer_dir, device, smoke_
         for k, v in files.items():
             output._write_file(staging / k, v)
         output._write_file(staging / "manifest.json", encode_json(manifest))
-        bad = verify_compare_results(staging, ctx["req"])
+        bad = (verify_results or verify_compare_results)(staging, ctx["req"])
         if bad:
             raise RuntimeError("the results failed readback: " + "; ".join(bad[:5]))
         os.rename(staging, out)
