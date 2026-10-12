@@ -7,7 +7,7 @@ command record. They must be byte for byte the PC's. This page covers:
 - the check that compares the headset's with them;
 - the commands.
 
-The design is D104 (confirmed by the project lead; ChatGPT's review pending). The record is
+The design is D104 (confirmed by the project lead; supported by ChatGPT's review of 9 October). The record is
 `notes/phases/A2.5_d2_prompting.md`.
 
 ## The headset's code

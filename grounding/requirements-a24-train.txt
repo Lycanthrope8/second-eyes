@@ -1,0 +1,14 @@
+# A2.4's training environment (.venv-train, D109): separate from the accepted evaluation environment (.venv), which
+# stays unchanged. transformers, tokenizers and torch equal the RTX PC's accepted pins; PEFT and accelerate (Apache-2.0)
+# are the only additions, each released at least two weeks before 11 October 2026.
+#
+# Install torch first, from PyTorch's CUDA 12.8 index (the RTX PC's accepted build):
+#   python -m pip install torch==2.11.0 --index-url https://download.pytorch.org/whl/cu128
+# then:
+#   python -m pip install -r grounding/requirements-a24-train.txt
+# and record the result:  python -m pip freeze > <run folder>\pip-freeze-train.txt
+transformers==4.57.6
+tokenizers==0.22.2
+peft==0.21.0
+accelerate==1.15.0
+jsonschema==4.26.0

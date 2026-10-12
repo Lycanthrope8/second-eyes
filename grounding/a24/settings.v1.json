@@ -1,0 +1,169 @@
+{
+ "format_version": 1,
+ "record_type": "a24_training_settings",
+ "settings_id": "a24.settings.v1",
+ "decision": "D109",
+ "status": "implementation proposal, frozen in the training specification before any fit; reviewed by ChatGPT with the Stage A package",
+ "base": {
+  "hf_repo": "Qwen/Qwen2.5-0.5B-Instruct",
+  "hf_revision": "7ae557604adf67be50417f59c2c2f167def9a775",
+  "description": "grounding/models/qwen2.5-0.5b-instruct.json"
+ },
+ "environment": {
+  "training": ".venv-train, separate from the accepted evaluation .venv",
+  "pins": {
+   "python": "3.12.10",
+   "torch": "2.11.0+cu128",
+   "transformers": "4.57.6",
+   "tokenizers": "0.22.2",
+   "peft": "0.21.0",
+   "accelerate": "1.15.0",
+   "jsonschema": "4.26.0"
+  },
+  "why": "transformers, tokenizers and torch equal the accepted evaluation environment's; PEFT and accelerate (Apache-2.0) are the only additions, each released at least two weeks before 11 October 2026"
+ },
+ "configurations": [
+  {
+   "name": "direct.coordinates_v2",
+   "design": "direct",
+   "format": "coordinates_v2"
+  },
+  {
+   "name": "direct.coordinates_relations_v2",
+   "design": "direct",
+   "format": "coordinates_relations_v2"
+  },
+  {
+   "name": "parser",
+   "design": "parser",
+   "format": null
+  }
+ ],
+ "model_name": "a24.{configuration}.s{seed_index}",
+ "lora": {
+  "r": 16,
+  "alpha": 32,
+  "dropout": 0.05,
+  "bias": "none",
+  "target_modules": [
+   "q_proj",
+   "k_proj",
+   "v_proj",
+   "o_proj",
+   "gate_proj",
+   "up_proj",
+   "down_proj"
+  ],
+  "init": "PEFT's default (A Kaiming-uniform, B zero) after torch.manual_seed(seed): identical for both direct formats at one seed"
+ },
+ "optimizer": {
+  "name": "AdamW (torch.optim)",
+  "lr": 0.0002,
+  "betas": [
+   0.9,
+   0.999
+  ],
+  "eps": 1e-08,
+  "weight_decay": 0.0,
+  "max_grad_norm": 1.0
+ },
+ "schedule": {
+  "warmup_fraction": 0.05,
+  "warmup": "linear from 0 over ceil(0.05 x total optimizer steps)",
+  "decay": "linear to 0 at the last optimizer step"
+ },
+ "batch": {
+  "micro_batch": 1,
+  "accumulation": 16,
+  "loss": "per example: mean cross-entropy over its supervised tokens; each optimizer step averages its examples equally (the last step of an epoch may hold fewer)"
+ },
+ "epochs": 3,
+ "precision": {
+  "weights_and_compute": "float32 throughout",
+  "autocast": false,
+  "grad_scaler": "not applicable (float32)",
+  "tf32": false,
+  "attention": "eager, as the accepted evaluation runner",
+  "gradient_checkpointing": false
+ },
+ "context": {
+  "max_tokens": 8192,
+  "truncation": "none: preparation refuses an example over the limit; nothing is shortened"
+ },
+ "supervision": {
+  "direct": "the answer letter only: one token, the final prompt position predicting it (the accepted runner scores that position); full-vocabulary cross-entropy",
+  "parser": "the semantic string's tokens and the end token <|im_end|>; the prompt is masked"
+ },
+ "seeds": [
+  20261011,
+  20261012,
+  20261013
+ ],
+ "data_order": "per epoch, a permutation of the configuration's example keys (sorted) by random.Random(int(SHA-256('a24/order' LF seed LF epoch)[:16], 16)): the same order for both direct formats at one seed",
+ "checkpoints": {
+  "cadence": "the end of each epoch (3 per fit)",
+  "resume_state_every_optimizer_steps": 20
+ },
+ "selection": {
+  "direct": "inner-validation target accuracy over the retained validation rows, by the accepted decision rule (the largest offered final-position logit; an exact tie gives K)",
+  "parser": "inner-validation resolved-target accuracy over the same retained rows (one decode per parent, resolved in each retained view)",
+  "tie_break": "the earlier checkpoint",
+  "stopping": "a fixed 3 epochs; no early stop; every epoch's checkpoint is evaluated",
+  "denominator": "the retained inner-validation rows: each validation-cohort parent's views whose own check passed (the same rows for the direct formats and the parser); every row counts once (unweighted). A2.6's N/n estimators are not used for the inner validation, where some eligible strata have no selected parent"
+ },
+ "continuation": {
+  "after": "seed 1 of all three configurations",
+  "conditions": [
+   "every planned optimizer step completed with a finite loss",
+   "every checkpoint and resume state written and its hashes read back",
+   "the inner validation completed for every checkpoint with no technical failure (direct: every forward completed; parser: every decode returned one of the four declared outcomes)",
+   "for the parser, the independent reader agrees with the decoder on every completed decode",
+   "the merge check passed and the fine-tuned identity verifies",
+   "the merged model passes the accepted runner's smoke step through the fine-tuned identity path"
+  ],
+  "never": "accuracy: no configuration or seed is dropped, repeated or replaced for its accuracy"
+ },
+ "merge": {
+  "procedure": "PEFT merge_and_unload in float32, saved as safetensors with the pinned tokenizer files and the base config",
+  "check": {
+   "direct_rows": 16,
+   "max_abs_offered_logit_difference": 0.001,
+   "same_decisions": true,
+   "parser_parents": 8,
+   "same_tokens": true,
+   "what": "the adapter-loaded model against the merged model, same checkpoint, same device"
+  }
+ },
+ "parser_prompt": {
+  "wrapper": {
+   "before_system": "<|im_start|>system\n",
+   "between": "<|im_end|>\n<|im_start|>user\n",
+   "after_user": "<|im_end|>\n<|im_start|>assistant\n"
+  },
+  "system_message": "Rewrite the command as one query line and reply with nothing else.\nForm: TARGET | RELATION | ANCHOR, or TARGET | between | ANCHOR | ANCHOR.\nTARGET and ANCHOR: the object's category as the command writes it, then its colour in brackets when the command gives one, for example chair [white].\nRELATION: closest N or farthest N, where N is 1, 2 or 3 (closest, second closest, third closest), or near, below or on.\nColours: black, blue, brown, gray, maroon, navy, orange, purple, white, yellow.",
+  "user": "the command text, exactly as the derived command record holds it",
+  "categories": "not listed: the 893 labels are enforced by the constrained decoder's grammar"
+ },
+ "cohort": {
+  "fitting_environments": 120,
+  "validation_environments": 25,
+  "fitting_cap_per_environment": 9,
+  "validation_cap_per_environment": 8,
+  "fitting_minimum": 900,
+  "validation_minimum": 180,
+  "reserve_batch_environments": 10,
+  "reserve_batches_at_most": 4
+ },
+ "analysis": {
+  "bootstrap": "A2.6c's, unchanged: random.Random(20261010), B = 10,000, paired by environment, nearest-rank 95% percentile intervals",
+  "weights": "A2.6c's command-weighted (N/n) and environment-weighted estimators over the frozen development benchmark",
+  "seeds": "each seed reported with its environment interval; the three seeds' mean (its own environment interval) and their spread (minimum, maximum, standard deviation of the point estimates) reported apart: seed variation is never folded into the environment interval",
+  "supplementary": "a coverage diagnostic, specified before any new result and labelled supplementary: each system's accuracy within each of the rules' saved per-row outcomes (A2.6c's rule scores), per view and format; the headline denominators are unchanged; not a causal estimate of the training exclusions"
+ },
+ "evaluation": {
+  "direct_primary": "each direct configuration's primary, matched comparison is its trained format",
+  "cross_format": "the same run's other-format rows, which the accepted runner's readback requires, are reported only as a predeclared cross-format transfer analysis, labelled as such; a checkpoint's reported format is fixed by its configuration, never chosen after seeing accuracy",
+  "parser": "one decode per parent per selected checkpoint, resolved in both views; reused in comparisons with both direct formats without counting as independent observations",
+  "partitions": "development and legacy reported separately; calibration, test and the lab commands stay closed"
+ }
+}

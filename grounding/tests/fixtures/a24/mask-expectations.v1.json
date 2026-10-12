@@ -1,0 +1,114 @@
+{
+ "format_version": 1,
+ "record_type": "a24_mask_expectations",
+ "written_by": "the independent Oracle in test_a24_language.py (not the decoder)",
+ "tokenizer": "Qwen/Qwen2.5-0.5B-Instruct@7ae5576 (pinned files)",
+ "language_spec_sha256": "a233b4a7f21a610f0b57ca0e3631aa1057d8697e63766ec9ff229cbdc8a69a35",
+ "masks": {
+  "": {
+   "count": 782,
+   "eos": false,
+   "ids_sha256": "dd66cbf8051696a63aeb702efacdeaa5615cb660e0494b3b7e7e14ee448ef738"
+  },
+  "ch": {
+   "count": 25,
+   "eos": false,
+   "ids_sha256": "ac6c19faacfb68bf852fa32be30057161228f4c3e22e9af01aa8d8bca23f2864"
+  },
+  "chair": {
+   "count": 3,
+   "eos": false,
+   "ids_sha256": "54775695e7b9fa6a17efebf01237363ba08c8d9ab649fbf9d2f6217fb75ea87f"
+  },
+  "chair ": {
+   "count": 10,
+   "eos": false,
+   "ids_sha256": "cd6811108c39efb4b27d00e866cb40789ac10c38e81335ae6a4296cbd26ad7ff"
+  },
+  "chair |": {
+   "count": 23,
+   "eos": false,
+   "ids_sha256": "7810a1f0d8b57fc873769ed695b69a950f395f7b5e07bcf5452b30bd1089fe7e"
+  },
+  "chair | ": {
+   "count": 20,
+   "eos": false,
+   "ids_sha256": "9031c97ac66d38e2f65c4ca65a0716784eb49cab33469ba0122163f683c7d887"
+  },
+  "chair | be": {
+   "count": 5,
+   "eos": false,
+   "ids_sha256": "e4f5d9c1e1cd1e5e2d14f4e6ad77dfcc1100d5ae4814f7d979d2f099f6d0a6e9"
+  },
+  "chair | between | ": {
+   "count": 782,
+   "eos": false,
+   "ids_sha256": "dd66cbf8051696a63aeb702efacdeaa5615cb660e0494b3b7e7e14ee448ef738"
+  },
+  "chair | between | door": {
+   "count": 35,
+   "eos": false,
+   "ids_sha256": "0d8b4acfbce49ee7acc45583e10ceb12a58f4823dbc22fdef32ac9f289a9b5af"
+  },
+  "chair | between | door | ": {
+   "count": 782,
+   "eos": false,
+   "ids_sha256": "dd66cbf8051696a63aeb702efacdeaa5615cb660e0494b3b7e7e14ee448ef738"
+  },
+  "orange": {
+   "count": 11,
+   "eos": false,
+   "ids_sha256": "9f27584a9ce97b537051b747ec43a36ed3940b9b9997461035519fb49e917210"
+  },
+  "orange juicer [": {
+   "count": 34,
+   "eos": false,
+   "ids_sha256": "46361587aec4c5052b7070d63aa5f1a8f470514d43b5bd4cd4e7d86c7b500c2b"
+  },
+  "orange juicer [or": {
+   "count": 4,
+   "eos": false,
+   "ids_sha256": "7e0787e579130b55f99308f85b45652b86b65bfb40855345f503356ce5e18b1d"
+  },
+  "chair [white]": {
+   "count": 2,
+   "eos": false,
+   "ids_sha256": "4663bf7a1e88fcea2b3d8136ac38deab4ec4177698379578456acf0be3ff5b5a"
+  },
+  "chair | near | table": {
+   "count": 11,
+   "eos": true,
+   "ids_sha256": "196058b912699147ca5448ad713418470171a57d4c7b3ad9bff70778a40971e4"
+  },
+  "chair | closest ": {
+   "count": 3,
+   "eos": false,
+   "ids_sha256": "ce0a4fd9e970ec58f6dca3c694280e29b93eb1e4b633ff52d7c9f573030606d2"
+  },
+  "chair | closest 2": {
+   "count": 2,
+   "eos": false,
+   "ids_sha256": "4663bf7a1e88fcea2b3d8136ac38deab4ec4177698379578456acf0be3ff5b5a"
+  },
+  "magic 8": {
+   "count": 4,
+   "eos": false,
+   "ids_sha256": "48a09d2415cf6002ea5f42a4bd64a0fba426cdbc72366b81700a9da9ddce1670"
+  },
+  "chair | on | night stand [black": {
+   "count": 1,
+   "eos": false,
+   "ids_sha256": "39fa9ec190eee7b6f4dff1100d6343e10918d044c75eac8f9e9a2596173f80c9"
+  },
+  "chair | near | table ": {
+   "count": 13,
+   "eos": false,
+   "ids_sha256": "7b389cf94e69afa195d74cc0df2eb9405df27a1a1886df8ac6f6c456aad71c4c"
+  },
+  "chair | farthest 3 | orange": {
+   "count": 11,
+   "eos": true,
+   "ids_sha256": "ad49c5b01143faae0a49dc2848d5f7eacfe595fcecc2c05fd8e59a9562f8012b"
+  }
+ }
+}

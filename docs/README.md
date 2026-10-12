@@ -24,6 +24,8 @@ How things work now. Edited in place when something changes; log the change and 
 - `quest-prompting.md`: A2.5 delivery 2: the headset's prompt builder, the PC's goldens (snapshots, prompt asset, token IDs, float32 references), the on-device golden check and the commands
 - `quest-interactive.md`: A2.5 delivery 3: the interactive pipeline on the headset (one request type for every intake, the exact-prefix cache as a switch, structured outcomes), the Interactive check and `interactive-pull`; delivery 4's session (ADB inbox, presets, cancel, `inbox-send`, `outbox-pull`); delivery 5's measurement (`inbox-batch`, `measure-report`)
 - `detector.md`: the on-device object detector (A1.10b, A1.10c): the replaceable detector package, the PC reference and parity rule, the Unity setup and the headset checks
+- `iref-vla-development.md`: the A2.6 modules: the release reader (with A2.4's training mode), the development preparation, the baseline execution and analysis
+- `a24-training.md`: A2.4: the semantic language and constrained decoder, labels, preparation, training, the fine-tuned identity and evaluation
 - `setup/quest3.md`: the headset's exact state and how to undo every change
 - `setup/quest-model.md`: how a language model gets into the Quest app
 - `plan/revision-3.1-supplement.md`: the Revision 3.1 supplement's text, verbatim (D63); unlike the rest of `docs/`, never edited in place (`conventions.md`, rule 11)

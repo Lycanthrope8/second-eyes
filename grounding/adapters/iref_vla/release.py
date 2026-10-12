@@ -115,6 +115,7 @@ OFFICIAL_SPLITS = {
                     "scannetv2_test.txt": (1300, "0214c6a3b1ee516ad653393b0321e7c0394c7662a4b3702eac1ddd7fbc00f7e0")}},
 }
 LEGACY_GROUPS = frozenset({"scannet:scene0010"})
+CONVERTIBLE = ("development", "legacy-development")   # A2.6's partitions; the default for every caller
 NO_REGION = "-1"   # Unity marks objects outside every region with region -1; they belong to no region's selection
 FINGERPRINT_MIN_OBJECTS = 3
 BOX = ("object_bbox_cx", "object_bbox_cy", "object_bbox_cz", "object_bbox_xlength", "object_bbox_ylength", "object_bbox_zlength")
@@ -692,13 +693,28 @@ ROLE_KINDS = {"objects": "object_result.csv", "regions": "region_result.csv", "g
               "statements": "referential_statements.json"}
 
 
-def release_identity(source, scene, files, partition) -> object:
+def _permitted(scene, partition, training) -> str | None:
+    """None for A2.6's default partitions; the cohort for an authorized A2.4 training scene; otherwise a refusal."""
+    if partition in CONVERTIBLE:
+        if training is not None:
+            raise ReleaseError(f"{scene}: a training authorization is only for training scenes")
+        return None
+    if partition == "training" and isinstance(training, TrainingAuthorization):
+        return training.cohort_of(scene)
+    if partition == "training":
+        raise ReleaseError(f"{scene} is in 'training'; training scenes are converted only under A2.4's training "
+                           f"authorization (TrainingAuthorization), never by default")
+    raise ReleaseError(f"{scene} is in {partition!r}; only development and legacy scenes are converted, and training "
+                       f"scenes under A2.4's authorization; {partition!r} is never converted")
+
+
+def release_identity(source, scene, files, partition, training=None) -> object:
     """The conversion identity of one release scene: A2.2a's converter and validation, renamed for the scene. A2.6
-    converts ScanNet scenes of the development partition and the legacy group only; closed partitions are never read."""
+    converts ScanNet scenes of the development partition and the legacy group only; closed partitions are never read.
+    A2.4 (D109) also converts training scenes, only under a TrainingAuthorization, with their own provenance text."""
     if source != "Scannet" or not re.fullmatch(SOURCES[source][2], scene):
         raise ReleaseError(f"A2.6 converts ScanNet release scenes only, not {source}/{scene}")
-    if partition not in ("development", "legacy-development"):
-        raise ReleaseError(f"{scene} is in {partition!r}; only development and legacy scenes are converted")
+    cohort = _permitted(scene, partition, training)
     P = V1C.PINNED_IDENTITY
     fl = {role: {"name": f"{scene}_{kind}", "path": f"{SOURCE_ZIPS[source]}:{source}/{scene}/{scene}_{kind}",
                  "bytes": len(files[kind]), "sha256": _sha(files[kind])} for role, kind in ROLE_KINDS.items()}
@@ -713,7 +729,11 @@ def release_identity(source, scene, files, partition) -> object:
                f"upstream; not recentred)",
         SOURCE_DESCRIPTION=f"IRef-VLA's ScanNet release scene {scene} ({SOURCE_ZIPS[source]}): published annotations of "
                            f"a ScanNet scan, used under the project lead's ScanNet Terms of Use. Development material "
-                           f"({partition}), not held-out evaluation data",
+                           f"({partition}), not held-out evaluation data" if cohort is None else
+                           f"IRef-VLA's ScanNet release scene {scene} ({SOURCE_ZIPS[source]}): published annotations of "
+                           f"a ScanNet scan, used under the project lead's ScanNet Terms of Use. A2.4 training material "
+                           f"(the {cohort} cohort of the frozen training partition), not development or held-out "
+                           f"evaluation data",
         MAP_DESCRIPTION=f"IRef-VLA ScanNet release scene {scene}: raw source labels to NYU labels, used as both the "
                         f"standardized and the model-visible label. The model vocabulary is the whole pinned NYU "
                         f"vocabulary except its 'unknown' sentinel",
@@ -723,15 +743,76 @@ def release_identity(source, scene, files, partition) -> object:
     return V1C.Identity(**values)
 
 
-def import_release_scene(source, scene, files, vocabulary_bytes, out, *, partition, expected_sha256) -> dict:
+class TrainingAuthorization:
+    """A2.4's explicit permission to convert training scenes (D109), grounded in the frozen records, not in a string.
+
+    Built from three files' bytes: A2.6's frozen specification (the partition assignment), A2.4's training
+    specification (its cohorts and their scans) and the inventory. It refuses unless A2.4's specification records the
+    other two files' hashes and A2.6's specification records the same inventory. A scene is permitted only when its
+    environment (found by this module's own grouping rule, not taken from the caller) is assigned to training by A2.6,
+    belongs to A2.4's fitting or inner-validation cohort or to an activated reserve batch, and lists that scan.
+    Calibration, test, unassigned and unknown scenes are never permitted. `read_training_source` checks every scene
+    before any of its source members is opened."""
+
+    def __init__(self, *, a26_spec_bytes: bytes, a24_spec_bytes: bytes, inventory_bytes: bytes, activated=()):
+        a26, a24 = json.loads(a26_spec_bytes), json.loads(a24_spec_bytes)
+        if a24.get("record_type") != "a24_training_specification":
+            raise ReleaseError("not an A2.4 training specification")
+        inputs = a24["inputs"]
+        if inputs["a26_spec_sha256"] != _sha(a26_spec_bytes):
+            raise ReleaseError("the A2.6 specification is not the one A2.4's specification froze")
+        if not inputs["inventory_sha256"] == a26["inventory"]["inventory_sha256"] == _sha(inventory_bytes):
+            raise ReleaseError("the inventory is not the frozen one")
+        env = a24["environments"]
+        reserve, activated = list(env["reserve"]), list(activated)
+        if activated != reserve[:len(activated)]:
+            raise ReleaseError("reserve environments are activated only in their frozen order")
+        self.digest = {"a26_spec_sha256": _sha(a26_spec_bytes), "a24_spec_sha256": _sha(a24_spec_bytes),
+                       "inventory_sha256": _sha(inventory_bytes)}
+        self.assignment = dict(a26["partition"]["assignment"])
+        self.cohort = {g: "fitting" for g in env["fitting"]} | {g: "validation" for g in env["validation"]} \
+            | {g: "reserve" for g in activated}
+        self.scans = {g: set(env["scenes"][g]) for g in self.cohort}
+        self._a26, self._a24, self._inv = a26_spec_bytes, a24_spec_bytes, inventory_bytes
+
+    def activate(self, more) -> "TrainingAuthorization":
+        """A new authorization with the next reserve environments activated (in their frozen order)."""
+        done = [g for g, c in self.cohort.items() if c == "reserve"]
+        return TrainingAuthorization(a26_spec_bytes=self._a26, a24_spec_bytes=self._a24, inventory_bytes=self._inv,
+                                     activated=done + list(more))
+
+    def cohort_of(self, scene) -> str:
+        if not re.fullmatch(SOURCES["Scannet"][2], scene):
+            raise ReleaseError(f"{scene} is not a ScanNet scene name")
+        group, _ = group_of("Scannet", scene)
+        part = self.assignment.get(group)
+        if part != "training":
+            raise ReleaseError(f"{scene}: its environment {group} is {part!r} in A2.6's frozen assignment, not training")
+        if group not in self.cohort:
+            raise ReleaseError(f"{scene}: {group} is in no A2.4 cohort nor an activated reserve batch")
+        if scene not in self.scans[group]:
+            raise ReleaseError(f"{scene}: not a scan A2.4's specification lists for {group}")
+        return self.cohort[group]
+
+
+def read_training_source(path, training: TrainingAuthorization, scenes):
+    """read_source for A2.4: every scene is checked against the authorization before any member is opened."""
+    if not isinstance(training, TrainingAuthorization):
+        raise ReleaseError("a training authorization is required")
+    for s in sorted(scenes):
+        training.cohort_of(s)
+    return read_source(path, "Scannet", only=set(scenes))
+
+
+def import_release_scene(source, scene, files, vocabulary_bytes, out, *, partition, expected_sha256, training=None) -> dict:
     """A2.2a's import of one release scene into a new folder `out`, under its release identity, with A2.2a's whole
-    validation. Its input files must equal the hashes the inventory recorded (expected_sha256: kind -> SHA-256)."""
-    if partition not in ("development", "legacy-development"):   # closed partitions are refused before any reading
-        raise ReleaseError(f"{scene} is in {partition!r}; only development and legacy scenes are converted")
+    validation. Its input files must equal the hashes the inventory recorded (expected_sha256: kind -> SHA-256).
+    training: A2.4's TrainingAuthorization, required for (and only for) training scenes."""
+    _permitted(scene, partition, training)   # closed partitions are refused before any reading
     got = {k: _sha(files[k]) for k in KINDS}
     if got != expected_sha256:
         raise ReleaseError(f"{scene}: its files differ from the inventory's recorded hashes")
-    ident = release_identity(source, scene, files, partition)
+    ident = release_identity(source, scene, files, partition, training)
     tmp = Path(tempfile.mkdtemp(prefix=f".{scene}-sources-"))
     try:
         paths = {}

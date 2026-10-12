@@ -20,8 +20,9 @@ sampled (`strata.jsonl`).
   multiplicity: an environment drawn twice counts twice.
 - Each replicate recomputes every estimate from per-environment aggregates, with the same draws for every system,
   format and view. The paired differences are therefore computed within each replicate.
-- Intervals are 95% percentile intervals, interpolated linearly between order statistics (Hyndman-Fan type 7). Sums use
-  `math.fsum`.
+- Intervals are 95% percentile intervals by the project's nearest-rank convention (A2.3e, D97; applied at D108): the
+  sorted value at zero-based index ceil(p x n) - 1, as `quantile` computes it. Sums use `math.fsum`. (This docstring
+  said Hyndman-Fan type 7 until A2.4 corrected the wording; the computation was already nearest rank.)
 
 **The rules** give one result per parent and view. They are reported per view, and serve both formats in the paired
 differences without becoming two observations. **The legacy environment** is reported separately: one environment, so
