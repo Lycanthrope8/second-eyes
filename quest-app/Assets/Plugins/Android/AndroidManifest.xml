@@ -21,5 +21,6 @@
   <uses-permission android:name="com.oculus.permission.HAND_TRACKING" />
   <uses-permission android:name="horizonos.permission.HEADSET_CAMERA" />
   <uses-feature android:name="com.oculus.feature.PASSTHROUGH" android:required="false" />
-  <uses-feature android:name="oculus.software.overlay_keyboard" android:required="false" />
+  <uses-permission android:name="com.oculus.permission.USE_ANCHOR_API" />
+  <uses-permission android:name="com.oculus.permission.USE_SCENE" />
 </manifest>
