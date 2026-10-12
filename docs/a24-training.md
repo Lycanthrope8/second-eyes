@@ -139,6 +139,13 @@ Nothing in the folder is changed, and scans the folder lacks are prepared fresh 
 examples, the audit and the specification draft are always recomputed. The output's manifest and `scenes.jsonl` record
 the reuse and every check per scan.
 
+**Regenerating the report** (`report --prep FOLDER --out FOLDER`, fix 2). This recomputes the counts and
+`pilot-spec.md` from a saved preparation into a new folder. It verifies the preparation's files against its manifest
+first, records the hashes of the report it supersedes, and reruns nothing; the preparation is never changed.
+
+An environment "contributes none" when its retained parents sum to zero. It falls in one of two groups: no parent
+eligible under A2.6b, or eligible parents that were all quarantined.
+
 ## 6. Training (`train.py`, in `.venv-train`)
 
 **A fit:**
@@ -216,6 +223,7 @@ After all nine fits and selections, one complete frozen development evaluation p
 ```text
 python -m grounding.a24 freeze|prepare|gbnf-check|smoke|fit|select|merge|continuation      (.venv-train)
 python -m grounding.a24 prepare ... --reuse-work FOLDER   (instead of --work: verify, then reuse, an earlier attempt's scans)
+python -m grounding.a24 report --prep FOLDER --out FOLDER  (the counts and pilot-spec.md regenerated, nothing rerun)
 python -m grounding.a24 locate|eval-direct|eval-parser|score|analyze                         (.venv)
 ```
 

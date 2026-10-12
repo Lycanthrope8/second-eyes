@@ -186,7 +186,7 @@ def torch_setup(device):
 def load_base(base_dir, device):
     import torch
     from transformers import AutoModelForCausalLM
-    m = AutoModelForCausalLM.from_pretrained(str(base_dir), torch_dtype=torch.float32, attn_implementation="eager",
+    m = AutoModelForCausalLM.from_pretrained(str(base_dir), dtype=torch.float32, attn_implementation="eager",
                                              local_files_only=True, trust_remote_code=False)
     if sorted({str(p.dtype) for p in m.parameters()}) != ["torch.float32"]:
         raise TrainError("the base is not float32 throughout")

@@ -561,6 +561,43 @@ def main() -> int:
               "eligible parent", all({"N", "n", "N_eligible", "cohort"} <= set(s) for s in strata)
               and pairs <= {(s["group"], s["stratum"]) for s in strata}
               and all(s["N_eligible"] >= s["N"] >= s["n"] for s in strata), str(strata[:3]))
+        sums = {}
+        for s_ in strata:
+            a_ = sums.setdefault((s_["cohort"], s_["group"]), [0, 0])
+            a_[0] += s_["N"]
+            a_[1] += s_["N_eligible"]
+        want_ret = {c: sorted(g for (cc, g), (n, _) in sums.items() if cc == c and n == 0) for c in P.COHORTS}
+        want_el = {c: sorted(g for (cc, g), (_, e) in sums.items() if cc == c and e == 0) for c in P.COHORTS}
+        contrib = {c: {s_["group"] for s_ in strata if s_["cohort"] == c and s_["n"]} for c in P.COHORTS}
+        check("environments contributing nothing are those whose retained parents sum to zero, split into no eligible "
+              "parent and all quarantined; never a contributing environment",
+              all(M["counts"][c]["environments_without_retained_parents"] == want_ret[c]
+                  and M["counts"][c]["environments_without_eligible_parents"] == want_el[c]
+                  and not set(want_ret[c]) & contrib[c]
+                  and M["counts"][c]["environments"] == len(contrib[c]) + len(want_ret[c]) for c in P.COHORTS),
+              json.dumps({c: [M["counts"][c]["environments_without_retained_parents"], want_ret[c]] for c in P.COHORTS})[:300])
+        before = {p.relative_to(out).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in out.rglob("*") if p.is_file()}
+        RP = P.report(prep=out, out=tmp / "prep-report", settings_path=sp)
+        after = {p.relative_to(out).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in out.rglob("*") if p.is_file()}
+        rdir = Path(RP["folder"])
+        check("report regenerates the counts and pilot-spec.md from the saved preparation, byte for byte equal to this "
+              "code's own, and records what it supersedes; the preparation is untouched",
+              RP["counts"] == M["counts"] and (rdir / "pilot-spec.md").read_bytes() == (out / "pilot-spec.md").read_bytes()
+              and RP["supersedes"]["pilot-spec.md"] == before["pilot-spec.md"] and before == after
+              and json.loads((rdir / "manifest.json").read_text(encoding="utf-8"))["preparation_manifest_sha256"]
+              == hashlib.sha256((out / "manifest.json").read_bytes()).hexdigest())
+        bad = tmp / "prep-altered"
+        shutil.copytree(out, bad)
+        (bad / "strata.jsonl").write_bytes((bad / "strata.jsonl").read_bytes() + b"\n")
+        refused = []
+        for kw in ({"prep": bad, "out": tmp / "report-bad"}, {"prep": out, "out": tmp / "prep-report"}):
+            try:
+                P.report(settings_path=sp, **kw)
+                refused.append(False)
+            except P.PrepError:
+                refused.append(True)
+        check("report refuses a preparation whose files differ from its manifest, and an existing output folder",
+              refused == [True, True] and not (tmp / "report-bad").exists())
         c = M["counts"]
         check("counts by parent and by view, before and after filtering, are recorded",
               c["parents"] >= c["eligible_parents"] >= c["retained_parents"] > 0 and c["view_outcomes_among_eligible"]

@@ -59,6 +59,9 @@ def main(argv=None) -> int:
     w.add_argument("--work", help="a new work folder")
     w.add_argument("--reuse-work", help="an earlier attempt's work folder: each scan is verified, then reused")
     s.add_argument("--workers", type=int, default=1)
+    s = sub.add_parser("report", help="the counts and pilot-spec.md regenerated from a saved preparation (new folder)")
+    s.add_argument("--prep", required=True)
+    s.add_argument("--out", required=True)
     s = sub.add_parser("gbnf-check", help="the language against the pinned llama.cpp's grammar validator")
     s.add_argument("--validator", required=True)
     s.add_argument("--out", required=True)
@@ -113,6 +116,15 @@ def main(argv=None) -> int:
         print(json.dumps(locate(a.root), indent=1))
         return 0
     try:
+        if a.cmd == "report":
+            from . import prep as P
+            r = P.report(prep=a.prep, out=a.out)
+            print(json.dumps({"folder": r["folder"], "supersedes": r["supersedes"],
+                              **{c: {k: r["counts"][c][k] for k in ("parents", "environments", "environments_contributing",
+                                                                    "environments_without_retained_parents",
+                                                                    "environments_without_eligible_parents")}
+                                 for c in P.COHORTS}}, indent=1))
+            return 0
         if a.cmd in ("freeze", "prepare"):
             from . import prep as P
             if a.cmd == "freeze":

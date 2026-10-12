@@ -421,13 +421,20 @@ def _visible(scene, codes=None) -> list:
 
 
 COLOUR_WORDS = tuple(L.COLOURS)
+_SPEC_CACHE = []
+
+
+def _spec():
+    if not _SPEC_CACHE:
+        _SPEC_CACHE.append(L.load_spec())
+    return _SPEC_CACHE[0]
 
 
 def text_order(text, label) -> str:
     """For a 'between' label: whether its two anchor categories occur in the command in the label's order, found by
     whole-word search in the text (independent of the label builder and the rule parser): 'same', 'reversed',
     'same_category' or 'not_found'."""
-    p = L.parse_output(label, L.load_spec())
+    p = L.parse_output(label, _spec())
     if p["relation"] != "between":
         return "n/a"
     a, b = (x["category"] for x in p["anchors"])
@@ -445,7 +452,7 @@ def text_order(text, label) -> str:
 
 
 def colour_word_category(label) -> bool:
-    p = L.parse_output(label, L.load_spec())
+    p = L.parse_output(label, _spec())
     return any(o["category"] in COLOUR_WORDS or o["category"].split(" ")[0] in COLOUR_WORDS
                for o in [p["target"]] + p["anchors"])
 
@@ -694,6 +701,50 @@ def summary(manifest, scenes) -> dict:
             "fitting": c["fitting"]["parents"], "validation": c["validation"]["parents"]}
 
 
+def _jl(p) -> list:
+    return [json.loads(x) for x in Path(p).read_text(encoding="utf-8").splitlines() if x.strip()]
+
+
+def report(*, prep, out, settings_path=SETTINGS_PATH) -> dict:
+    """The counts and pilot-spec.md regenerated from a saved preparation, into a new folder (fix 2). Nothing is rerun
+    and the preparation is not changed: its files are verified against its manifest first, and the new manifest records
+    the hashes of the report it supersedes."""
+    prep, out = Path(prep), Path(out)
+    if out.exists():
+        raise PrepError("the output folder must be new")
+    man_bytes = (prep / "manifest.json").read_bytes()
+    man = json.loads(man_bytes)
+    if man.get("record_type") != "a24_preparation_manifest":
+        raise PrepError(f"{prep} is not an A2.4 preparation")
+    changed = [n for n, h in man["files"].items() if not (prep / n).is_file() or _sha_file(prep / n) != h]
+    if changed:
+        raise PrepError(f"the preparation's files differ from its manifest: {changed[:5]}")
+    S = json.loads((prep / "spec.json").read_bytes())
+    if _sha(Path(settings_path).read_bytes()) != S["inputs"]["settings"]["sha256"]:
+        raise PrepError("the settings differ from the ones the specification froze")
+    settings = load_settings(settings_path)
+    rows = _jl(prep / "reference_only" / "labels.jsonl")
+    srows = _jl(prep / "strata.jsonl")
+    strata = {c: [x for x in srows if x["cohort"] == c] for c in COHORTS}
+    cohort = json.loads((prep / "cohort.json").read_text(encoding="utf-8"))
+    examples = {c: {"direct": [e for f in FORMATS for e in _jl(prep / "training_data" / f"{c}-direct-{f}.jsonl")],
+                    "parser": _jl(prep / "training_data" / f"{c}-parser.jsonl")} for c in COHORTS}
+    scenes = _jl(prep / "scenes.jsonl")
+    rounds = json.loads((prep / "rounds.json").read_text(encoding="utf-8"))
+    counts = count(rows, strata, {c: cohort[c] for c in COHORTS}, examples, scenes)
+    spec_md = pilot_spec(S, settings, dict(man, counts=counts), examples, rounds, scene_problems(scenes))
+    files = {"counts.json": DEV._dumps(counts), "pilot-spec.md": spec_md.encode("utf-8")}
+    rec = {"format_version": 1, "record_type": "a24_preparation_report", "made_utc": _now(),
+           "preparation": str(prep), "preparation_manifest_sha256": _sha(man_bytes),
+           "supersedes": {"pilot-spec.md": _sha_file(prep / "pilot-spec.md"), "manifest.json (its counts)": _sha(man_bytes)},
+           "reason": "fix 2: an environment contributes nothing when its retained parents sum to zero; the first report "
+                     "listed every environment with any relation stratum lacking a retained parent",
+           "files": {n: _sha(d) for n, d in sorted(files.items())}, "code": code_hashes()}
+    files["manifest.json"] = DEV._dumps(rec)
+    folder = _publish(out, files)
+    return dict(rec, folder=str(folder), counts=counts)
+
+
 def count(rows, strata, selected, examples, scenes) -> dict:
     def by(rs, f):
         return dict(sorted(Counter(f(r) for r in rs).items()))
@@ -715,8 +766,14 @@ def count(rows, strata, selected, examples, scenes) -> dict:
            "retained_with_colour_word_category": sum(colour_word_category(r["label"]) for r in rows if r["retained"])}
     for c in COHORTS:
         d = [e for e in examples[c]["direct"] if e["format"] == FORMATS[0]]
-        out[c] = {"environments_contributing": len({s["group"] for s in strata[c] if s["n"]}),
-                  "environments_zero": sorted({s["group"] for s in strata[c] if s["N"] == 0}),
+        sums = defaultdict(lambda: [0, 0])
+        for s_ in strata[c]:
+            sums[s_["group"]][0] += s_["N"]
+            sums[s_["group"]][1] += s_.get("N_eligible", 0)
+        out[c] = {"environments": len(sums),
+                  "environments_contributing": len({s["group"] for s in strata[c] if s["n"]}),
+                  "environments_without_retained_parents": sorted(g for g, (n, _) in sums.items() if n == 0),
+                  "environments_without_eligible_parents": sorted(g for g, (_, e) in sums.items() if e == 0),
                   "parents": len(selected[c]), "relations": by(selected[c], lambda r: r["stratum"]),
                   "direct_rows_per_format": len(d), "direct_rows_by_view": by(d, lambda e: e["view"]),
                   "target_letters": {v: by([e for e in d if e["view"] == v], lambda e: e["answer_code"]) for v in VIEWS},
@@ -743,10 +800,14 @@ def pilot_spec(S, settings, manifest, examples, rounds, problems=()) -> str:
           "## Cohorts", ""]
     for k in COHORTS:
         x = c[k]
-        L_.append(f"- **{k}:** {x['parents']} parents from {x['environments_contributing']} environments "
-                  f"(zero-eligible: {x['environments_zero'] or 'none'}); {x['direct_rows_per_format']} direct rows per format "
+        none_ret, none_el = x["environments_without_retained_parents"], x["environments_without_eligible_parents"]
+        quar = sorted(set(none_ret) - set(none_el))
+        L_.append(f"- **{k}:** {x['parents']} parents from {x['environments_contributing']} of its {x['environments']} "
+                  f"environments; {len(none_ret)} contribute none: {len(none_el)} with no eligible parent under A2.6b"
+                  + (f" {none_el}" if none_el else "") + f", and {len(quar)} whose eligible parents were all quarantined"
+                  + (f" {quar}" if quar else "") + f". {x['direct_rows_per_format']} direct rows per format "
                   f"({x['direct_rows_by_view']}); {x['parser_examples']} parser examples.")
-    L_ += [f"- Rounds (reserve use): {json.dumps(rounds)}", "", "## Scans", "",
+    L_ += [f"- Rounds (reserve use): {json.dumps(rounds, sort_keys=True)}", "", "## Scans", "",
            f"- By status: {json.dumps(c['scenes'])}."]
     bad = [x for x in problems if x["status"] != "prepared"]
     L_ += [f"- **Not prepared:** `{x['scene']}` ({x['cohort']}): {x['status']}; {x['error'][:300]}" for x in bad] or \
