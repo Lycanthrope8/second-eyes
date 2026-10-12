@@ -53,8 +53,11 @@ def main(argv=None) -> int:
     s.add_argument("--inventory", required=True)
     s.add_argument("--out", required=True)
     s = sub.add_parser("prepare", help="the authorized chain, labels, cohorts, examples, audit, specification draft")
-    for a in ("--spec", "--a26-spec", "--zip", "--inventory", "--vocabulary", "--out", "--work"):
+    for a in ("--spec", "--a26-spec", "--zip", "--inventory", "--vocabulary", "--out"):
         s.add_argument(a, required=True)
+    w = s.add_mutually_exclusive_group(required=True)
+    w.add_argument("--work", help="a new work folder")
+    w.add_argument("--reuse-work", help="an earlier attempt's work folder: each scan is verified, then reused")
     s.add_argument("--workers", type=int, default=1)
     s = sub.add_parser("gbnf-check", help="the language against the pinned llama.cpp's grammar validator")
     s.add_argument("--validator", required=True)
@@ -120,7 +123,8 @@ def main(argv=None) -> int:
                                   "reserve": len(r["environments"]["reserve"])}, indent=1))
             else:
                 r = P.prepare(spec=a.spec, a26_spec=a.a26_spec, zip_path=a.zip, inventory_dir=a.inventory,
-                              vocabulary=a.vocabulary, out=a.out, work=a.work, workers=a.workers)
+                              vocabulary=a.vocabulary, out=a.out, work=a.reuse_work or a.work, reuse=bool(a.reuse_work),
+                              workers=a.workers)
                 scenes = [json.loads(x) for x in (Path(r["folder"]) / "scenes.jsonl").read_text(encoding="utf-8").splitlines()
                           if x.strip()]
                 print(json.dumps(P.summary(r, scenes), indent=1))

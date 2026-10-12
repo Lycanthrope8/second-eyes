@@ -124,6 +124,21 @@ vocabulary, or entries that disagree.
 - `pilot-spec.md`;
 - a hashed manifest with UTC start and finish.
 
+**Reusing an earlier attempt's scans** (`prepare --reuse-work FOLDER`, fix 1). When a preparation stops after its
+scans are prepared, a new `prepare` can take the earlier work folder instead of `--work`. Each scan is reused only if
+all twelve of its checks pass:
+- its three stages are complete;
+- today's importer reproduces its import byte for byte from the frozen source files (the inputs and the importer's
+  code);
+- the audit's outputs are unchanged, its recorded inputs are this import's, and its recorded code is today's;
+- the accepted `verify_bundle` passes, and the materialization's recorded inputs, code, libraries, model description,
+  tokenizer and runtime are this import's and today's.
+
+A scan that fails any check stops the run before anything is published, naming the scan and the failed checks.
+Nothing in the folder is changed, and scans the folder lacks are prepared fresh into it. Eligibility, labels, cohorts,
+examples, the audit and the specification draft are always recomputed. The output's manifest and `scenes.jsonl` record
+the reuse and every check per scan.
+
 ## 6. Training (`train.py`, in `.venv-train`)
 
 **A fit:**
@@ -200,6 +215,7 @@ After all nine fits and selections, one complete frozen development evaluation p
 
 ```text
 python -m grounding.a24 freeze|prepare|gbnf-check|smoke|fit|select|merge|continuation      (.venv-train)
+python -m grounding.a24 prepare ... --reuse-work FOLDER   (instead of --work: verify, then reuse, an earlier attempt's scans)
 python -m grounding.a24 locate|eval-direct|eval-parser|score|analyze                         (.venv)
 ```
 

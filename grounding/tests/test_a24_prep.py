@@ -29,6 +29,7 @@ if str(REPO) not in sys.path:
 FAILS, PASSES = [], []
 SCENES = {"scene0191_00": 0, "scene0191_01": 1, "scene0119_00": 2, "scene0230_00": 3, "scene0528_00": 4,
           "scene0705_00": 5, "scene0415_00": 6, "scene0081_00": 7, "scene0011_00": 8, "scene0010_01": 9}
+DISAGREE_IN = "scene0415_00"   # a fitting scan (by the salted environment order)
 TRAINING = {"scene0191_00", "scene0191_01", "scene0119_00", "scene0230_00", "scene0528_00", "scene0705_00", "scene0415_00"}
 KEEP = 24
 
@@ -81,6 +82,77 @@ def scans_ok(P, out: Path, label: str, check_fn=None) -> bool:
     return not bad
 
 
+def reuse_checks(P, R, D, tmp, a26_path, S, zp, vocab, sp, M):
+    print("-- verified reuse of an earlier attempt's work folder")
+    MR = locked(lambda: P.prepare(spec=Path(S["folder"]) / "spec.json", a26_spec=a26_path, zip_path=zp,
+                                  inventory_dir=tmp / "inventory", vocabulary=vocab, out=tmp / "prep-reuse",
+                                  work=tmp / "work", reuse=True, workers=2, settings_path=sp, progress=lambda m: None))
+    out = Path(MR["folder"])
+    scenes = [json.loads(x) for x in (out / "scenes.jsonl").read_text(encoding="utf-8").splitlines()]
+    check("every scan is reused only after all its checks pass (complete; the import reproduced byte for byte; inputs, "
+          "code, libraries, model description, tokenizer and runtime unchanged; the bundle verified by the accepted "
+          "reader)", scenes and all(r["reused"] and r["status"] == "prepared" and all(r["reuse_checks"].values())
+                                    and len(r["reuse_checks"]) == 12 for r in scenes)
+          and MR["reuse"]["scans_reused"] == len(scenes), json.dumps([r.get("problems") for r in scenes])[:300])
+    keys = [k for k in M["files"] if k.startswith(("training_data/", "cohort.json", "strata.jsonl", "rounds.json",
+                                                   "reference_only/", "audit/", "example-failures.jsonl"))]
+    check("a verified reuse gives exactly the fresh preparation's labels, cohorts, strata, rounds, examples and audit",
+          all(M["files"][k] == MR["files"].get(k) for k in keys), str([k for k in keys if M["files"][k] != MR["files"].get(k)]))
+    check("the reuse is recorded: the work folder, scans reused, and the specification draft says so",
+          MR["reuse"]["work"] == str(tmp / "work") and "Reused from an earlier attempt's work folder after verification"
+          in (out / "pilot-spec.md").read_text(encoding="utf-8"))
+    inv_bytes = (tmp / "inventory" / "inventory.json").read_bytes()
+    expected = {r["scene"]: r["input_sha256"] for r in json.loads(inv_bytes)["scenes"] if r["retained"]}
+    auth = R.TrainingAuthorization(a26_spec_bytes=a26_path.read_bytes(),
+                                   a24_spec_bytes=(Path(S["folder"]) / "spec.json").read_bytes(), inventory_bytes=inv_bytes)
+    g = S["environments"]["fitting"][0]
+    scan = S["environments"]["scenes"][g][0]
+    found, _, _ = R.read_training_source(zp, auth, [scan])
+
+    def verdict(mutate, label):
+        w = tmp / f"tamper-{label}"
+        shutil.copytree(tmp / "work" / scan, w / scan)
+        mutate(w / scan)
+        job = (scan, g, "fitting", found[scan], expected[scan], vocab.read_bytes(), w / scan, str(D.TOKENIZER),
+               str(D.MODEL_DESCRIPTION), auth, True)
+        return P._verify_reuse(job)
+
+    def append(rel):
+        def f(d):
+            p = d / rel if not callable(rel) else rel(d)
+            p.write_bytes(p.read_bytes() + b" ")
+        return f
+    def recode(d):
+        m = json.loads((d / "bundle" / "manifest.json").read_text(encoding="utf-8"))
+        k = sorted(m["code"])[0]
+        m["code"][k] = "0" * 64
+        (d / "bundle" / "manifest.json").write_text(json.dumps(m), encoding="utf-8")
+    first_scene = lambda d: sorted((d / "bundle" / "model_records" / "scenes").rglob("*.json"))[0]   # noqa: E731
+    cases = {"untouched": (lambda d: None, None),
+             "derived scene changed": (append(first_scene), "bundle_verified_by_the_accepted_reader"),
+             "audit output changed": (append("audit/selections.jsonl"), "audit_outputs_unchanged"),
+             "import changed": (append("import/model_inputs/category-map.json"), "import_reproduced_byte_for_byte"),
+             "recorded code differs from today's": (recode, "bundle_code_unchanged"),
+             "chain unfinished (no bundle)": (lambda d: shutil.rmtree(d / "bundle"), "complete")}
+    got = {}
+    for label, (mutate, want) in cases.items():
+        r = verdict(mutate, label.replace(" ", "-").replace("(", "").replace(")", "").replace("'", ""))
+        got[label] = (r["status"], want in r["problems"] if want else not r["problems"])
+    check("reuse refuses a scan whose derived scene, audit output or import changed, whose recorded code differs from "
+          "today's, or whose chain did not finish; an untouched scan passes", got["untouched"] == ("prepared", True)
+          and all(v == ("reuse_refused", True) for k, v in got.items() if k != "untouched"), json.dumps(got))
+    try:
+        shutil.copytree(tmp / "work", tmp / "work-bad")
+        append(first_scene)(tmp / "work-bad" / scan)
+        P.prepare(spec=Path(S["folder"]) / "spec.json", a26_spec=a26_path, zip_path=zp, inventory_dir=tmp / "inventory",
+                  vocabulary=vocab, out=tmp / "prep-bad", work=tmp / "work-bad", reuse=True, workers=1, settings_path=sp,
+                  progress=lambda m: None)
+        stopped = False
+    except P.PrepError as e:
+        stopped = scan in str(e) and not (tmp / "prep-bad").exists()
+    check("one refused scan stops the whole reuse before anything is published, naming the scan", stopped)
+
+
 def report_retries():
     print(f"  note  transient Windows file locks retried: {len(RETRIED)}" + "".join(f"\n        {r}" for r in RETRIED))
 
@@ -97,6 +169,13 @@ def build_release(samples: Path, folder: Path):
         d.mkdir(parents=True)
         keep = texts[k * step:k * step + KEEP]
         region = {t: base["regions"]["0"][t] for t in keep}
+        if scene == DISAGREE_IN:   # one target under two relations: a disagreeing parsing label (A2.6b's correction 1)
+            for t in keep[:6]:
+                tb = base["regions"]["0"][t][0]
+                same = next((x for x in texts if x != t and base["regions"]["0"][x][0]["target_index"] == tb["target_index"]
+                             and base["regions"]["0"][x][0]["relation"] != tb["relation"]), None)
+                if same:
+                    region[t] = [tb, base["regions"]["0"][same][0]]
         used = {e["target_index"] for es in region.values() for e in es}
         used |= {a["index"] for es in region.values() for e in es for a in e["anchors"].values()}
         used |= {x for es in region.values() for e in es for x in e["distractor_ids"]}
@@ -465,6 +544,17 @@ def main() -> int:
                                          "## Supervision coverage and exclusions", "## Exposure",
                                          "## Input and output examples", "## The comparison matrix", "## Training settings",
                                          "## Decoding constraints")))
+        early = [r for r in rows if r["eligible"] and "annotation_disagreement:parsing_label" in r["parent_reasons"]]
+        check("eligible commands quarantined before their view checks (a disagreeing parsing label) keep their reason "
+              "and have no view results", early and all(not r["views"] and r["label"] is None for r in early),
+              str(len(early)))
+        early_items = [i for i in audit if i["cell"] == ["quarantined", "annotation_disagreement:parsing_label"]]
+        audit_md = (out / "audit" / "audit.md").read_text(encoding="utf-8")
+        check("the audit shows them with their visible objects, each view marked not checked, and its markdown renders",
+              early_items and all(v["check"] is None and v["objects"] for i in early_items for v in i["views"].values()
+                                  if v.get("materialized"))
+              and "not checked (the parent was quarantined before its view checks" in audit_md
+              and "Label: none (quarantined before labelling)" in audit_md)
         strata = [json.loads(x) for x in (out / "strata.jsonl").read_text(encoding="utf-8").splitlines()]
         pairs = {(r["group"], r["stratum"]) for r in rows if r["eligible"] and r.get("cohort")}
         check("per environment and stratum: eligible (A2.6b), retained and selected counts for every pair with an "
@@ -483,6 +573,7 @@ def main() -> int:
                                                             "reference_only/labels.jsonl"))]
             check("spawned workers and one process give identical cohorts, labels and training data",
                   all(M["files"][k] == M1["files"][k] for k in keys), str([k for k in keys if M["files"][k] != M1["files"][k]]))
+        reuse_checks(P, R, D, tmp, a26_path, S, zp, vocab, sp, M)
         try:
             P.prepare(spec=Path(S["folder"]) / "spec.json", a26_spec=a26_path, zip_path=zp, inventory_dir=tmp / "inventory",
                       vocabulary=vocab, out=tmp / "prep", work=tmp / "work2", settings_path=sp, progress=lambda m: None)

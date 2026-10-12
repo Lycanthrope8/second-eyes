@@ -181,7 +181,7 @@ def _chain(job, sleep=time.sleep) -> dict:
     """A2.4's orchestration of the shared components for one training scene: A2.2a's import under the training
     authorization (release.import_release_scene re-checks the scene), A2.2c's audit and A2.2d's materialization, with
     A2.6b's transient-lock retry (DEV._stage). dev.py's own scene job is not used and not changed."""
-    scene, group, cohort, files, expected, vocab, work, tokenizer_dir, model_description, auth = job
+    scene, group, cohort, files, expected, vocab, work, tokenizer_dir, model_description, auth = job[:10]
     A, PR, _ = DEV._modules()
     w, retries = Path(work), []
     try:
@@ -203,10 +203,77 @@ def _chain(job, sleep=time.sleep) -> dict:
                 "retries": retries, "error": f"{type(e).__name__}: {e}"[:2000]}
 
 
+def _sha_file(p) -> str:
+    return _sha(Path(p).read_bytes())
+
+
+def _tree(folder) -> dict:
+    f = Path(folder)
+    return {p.relative_to(f).as_posix(): _sha_file(p) for p in sorted(f.rglob("*")) if p.is_file()}
+
+
+def _commands_sha(folder) -> str:
+    """A2.2c's commands hash: SHA-256 of the sorted lines '<command_id> <file SHA-256>\\n'."""
+    lines = sorted(f"{_read(p)['command_id']} {_sha_file(p)}\n" for p in Path(folder).glob("*.json"))
+    return _sha("".join(lines).encode("utf-8"))
+
+
+def _verify_reuse(job) -> dict:
+    """Whether an earlier attempt's chain output for one scan is exactly what this run would write, from the scan's own
+    records: the three stages complete; today's importer reproduces the import byte for byte from the frozen source
+    files (the inputs and the importer's code); the audit's and the materialization's recorded input hashes are this
+    import's, their recorded code, library, model-description, tokenizer and runtime identities are today's, and their
+    outputs are unchanged (the accepted verify_bundle for the bundle). Nothing is written to the scan's folder."""
+    from ..preparation.iref_vla import prepare as A22D
+    from ..preparation.iref_vla import tokens as T22
+    from ..preparation.iref_vla_dev import _tokens
+    scene, group, cohort, files, expected, vocab, work, tokenizer_dir, model_description, auth = job[:10]
+    w = Path(work)
+    base = {"scene": scene, "group": group, "partition": "training", "cohort": cohort, "reused": True}
+    missing = [st for st in ("import", "audit", "bundle") if not (w / st).is_dir()]
+    if missing:
+        return dict(base, status="reuse_refused", reuse_checks={"complete": False},
+                    problems=["complete", f"{', '.join(missing)} missing: the chain did not finish this scan"])
+    checks, problems = {"complete": True}, []
+    try:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+            again = Path(td) / "import"
+            DEV._stage(lambda: R.import_release_scene("Scannet", scene, files, vocab, again, partition="training",
+                                                      expected_sha256=expected, training=auth), again, [], "re-import")
+            checks["import_reproduced_byte_for_byte"] = _tree(again) == _tree(w / "import")
+        mi, ro = w / "import" / "model_inputs", w / "import" / "reference_only"
+        now = {"scene_sha256": _sha_file(mi / "scene.annotated.json"), "category_map_sha256": _sha_file(mi / "category-map.json"),
+               "inventory_views_sha256": _sha_file(ro / "inventory-views.json"), "commands_sha256": _commands_sha(mi / "commands")}
+        am, bm = _read(w / "audit" / "manifest.json"), _read(w / "bundle" / "manifest.json")
+        same_code = lambda code: all((REPO / p).is_file() and _sha_file(REPO / p) == h for p, h in code.items())   # noqa: E731
+        checks["audit_outputs_unchanged"] = all(_sha_file(w / "audit" / n) == h for n, h in am["outputs"].items())
+        checks["audit_inputs_are_this_import"] = all(am["inputs"].get(k) == v for k, v in now.items())
+        checks["audit_code_unchanged"] = same_code(am["code"])
+        issues = A22D.verify_bundle(w / "bundle")
+        problems += [f"bundle: {x}" for x in issues[:5]]
+        checks["bundle_verified_by_the_accepted_reader"] = not issues
+        checks["bundle_inputs_are_this_import"] = all(bm["inputs"].get(k) == v for k, v in now.items())
+        checks["bundle_code_unchanged"] = same_code(bm["code"])
+        checks["bundle_libraries_unchanged"] = (bm["libraries"]["relation_config"]["sha256"] == _sha_file(DEV.REL)
+                                                and bm["libraries"]["direction_config"]["sha256"] == _sha_file(DEV.DIRS))
+        checks["model_description_unchanged"] = bm["model_description"]["sha256"] == _sha_file(model_description)
+        tok = _tokens.load(tokenizer_dir)
+        checks["tokenizer_unchanged"] = (bm["tokenizer"]["files"] == T22.PINNED_FILES
+                                         and bm["tokenizer"]["identity"] == tok.identity)
+        rt = dict(A22D.runtime(), **(getattr(tok, "versions", None) or {}))
+        checks["runtime_unchanged"] = all(bm["runtime"].get(k) == v for k, v in rt.items())
+    except Exception as e:   # noqa: BLE001 - an unreadable record refuses the reuse; it is never repaired
+        problems.append(f"{type(e).__name__}: {e}"[:500])
+        checks["records_readable"] = False
+    problems = [k for k, v in checks.items() if not v] + problems
+    return dict(base, status="prepared" if not problems else "reuse_refused", reuse_checks=checks, problems=problems)
+
+
 def _scene_rows(job):
-    """The chain, then eligibility and label rows; a failure is returned with its scene, never raised."""
+    """The chain (or, for a verified earlier scan, its reuse), then eligibility and label rows; a failure is returned
+    with its scene, never raised."""
     from . import labels as LB
-    res = _chain(job)
+    res = _verify_reuse(job) if len(job) > 10 and job[10] else _chain(job)
     scene, group, partition, work = res["scene"], res["group"], res["partition"], Path(job[6])
     if res["status"] != "prepared":
         return res, [], []
@@ -420,7 +487,7 @@ def audit_sample(rows, work) -> list:
                 scene = _read(b / vp["scene_path"])
                 ids = sorted(o["object_id"] for o in scene["objects"])
                 mp = choice_mapping(ids, proto) if len(ids) <= len(proto["object_codes"]) else []
-                views[v] = {"materialized": True, "objects": _visible(scene, mp), "check": r["views"][v]}
+                views[v] = {"materialized": True, "objects": _visible(scene, mp), "check": r["views"].get(v)}
             picked.append({"cell": list(cell), "parent_command_id": r["parent_command_id"], "scene": r["scene"],
                            "text": r["text"], "label": r["label"], "rule_parse": r["rule_parse"],
                            "between_text_order": text_order(r["text"], r["label"]) if r["label"] else None,
@@ -441,7 +508,8 @@ def audit_markdown(items) -> str:
         L_.append(f"- Command: \"{it['text']}\" (`{it['parent_command_id']}`, {it['scene']})")
         if it.get("annotation"):
             L_.append(f"- Annotation: {json.dumps(it['annotation'], ensure_ascii=False)}")
-        L_.append(f"- Label: `{it['label']}`; rule parser: `{(it['rule_parse'] or {}).get('string')}`"
+        L_.append((f"- Label: `{it['label']}`" if it["label"] else "- Label: none (quarantined before labelling)")
+                  + f"; rule parser: `{(it['rule_parse'] or {}).get('string')}`"
                   + (f" (differs: {', '.join(it['rule_disagreement'])})" if it["rule_disagreement"] else ""))
         L_.append(f"- Expected target: `{it['target_object_id']}`; retained: {it['retained']}"
                   + (f"; reasons: {', '.join(it['parent_reasons'])}" if it["parent_reasons"] else ""))
@@ -450,8 +518,12 @@ def audit_markdown(items) -> str:
                 L_.append(f"- {v}: not materialized")
                 continue
             c = vv["check"]
-            L_.append(f"- {v}: resolver {c.get('outcome')} -> {c.get('target_id')}; supported {c.get('supported')}"
-                      + (f" ({c['reason']})" if c.get("reason") else ""))
+            if c is None:
+                L_.append(f"- {v}: not checked (the parent was quarantined before its view checks: "
+                          f"{', '.join(it['parent_reasons'])})")
+            else:
+                L_.append(f"- {v}: resolver {c.get('outcome')} -> {c.get('target_id')}; supported {c.get('supported')}"
+                          + (f" ({c['reason']})" if c.get("reason") else ""))
             L_.append("  " + "; ".join(f"{o['letter'] or '-'} {o['object_id']} {o['category']}"
                                        + (f" {o['colours']}" if o["colours"] else "") + f" c={o['centre']} s={o['size']}"
                                        for o in vv["objects"]))
@@ -461,7 +533,7 @@ def audit_markdown(items) -> str:
 
 # --------------------------------------------------------------------------------------------- prepare
 def _run_scenes(envs, cohort_of, S, zip_path, auth, expected, texts, vocab, work, tokenizer_dir, model_description,
-                workers, progress):
+                workers, progress, reuse=False):
     """One round: the round's scans are authorized, then read from the zip, then prepared."""
     wanted = [s for g in envs for s in S["environments"]["scenes"][g]]
     found, _, _ = R.read_training_source(zip_path, auth, wanted)
@@ -475,13 +547,14 @@ def _run_scenes(envs, cohort_of, S, zip_path, auth, expected, texts, vocab, work
                 results.append(({"scene": s, "group": g, "partition": "training", "status": "no_statements"}, [], []))
             else:
                 jobs.append((s, g, cohort_of[g], found[s], expected[s], vocab, work / s, str(tokenizer_dir),
-                             str(model_description), auth))
+                             str(model_description), auth, bool(reuse and (work / s).exists())))
     if workers > 1:
         ctx = multiprocessing.get_context("spawn")
         with concurrent.futures.ProcessPoolExecutor(max_workers=workers, mp_context=ctx) as ex:
             for k, res in enumerate(ex.map(_scene_rows, jobs), 1):
                 results.append(res)
-                progress(f"  {k}/{len(jobs)} {res[0]['scene']}: {res[0]['status']}")
+                progress(f"  {k}/{len(jobs)} {res[0]['scene']}: {res[0]['status']}" + (" (reused, verified)"
+                         if res[0].get("reused") and res[0]["status"] == "prepared" else ""))
     else:
         for k, j in enumerate(jobs, 1):
             res = _scene_rows(j)
@@ -494,7 +567,9 @@ def _run_scenes(envs, cohort_of, S, zip_path, auth, expected, texts, vocab, work
 
 
 def prepare(*, spec, a26_spec, zip_path, inventory_dir, vocabulary, out, work, workers=1, tokenizer_dir=DEV.TOKENIZER,
-            model_description=DEV.MODEL_DESCRIPTION, settings_path=SETTINGS_PATH, progress=print) -> dict:
+            model_description=DEV.MODEL_DESCRIPTION, settings_path=SETTINGS_PATH, reuse=False, progress=print) -> dict:
+    """reuse: `work` is an earlier attempt's work folder. Each of its scans is reused only if `_verify_reuse` passes;
+    a scan that fails stops the run before anything is published. Scans it lacks are prepared fresh into it."""
     from ..inference.iref_vla.protocol import load_protocol
     from ..preparation.iref_vla_dev import _tokens
     from . import decoder as DC
@@ -513,8 +588,12 @@ def prepare(*, spec, a26_spec, zip_path, inventory_dir, vocabulary, out, work, w
     if _sha(vocab) != R.VOCABULARY["sha256"]:
         raise PrepError("the vocabulary is not the pinned NYU_Object_Classes.csv")
     work = Path(work)
-    if work.exists() or Path(out).exists():
-        raise PrepError("the work and output folders must be new")
+    if Path(out).exists():
+        raise PrepError("the output folder must be new")
+    if reuse and not work.is_dir():
+        raise PrepError(f"{work}: no such work folder to reuse")
+    if not reuse and work.exists():
+        raise PrepError("the work folder must be new (or pass reuse to verify and reuse an earlier attempt's)")
     inv = json.loads(inv_bytes)
     expected = {r["scene"]: r["input_sha256"] for r in inv["scenes"] if r["retained"]}
     texts = {r["scene"]: r["texts"] for r in inv["scenes"] if r["retained"]}
@@ -524,15 +603,20 @@ def prepare(*, spec, a26_spec, zip_path, inventory_dir, vocabulary, out, work, w
     reserve = list(S["environments"]["reserve"])
     auth = R.TrainingAuthorization(a26_spec_bytes=Path(a26_spec).read_bytes(), a24_spec_bytes=spec_bytes,
                                    inventory_bytes=inv_bytes)
-    work.mkdir(parents=True)
+    work.mkdir(parents=True, exist_ok=reuse)
     results, rounds = [], []
     todo = envs["fitting"] + envs["validation"]
     cohort_of = {g: c for c in COHORTS for g in envs[c]}
     batch = 0
     while True:
         progress(f"round {batch}: {len(todo)} environments")
-        results += _run_scenes(todo, cohort_of, S, zip_path, auth, expected, texts, vocab, work, tokenizer_dir,
-                               model_description, workers, progress)
+        done = _run_scenes(todo, cohort_of, S, zip_path, auth, expected, texts, vocab, work, tokenizer_dir,
+                           model_description, workers, progress, reuse=reuse)
+        refused = [res[0] for res in done if res[0]["status"] == "reuse_refused"]
+        if refused:
+            raise PrepError(f"{len(refused)} scan(s) of {work} failed the reuse checks; nothing was published: "
+                            + "; ".join(f"{r['scene']}: {', '.join(map(str, r['problems']))[:300]}" for r in refused[:10]))
+        results += done
         rows = [r for res in results for r in res[2]]
         sel = {c: sample([r for r in rows if cohort_of.get(r["group"]) == c], envs[c],
                          C["fitting_cap"] if c == "fitting" else C["validation_cap"])[1] for c in COHORTS}
@@ -579,6 +663,10 @@ def prepare(*, spec, a26_spec, zip_path, inventory_dir, vocabulary, out, work, w
     manifest = {"format_version": 1, "record_type": "a24_preparation_manifest", "spec_id": SPEC_ID,
                 "spec_sha256": _sha(spec_bytes), "started_utc": started, "finished_utc": _now(),
                 "elapsed_s": round(time.perf_counter() - t0, 1), "workers": workers, "counts": counts,
+                "reuse": {"work": str(work), "scans_reused": sum(bool(res[0].get("reused")) for res in results),
+                          "scans_prepared_fresh": sum(not res[0].get("reused") and res[0]["status"] == "prepared"
+                                                      for res in results),
+                          "checks": "per scan, in scenes.jsonl (reuse_checks)"} if reuse else None,
                 "files": {n: _sha(d) for n, d in sorted(files.items())}, "code": code_hashes(),
                 "status": "prepared; for the Stage A review before any fit"}
     files["manifest.json"] = DEV._dumps(manifest)
@@ -599,6 +687,7 @@ def summary(manifest, scenes) -> dict:
     """What `prepare` prints: scans by status, every scan not prepared (with its error), the counts and the cohorts."""
     c = manifest["counts"]
     return {"folder": manifest.get("folder"), "elapsed_s": manifest["elapsed_s"], "scans": c["scenes"],
+            "scans_reused_after_verification": sum(bool(r.get("reused")) for r in scenes),
             "scans_not_prepared": [x for x in scene_problems(scenes) if x["status"] != "prepared"],
             "scans_with_lock_retries": [x["scene"] for x in scene_problems(scenes) if x["retries"]],
             "counts": {k: c[k] for k in ("parents", "eligible_parents", "retained_parents")},
@@ -663,6 +752,10 @@ def pilot_spec(S, settings, manifest, examples, rounds, problems=()) -> str:
     L_ += [f"- **Not prepared:** `{x['scene']}` ({x['cohort']}): {x['status']}; {x['error'][:300]}" for x in bad] or \
         ["- Every drawn scan was prepared."]
     L_ += [f"- Lock retries: `{x['scene']}`, {len(x['retries'])} retried" for x in problems if x["retries"]]
+    if manifest.get("reuse"):
+        r = manifest["reuse"]
+        L_.append(f"- Reused from an earlier attempt's work folder after verification: {r['scans_reused']} scans "
+                  f"(prepared fresh: {r['scans_prepared_fresh']}); every check per scan is in `scenes.jsonl`.")
     L_ += ["", "## Supervision coverage and exclusions", "",
            f"- Parents prepared: {c['parents']}; eligible under A2.6b: {c['eligible_parents']}; retained: {c['retained_parents']}.",
            f"- Excluded by A2.6b's eligibility (by parent): {json.dumps(c['excluded_by_a26_eligibility'])}",
