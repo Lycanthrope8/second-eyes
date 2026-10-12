@@ -146,6 +146,17 @@ first, records the hashes of the report it supersedes, and reruns nothing; the p
 An environment "contributes none" when its retained parents sum to zero. It falls in one of two groups: no parent
 eligible under A2.6b, or eligible parents that were all quarantined.
 
+**Re-exporting the audit** (`audit-export --prep FOLDER --work FOLDER --out FOLDER`, fix 3). This re-exports the
+same audit examples from a saved preparation and its work records into a new folder. Each view's objects carry the
+scene contract's geometry fields (`center_m`, `size_m`, `rotation_xyzw`) exactly as recorded, with their state and
+full precision; `audit.md` rounds them to the centimetre for display only.
+
+Each view links by SHA-256 to its original derived scene and command records, and each parent to its source
+annotation entries. All three are stored once each under `evidence/`. The export is refused if a derived record
+differs from its bundle's index, or a letter from the original audit's. Its manifest records the preparation's
+identity, the superseded audit's hashes, and that the specification, cohorts, labels and six training-data files are
+unchanged.
+
 ## 6. Training (`train.py`, in `.venv-train`)
 
 **A fit:**
@@ -224,6 +235,7 @@ After all nine fits and selections, one complete frozen development evaluation p
 python -m grounding.a24 freeze|prepare|gbnf-check|smoke|fit|select|merge|continuation      (.venv-train)
 python -m grounding.a24 prepare ... --reuse-work FOLDER   (instead of --work: verify, then reuse, an earlier attempt's scans)
 python -m grounding.a24 report --prep FOLDER --out FOLDER  (the counts and pilot-spec.md regenerated, nothing rerun)
+python -m grounding.a24 audit-export --prep FOLDER --work FOLDER --out FOLDER  (the audit re-exported with full geometry)
 python -m grounding.a24 locate|eval-direct|eval-parser|score|analyze                         (.venv)
 ```
 

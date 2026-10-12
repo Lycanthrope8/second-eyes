@@ -153,6 +153,68 @@ def reuse_checks(P, R, D, tmp, a26_path, S, zp, vocab, sp, M):
     check("one refused scan stops the whole reuse before anything is published, naming the scan", stopped)
 
 
+def audit_export_checks(P, out, tmp, audit):
+    print("-- the audit re-exported from the saved records (fix 3)")
+    before = {p.relative_to(out).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in out.rglob("*") if p.is_file()}
+    AE = P.audit_export(prep=out, work=tmp / "work", out=tmp / "audit-export")
+    d = Path(AE["folder"])
+    items = [json.loads(x) for x in (d / "audit.jsonl").read_text(encoding="utf-8").splitlines()]
+    check("the same audit examples, in the same order, with their cells, labels and checks",
+          [(i["cell"], i["parent_command_id"], i["label"]) for i in items] == [(i["cell"], i["parent_command_id"], i["label"]) for i in audit]
+          and all(i["views"][v].get("check") == a["views"][v].get("check") for i, a in zip(items, audit)
+                  for v in i["views"] if i["views"][v].get("materialized")))
+    exact, linked = True, True
+    idx_cache = {}
+    for i in items:
+        b = tmp / "work" / i["scene"] / "bundle"
+        idx = idx_cache.setdefault(i["scene"], {x["command_path"]: x for x in
+                                                (json.loads(y) for y in (b / "preparation-index.jsonl").read_text(encoding="utf-8").splitlines())
+                                                if x.get("command_path")})
+        for v, vv in i["views"].items():
+            if not vv.get("materialized"):
+                continue
+            sb = (d / "evidence" / "scenes" / f"{vv['derived_scene']['sha256']}.json").read_bytes()
+            cb = (d / "evidence" / "commands" / f"{vv['derived_command']['sha256']}.json").read_bytes()
+            linked &= (hashlib.sha256(sb).hexdigest() == vv["derived_scene"]["sha256"] and sb == (b / vv["derived_scene"]["path"]).read_bytes()
+                       and cb == (b / vv["derived_command"]["path"]).read_bytes()
+                       and idx[vv["derived_command"]["path"]]["scene_sha256"] == vv["derived_scene"]["canonical_sha256"]
+                       and idx[vv["derived_command"]["path"]]["command_sha256"] == vv["derived_command"]["canonical_sha256"])
+            geo = {o["object_id"]: o["geometry"] for o in json.loads(sb)["objects"]}
+            exact &= all(o[k] == geo[o["object_id"]][k] and o[k]["state"] == "known" for o in vv["objects"]
+                         for k in ("center_m", "size_m"))
+        a = d / "evidence" / "annotations" / f"{i['source_annotation_entries']['sha256']}.json"
+        linked &= a.is_file() and len(json.loads(a.read_bytes())) == i["source_annotation_entries"]["entries"] > 0
+    check("every visible object's center_m and size_m equal its original derived scene's fields exactly (known, full "
+          "precision); no geometry is null", exact and AE["counts"]["center_m_known"] == AE["counts"]["objects"] > 0)
+    check("each view links by SHA-256 to its original derived scene and command, byte for byte, matching the bundle's "
+          "index; each parent to its source annotation entries; every record stored once", linked
+          and len(list((d / "evidence").rglob("*.json"))) == AE["counts"]["derived_scenes"] + AE["counts"]["derived_commands"] + AE["counts"]["annotation_sets"])
+    after = {p.relative_to(out).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in out.rglob("*") if p.is_file()}
+    m = json.loads((d / "manifest.json").read_text(encoding="utf-8"))
+    check("the manifest records the preparation's identity, the superseded audit's hashes, and the specification, "
+          "cohorts, labels and six training-data files unchanged; the preparation is untouched",
+          before == after and m["preparation_manifest_sha256"] == hashlib.sha256((out / "manifest.json").read_bytes()).hexdigest()
+          and m["supersedes"] == {"audit/audit.jsonl": before["audit/audit.jsonl"], "audit/audit.md": before["audit/audit.md"]}
+          and len(m["unchanged"]) == 9 and all(m["unchanged"][k]["sha256"] == before[k] for k in m["unchanged"]))
+    refused = []
+    w2 = tmp / "work-tampered"
+    shutil.copytree(tmp / "work", w2)
+    first = next(i for i in items if any(vv.get("materialized") for vv in i["views"].values()))
+    vv = next(vv for vv in first["views"].values() if vv.get("materialized"))
+    p_ = w2 / first["scene"] / "bundle" / vv["derived_scene"]["path"]
+    j = json.loads(p_.read_bytes())
+    j["objects"][0]["geometry"]["center_m"]["value"][0] += 0.5
+    p_.write_text(json.dumps(j), encoding="utf-8")
+    for kw in ({"work": w2, "out": tmp / "ae-tampered"}, {"work": tmp / "work", "out": tmp / "audit-export"}):
+        try:
+            P.audit_export(prep=out, **kw)
+            refused.append(False)
+        except P.PrepError:
+            refused.append(True)
+    check("the export refuses a derived scene that differs from its bundle's index, and an existing output folder",
+          refused == [True, True] and not (tmp / "ae-tampered").exists())
+
+
 def report_retries():
     print(f"  note  transient Windows file locks retried: {len(RETRIED)}" + "".join(f"\n        {r}" for r in RETRIED))
 
@@ -294,6 +356,30 @@ def unit_checks():
     check("the prepare summary names a scan that was not prepared, with its error, and lists lock retries",
           [x["scene"] for x in sm["scans_not_prepared"]] == ["scene0002_00"] and "WinError 5" in sm["scans_not_prepared"][0]["error"]
           and sm["scans_with_lock_retries"] == ["scene0002_00"] and sm["scans"] == {"prepared": 1, "failed": 1})
+    print("-- audit geometry: the scene contract's fields, full precision, state kept (fix 3)")
+    ev = {"assumptions": [], "kind": "annotated", "source": "iref_scannet"}
+    known_c, known_s = [-1.8319513596543817, 1.6253435304181612, 1.1020223498344421], [0.123456789012345, 2.0, 0.3333333333333333]
+    scene = {"objects": [
+        {"object_id": "obj_001", "category": {"state": "known", "value": {"model": "chair", "standard": "chair"}},
+         "attributes": {"colours": {"state": "known", "value": ["brown"]}},
+         "geometry": {"center_m": {"evidence": ev, "state": "known", "value": known_c},
+                      "size_m": {"evidence": ev, "state": "known", "value": known_s},
+                      "rotation_xyzw": {"evidence": ev, "state": "known", "support": "yaw_only", "value": [0.0, 0.0, 0.0, 1.0]}}},
+        {"object_id": "obj_002", "category": {"state": "known", "value": {"model": "lamp", "standard": "lamp"}},
+         "geometry": {"center_m": {"state": "unknown", "reason": "not annotated"}, "size_m": {"state": "unknown"}}}]}
+    vis = P._visible(scene, [("A", "obj_001"), ("B", "obj_002")])
+    md = P.audit_markdown([{"cell": ["retained", "near"], "text": "the chair", "parent_command_id": "p1", "scene": "s",
+                            "label": "chair | near | lamp", "rule_parse": None, "rule_disagreement": [],
+                            "target_object_id": "obj_001", "retained": True, "parent_reasons": [],
+                            "views": {"source_known_nyu": {"materialized": True, "check": None, "objects": vis}}}])
+    check("known center_m and size_m survive at full precision with their state; unknown stays unknown with no value; "
+          "a missing field is absent; only the display rounds",
+          vis[0]["center_m"]["value"] == known_c and vis[0]["size_m"]["value"] == known_s
+          and vis[0]["center_m"]["state"] == vis[0]["size_m"]["state"] == "known"
+          and vis[1]["center_m"] == {"state": "unknown", "reason": "not annotated"} and "value" not in vis[1]["size_m"]
+          and vis[1]["rotation_xyzw"] == {"state": "absent"} and vis[0]["letter"] == "A"
+          and "c=(-1.83, 1.63, 1.10) s=(0.12, 2.00, 0.33)" in md and "c=unknown (unknown) s=unknown (unknown)" in md,
+          json.dumps(vis)[:300])
     print("-- sampling with a salted stratum order")
     rows = [{"group": f"g{g}", "stratum": f"s{s}", "retained": True, "parent_command_id": f"g{g}s{s}p{p}"}
             for g in range(60) for s in range(10) for p in range(2)]
@@ -586,6 +672,7 @@ def main() -> int:
               and RP["supersedes"]["pilot-spec.md"] == before["pilot-spec.md"] and before == after
               and json.loads((rdir / "manifest.json").read_text(encoding="utf-8"))["preparation_manifest_sha256"]
               == hashlib.sha256((out / "manifest.json").read_bytes()).hexdigest())
+        audit_export_checks(P, out, tmp, audit)
         bad = tmp / "prep-altered"
         shutil.copytree(out, bad)
         (bad / "strata.jsonl").write_bytes((bad / "strata.jsonl").read_bytes() + b"\n")

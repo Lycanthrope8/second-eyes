@@ -62,6 +62,9 @@ def main(argv=None) -> int:
     s = sub.add_parser("report", help="the counts and pilot-spec.md regenerated from a saved preparation (new folder)")
     s.add_argument("--prep", required=True)
     s.add_argument("--out", required=True)
+    s = sub.add_parser("audit-export", help="the same audit examples re-exported with full geometry and linked evidence")
+    for x in ("--prep", "--work", "--out"):
+        s.add_argument(x, required=True)
     s = sub.add_parser("gbnf-check", help="the language against the pinned llama.cpp's grammar validator")
     s.add_argument("--validator", required=True)
     s.add_argument("--out", required=True)
@@ -116,6 +119,12 @@ def main(argv=None) -> int:
         print(json.dumps(locate(a.root), indent=1))
         return 0
     try:
+        if a.cmd == "audit-export":
+            from . import prep as P
+            r = P.audit_export(prep=a.prep, work=a.work, out=a.out)
+            print(json.dumps({k: r[k] for k in ("folder", "counts", "supersedes", "derived_records_match_bundle_index",
+                                                "letters_match_original_audit")}, indent=1))
+            return 0
         if a.cmd == "report":
             from . import prep as P
             r = P.report(prep=a.prep, out=a.out)

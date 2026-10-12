@@ -402,22 +402,37 @@ def parser_examples(selected, settings, tok, constraint, cohort):
 
 
 # --------------------------------------------------------------------------------------------- the audit
+GEOMETRY_FIELDS = ("center_m", "size_m", "rotation_xyzw")
+
+
+def _geometry_field(f) -> dict:
+    """One geometry field exactly as the derived scene records it (state, full-precision value, support, evidence);
+    a field the scene lacks is {"state": "absent"}. Never rounded: rounding is for display only (audit_markdown)."""
+    return json.loads(json.dumps(f)) if isinstance(f, dict) else {"state": "absent"}
+
+
 def _visible(scene, codes=None) -> list:
-    """The model-visible objects of a derived scene, compactly: ID, letter, category, colours, centre and size."""
+    """The model-visible objects of a derived scene: ID, letter, category, colours, and the scene contract's geometry
+    fields (center_m, size_m, rotation_xyzw) with their state and full-precision values. Fix 3: the first audit read
+    geometry under names the contract does not use, so every centre and size was null."""
     letter = {o: c for c, o in (codes or [])}
     rows = []
     for o in sorted(scene["objects"], key=lambda o: o["object_id"]):
         cat = o.get("category", {})
-        g = o.get("geometry", {})
-        col = (o.get("attributes", {}) or {}).get("colours", {})
-
-        def val(f):
-            return [round(x, 2) for x in f["value"]] if isinstance(f, dict) and f.get("state") == "known" else None
+        g = o.get("geometry", {}) or {}
+        col = (o.get("attributes", {}) or {}).get("colours", {}) or {}
         rows.append({"object_id": o["object_id"], "letter": letter.get(o["object_id"]),
                      "category": (cat.get("value") or {}).get("model") if cat.get("state") == "known" else "unknown",
                      "colours": col.get("value") if col.get("state") == "known" else None,
-                     "centre": val(g.get("center") or g.get("centre") or {}), "size": val(g.get("size") or {})})
+                     **{k: _geometry_field(g.get(k)) for k in GEOMETRY_FIELDS}})
     return rows
+
+
+def _shown(f) -> str:
+    """A geometry field for reading: known values rounded to the centimetre; otherwise its state."""
+    if isinstance(f, dict) and f.get("state") == "known" and isinstance(f.get("value"), list):
+        return "(" + ", ".join(f"{x:.2f}" for x in f["value"]) + ")"
+    return f"unknown ({(f or {}).get('state', 'absent')})"
 
 
 COLOUR_WORDS = tuple(L.COLOURS)
@@ -507,7 +522,8 @@ def audit_sample(rows, work) -> list:
 def audit_markdown(items) -> str:
     L_ = ["# A2.4 label audit (for independent review)", "",
           "Each item: the command, the annotation's fields, the derived label, the rule parser's reading, and per view the "
-          "model-visible objects (letter, category, colours, centre and size in metres) with the resolver's check. "
+          "model-visible objects (letter, category, colours, centre and size in metres, shown rounded to the "
+          "centimetre; full precision in audit.jsonl) with the resolver's check. "
           "The expected target is the source's. Passing the label builder's own checks is not the claim; this sample is "
           "for a reader to check that the label means what the command says.", ""]
     for k, it in enumerate(items, 1):
@@ -515,6 +531,9 @@ def audit_markdown(items) -> str:
         L_.append(f"- Command: \"{it['text']}\" (`{it['parent_command_id']}`, {it['scene']})")
         if it.get("annotation"):
             L_.append(f"- Annotation: {json.dumps(it['annotation'], ensure_ascii=False)}")
+        if it.get("source_annotation_entries"):
+            e = it["source_annotation_entries"]
+            L_.append(f"- Source annotation entries: {e['entries']}, `{e['sha256'][:12]}` (evidence/annotations/)")
         L_.append((f"- Label: `{it['label']}`" if it["label"] else "- Label: none (quarantined before labelling)")
                   + f"; rule parser: `{(it['rule_parse'] or {}).get('string')}`"
                   + (f" (differs: {', '.join(it['rule_disagreement'])})" if it["rule_disagreement"] else ""))
@@ -531,8 +550,12 @@ def audit_markdown(items) -> str:
             else:
                 L_.append(f"- {v}: resolver {c.get('outcome')} -> {c.get('target_id')}; supported {c.get('supported')}"
                           + (f" ({c['reason']})" if c.get("reason") else ""))
+            if vv.get("derived_scene"):
+                L_.append(f"  derived scene `{vv['derived_scene']['sha256'][:12]}`, command "
+                          f"`{vv['derived_command']['sha256'][:12]}` (evidence/)")
             L_.append("  " + "; ".join(f"{o['letter'] or '-'} {o['object_id']} {o['category']}"
-                                       + (f" {o['colours']}" if o["colours"] else "") + f" c={o['centre']} s={o['size']}"
+                                       + (f" {o['colours']}" if o["colours"] else "")
+                                       + f" c={_shown(o.get('center_m'))} s={_shown(o.get('size_m'))}"
                                        for o in vv["objects"]))
         L_.append("")
     return "\n".join(L_) + "\n"
@@ -743,6 +766,116 @@ def report(*, prep, out, settings_path=SETTINGS_PATH) -> dict:
     files["manifest.json"] = DEV._dumps(rec)
     folder = _publish(out, files)
     return dict(rec, folder=str(folder), counts=counts)
+
+
+AUDIT_UNCHANGED = ("spec.json", "cohort.json", "reference_only/labels.jsonl") + tuple(
+    f"training_data/{c}-{k}.jsonl" for c in ("fitting", "validation")
+    for k in ("direct-coordinates_v2", "direct-coordinates_relations_v2", "parser"))
+
+
+def audit_export(*, prep, work, out) -> dict:
+    """The same audit examples re-exported from a saved preparation and its work records into a new folder (fix 3).
+    Each view carries the scene contract's geometry at full precision, and links by SHA-256 to its original derived
+    scene and command records; each parent links to its source annotation entries. Records are stored once each under
+    evidence/. Nothing is rerun and nothing is changed: the preparation's files are verified against its manifest
+    first. The manifest records the superseded audit, and that the specification, cohorts, labels and six training-data
+    files are unchanged. The export is refused if a derived record differs from its bundle's index, or a letter differs
+    from the original audit's."""
+    from ..inference.iref_vla.choices import choice_mapping
+    from ..inference.iref_vla.protocol import load_protocol
+    from ..resolution.validate import canonical_sha256
+    prep, work, out = Path(prep), Path(work), Path(out)
+    if out.exists():
+        raise PrepError("the output folder must be new")
+    man_bytes = (prep / "manifest.json").read_bytes()
+    man = json.loads(man_bytes)
+    if man.get("record_type") != "a24_preparation_manifest":
+        raise PrepError(f"{prep} is not an A2.4 preparation")
+    changed = [n for n, h in man["files"].items() if not (prep / n).is_file() or _sha_file(prep / n) != h]
+    if changed:
+        raise PrepError(f"the preparation's files differ from its manifest: {changed[:5]}")
+    lacking = [n for n in AUDIT_UNCHANGED + ("audit/audit.jsonl", "audit/audit.md") if n not in man["files"]]
+    if lacking:
+        raise PrepError(f"the preparation's manifest does not list {lacking}")
+    items = _jl(prep / "audit" / "audit.jsonl")
+    wanted = {(it["scene"], it["parent_command_id"]) for it in items}
+    rows = {}
+    with open(prep / "reference_only" / "labels.jsonl", encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                r = json.loads(line)
+                if (r["scene"], r["parent_command_id"]) in wanted:
+                    rows[(r["scene"], r["parent_command_id"])] = r
+    if wanted - set(rows):
+        raise PrepError(f"audit parents missing from the labels: {sorted(wanted - set(rows))[:3]}")
+    proto = load_protocol()
+    store, index, notes, problems = {}, {}, {}, []
+    n = {"views_materialized": 0, "objects": 0, "center_m_known": 0, "size_m_known": 0, "rotation_xyzw_known": 0}
+
+    def keep(kind, data):
+        h = _sha(data)
+        store[f"evidence/{kind}/{h}.json"] = data
+        return h
+    out_items = []
+    for it in items:
+        r = rows[(it["scene"], it["parent_command_id"])]
+        b = work / it["scene"] / "bundle"
+        if it["scene"] not in index:
+            # keyed by the derived command: a scan's one full-inventory scene is shared by many commands
+            index[it["scene"]] = {x["command_path"]: x for x in _jl(b / "preparation-index.jsonl") if x.get("command_path")}
+            notes[it["scene"]] = json.loads((work / it["scene"] / "import" / "reference_only" /
+                                             "iref-annotations.json").read_bytes())["entries"]
+        views = {}
+        for v in VIEWS:
+            vp = r["view_paths"][v]
+            if not vp["scene_path"]:
+                views[v] = {"materialized": False}
+                continue
+            sb, cb = (b / vp["scene_path"]).read_bytes(), (b / vp["command_path"]).read_bytes()
+            scene, command = json.loads(sb), json.loads(cb)
+            ix = index[it["scene"]].get(vp["command_path"], {})
+            if not (canonical_sha256(scene) == ix.get("scene_sha256") and canonical_sha256(command) == ix.get("command_sha256")
+                    and ix.get("scene_path") == vp["scene_path"]):
+                problems.append(f"{it['parent_command_id']} {v}: the derived records differ from the bundle's index")
+            ids = sorted(o["object_id"] for o in scene["objects"])
+            objs = _visible(scene, choice_mapping(ids, proto) if len(ids) <= len(proto["object_codes"]) else [])
+            orig = (it["views"].get(v) or {}).get("objects") or []
+            if [(o["object_id"], o["letter"]) for o in objs] != [(o["object_id"], o["letter"]) for o in orig]:
+                problems.append(f"{it['parent_command_id']} {v}: objects or letters differ from the original audit")
+            n["views_materialized"] += 1
+            n["objects"] += len(objs)
+            for k in GEOMETRY_FIELDS:
+                n[f"{k}_known"] += sum(o[k].get("state") == "known" for o in objs)
+            views[v] = {"materialized": True, "objects": objs, "check": (it["views"].get(v) or {}).get("check"),
+                        "derived_scene": {"path": vp["scene_path"], "sha256": keep("scenes", sb),
+                                          "canonical_sha256": canonical_sha256(scene)},
+                        "derived_command": {"path": vp["command_path"], "sha256": keep("commands", cb),
+                                            "canonical_sha256": canonical_sha256(command)}}
+        entries = [e for e in notes[it["scene"]] if e.get("command_id") == it["parent_command_id"]]
+        out_items.append(dict(it, views=views, source_annotation_entries={
+            "entries": len(entries), "sha256": keep("annotations", DEV._dumps(entries))}))
+    if problems:
+        raise PrepError(f"{len(problems)} audit views do not match the saved records; nothing was written: "
+                        + "; ".join(problems[:5]))
+    files = dict(store)
+    files["audit.jsonl"] = DEV._jsonl(out_items)
+    files["audit.md"] = audit_markdown(out_items).encode("utf-8")
+    counts = dict(n, items=len(out_items),
+                  derived_scenes=sum(k.startswith("evidence/scenes/") for k in store),
+                  derived_commands=sum(k.startswith("evidence/commands/") for k in store),
+                  annotation_sets=sum(k.startswith("evidence/annotations/") for k in store))
+    rec = {"format_version": 1, "record_type": "a24_audit_export", "made_utc": _now(),
+           "preparation": str(prep), "preparation_manifest_sha256": _sha(man_bytes), "work": str(work),
+           "supersedes": {k: man["files"][k] for k in ("audit/audit.jsonl", "audit/audit.md")},
+           "unchanged": {k: {"sha256": man["files"][k], "verified_now": True} for k in AUDIT_UNCHANGED},
+           "counts": counts, "derived_records_match_bundle_index": True, "letters_match_original_audit": True,
+           "reason": "fix 3: the first audit read geometry under names the scene contract does not use (center, centre "
+                     "and size, not center_m and size_m), so every centre and size was null; the same examples are "
+                     "re-exported from the saved records with the contract's fields at full precision",
+           "files": {k: _sha(d) for k, d in sorted(files.items())}, "code": code_hashes()}
+    files["manifest.json"] = DEV._dumps(rec)
+    folder = _publish(out, files)
+    return dict(rec, folder=str(folder))
 
 
 def count(rows, strata, selected, examples, scenes) -> dict:
