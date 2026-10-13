@@ -34,6 +34,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+from fractions import Fraction
 import random
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -131,10 +132,14 @@ def draws(envs, b=B, seed=SEED):
 
 
 def interval(values) -> dict:
+    """The 95% nearest-rank interval. The tail probabilities are exact fractions, 1/40 and 39/40: computed in floating
+    point, (1 - 0.95) / 2 is 0.025000000000000022, which took the lower endpoint from zero-based index 249 to 250 of
+    10,000 (corrected at A2.4's closure)."""
     v = sorted(x for x in values if x is not None)
     if not v:
         return {"low": None, "high": None, "replicates": 0}
-    return {"low": quantile(v, (1 - LEVEL) / 2), "high": quantile(v, 1 - (1 - LEVEL) / 2), "replicates": len(v)}
+    tail = (1 - Fraction(str(LEVEL))) / 2
+    return {"low": quantile(v, tail), "high": quantile(v, 1 - tail), "replicates": len(v)}
 
 
 # --------------------------------------------------------------------------------------------- the analysis

@@ -65,6 +65,9 @@ def analysis_checks(AN):
     check("percentiles by nearest rank (D97): zero-based index ceil(p x n) - 1, exact; 249 and 9,749 of 10,000",
           AN.quantile([1, 2, 3, 4], 0.5) == 2 and AN.quantile([1, 2, 3, 4], 0.025) == 1
           and AN.quantile(big_n, 0.025) == 249 and AN.quantile(big_n, 0.975) == 9749)
+    iv = AN.interval(list(big_n))
+    check("the 95% interval itself takes indices 249 and 9,749 of 10,000 (exact tail probabilities, not (1 - 0.95) / 2 "
+          "in floating point)", iv["low"] == big_n[249] and iv["high"] == big_n[9749] and iv["replicates"] == 10000)
     reps_a, reps_b = [], []
     agg2 = AN.aggregates({("A", "a"): ["correct", "wrong_object"], ("B", "a"): ["correct"], ("C", "a"): ["ask", "correct"]},
                          {("A", "a"): (5, 2), ("B", "a"): (3, 1), ("C", "a"): (2, 2)})

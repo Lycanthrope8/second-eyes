@@ -157,6 +157,12 @@ differs from its bundle's index, or a letter from the original audit's. Its mani
 identity, the superseded audit's hashes, and that the specification, cohorts, labels and six training-data files are
 unchanged.
 
+**Regenerating an analysis** (A2.4's closure). `analyze --supersedes FOLDER` writes a new analysis from the saved
+scores and records the hash of the analysis it replaces, which is kept unchanged. `analysis-diff --old FOLDER --new
+FOLDER` compares two analyses, A2.6c's or A2.4's. It reports each interval endpoint's change in percentage points, any
+interval whose crossing of zero changed, and any other number that changed. The 95% interval takes exact tail
+probabilities (1/40 and 39/40): the sorted replicates at indices 249 and 9,749 of 10,000.
+
 ## 6. Training (`train.py`, in `.venv-train`)
 
 **A fit:**
@@ -236,6 +242,8 @@ python -m grounding.a24 freeze|prepare|gbnf-check|smoke|fit|select|merge|continu
 python -m grounding.a24 prepare ... --reuse-work FOLDER   (instead of --work: verify, then reuse, an earlier attempt's scans)
 python -m grounding.a24 report --prep FOLDER --out FOLDER  (the counts and pilot-spec.md regenerated, nothing rerun)
 python -m grounding.a24 audit-export --prep FOLDER --work FOLDER --out FOLDER  (the audit re-exported with full geometry)
+python -m grounding.a24 analyze ... --supersedes FOLDER    (a new analysis from saved scores; the earlier one kept)
+python -m grounding.a24 analysis-diff --old FOLDER --new FOLDER  (what changed between two analyses)
 python -m grounding.a24 locate|eval-direct|eval-parser|score|analyze                         (.venv)
 ```
 

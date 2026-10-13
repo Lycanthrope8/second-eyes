@@ -6,6 +6,7 @@ continuation. Accepted evaluation environment (.venv): eval-direct, eval-parser,
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -113,6 +114,10 @@ def main(argv=None) -> int:
     s = sub.add_parser("analyze", help="per-seed estimates, seed means and spread, paired differences, supplementary")
     for a in ("--prep", "--scores", "--out"):
         s.add_argument(a, required=True)
+    s.add_argument("--supersedes", help="an earlier analysis folder this one replaces (kept unchanged; its hash recorded)")
+    s = sub.add_parser("analysis-diff", help="what changed between two analyses: intervals, zero crossings, other numbers")
+    s.add_argument("--old", required=True, help="the earlier analysis folder")
+    s.add_argument("--new", required=True, help="the later analysis folder")
     a = ap.parse_args(argv)
     from ..evaluation.iref_vla.protocol import EvaluationInputError
     if a.cmd == "locate":
@@ -166,7 +171,9 @@ def main(argv=None) -> int:
                 print(json.dumps(T.select(a.fit), indent=1))
             elif a.cmd == "merge":
                 r = T.merge(fit_dir=a.fit, prep=a.prep, base_dir=a.base, out=a.out, device=a.device)
-                print(json.dumps({"model_name": r["model_name"], "identity_sha256": r.get("identity_sha256"),
+                ident = Path(a.out) / "a24-identity.json"
+                print(json.dumps({"model_name": r["model_name"],
+                                  "identity_sha256": hashlib.sha256(ident.read_bytes()).hexdigest(),
                                   "check": r["merge"]["check"]}, indent=1))
             else:
                 r = T.continuation(fits=_pairs(a.fit), merged=_pairs(a.merged), runner_smokes=_pairs(a.runner_smoke))
@@ -186,9 +193,14 @@ def main(argv=None) -> int:
                 r = E.score(prep=a.prep, rules=a.rules, base_runs=_pairs(a.base_run), direct_evals=a.direct,
                             parser_evals=a.parser, out=a.out)
                 print(json.dumps(r["counts"], indent=1))
+            elif a.cmd == "analysis-diff":
+                print(json.dumps(E.analysis_diff(Path(a.old) / "analysis.json", Path(a.new) / "analysis.json"), indent=1))
             else:
-                E.analyze(prep=a.prep, scores=a.scores, out=a.out)
+                r = E.analyze(prep=a.prep, scores=a.scores, out=a.out, supersedes=a.supersedes)
                 print(f"analysis written to {a.out}")
+                if a.supersedes:
+                    print(json.dumps({"supersedes": {k: v for k, v in r["supersedes"].items() if k != "changes"},
+                                      "changes": r["supersedes"]["changes"]}, indent=1))
     except (EvaluationInputError, ValueError, RuntimeError, OSError) as e:
         print(f"REFUSED: {type(e).__name__}: {e}", file=sys.stderr)
         return 2

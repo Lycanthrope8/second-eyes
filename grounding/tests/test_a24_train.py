@@ -322,6 +322,38 @@ def main() -> int:
               and any("[cross_format]" in n for n in names) and any(n.startswith("a24.parser.s1") for n in names)
               and dev["differences"] and dev["supplementary"] and "a24.parser.s1" in sc["parsers"],
               str(sorted(names))[:300])
+        print("-- the closure's report corrections")
+        lines = (tmp / "analysis" / "report.md").read_text(encoding="utf-8").split("\n")
+        tables, i = [], 0
+        while i < len(lines):
+            if lines[i].startswith("|") and i + 1 < len(lines) and set(lines[i + 1].replace("|", "").strip()) <= set("-: "):
+                cols, j = lines[i].count("|"), i + 2
+                while j < len(lines) and lines[j].startswith("|"):
+                    tables.append(lines[j].count("|") == cols)
+                    j += 1
+                i = j
+            else:
+                i += 1
+        sys_head = next(x for x in lines if x.startswith("| System |"))
+        check("every Markdown table in the report has a constant number of columns; the Systems table gives system, view "
+              "and format their own cells", tables and all(tables)
+              and sys_head == "| System | View | Format | Command-weighted | Environment-weighted | Parents |")
+        an2 = E.analyze(prep=p26, scores=tmp / "scores", out=tmp / "analysis-2", b=50, supersedes=tmp / "analysis")
+        ch = an2["supersedes"]["changes"]
+        check("an analysis regenerated from the same saved scores records what it supersedes, and with the same code nothing "
+              "changes: no interval endpoint, no zero crossing, no other number",
+              an2["supersedes"]["analysis_sha256"] == hashlib.sha256((tmp / "analysis" / "analysis.json").read_bytes()).hexdigest()
+              and ch["intervals_compared"] > 0 and ch["endpoints_changed"] == 0 and not ch["zero_crossing_changes"]
+              and not ch["other_numbers_changed"] and ch["only_in_old"] == ch["only_in_new"] == 0, json.dumps(ch)[:300])
+        bumped = json.loads((tmp / "analysis" / "analysis.json").read_text(encoding="utf-8"))
+        d0 = next(iter(bumped["partitions"]["development"]["differences"].values()))["command_weighted"]
+        lo, hi = d0["interval"]["low"], d0["interval"]["high"]
+        d0["interval"]["low"], d0["interval"]["high"] = (0.0002, 0.0005) if lo <= 0 <= hi else (-0.0002, 0.0005)
+        (tmp / "bumped.json").write_text(json.dumps(bumped), encoding="utf-8")
+        dd = E.analysis_diff(tmp / "analysis" / "analysis.json", tmp / "bumped.json")
+        check("analysis-diff reports each endpoint's change in percentage points and an interval whose zero crossing changed",
+              dd["endpoints_changed"] >= 1 and len(dd["zero_crossing_changes"]) == 1 and dd["max_endpoint_change_pp"] > 0
+              and not dd["other_numbers_changed"], json.dumps(dd)[:300])
     importlib.import_module("grounding.tests.test_a24_prep").report_retries()
     print(f"\n{len(PASSES)} passed, {len(FAILS)} failed")
     return 1 if FAILS else 0

@@ -321,7 +321,8 @@ def _name(c) -> str:
                                                                                  else f" [{c[3]}]")
 
 
-def analyze(*, prep, scores, out, b=None, seed=None) -> dict:
+def analyze(*, prep, scores, out, b=None, seed=None, supersedes=None) -> dict:
+    """supersedes: an earlier analysis folder this one replaces; it is kept unchanged and its hash is recorded."""
     from ..inference.iref_vla_dev import analysis as AN
     b = AN.B if b is None else b
     seed = AN.SEED if seed is None else seed
@@ -382,10 +383,58 @@ def analyze(*, prep, scores, out, b=None, seed=None) -> dict:
             block["differences"] = differences(aggs, reps, mean_reps, groups, block)
             block["supplementary"] = supplementary(srows, rrows, prows, strata, part)
         result["partitions"][part] = block
+    if supersedes is not None:
+        old_json = Path(supersedes) / "analysis.json"
+        result["supersedes"] = {"folder": str(supersedes), "analysis_sha256": _sha(old_json.read_bytes()),
+                                "changes": analysis_diff(old_json, None, new=result)}
     out.mkdir(parents=True)
     (out / "analysis.json").write_bytes(encode_json(result))
     (out / "report.md").write_text(render(result), encoding="utf-8")
     return result
+
+
+def _walk(x, path=()):
+    """Every interval ({low, high}) and every other number of an analysis, by its JSON path."""
+    if isinstance(x, dict):
+        if "low" in x and "high" in x and not isinstance(x.get("low"), dict):
+            yield ("interval", path, (x["low"], x["high"]))
+            return
+        for k, v in x.items():
+            yield from _walk(v, path + (str(k),))
+    elif isinstance(x, list):
+        for i, v in enumerate(x):
+            yield from _walk(v, path + (str(i),))
+    elif isinstance(x, (int, float)) and not isinstance(x, bool):
+        yield ("number", path, x)
+
+
+def analysis_diff(old, new_path=None, new=None) -> dict:
+    """What changed between two analyses (A2.6c's or A2.4's analysis.json): every interval endpoint's change in
+    percentage points, any interval whose crossing of zero changed, and any other number that changed. Numbers that
+    describe the run itself (the bootstrap's replicate count, a superseded record) are compared too."""
+    a = json.loads(Path(old).read_text(encoding="utf-8"))
+    b = new if new is not None else json.loads(Path(new_path).read_text(encoding="utf-8"))
+    b = {k: v for k, v in b.items() if k != "supersedes"}
+    a = {k: v for k, v in a.items() if k != "supersedes"}
+    ia = {p: v for kind, p, v in _walk(a) if kind == "interval"}
+    ib = {p: v for kind, p, v in _walk(b) if kind == "interval"}
+    na = {p: v for kind, p, v in _walk(a) if kind == "number"}
+    nb = {p: v for kind, p, v in _walk(b) if kind == "number"}
+    crosses = lambda lo, hi: lo is not None and hi is not None and lo <= 0 <= hi   # noqa: E731
+    changes, crossing = [], []
+    for p in sorted(set(ia) & set(ib)):
+        (l1, h1), (l2, h2) = ia[p], ib[p]
+        for e1, e2 in ((l1, l2), (h1, h2)):
+            if e1 is not None and e2 is not None and e1 != e2:
+                changes.append(abs(e2 - e1) * 100)
+        if crosses(l1, h1) != crosses(l2, h2):
+            crossing.append(" / ".join(p))
+    other = [" / ".join(p) for p in sorted(set(na) & set(nb)) if na[p] != nb[p]]
+    return {"intervals_compared": len(set(ia) & set(ib)), "endpoints_changed": len(changes),
+            "max_endpoint_change_pp": max(changes) if changes else 0.0,
+            "zero_crossing_changes": crossing, "other_numbers_changed": other,
+            "only_in_old": len(set(ia) - set(ib)) + len(set(na) - set(nb)),
+            "only_in_new": len(set(ib) - set(ia)) + len(set(nb) - set(na))}
 
 
 def differences(aggs, reps, mean_reps, groups, block) -> dict:
@@ -466,14 +515,16 @@ def render(r) -> str:
           "Each fine-tuned system is shown on its own trained format; cross-format rows are labelled. Seed spread is "
           "training-seed variation and is never folded into the intervals. Development and legacy are apart.", ""]
     dev = r["partitions"]["development"]
-    L_ += ["## Systems (development)", "", "| System | Command-weighted | Environment-weighted | Parents |", "|---|---|---|---|"]
+    L_ += ["## Systems (development)", "",
+           "| System | View | Format | Command-weighted | Environment-weighted | Parents |", "|---|---|---|---|---|---|"]
     for name, s in sorted(dev["systems"].items()):
+        cells = (name.split(" | ") + ["", ""])[:3]   # system, view and format each in its own cell
         i = s.get("interval", {})
         cw = f"{_p(s['estimate']['command_weighted'])} ({_p(i.get('command_weighted', {}).get('low'))} to " \
              f"{_p(i.get('command_weighted', {}).get('high'))})"
         ew = f"{_p(s['estimate']['environment_weighted'])} ({_p(i.get('environment_weighted', {}).get('low'))} to " \
              f"{_p(i.get('environment_weighted', {}).get('high'))})"
-        L_.append(f"| {name} | {cw} | {ew} | {s['parents']} |")
+        L_.append(f"| {cells[0]} | {cells[1]} | {cells[2]} | {cw} | {ew} | {s['parents']} |")
     L_ += ["", "## Seeds (development)", ""]
     for g, s in dev.get("seed_summaries", {}).items():
         L_.append(f"- {g}: mean command-weighted {_p(s['mean']['command_weighted'])} "

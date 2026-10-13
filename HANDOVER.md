@@ -1,4 +1,4 @@
-# Second Eyes: handover (A2.4 Stage A closed; Stage B next)
+# Second Eyes: handover (A2.4 closed; A2.7 next)
 
 **Second Eyes** is a research system. A drone pre-scans an indoor space; a Quest 3 headset then grounds typed commands
 ("the chair closest to the door") to objects in that scan.
@@ -36,10 +36,14 @@ memory or chat.
 - **A2.4 (LoRA fine-tuning) is in progress.**
   - Delivery 1 is built and committed: preparation, training, the semantic language and decoder, the fine-tuned
     identity and evaluation.
-  - **Stage A is closed** (D112, D113): the frozen preparation, its audit (re-exported by fix 3) and the smoke were
-    reviewed and accepted. The run folder is `second-eyes-data\a24-20261012-032009`, named in `a24-current.txt`.
-  - **Next: Stage B** on the RTX PC (`A2.4_runbook_stage_b.md`): nine fits, their selections and merges, then nine
-    development evaluations, scoring and analysis. Then ChatGPT reviews the results.
+  - **A2.4 is closed** (D114): nine fits and nine development evaluations, reviewed and accepted. The fine-tuned
+    direct models reach about 43% source-known and 30% to 32% full inventory, 5.7 to 12.6 points above the base
+    0.5B; the parser with the resolver reproduces the rules (93.2% and 16.8%). The run folder is
+    `second-eyes-data\a24-20261012-032009`, its corrected analysis `analysis-v2`.
+  - For long GPU runs on the RTX PC, set `PYTORCH_CUDA_ALLOC_CONF=garbage_collection_threshold:0.8,max_split_size_mb:512`
+    first (`notes/failures.md`, 2026-10-12).
+  - **Next: A2.7**, the fine-tuned model's export and Quest verification. The deployment candidate is a separate
+    selection decision; U/full evaluation runs with caching off; no Quest numerical acceptance or Gate B from this pilot.
 - **A2 is not finished after A2.4** (D111). Two steps follow:
   - **A2.7:** the fine-tuned model's export and Quest verification (the supplement's original A2.5);
   - **A2.8:** frozen evaluation and preliminary Gate B (the supplement's original A2.6). It needs O20's thresholds,
