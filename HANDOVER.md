@@ -1,4 +1,4 @@
-# Second Eyes: handover (A2.4 closed; A2.7 next)
+# Second Eyes: handover (A2.7 in progress)
 
 **Second Eyes** is a research system. A drone pre-scans an indoor space; a Quest 3 headset then grounds typed commands
 ("the chair closest to the door") to objects in that scan.
@@ -33,23 +33,23 @@ memory or chat.
 - **A2.1–A2.3, A2.5 and A2.6** are closed (D97, D105, D108).
   - A2.5: the headset runs the base 0.5B Q8_0 through llama.cpp, on path U with the cache off. Its uncached and cached
     numerical acceptance remain **unresolved**.
-- **A2.4 (LoRA fine-tuning) is in progress.**
-  - Delivery 1 is built and committed: preparation, training, the semantic language and decoder, the fine-tuned
-    identity and evaluation.
-  - **A2.4 is closed** (D114): nine fits and nine development evaluations, reviewed and accepted. The fine-tuned
-    direct models reach about 43% source-known and 30% to 32% full inventory, 5.7 to 12.6 points above the base
-    0.5B; the parser with the resolver reproduces the rules (93.2% and 16.8%). The run folder is
-    `second-eyes-data\a24-20261012-032009`, its corrected analysis `analysis-v2`.
+- **A2.4 (LoRA fine-tuning) is closed** (D114): nine fits and nine development evaluations, reviewed and accepted. The
+  fine-tuned direct models reach about 43% source-known and 30% to 32% full inventory, 5.7 to 12.6 points above the
+  base 0.5B; the parser with the resolver reproduces the rules (93.2% and 16.8%). The run folder is
+  `second-eyes-data\a24-20261012-032009`, its corrected analysis `analysis-v2`.
   - For long GPU runs on the RTX PC, set `PYTORCH_CUDA_ALLOC_CONF=garbage_collection_threshold:0.8,max_split_size_mb:512`
     first (`notes/failures.md`, 2026-10-12).
-  - **Next: A2.7**, the fine-tuned model's export and Quest verification. The deployment candidate is a separate
-    selection decision; U/full evaluation runs with caching off; no Quest numerical acceptance or Gate B from this pilot.
-- **A2 is not finished after A2.4** (D111). Two steps follow:
-  - **A2.7:** the fine-tuned model's export and Quest verification (the supplement's original A2.5);
-  - **A2.8:** frozen evaluation and preliminary Gate B (the supplement's original A2.6). It needs O20's thresholds,
-    agreed with the advisor, and the lab commands.
-- **The lab commands:** their collection and sealing are **unconfirmed** (D111). This doesn't block A2.4, but it must
-  be resolved before A2.8. Never request or inspect their contents.
+- **A2.7 is in progress** (D115), parser-only: the candidate `a24.parser.s1` (epoch 2) with the accepted resolver,
+  exported to GGUF Q8_0 and decoded on the headset by libse_llama's constrained decoding. The plan and its frozen
+  acceptance criteria are in `notes/phases/A2.7_plan.md`; the commands in `docs/a27-export.md`.
+  - **Delivery 1** (desktop): the grammar-enabled native library, the export, the bundle with the frozen 300-command
+    headset subset, the desktop run on the laptop and the comparison on the RTX PC.
+  - **Next:** Delivery 2 (the resolver, relation library, query validator and language reader in C#; the headset
+    pipeline; the Android build), then Delivery 3 (headset acceptance and the deployed path's measurements).
+- **A2.8** (frozen evaluation and preliminary Gate B) is **pending** (D115). The lab commands are neither made nor
+  sealed: the project lead makes and seals them once the whole system runs, and only then are they evaluated. Until
+  then, development uses basic commands. A2.8 also needs O20's thresholds, agreed with the advisor. Never request or
+  inspect the lab commands' contents.
 - **The A2.6 review.** ChatGPT independently reviewed the original baseline evidence and accepted A2.6 with small
   corrections. The corrected `scores-v2` and `analysis-v2` are recorded at `0395a43`. A later repository check is not a
   fresh independent readback of those corrected external artifacts.

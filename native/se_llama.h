@@ -78,6 +78,29 @@ SE_API double se_score(se_llama * s, const int32_t * tokens, int32_t n);
 // log-probability. The cache and the last scores are restored. n must be below se_n_seq. Returns 0 or a negative error.
 SE_API int32_t se_score_many(se_llama * s, const int32_t * tokens, const int32_t * lengths, int32_t n, double * out);
 
+// Grammar-constrained greedy decoding (A2.7, the parser's path). The grammar is GBNF, applied by llama.cpp's own
+// grammar sampler. The output ends with one configured end token: every other end-of-generation token is never allowed,
+// and the end token only when the grammar can end. A null se_grammar on failure (see se_last_error).
+typedef struct se_grammar se_grammar;
+SE_API se_grammar * se_grammar_new(const se_llama * s, const char * gbnf, const char * root, int32_t end_token);
+SE_API void se_grammar_free(se_grammar * g);
+// Back to the grammar's start.
+SE_API void se_grammar_reset(se_grammar * g);
+// The tokens allowed now: mask[i] = 1 or 0 for the first n vocabulary entries (mask may be null). Returns their count.
+SE_API int32_t se_grammar_allowed(se_grammar * g, uint8_t * mask, int32_t n);
+// The greedy choice among the allowed tokens for these logits (n = the vocabulary size): the highest logit, ties to the
+// lowest token ID. -1 when no token is allowed.
+SE_API int32_t se_grammar_pick(se_grammar * g, const float * logits, int32_t n);
+// Advance the grammar by one token. 0, or a negative error if the token is not allowed now (nothing changes).
+SE_API int32_t se_grammar_accept(se_grammar * g, int32_t token);
+// One whole request, as the Python parser decodes it: a fresh cache, the prompt evaluated with keep 0, then greedy
+// constrained decoding one token at a time, each step reusing the cache within this request only. At most max_new
+// tokens go to out, the end token included when chosen. *status: 0 completed (the end token chosen), 1 length
+// exhausted, 2 empty allowed set; -1 with a technical failure (see se_last_error). Returns the tokens written, or a
+// negative error.
+SE_API int32_t se_decode_constrained(se_llama * s, se_grammar * g, const int32_t * prompt, int32_t n_prompt,
+                                     int32_t max_new, int32_t * out, int32_t * status);
+
 // This process's memory in KB, from /proc/self/status: peak (VmHWM) and current (VmRSS) resident size; -1 if unknown.
 SE_API int64_t se_memory_kb(int32_t peak);
 

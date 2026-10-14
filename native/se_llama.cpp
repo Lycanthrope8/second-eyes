@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <exception>
 #include <fstream>
 #include <limits>
 #include <mutex>
@@ -71,7 +72,75 @@ void keep_last(se_llama * s, const float * row) {
 
 }  // namespace
 
+struct se_grammar {
+    llama_sampler * smpl = nullptr;
+    const llama_vocab * vocab = nullptr;
+    int32_t n_vocab = 0;
+    int32_t end_token = -1;
+    std::vector<llama_token_data> buf;
+    std::vector<uint8_t> other_eog;   // end-of-generation tokens other than the end token: never allowed
+};
+
+namespace {
+
+// The grammar applied with all-zero logits: buf[i] is token i, its logit -inf when the token is not allowed now.
+bool grammar_apply(se_grammar * g) {
+    g->buf.resize(g->n_vocab);
+    for (int32_t i = 0; i < g->n_vocab; i++) g->buf[i] = llama_token_data{i, 0.0f, 0.0f};
+    llama_token_data_array arr{g->buf.data(), g->buf.size(), -1, false};
+    try {
+        llama_sampler_apply(g->smpl, &arr);
+    } catch (const std::exception & e) {
+        set_error(std::string("the grammar could not be applied: ") + e.what());
+        return false;
+    }
+    if (arr.data != g->buf.data() || arr.size != g->buf.size()) {
+        set_error("the grammar sampler reordered or resized the candidates");
+        return false;
+    }
+    for (int32_t i = 0; i < g->n_vocab; i++) {
+        if (g->buf[i].id != i) {
+            set_error("the grammar sampler reordered the candidates");
+            return false;
+        }
+        if (g->other_eog[i]) g->buf[i].logit = -INFINITY;
+    }
+    return true;
+}
+
+bool allowed_now(const se_grammar * g, int32_t i) { return g->buf[i].logit != -INFINITY; }
+
+// Whether the grammar allows each of these tokens now: llama.cpp judges every candidate on its own, so a subset gives
+// the same verdicts as the whole vocabulary. Other end-of-generation tokens are never allowed. ok[i] for ids[i].
+bool grammar_allows(se_grammar * g, const int32_t * ids, size_t n, std::vector<uint8_t> & ok) {
+    std::vector<llama_token_data> cand(n);
+    for (size_t i = 0; i < n; i++) cand[i] = llama_token_data{ids[i], 0.0f, 0.0f};
+    llama_token_data_array arr{cand.data(), cand.size(), -1, false};
+    try {
+        llama_sampler_apply(g->smpl, &arr);
+    } catch (const std::exception & e) {
+        set_error(std::string("the grammar could not be applied: ") + e.what());
+        return false;
+    }
+    if (arr.data != cand.data() || arr.size != n) {
+        set_error("the grammar sampler reordered or resized the candidates");
+        return false;
+    }
+    ok.assign(n, 0);
+    for (size_t i = 0; i < n; i++) {
+        if (cand[i].id != ids[i]) {
+            set_error("the grammar sampler reordered the candidates");
+            return false;
+        }
+        ok[i] = (cand[i].logit != -INFINITY && !g->other_eog[ids[i]]) ? 1 : 0;
+    }
+    return true;
+}
+
+}  // namespace
+
 extern "C" {
+
 
 const char * se_system_info(void) { return llama_print_system_info(); }
 
@@ -336,6 +405,143 @@ int32_t se_score_many(se_llama * s, const int32_t * tokens, const int32_t * leng
     llama_batch_free(batch);
     for (int32_t i = 1; i <= n; i++) llama_memory_seq_rm(mem, i, -1, -1);   // sequence 0 and our scores stay as they were
     return result;
+}
+
+se_grammar * se_grammar_new(const se_llama * s, const char * gbnf, const char * root, int32_t end_token) {
+    if (s == nullptr || gbnf == nullptr || root == nullptr) {
+        set_error("se_grammar_new needs a model, a grammar and its root rule");
+        return nullptr;
+    }
+    if (end_token < 0 || end_token >= s->n_vocab || !llama_vocab_is_eog(s->vocab, end_token)) {
+        set_error("the end token " + std::to_string(end_token) + " is not an end-of-generation token of this vocabulary");
+        return nullptr;
+    }
+    llama_sampler * smpl = nullptr;
+    try {
+        smpl = llama_sampler_init_grammar(s->vocab, gbnf, root);
+    } catch (const std::exception & e) {
+        set_error(std::string("llama.cpp could not parse the grammar: ") + e.what());
+        return nullptr;
+    }
+    if (smpl == nullptr) {
+        set_error("llama.cpp could not parse the grammar");
+        return nullptr;
+    }
+    auto * g = new se_grammar();
+    g->smpl = smpl;
+    g->vocab = s->vocab;
+    g->n_vocab = s->n_vocab;
+    g->end_token = end_token;
+    g->other_eog.assign(s->n_vocab, 0);
+    for (int32_t i = 0; i < s->n_vocab; i++) g->other_eog[i] = (i != end_token && llama_vocab_is_eog(s->vocab, i)) ? 1 : 0;
+    set_error("");
+    return g;
+}
+
+void se_grammar_free(se_grammar * g) {
+    if (g == nullptr) return;
+    llama_sampler_free(g->smpl);
+    delete g;
+}
+
+void se_grammar_reset(se_grammar * g) {
+    if (g != nullptr) llama_sampler_reset(g->smpl);
+}
+
+int32_t se_grammar_allowed(se_grammar * g, uint8_t * mask, int32_t n) {
+    if (g == nullptr || !grammar_apply(g)) return -1;
+    int32_t count = 0;
+    for (int32_t i = 0; i < g->n_vocab; i++) {
+        const bool a = allowed_now(g, i);
+        if (mask != nullptr && i < n) mask[i] = a ? 1 : 0;
+        count += a ? 1 : 0;
+    }
+    if (mask != nullptr) for (int32_t i = g->n_vocab; i < n; i++) mask[i] = 0;
+    return count;
+}
+
+int32_t se_grammar_pick(se_grammar * g, const float * logits, int32_t n) {
+    if (g == nullptr || logits == nullptr || n < g->n_vocab) {
+        set_error("se_grammar_pick needs logits for the whole vocabulary");
+        return -2;
+    }
+    // The greedy choice is the first allowed token in the order (logit descending, ID ascending): the highest logit
+    // among the allowed tokens, ties to the lowest ID. The grammar is applied to growing slices of that order, which
+    // gives exactly the full-vocabulary answer without judging all of it (one full application costs about a second).
+    std::vector<int32_t> order(g->n_vocab);
+    for (int32_t i = 0; i < g->n_vocab; i++) order[i] = i;
+    auto before = [logits](int32_t a, int32_t b) { return logits[a] > logits[b] || (logits[a] == logits[b] && a < b); };
+    std::vector<uint8_t> ok;
+    size_t done = 0, k = 32;
+    while (done < order.size()) {
+        const size_t end = (std::min)(order.size(), done + k);
+        std::partial_sort(order.begin() + done, order.begin() + end, order.end(), before);
+        if (!grammar_allows(g, order.data() + done, end - done, ok)) return -2;
+        for (size_t i = 0; i < end - done; i++) {
+            if (ok[i]) return order[done + i];
+        }
+        done = end;
+        k *= 8;
+    }
+    return -1;
+}
+
+int32_t se_grammar_accept(se_grammar * g, int32_t token) {
+    if (g == nullptr || token < 0 || token >= g->n_vocab) {
+        set_error("se_grammar_accept: no grammar, or a token outside the vocabulary");
+        return -1;
+    }
+    std::vector<uint8_t> ok;
+    const int32_t one = token;
+    if (!grammar_allows(g, &one, 1, ok)) return -1;
+    if (!ok[0]) {
+        set_error("token " + std::to_string(token) + " is not allowed by the grammar here");
+        return -1;
+    }
+    try {
+        llama_sampler_accept(g->smpl, token);
+    } catch (const std::exception & e) {
+        set_error(std::string("the grammar refused the token: ") + e.what());
+        return -1;
+    }
+    return 0;
+}
+
+int32_t se_decode_constrained(se_llama * s, se_grammar * g, const int32_t * prompt, int32_t n_prompt, int32_t max_new,
+                              int32_t * out, int32_t * status) {
+    if (status != nullptr) *status = -1;
+    if (s == nullptr || g == nullptr || prompt == nullptr || n_prompt <= 0 || max_new <= 0 || out == nullptr ||
+        status == nullptr || g->vocab != s->vocab) {
+        set_error("se_decode_constrained: a model, its grammar, a prompt, max_new > 0, out and status are needed");
+        return -1;
+    }
+    se_grammar_reset(g);
+    if (se_eval(s, prompt, n_prompt, 0) < 0) return -1;   // a fresh cache for this request: keep 0
+    int32_t n = 0;
+    for (int32_t step = 0; step < max_new; step++) {
+        if (!s->have_last) {
+            set_error("no scores after the last evaluation");
+            return -1;
+        }
+        const int32_t t = se_grammar_pick(g, s->last.data(), s->n_vocab);
+        if (t == -2) return -1;
+        if (t < 0) {
+            *status = 2;   // empty allowed set
+            return n;
+        }
+        out[n++] = t;
+        if (t == g->end_token) {
+            *status = 0;   // completed: the grammar allows the end token only when it can end
+            return n;
+        }
+        if (se_grammar_accept(g, t) < 0) return -1;
+        if (step + 1 < max_new) {
+            int32_t tok = t;
+            if (se_eval(s, &tok, 1, se_n_cached(s)) < 0) return -1;   // within this request only: keep all, add one
+        }
+    }
+    *status = 1;   // length exhausted
+    return n;
 }
 
 int64_t se_memory_kb(int32_t peak) {

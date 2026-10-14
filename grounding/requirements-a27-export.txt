@@ -1,0 +1,13 @@
+# A2.7's export environment (D115): llama.cpp's converter at the pinned release, on the CPU. Kept apart from
+# .venv (accepted evaluation) and .venv-train (A2.4). Made from .venv's own Python 3.12:
+#   .venv-export\Scripts\python -m pip install -r grounding\requirements-a27-export.txt
+# The pins are the versions that converted Delivery 1's labelled stand-in, with A2.4's torch and transformers.
+# sentencepiece: the converter tries a SentencePiece tokenizer before Qwen's BPE one and fails on the import without
+# it. pyyaml: llama.cpp's gguf-py imports it.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.11.0+cpu
+transformers==4.57.6
+numpy==2.4.4
+sentencepiece==0.2.2
+safetensors==0.8.0
+pyyaml==6.0.3
