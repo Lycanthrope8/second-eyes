@@ -50,9 +50,12 @@ output equals the reference, its two views must reproduce A2.4's recorded outcom
 Verdicts:
 - **criterion 4 (desktop):** no prefix with differing allowed tokens;
 - **criterion 7 (desktop):** at least 99% of the 2,715 decoded to exactly the reference's tokens and status, every
-  difference listed with both outputs and both views' outcomes, technical failures apart.
+  difference listed with both outputs and, for both views, both sides' outcome, target, candidate set and technical
+  flag, technical failures apart.
 
-Writes `compare.json` and `report.md`.
+Every difference counts its changes per view: outcome, target, candidate-set and technical-flag changes, so the same
+status with another target is reported (D116). `masks.json` must match the desktop run's recorded checksum before
+criterion 4 is judged. Writes `compare.json` and `report.md`.
 
 ## The native functions
 

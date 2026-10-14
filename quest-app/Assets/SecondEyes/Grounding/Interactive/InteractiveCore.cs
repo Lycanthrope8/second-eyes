@@ -57,6 +57,13 @@ namespace SecondEyes.Grounding.Interactive
         public List<string> Codes = new List<string>(), Targets = new List<string>();
         public List<float> Logits = new List<float>();
         public List<double> Shares = new List<double>(), LogProbs = new List<double>();
+        // A2.7 (D115): the parser path. "direct" (A2.5's offered-letter scoring, the default) leaves the JSON as it was;
+        // "parser" adds the parser block: its own outcome kind, the resolver's outcome, the decoded text and the rest.
+        public string Path = "direct", ParserKind, ParserOutcome, DecodedText, ReasonCode, AssetsSha256;
+        public bool Conditional;
+        public List<string> CandidateIds = new List<string>();
+        public List<int> OutputTokens = new List<int>();
+        public double DecodeMs, ResolveMs;
 
         public string ToJson()
         {
@@ -71,8 +78,17 @@ namespace SecondEyes.Grounding.Interactive
             for (int k = 0; k < Logits.Count; k++)
                 w.BeginObj().Key("code").S(Codes[k]).Key("target").S(Targets[k]).Key("logit").F(Logits[k])
                  .Key("log_prob").D(LogProbs[k]).Key("restricted_share").D(Shares[k]).End();
-            return w.End().Key("ms").BeginObj().Key("build").D(BuildMs).Key("tokenize").D(TokenizeMs).Key("eval").D(EvalMs)
-                .Key("score").D(ScoreMs).Key("total").D(TotalMs).End().End().ToString();
+            w.End().Key("ms").BeginObj().Key("build").D(BuildMs).Key("tokenize").D(TokenizeMs).Key("eval").D(EvalMs)
+                .Key("score").D(ScoreMs).Key("total").D(TotalMs).End();
+            if (Path == "parser")
+            {
+                w.Key("path").S("parser").Key("parser").BeginObj().Key("kind").S(ParserKind).Key("outcome").S(ParserOutcome)
+                 .Key("decoded_text").S(DecodedText).Key("output_tokens").BeginArr();
+                foreach (int tk in OutputTokens) w.I(tk);
+                w.End().Key("candidate_ids").Strs(CandidateIds.ToArray()).Key("reason_code").S(ReasonCode).Key("conditional").B(Conditional)
+                 .Key("assets_sha256").S(AssetsSha256).Key("decode_ms").D(DecodeMs).Key("resolve_ms").D(ResolveMs).End();
+            }
+            return w.End().ToString();
         }
     }
 

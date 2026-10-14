@@ -234,8 +234,19 @@ def test_verdicts():
     v = CP.judge(rows, res, ok_masks, resolve_stub)
     check("99 identical of 100 meets the 99% bar (at least, not more than); the difference is listed with both "
           "outputs and both views' outcomes", v["criterion_7_desktop"] == "met" and v["identical"] == 99
-          and v["differences"][0]["outcomes"]["full_inventory"] == {"reference": "correct", "q8_0": "insufficient_information"}
-          and v["outcome_changes"] == 2)
+          and v["differences"][0]["outcomes"]["full_inventory"]["reference"]["outcome"] == "correct"
+          and v["differences"][0]["outcomes"]["full_inventory"]["q8_0"]["outcome"] == "insufficient_information"
+          and v["outcome_changes"] == 2 and v["target_changes"] == 2)
+    rows, res = rows_and_results(10, differ={4})
+    for row in rows:
+        row["reference"]["views"] = {k: dict(o, outcome="resolved") for k, o in row["reference"]["views"].items()}
+    same_status = lambda row, d: {k: {"outcome": "resolved", "target_id": "a" if d["token_ids"] == [10, 20, 151645] else "b",   # noqa: E731
+                                      "technical": False, "candidate_ids": None} for k in ("full_inventory", "source_known_nyu")}
+    v = CP.judge(rows, res, ok_masks, same_status)
+    check("the same status with a different target is reported: both sides' targets kept, 2 target changes counted, "
+          "0 outcome changes", v["outcome_changes"] == 0 and v["target_changes"] == 2
+          and v["differences"][0]["outcomes"]["source_known_nyu"]["reference"]["target_id"] == "a"
+          and v["differences"][0]["outcomes"]["source_known_nyu"]["q8_0"]["target_id"] == "b", json.dumps(v["differences"][:1])[:300])
     rows, res = rows_and_results(100, differ={5}, failures={7})
     v = CP.judge(rows, res, ok_masks, resolve_stub)
     check("a technical failure is listed apart and never counts as agreement: 98 of 100 does not meet the bar",
@@ -384,6 +395,8 @@ def test_bundle_compare_fixture(samples, official, tmp: Path):
     from grounding.a27 import compare as CP
     from grounding.evaluation.iref_vla.protocol import encode_json, encode_jsonl
     print("-- bundle and compare end to end on A2.4's fixture (labelled random-weight stand-in)")
+    tmp = tmp / "fixture"   # its own folder: the native desktop flow uses tmp/bundle too
+    tmp.mkdir()
     TB = importlib.import_module("grounding.tests.test_iref_vla_baseline")
     TP = importlib.import_module("grounding.tests.test_a24_prep")
     TT = importlib.import_module("grounding.tests.test_a24_train")
@@ -420,7 +433,8 @@ def test_bundle_compare_fixture(samples, official, tmp: Path):
         (d / "masks.json").write_bytes(encode_json({"prefixes": 30, "differing": 0, "seconds": 1.0, "workers": 2}))
         (d / "manifest.json").write_bytes(encode_json({
             "lock": {"bundle_manifest_sha256": sha((tmp / "bundle" / "manifest.json").read_bytes())},
-            "outputs": {"results.jsonl": sha(body)}, "tokenizer_against_base": {"equal": True, "fields": 9},
+            "outputs": {"results.jsonl": sha(body), "masks.json": sha((d / "masks.json").read_bytes())},
+            "tokenizer_against_base": {"equal": True, "fields": 9},
             "export": {"gguf_sha256": "e" * 64}, "library": {"sha256": "d" * 64, "version": "b11277 (stand-in)"},
             "decodes": {"statuses": {}, "median_ms": 1.0}}))
         return d
@@ -448,6 +462,65 @@ def test_bundle_compare_fixture(samples, official, tmp: Path):
           "scene and listed with both outputs and both views' outcomes", len(rec2["differences"]) == 1
           and d.get("parent_command_id") == a["parent_command_id"] and set(d.get("outcomes", {})) == set(E.VIEWS)
           and d["q8_0"]["text"] == text and rec2["identical"] == len(rows) - 1, json.dumps(d)[:300])
+    tampered = desktop_folder("desk-masks", same)
+    (tampered / "masks.json").write_bytes(encode_json({"prefixes": 30, "differing": 0, "seconds": 2.0, "workers": 2}))
+    check("a masks.json that differs from the desktop run's recorded checksum is refused before criterion 4 is judged",
+          raises(lambda: CP.compare(bundle=tmp / "bundle", desktop=tampered, prep=p26, work=w26, out=tmp / "cmp-masks"),
+                 "masks.json changed"))
+    # the headset's parser folder from this chain, and the judge of the headset's results
+    from grounding.a27 import headset as H
+    export = tmp / "export"
+    export.mkdir()
+    (export / "export.json").write_text(json.dumps({"gguf": {"file": "a24.parser.s1.q8_0.gguf", "sha256": "e" * 64},
+                                                    "identity": {"model_name": "a24.parser.s1 (labelled stand-in)"}}), encoding="utf-8")
+    hf = tmp / "parser"
+    info = H.build(bundle=tmp / "bundle", desktop=tmp / "desk-same", export=export, prep=p26, work=w26, maps_from=[w26], out=hf)
+    man = json.loads((hf / "manifest.json").read_text(encoding="utf-8"))
+    check("the headset's parser folder: every asset, the maps, the startup check and the acceptance files, each pinned in "
+          "the manifest by SHA-256", all(hashlib.sha256((hf / k).read_bytes()).hexdigest() == v["sha256"] for k, v in man["files"].items())
+          and info["decodes"] == size and info["maps"] >= 1 and "assets/grammar.gbnf" in man["files"]
+          and (hf / "startup-check.json").is_file(), json.dumps(info))
+
+    def results(name, mutate=None):
+        r = tmp / name
+        r.mkdir()
+        dec = [json.loads(x) for x in (hf / "acceptance" / "decodes.jsonl").read_text(encoding="utf-8").splitlines()]
+        rows = [{"parent_command_id": d["parent_command_id"], "prompt_ids": d["prompt_ids"], "tokens": d["tokens"], "status": d["status"],
+                 "error": None} for d in dec]
+        masks = [dict(m, error=None) for m in (json.loads(x) for x in (hf / "acceptance" / "masks.jsonl").read_text(encoding="utf-8").splitlines())]
+        res = json.loads((hf / "acceptance" / "resolutions.json").read_text(encoding="utf-8"))["resolutions"]
+        rr = [{"parent_command_id": e["parent_command_id"], "view": e["view"], "outcome": "technical" if e["expected"]["technical"] else e["expected"]["outcome"],
+               "target_id": None if e["expected"]["technical"] else e["expected"]["target_id"],
+               "candidate_ids": [] if e["expected"]["technical"] else (e["expected"]["candidate_ids"] or []),
+               "technical": e["expected"]["technical"], "technical_failure": False, "error": None} for e in res]
+        readers = [json.loads(x) for x in (hf / "acceptance" / "readers.jsonl").read_text(encoding="utf-8").splitlines()]
+        if mutate:
+            mutate(rows, masks, rr)
+        (r / "decodes.jsonl").write_bytes(encode_jsonl(rows))
+        (r / "masks.jsonl").write_bytes(encode_jsonl(masks))
+        (r / "resolutions.jsonl").write_bytes(encode_jsonl(rr))
+        (r / "readers.jsonl").write_bytes(encode_jsonl([{k: x.get(k) for k in ("text", "valid", "render", "interpretation")} for x in readers]))
+        (r / "run.json").write_text(json.dumps({"manifest_sha256": hashlib.sha256((hf / "manifest.json").read_bytes()).hexdigest()}),
+                                    encoding="utf-8")
+        return r
+    v = H.judge(folder=hf, results=results("res-same"), out=tmp / "judge-same")
+    check("the judge: results equal to the folder's expectations meet criteria 1, 2, 4 and 7 (headset halves)",
+          all(v[k] == "met" for k in ("criterion_1_headset", "criterion_2_headset", "criterion_4_headset", "criterion_7_headset"))
+          and not v["technical_failures"], json.dumps({k: v[k] for k in ("decodes", "masks", "resolutions", "readers")}))
+
+    def breaks(rows, masks, rr):
+        rows[0]["tokens"] = rows[0]["tokens"][:-1] + [rows[0]["tokens"][-1] + 1]
+        masks[0]["count"] += 1
+        rr[0]["technical_failure"] = True
+        rr[0]["error"] = "ResolverFault: a planted fault"
+    v = H.judge(folder=hf, results=results("res-broken", breaks), out=tmp / "judge-broken")
+    check("the judge: a changed decode fails criterion 7, a changed mask criterion 4, and a technical failure is listed "
+          "apart, never an outcome", v["criterion_7_headset"] == "not met" and v["criterion_4_headset"] == "not met"
+          and len(v["technical_failures"]) == 1 and v["technical_failures"][0]["criterion"] == 1)
+    other_run = results("res-other")
+    (other_run / "run.json").write_text(json.dumps({"manifest_sha256": "0" * 64}), encoding="utf-8")
+    check("results from another parser folder are refused", raises(lambda: H.judge(folder=hf, results=other_run, out=tmp / "judge-other"),
+                                                                   "another parser folder"))
     other = desktop_folder("desk-other", same)
     (other / "manifest.json").write_bytes(encode_json({"lock": {"bundle_manifest_sha256": "0" * 64}}))
     check("a desktop run of another bundle is refused", raises(lambda: CP.compare(

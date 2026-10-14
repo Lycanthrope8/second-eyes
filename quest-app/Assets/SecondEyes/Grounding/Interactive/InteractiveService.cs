@@ -6,6 +6,7 @@ using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using SecondEyes.Grounding.Parsing;
 using SecondEyes.Grounding.Prompting;
 using SecondEyes.Grounding.Replay;
 using SecondEyes.Logging;
@@ -51,6 +52,8 @@ namespace SecondEyes.Grounding.Interactive
         public PromptAsset Asset { get { return goldens != null ? goldens.Asset : null; } }
         private LlamaRuntime runtime;
         private GoldenRunner.Goldens goldens;
+        private ParserFolder parser;        // A2.7 (D115): when set, operational requests take the parser path
+        private LlamaParser parserNative;   // the parser's grammar on the loaded model; freed on the model's thread
         private StreamWriter log;
         private string sessionStamp;
         private int presetCount, epoch;
@@ -74,7 +77,7 @@ namespace SecondEyes.Grounding.Interactive
             File.Move(tmp, path);
         }
 
-        public async Task<string> StartAsync(string modelPath)
+        public async Task<string> StartAsync(string modelPath, ParserFolder parserFolder = null)
         {
             string goldenDir = GoldenRunner.GoldenDir;
             sessionStamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
@@ -106,7 +109,8 @@ namespace SecondEyes.Grounding.Interactive
             long rssBefore = LlamaRuntime.MemoryKb(false), peakBefore = LlamaRuntime.MemoryKb(true);
             string captureError = null, capturePath = Path.Combine(dir, "startup-log.txt");
             runtime = new LlamaRuntime(main);
-            double loadMs = await runtime.LoadCapturedAsync(modelPath, Pipeline.ContextTokens, ReplayRunner.Threads, ReplayRunner.Flags,
+            int ctx = parserFolder != null ? parserFolder.Assets.ContextTokens : Pipeline.ContextTokens;
+            double loadMs = await runtime.LoadCapturedAsync(modelPath, ctx, ReplayRunner.Threads, ReplayRunner.Flags,
                                                             capturePath, e => captureError = captureError == null ? e : captureError + "; " + e);
             long rssAfter = LlamaRuntime.MemoryKb(false), peakAfter = LlamaRuntime.MemoryKb(true);
             StartupGuard.Result guard = await runtime.WithModel(s => StartupGuard.Run(goldens.Asset, goldens.Rows, goldens.Texts,
@@ -114,11 +118,26 @@ namespace SecondEyes.Grounding.Interactive
             Event("interactive.startup_check", guard.WriteTo(new JsonWriter().BeginObj().Key("session").S(sessionStamp)).End().ToString());
             if (!guard.Ok)   // D104: refuse to serve requests (the panel's failure path ends the session)
                 throw new InvalidOperationException("the startup check failed (" + guard.FirstFailure + "); no request will be served");
+            if (parserFolder != null)   // A2.7 (D115): the parser's startup check, its counterpart of D104's guard
+            {
+                parser = parserFolder;
+                ParserFolder pf = parserFolder;
+                parserNative = await runtime.WithModel(s => new LlamaParser(s, pf.Gbnf, pf.Assets.EndToken));
+                LlamaParser pn = parserNative;
+                string parserCheck = await runtime.WithModel(s => pf.StartupCheck(pn));
+                Event("interactive.parser_startup_check", new JsonWriter().BeginObj().Key("session").S(sessionStamp)
+                    .Key("manifest_sha256").S(pf.ManifestSha256).Key("candidate").S(pf.Candidate).Key("ok").B(parserCheck == null)
+                    .Key("first_failure").S(parserCheck).End().ToString());
+                if (parserCheck != null)
+                    throw new InvalidOperationException("the parser's startup check failed (" + parserCheck + "); no request will be served");
+            }
             log = new StreamWriter(Path.Combine(dir, "outcomes.jsonl"), false, new UTF8Encoding(false));
             File.WriteAllText(Path.Combine(dir, "session.json"), new JsonWriter().BeginObj().Key("record_type").S("a25_interactive_session")
                 .Key("session").S(sessionStamp).Key("purpose").S("operational").Key("cache_mode").S("Off").Key("execution_path").S("U")
+                .Key("grounding_path").S(parser != null ? "parser" : "direct").Key("parser_manifest_sha256").S(parser != null ? parser.ManifestSha256 : null)
+                .Key("parser_candidate").S(parser != null ? parser.Candidate : null)
                 .Key("golden_manifest_sha256").S(goldens.ManifestSha256).Key("prompt_asset_sha256").S(goldens.AssetSha256)
-                .Key("model").S(modelPath).Key("context_tokens").I(Pipeline.ContextTokens).Key("flags").I(ReplayRunner.Flags)
+                .Key("model").S(modelPath).Key("context_tokens").I(ctx).Key("flags").I(ReplayRunner.Flags)
                 .Key("llama_cpp").S(runtime.Version).Key("load_ms").D(loadMs).Key("app_version").S(Application.version)
                 .Key("memory_kb").BeginObj().Key("source").S("the wrapper's se_memory_kb: resident (VmRSS) and peak (VmHWM)")
                 .Key("before_load_rss").I(rssBefore).Key("before_load_peak").I(peakBefore)
@@ -135,7 +154,8 @@ namespace SecondEyes.Grounding.Interactive
             workerTask = Task.Run(() => WorkerLoop(ct));
             Event("interactive.session.start", new JsonWriter().BeginObj().Key("session").S(sessionStamp).Key("scenes").I(Scenes.Count)
                 .Key("load_ms").D(loadMs).End().ToString());
-            return "Session " + sessionStamp + " ready: " + Scenes.Count + " scenes, path U (uncached). Inbox: files/interactive/inbox.";
+            return "Session " + sessionStamp + " ready: " + Scenes.Count + " scenes, path U (uncached)."
+                   + (parser != null ? " Grounding: the parser (" + parser.Candidate + ")." : "") + " Inbox: files/interactive/inbox.";
         }
 
         /// <summary>Binds the session to a scene. Every switch is a new epoch, so a result still running for the
@@ -226,6 +246,7 @@ namespace SecondEyes.Grounding.Interactive
                 r.Faults.Add("writing the closing record failed: " + e.GetType().Name + ": " + e.Message);
                 r.Clean = false;
             }
+            await FreeParserAsync();
             Dispose();   // every task has completed by now (cleanly or not): nothing active remains
             return r;
         }
@@ -342,8 +363,13 @@ namespace SecondEyes.Grounding.Interactive
                 InteractiveOutcome o;
                 try
                 {
-                    o = await runtime.WithModel(s => Pipeline.Run(t.Request, goldens.Asset, new LlamaAdapter(s), cache, ExecutionPurpose.Operational,
-                                                                  new float[LlamaNative.se_n_vocab(s)], () => t.CancelRequested));
+                    ParserFolder pf = parser;
+                    LlamaParser pn = parserNative;
+                    o = pf != null
+                        ? await runtime.WithModel(s => ParserBridge.Outcome(ParserPipeline.Run(ParserBridge.Request(t.Request, pf), pf.Assets, pn,
+                                                                                               () => t.CancelRequested)))
+                        : await runtime.WithModel(s => Pipeline.Run(t.Request, goldens.Asset, new LlamaAdapter(s), cache, ExecutionPurpose.Operational,
+                                                                    new float[LlamaNative.se_n_vocab(s)], () => t.CancelRequested));
                 }
                 catch (Exception e)
                 {
@@ -381,6 +407,17 @@ namespace SecondEyes.Grounding.Interactive
                 .Key("status").S(o.Status).Key("reason").S(o.Reason).Key("execution_path").S(o.ExecutionPath)
                 .Key("app_observed_ms").D(t.Times.AppObserved).End().ToString());
             main.Post(_ => onOutcome(t, o), null);
+        }
+
+        /// <summary>Frees the parser's grammar on the model's thread, before the model goes. Dispose alone leaves it
+        /// (a few kilobytes) rather than free it after its model.</summary>
+        private async Task FreeParserAsync()
+        {
+            LlamaParser p = parserNative;
+            parserNative = null;
+            if (p == null || runtime == null) return;
+            try { await runtime.WithModel(s => { p.Dispose(); return 0; }); }
+            catch (Exception e) { Event("interactive.parser_free_failed", new JsonWriter().BeginObj().Key("error").S(e.Message).End().ToString()); }
         }
 
         public void Dispose()

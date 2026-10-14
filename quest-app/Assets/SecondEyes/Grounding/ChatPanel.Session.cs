@@ -54,9 +54,24 @@ namespace SecondEyes.Grounding
                 return;
             }
             string path = Path.Combine(Application.persistentDataPath, ggufFile);
+            Parsing.ParserFolder parserFolder = null;   // A2.7 (D115): with a pushed parser folder, the session grounds through the parser
+            if (Parsing.ParserCheckRunner.FolderPresent)
+            {
+                try
+                {
+                    parserFolder = Parsing.ParserFolder.Load(Parsing.ParserCheckRunner.FolderDir);
+                    path = Path.Combine(Application.persistentDataPath, parserFolder.GgufFile);
+                }
+                catch (Exception e)
+                {
+                    SetStatus("The parser folder failed its check (" + e.Message + "); no session started. Push it again.");
+                    return;
+                }
+            }
             if (!File.Exists(path))
             {
-                SetStatus("llama.cpp's model isn't on the headset. Push it: python grounding/llama_headset.py push-model");
+                SetStatus(parserFolder != null ? "The parser model " + parserFolder.GgufFile + " isn't on the headset. Push it."
+                                               : "llama.cpp's model isn't on the headset. Push it: python grounding/llama_headset.py push-model");
                 return;
             }
             replaying = true;
@@ -69,7 +84,7 @@ namespace SecondEyes.Grounding
             UpdateSessionButtons();
             try
             {
-                string ready = await interactiveSession.StartAsync(path);
+                string ready = await interactiveSession.StartAsync(path, parserFolder);
                 sessionStarting = false;
                 ShowScene(null, null);
                 SetStatus(ready);
@@ -163,7 +178,11 @@ namespace SecondEyes.Grounding
                 SetStatus(t.RequestId + ": answered for an earlier scene binding; not presented (" + o.Status + ", logged)");
                 return;
             }
-            string what = o.Status == "completed" ? "target " + o.TargetObjectId + " (" + o.ChoiceCode + ")"
+            string what = o.Path == "parser"   // A2.7 (D115): the parser's kinds stay distinct on the panel too
+                        ? (o.Status == "completed" ? "target " + o.TargetObjectId
+                           : o.Status == "ask" ? "ASK (" + o.Reason + ")"
+                           : o.Status + " (" + (o.ParserKind ?? "?") + "): " + o.Reason)
+                        : o.Status == "completed" ? "target " + o.TargetObjectId + " (" + o.ChoiceCode + ")"
                         : o.Status == "ask" ? (o.AskBasis == "exact_tie" ? "ASK (exact tie)" : "ASK (model-selected)")
                         : o.Status + ": " + o.Reason;
             SetStatus(t.RequestId + ": " + what + "; " + Seconds(t.Times.AppObserved) + " app-observed, path " + o.ExecutionPath);

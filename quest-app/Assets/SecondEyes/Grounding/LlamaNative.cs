@@ -46,6 +46,18 @@ namespace SecondEyes.Grounding
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern int se_logits(IntPtr s, [Out] float[] logits, int max);
 
+        // A2.7 (D115): grammar-constrained decoding, the parser's path. A grammar belongs to one loaded model; every
+        // request starts from a fresh cache inside se_decode_constrained, and a non-finite score is a technical failure.
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr se_grammar_new(IntPtr s, byte[] gbnf, byte[] root, int endToken);
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern void se_grammar_free(IntPtr g);
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern void se_grammar_reset(IntPtr g);
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int se_grammar_allowed(IntPtr g, [Out] byte[] mask, int n);
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern int se_grammar_accept(IntPtr g, int token);
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int se_decode_constrained(IntPtr s, IntPtr g, int[] prompt, int nPrompt, int maxNew, [Out] int[] output, out int status);
+
         /// <summary>A NUL-terminated UTF-8 copy of a string, as the C side expects.</summary>
         public static byte[] Utf8(string text)
         {

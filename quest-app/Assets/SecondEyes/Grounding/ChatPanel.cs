@@ -89,6 +89,9 @@ namespace SecondEyes.Grounding
         private Text goldenLabel;
         private Button interactiveButton;
         private Text interactiveLabel;
+        private Button parserButton;        // A2.7 (D115): the parser path's headset acceptance check
+        private Text parserLabel;
+        private Parsing.ParserCheckRunner parserCheck;
         private Interactive.InteractiveRunner interactive;
         private Prompting.GoldenRunner golden;
         private bool replaying, panelModelUsed;
@@ -918,12 +921,14 @@ namespace SecondEyes.Grounding
 
             Label(panel, "AnswerTitle", 20f, 488f, 600f, 28f, 18, FontStyle.Bold).text = "Answer";
             answer = Label(panel, "Answer", 20f, 518f, 600f, 130f, 18, FontStyle.Normal);
-            replayButton = RowButton("Replay", 20f, 190f, out replayLabel, StartReplay, 664f);
+            replayButton = RowButton("Replay", 20f, 140f, out replayLabel, StartReplay, 664f);
             replayLabel.text = "Replay (A2.5 d1)";
-            goldenButton = RowButton("Golden", 225f, 190f, out goldenLabel, StartGolden, 664f);
+            goldenButton = RowButton("Golden", 173f, 140f, out goldenLabel, StartGolden, 664f);
             goldenLabel.text = "Golden check (A2.5 d2)";
-            interactiveButton = RowButton("Interactive", 430f, 190f, out interactiveLabel, StartInteractive, 664f);
+            interactiveButton = RowButton("Interactive", 326f, 140f, out interactiveLabel, StartInteractive, 664f);
             interactiveLabel.text = "Interactive check (A2.5 d3)";
+            parserButton = RowButton("ParserCheck", 479f, 141f, out parserLabel, StartParserCheck, 664f);
+            parserLabel.text = "Parser check (A2.7)";
             BuildSessionRow();
             UpdateReplayButton();
             UpdateLabels();
@@ -936,6 +941,35 @@ namespace SecondEyes.Grounding
             if (replayButton != null) replayButton.interactable = !replaying && !panelModelUsed && Replay.ReplayRunner.BundlePresent;
             if (goldenButton != null) goldenButton.interactable = !replaying && !panelModelUsed && Prompting.GoldenRunner.GoldensPresent;
             if (interactiveButton != null) interactiveButton.interactable = !replaying && !panelModelUsed && Prompting.GoldenRunner.GoldensPresent;
+            if (parserButton != null) parserButton.interactable = !replaying && !panelModelUsed && Parsing.ParserCheckRunner.FolderPresent;
+        }
+
+        /// <summary>A2.7 (D115): the parser path's headset acceptance check; like Replay, it loads its own model and
+        /// frees it after.</summary>
+        private async void StartParserCheck()
+        {
+            if (replaying || panelModelUsed) return;
+            replaying = true;
+            bool loadWas = loadButton.interactable;
+            loadButton.interactable = false;
+            UpdateReplayButton();
+            parserCheck = new Parsing.ParserCheckRunner(System.Threading.SynchronizationContext.Current, SetStatus);
+            try
+            {
+                SetStatus(await parserCheck.RunAsync());
+            }
+            catch (Exception e)
+            {
+                Fail("parser check", e.GetType().Name + ": " + e.Message);
+            }
+            finally
+            {
+                parserCheck.Dispose();
+                parserCheck = null;
+                replaying = false;
+                loadButton.interactable = loadWas;
+                UpdateReplayButton();
+            }
         }
 
         /// <summary>A2.5 delivery 2: the on-device golden self-check; like Replay, it loads its own model and frees it.</summary>

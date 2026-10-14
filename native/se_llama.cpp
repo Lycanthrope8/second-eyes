@@ -465,6 +465,13 @@ int32_t se_grammar_pick(se_grammar * g, const float * logits, int32_t n) {
         set_error("se_grammar_pick needs logits for the whole vocabulary");
         return -2;
     }
+    // Every score must be a finite number: a NaN or an infinity is a technical failure, never a choice (D115).
+    for (int32_t i = 0; i < g->n_vocab; i++) {
+        if (!std::isfinite(logits[i])) {
+            set_error("the score of token " + std::to_string(i) + " is not a finite number");
+            return -2;
+        }
+    }
     // The greedy choice is the first allowed token in the order (logit descending, ID ascending): the highest logit
     // among the allowed tokens, ties to the lowest ID. The grammar is applied to growing slices of that order, which
     // gives exactly the full-vocabulary answer without judging all of it (one full application costs about a second).

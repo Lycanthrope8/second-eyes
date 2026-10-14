@@ -200,6 +200,25 @@ def main(argv=None) -> int:
                 rand_bad.append((p, got, want))
     check("on random logits with planted ties, the native pick equals the full-vocabulary rule (the highest allowed "
           "logit, ties to the lowest ID) at five grammar states", not rand_bad, str(rand_bad[:3]))
+    bad_scores = []
+    for label, fill in (("one NaN", "nan1"), ("all NaN", "nanall"), ("+infinity", "pinf"), ("-infinity", "ninf")):
+        lg = np.zeros(nat.n_vocab, dtype=np.float32)
+        allowed_now = sorted(con.allowed(con.A.walk("")))
+        if fill == "nan1":
+            lg[allowed_now[5]] = np.nan
+        elif fill == "nanall":
+            lg[:] = np.nan
+        elif fill == "pinf":
+            lg[allowed_now[2]] = np.inf
+        else:
+            lg[allowed_now[0]] = -np.inf
+        lib.se_grammar_reset(g)
+        got = lib.se_grammar_pick(g, lg.ctypes.data_as(C.POINTER(C.c_float)), nat.n_vocab)
+        err = (lib.se_last_error() or b"").decode()
+        if got != -2 or "not a finite number" not in err:
+            bad_scores.append((label, got, err))
+    check("a NaN or infinite score is a technical failure (-2 with a message), never a token, an empty allowed set or "
+          "an answer: one NaN, all NaN, +infinity, -infinity", not bad_scores, str(bad_scores))
     lib.se_grammar_reset(g)
     before = nat.allowed(g)
     refused = lib.se_grammar_accept(g, forbidden)

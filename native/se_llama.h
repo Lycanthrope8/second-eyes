@@ -89,15 +89,16 @@ SE_API void se_grammar_reset(se_grammar * g);
 // The tokens allowed now: mask[i] = 1 or 0 for the first n vocabulary entries (mask may be null). Returns their count.
 SE_API int32_t se_grammar_allowed(se_grammar * g, uint8_t * mask, int32_t n);
 // The greedy choice among the allowed tokens for these logits (n = the vocabulary size): the highest logit, ties to the
-// lowest token ID. -1 when no token is allowed.
+// lowest token ID. -1 when no token is allowed; -2 with a technical failure, such as a score that is NaN or infinite
+// (see se_last_error).
 SE_API int32_t se_grammar_pick(se_grammar * g, const float * logits, int32_t n);
 // Advance the grammar by one token. 0, or a negative error if the token is not allowed now (nothing changes).
 SE_API int32_t se_grammar_accept(se_grammar * g, int32_t token);
 // One whole request, as the Python parser decodes it: a fresh cache, the prompt evaluated with keep 0, then greedy
 // constrained decoding one token at a time, each step reusing the cache within this request only. At most max_new
 // tokens go to out, the end token included when chosen. *status: 0 completed (the end token chosen), 1 length
-// exhausted, 2 empty allowed set; -1 with a technical failure (see se_last_error). Returns the tokens written, or a
-// negative error.
+// exhausted, 2 empty allowed set; -1 with a technical failure, a non-finite score included (see se_last_error).
+// Returns the tokens written, or a negative error.
 SE_API int32_t se_decode_constrained(se_llama * s, se_grammar * g, const int32_t * prompt, int32_t n_prompt,
                                      int32_t max_new, int32_t * out, int32_t * status);
 

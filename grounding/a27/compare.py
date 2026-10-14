@@ -62,6 +62,12 @@ def resolve_views(res, parent, work, maps, checker) -> dict:
     return views
 
 
+def _side(o) -> dict:
+    """One side of a view's comparison: its outcome, target, candidate set and technical flag."""
+    return {"outcome": o["outcome"], "target_id": o.get("target_id"), "candidate_ids": o.get("candidate_ids"),
+            "technical": bool(o.get("technical"))}
+
+
 def judge(rows, results, masks, resolve) -> dict:
     """The verdicts from the bundle rows, the desktop results and masks; resolve(row, result) gives a result's views."""
     by = {r["parent_command_id"]: r for r in results}
@@ -82,17 +88,21 @@ def judge(rows, results, masks, resolve) -> dict:
             differ.append({"parent_command_id": r["parent_command_id"], "stratum": r["stratum"],
                            "headset": r["headset"], "reference": {"status": ref["status"], "text": ref["text"]},
                            "q8_0": {"status": d["status"], "text": d.get("text")},
-                           "outcomes": {v: {"reference": ref["views"][v]["outcome"], "q8_0": views[v]["outcome"]}
+                           "outcomes": {v: {"reference": _side(ref["views"][v]), "q8_0": _side(views[v])}
                                         for v in views}})
     if mismatch_self:
         raise CompareError(f"{len(mismatch_self)} unchanged outputs did not reproduce A2.4's recorded outcomes, e.g. "
                            f"{mismatch_self[0]}: the comparison's resolution path is wrong")
     n = len(rows)
     agreement = same / n if n else 0.0
+    sides = [v for x in differ for v in x["outcomes"].values()]
     return {"parents": n, "identical": same, "agreement": agreement, "bar": AGREEMENT_BAR,
             "criterion_7_desktop": "met" if agreement >= AGREEMENT_BAR else "not met",
             "differences": differ, "technical_failures": failures,
-            "outcome_changes": sum(1 for x in differ for v in x["outcomes"].values() if v["reference"] != v["q8_0"]),
+            "outcome_changes": sum(1 for v in sides if v["reference"]["outcome"] != v["q8_0"]["outcome"]),
+            "target_changes": sum(1 for v in sides if v["reference"]["target_id"] != v["q8_0"]["target_id"]),
+            "candidate_changes": sum(1 for v in sides if v["reference"]["candidate_ids"] != v["q8_0"]["candidate_ids"]),
+            "technical_changes": sum(1 for v in sides if v["reference"]["technical"] != v["q8_0"]["technical"]),
             "criterion_4_desktop": "met" if masks["differing"] == 0 else "not met",
             "masks": {k: masks[k] for k in ("prefixes", "differing")}, "reproduced_unchanged": same}
 
@@ -114,6 +124,8 @@ def compare(*, bundle, desktop, prep, work, out) -> dict:
         raise CompareError("the bundle's requests changed")
     if not dman["tokenizer_against_base"]["equal"]:
         raise CompareError("the export's tokenizer differs from the base GGUF's")
+    if _sha((desktop / "masks.json").read_bytes()) != dman["outputs"]["masks.json"]:
+        raise CompareError("masks.json changed since the desktop run: criterion 4 cannot be judged")
     rows = _jl(bundle / "requests.jsonl")
     results = [json.loads(x) for x in body.decode("utf-8").splitlines() if x.strip()]
     masks = json.loads((desktop / "masks.json").read_text(encoding="utf-8"))
@@ -143,6 +155,10 @@ def compare(*, bundle, desktop, prep, work, out) -> dict:
     return rec
 
 
+def _show(side) -> str:
+    return f"{side['outcome']} ({side['target_id'] or 'none'})"
+
+
 def _cell(text) -> str:
     """Table-safe: a parser output's separators would otherwise end the cell."""
     return (text or "").replace("|", "\\|")
@@ -162,19 +178,21 @@ def render(r) -> str:
              f"{r['criterion_7_desktop']} |",
              f"| The export's tokenizer equals the base GGUF's | {r['tokenizer_against_base']['fields']} fields "
              f"compared | {'equal' if r['tokenizer_against_base']['equal'] else 'differs'} |", "",
-             f"Technical failures: {len(r['technical_failures'])}. Outcome changes among the differences: "
-             f"{r['outcome_changes']}. Every unchanged output reproduced A2.4's recorded outcomes in both views.", "",
+             f"Technical failures: {len(r['technical_failures'])}. Among the differences, per view: "
+             f"{r['outcome_changes']} outcome changes, {r['target_changes']} target changes, {r['candidate_changes']} "
+             f"candidate-set changes, {r['technical_changes']} technical-flag changes. Every unchanged output reproduced "
+             "A2.4's recorded outcomes in both views.", "",
              f"Decode statuses: {r['decodes']['statuses']}; median {r['decodes']['median_ms']} ms per command on the "
              "desktop (not a headset figure).", ""]
     if r["differences"]:
         lines += ["## Differences from the float32 reference", "",
-                  "| Parent | Relation | Headset subset | float32 | Q8_0 | Outcomes (full inventory; source-known) |",
+                  "| Parent | Relation | Headset subset | float32 | Q8_0 | Outcome (target), float32 to Q8_0: full inventory; source-known |",
                   "|---|---|---|---|---|---|"]
         for x in r["differences"]:
             o = x["outcomes"]
             lines.append(f"| `{x['parent_command_id'][-12:]}` | {x['stratum']} | {'yes' if x['headset'] else 'no'} | "
                          f"`{_cell(x['reference']['text'])}` | `{_cell(x['q8_0']['text'])}` | "
-                         + "; ".join(f"{o[v]['reference']} to {o[v]['q8_0']}" for v in o) + " |")
+                         + "; ".join(f"{_show(o[v]['reference'])} to {_show(o[v]['q8_0'])}" for v in o) + " |")
         lines.append("")
     if r["technical_failures"]:
         lines += ["## Technical failures", ""] + [f"- `{x['parent_command_id']}`: {x['error']}"
