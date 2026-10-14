@@ -52,6 +52,8 @@ def allocate(sizes: dict, total=SUBSET_SIZE, minimum=MIN_PER_RELATION) -> dict:
     if total > sum(sizes.values()):
         raise BundleError(f"a subset of {total} from {sum(sizes.values())} parents")
     base = {s: min(n, minimum) for s, n in sizes.items()}
+    if sum(base.values()) > total:
+        raise BundleError(f"the minimums ({sum(base.values())}) exceed the subset size ({total})")
     rest = total - sum(base.values())
     spare = {s: sizes[s] - base[s] for s in sizes}
     pool = sum(spare.values())
@@ -65,13 +67,13 @@ def allocate(sizes: dict, total=SUBSET_SIZE, minimum=MIN_PER_RELATION) -> dict:
     return dict(sorted(alloc.items()))
 
 
-def select(parents) -> dict:
+def select(parents, size=SUBSET_SIZE) -> dict:
     """The frozen headset subset and its mask sample, from the development parents' IDs and relations only."""
     by = defaultdict(list)
     for p in parents:
         if p["partition"] == "development":
             by[p["stratum"]].append(p["parent_command_id"])
-    alloc = allocate({s: len(v) for s, v in by.items()})
+    alloc = allocate({s: len(v) for s, v in by.items()}, total=size)
     chosen = {s: sorted(by[s], key=rank_key)[:alloc[s]] for s in sorted(by)}
     mask = {s: ids[:MASK_PER_RELATION] for s, ids in chosen.items()}
     subset = sorted(i for ids in chosen.values() for i in ids)
@@ -110,7 +112,8 @@ def check_evaluation(evaluation: Path, merged: Path, prep: Path) -> tuple:
     return man, rows, settings
 
 
-def bundle(*, prep, work, evaluation, merged, out, tokenizer=None) -> dict:
+def bundle(*, prep, work, evaluation, merged, out, tokenizer=None, subset_size=SUBSET_SIZE) -> dict:
+    """subset_size is 300 for the real run (D115); smaller only for test fixtures."""
     from ..a24 import decoder as DC
     from ..preparation.iref_vla import tokens as T
     prep, work, evaluation, merged, out = Path(prep), Path(work), Path(evaluation), Path(merged), Path(out)
@@ -124,9 +127,9 @@ def bundle(*, prep, work, evaluation, merged, out, tokenizer=None) -> dict:
     tok = tokenizer or T.load_pinned_tokenizer(PR.DEV.TOKENIZER)
     spec = L.load_spec()
     table = DC.TokenTable(tok._backend)
-    if table.eos_id != tok._backend.token_to_id(END_TOKEN_TEXT):
+    if table.eos_id != tok._backend.convert_tokens_to_ids(END_TOKEN_TEXT):
         raise BundleError("the decoder's end token is not <|im_end|>")
-    sel = select(parents)
+    sel = select(parents, subset_size)
     subset, sample = set(sel["ids"]), set(sel["mask_sample"])
     out_rows, bad_len = [], []
     for p in parents:

@@ -1,6 +1,6 @@
 """Tests of A2.7's export, bundle, desktop run and comparison (D115).
 
-    python grounding/tests/test_a27.py [--lib LIB --gguf TINY.gguf] [--export-llama LLAMA_DIR]
+    python grounding/tests/test_a27.py [--lib LIB --gguf TINY.gguf] [--export-llama LLAMA_DIR] [--samples DIR --official DIR]
 
 Without options, the parts that need no native library: the frozen headset subset, the candidate and identity checks,
 the evaluation's binding checks, the verdicts (agreement bar, technical failures, the reproduction self-check, masks)
@@ -115,6 +115,8 @@ def test_subset():
     check("a relation smaller than the minimum is taken whole; the allocation always sums to the total",
           small["a"] == 4 and sum(small.values()) == 60, str(small))
     check("a subset larger than the parents is refused", raises(lambda: B.allocate({"a": 5}, total=6), "subset of 6"))
+    check("minimums that exceed the subset size are refused, never overshot",
+          raises(lambda: B.allocate({"a": 50, "b": 50}, total=15, minimum=10), "exceed the subset size"))
 
 
 def merged_fixture(tmp: Path, **override) -> Path:
@@ -372,11 +374,93 @@ def test_export_real(llama_dir, tmp: Path):
           raises(lambda: X.export(merged=m, llama_dir=llama_dir, out=tmp / "export-real"), "already holds"))
 
 
+def test_bundle_compare_fixture(samples, official, tmp: Path):
+    """bundle and compare end to end on A2.4's own fixture: a small real A2.6 preparation and a parser evaluation by a
+    labelled 24-layer random stand-in, as test_a24_train.py builds them."""
+    import importlib
+    from grounding.a24 import evaluate as E
+    from grounding.a24 import identity as ID
+    from grounding.a27 import bundle as B
+    from grounding.a27 import compare as CP
+    from grounding.evaluation.iref_vla.protocol import encode_json, encode_jsonl
+    print("-- bundle and compare end to end on A2.4's fixture (labelled random-weight stand-in)")
+    TB = importlib.import_module("grounding.tests.test_iref_vla_baseline")
+    TP = importlib.import_module("grounding.tests.test_a24_prep")
+    TT = importlib.import_module("grounding.tests.test_a24_train")
+    p26, w26, frozen = TP.locked(lambda k: TB.prepared_fixture(tmp / f"a26-{k}", Path(samples), Path(official)), fresh=True)
+    m = TT.standin(tmp / "merged-p", layers=24, seed=1)
+    mp, _ = E.model_protocol()
+    ID.write_identity(m, {"model_name": "a24.parser.s1", "configuration": {"name": "parser", "design": "parser", "format": None},
+                          "seed": 20261011, "seed_index": 1,
+                          "base": {"hf_repo": "Qwen/Qwen2.5-0.5B-Instruct", "hf_revision": mp["model"]["hf_revision"],
+                                   "evidence_tie": "labelled stand-in (test only)"},
+                          "selection": {"checkpoint": "epoch-2", "epoch": 2}, "training": {}, "adapter": {}, "merge": {}})
+    ev = tmp / "eval-p"
+    E.parser(prep=p26, work=w26, model_dir=m, out=ev, device="cpu", frozen=frozen, progress=lambda *_: None)
+    refs = [json.loads(x) for x in (ev / "results.jsonl").read_text(encoding="utf-8").splitlines()]
+    dev = sum(1 for r in refs if r["partition"] == "development")
+    size = dev   # the fixture is small: its whole development partition
+    man = B.bundle(prep=p26, work=w26, evaluation=ev, merged=m, out=tmp / "bundle", subset_size=size)
+    rows = [json.loads(x) for x in (tmp / "bundle" / "requests.jsonl").read_text(encoding="utf-8").splitlines()]
+    check(f"bundle on the fixture: every evaluated parent ({len(refs)}), each prompt the length A2.4 recorded, the end "
+          f"token <|im_end|>, a frozen subset of {size} development parents", man["parents"] == len(refs) == len(rows)
+          and man["decoding"]["end_token"] == 151645 and man["subset"]["size"] == size
+          and sum(r["headset"] for r in rows) == size and all(r["reference"]["token_ids"] == x["token_ids"]
+                                                              for r, x in zip(rows, refs)), json.dumps(man["subset"])[:200])
+    check("a second bundle into the same folder is refused",
+          raises(lambda: B.bundle(prep=p26, work=w26, evaluation=ev, merged=m, out=tmp / "bundle", subset_size=size),
+                 "already exists"))
+    sha = lambda b: hashlib.sha256(b).hexdigest()   # noqa: E731
+
+    def desktop_folder(name, results):
+        d = tmp / name
+        d.mkdir()
+        body = encode_jsonl(results)
+        (d / "results.jsonl").write_bytes(body)
+        (d / "masks.json").write_bytes(encode_json({"prefixes": 30, "differing": 0, "seconds": 1.0, "workers": 2}))
+        (d / "manifest.json").write_bytes(encode_json({
+            "lock": {"bundle_manifest_sha256": sha((tmp / "bundle" / "manifest.json").read_bytes())},
+            "outputs": {"results.jsonl": sha(body)}, "tokenizer_against_base": {"equal": True, "fields": 9},
+            "export": {"gguf_sha256": "e" * 64}, "library": {"sha256": "d" * 64, "version": "b11277 (stand-in)"},
+            "decodes": {"statuses": {}, "median_ms": 1.0}}))
+        return d
+    same = [{"parent_command_id": r["parent_command_id"], "status": r["reference"]["status"],
+             "token_ids": r["reference"]["token_ids"], "ms": 1.0} for r in rows]
+    rec = CP.compare(bundle=tmp / "bundle", desktop=desktop_folder("desk-same", same), prep=p26, work=w26,
+                     out=tmp / "cmp-same")
+    check("compare on the fixture: every unchanged output reproduces A2.4's recorded outcomes in both views through the "
+          "same resolution path, and both desktop criteria are met", rec["identical"] == len(rows)
+          and rec["criterion_7_desktop"] == "met" and rec["criterion_4_desktop"] == "met"
+          and (tmp / "cmp-same" / "report.md").is_file(), json.dumps({k: rec[k] for k in ("identical", "parents")}))
+    from grounding.a24 import gbnf_check as G
+    from grounding.a24 import language as L
+    from grounding.a24 import prep as PR
+    from grounding.preparation.iref_vla import tokens as T
+    tok = T.load_pinned_tokenizer(PR.DEV.TOKENIZER)
+    a = rows[0]
+    text = next(x[0] for x in G.corpus(L.load_spec()) if x[1] and x[0] != a["reference"]["text"])
+    changed = [dict(x) for x in same]
+    changed[0] = dict(changed[0], status="completed", token_ids=list(tok.encode(text)) + [151645])
+    rec2 = CP.compare(bundle=tmp / "bundle", desktop=desktop_folder("desk-diff", changed), prep=p26, work=w26,
+                      out=tmp / "cmp-diff")
+    d = rec2["differences"][0] if rec2["differences"] else {}
+    check("a planted difference (a valid string of the language) is resolved through the real resolver on its own "
+          "scene and listed with both outputs and both views' outcomes", len(rec2["differences"]) == 1
+          and d.get("parent_command_id") == a["parent_command_id"] and set(d.get("outcomes", {})) == set(E.VIEWS)
+          and d["q8_0"]["text"] == text and rec2["identical"] == len(rows) - 1, json.dumps(d)[:300])
+    other = desktop_folder("desk-other", same)
+    (other / "manifest.json").write_bytes(encode_json({"lock": {"bundle_manifest_sha256": "0" * 64}}))
+    check("a desktop run of another bundle is refused", raises(lambda: CP.compare(
+        bundle=tmp / "bundle", desktop=other, prep=p26, work=w26, out=tmp / "cmp-other"), "another bundle"))
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--lib")
     ap.add_argument("--gguf")
     ap.add_argument("--export-llama")
+    ap.add_argument("--samples", help="with --official: bundle and compare end to end on A2.4's fixture")
+    ap.add_argument("--official")
     a = ap.parse_args()
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
@@ -388,6 +472,8 @@ def main() -> int:
             test_desktop_native(a.lib, a.gguf, tmp)
         if a.export_llama:
             test_export_real(Path(a.export_llama), tmp)
+        if a.samples and a.official:
+            test_bundle_compare_fixture(a.samples, a.official, tmp)
     print(f"\n{len(PASSES)} passed, {len(FAILS)} failed")
     return 1 if FAILS else 0
 

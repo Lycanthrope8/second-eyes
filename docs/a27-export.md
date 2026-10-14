@@ -61,3 +61,8 @@ allowed set, for verification), `se_grammar_pick` (the greedy choice among the a
 `se_decode_constrained` (one whole request: a fresh cache, the prompt with keep 0, then decoding within the request).
 `native/tests/test_se_grammar.py` checks them against the Python decoder on Qwen's real vocabulary;
 `grounding/tests/test_a27.py --lib --gguf` runs the whole desktop flow on the library.
+
+## Time
+
+`bundle` and `compare` load A2.6's per-scene bundles through A2.4's loader, which first verifies every prepared file
+against its bundle's manifest: about 45 minutes each on the RTX PC, before any output appears.
