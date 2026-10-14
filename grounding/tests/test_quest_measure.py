@@ -155,6 +155,40 @@ def main() -> int:
               str(s["descriptive_baseline_agreement"]))
         rep = (Path(s["folder"]) / "report.md").read_text(encoding="utf-8")
         check("the report states its clock and keeps the PC's times apart", "headset session stopwatch" in rep and "PC clock only" in rep)
+        check("A2.7: a direct-path session's summary and report have no parser section", "parser" not in s and "parser path" not in rep)
+        # A2.7 (D116): a parser session in a second pull
+        pp = repo / "runs" / "20261010_A2_r018" / "raw" / "outbox" / "20261010-130000"
+        (pp / "session").mkdir(parents=True)
+        for n in ("session.json", "startup-log.txt"):
+            (pp / "session" / n).write_bytes((pull / "session" / n).read_bytes())
+        def pline(rid, intake, status, kind, outcome, app, gen, start=10.0):
+            o = {"status": status, "reason": outcome, "execution_path": "U", "choice_code": None, "tokens": 120, "prompt_sha256": "p" * 64,
+                 "source": intake, "ms": {"build": 1.0, "tokenize": 2.0, "eval": app - 30.0, "score": 4.0, "total": app - 20.0},
+                 "path": "parser", "parser": {"kind": kind, "outcome": outcome, "output_tokens": list(range(gen))}}
+            return {"request_id": rid, "snapshot_id": g4[0]["snapshot_id"], "outcome": o,
+                    "times": {"intake": intake, "detected": 0.0, "queued": start, "inference_start": start, "inference_end": start + app - 30.0,
+                              "outcome": app, "app_observed_ms": app}, "memory_kb": {"rss": 900000, "peak": 950000}}
+        plines = [pline("p-01", "adb_inbox", "completed", "selected", "resolved", 4000.0, 9),
+                  pline("p-02", "adb_inbox", "ask", "ask", "no_match", 3000.0, 8),
+                  pline("p-03", "adb_inbox", "refused", "unsupported", "unsupported", 2500.0, 7),
+                  pline("p-04", "adb_inbox", "failed", "failed", "invalid_output", 2000.0, 12),
+                  pline("p-05", "preset", "completed", "selected", "resolved", 3500.0, 10)]
+        (pp / "session" / "outcomes.jsonl").write_text("".join(json.dumps(x) + "\n" for x in plines), encoding="utf-8")
+        import time
+        time.sleep(1.1)   # each report's folder is named by the UTC second, and nothing is overwritten
+        ps = MS.measure_report(run_id="20261010_A2_r018", goldens=tmp / "g", pull=pp, repo=repo)
+        P = ps.get("parser") or {}
+        check("A2.7: cold is the session's first decided request, warm the other decided ones (a technical failure is never timed)",
+              P.get("cold") == {"request_id": "p-01", "app_observed_ms": 4000.0} and P["warm_app_observed_ms"]["n"] == 3
+              and P["warm_app_observed_ms"]["median"] == 3000.0 and P["technical_failures"] == 1, json.dumps(P.get("warm_app_observed_ms")))
+        check("A2.7: the parser's kinds, generated tokens (the end token included) and stage times are reported",
+              P["all"]["kinds"] == {"ask": 1, "failed": 1, "selected": 2, "unsupported": 1} and P["all"]["generated_tokens"]["median"] == 8.5
+              and P["all"]["decided"] == 4 and P["all"]["resolve_ms"]["median"] == 4.0, json.dumps(P.get("all", {}).get("kinds")))
+        gi2 = ps["groups"][f"{size} objects, adb_inbox"]
+        check("A2.7: each group keeps A2.5's columns and adds its parser block", "parser" in gi2 and gi2["parser"]["decided"] == 3
+              and gi2["answered_after_evaluation"] == 2)
+        prep_ = (Path(ps["folder"]) / "report.md").read_text(encoding="utf-8")
+        check("A2.7: the report has the parser section with cold and warm", "## The parser path (A2.7, D116)" in prep_ and "Cold (the session's first" in prep_)
     print(f"\n{len(PASSES)} passed, {len(FAILS)} failed")
     return 0 if not FAILS else 1
 

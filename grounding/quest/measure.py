@@ -37,6 +37,42 @@ def buffers(log_text) -> dict:
     return out
 
 
+DECIDED = ("selected", "ask", "unsupported", "invalid", "budget")   # A2.7: a validated target or a decline, never a technical failure
+
+
+def _parser_fields(o) -> dict:
+    """A2.7 (D116): a parser outcome's own fields. Nothing for A2.5's direct path, whose rows stay as they were."""
+    if o.get("path") != "parser":
+        return {}
+    p = o.get("parser") or {}
+    return {"path": "parser", "parser_kind": p.get("kind"), "parser_outcome": p.get("outcome"),
+            "generated_tokens": len(p.get("output_tokens") or [])}
+
+
+def _decided(xs) -> list:
+    return [x for x in xs if x.get("path") == "parser" and x["parser_kind"] in DECIDED and x["execution_path"] in ("U", "P")]
+
+
+def _parser_group(xs) -> dict:
+    ps, dec = [x for x in xs if x.get("path") == "parser"], _decided(xs)
+    return {"kinds": {k: sum(x["parser_kind"] == k for x in ps) for k in sorted({str(x["parser_kind"]) for x in ps})},
+            "decided": len(dec), "app_observed_ms": stats([x["app_observed_ms"] for x in dec]),
+            "prompt_tokens": stats([x["tokens"] for x in dec]), "generated_tokens": stats([x["generated_tokens"] for x in dec]),
+            "decode_ms": stats([(x["stage_ms"] or {}).get("eval") for x in dec]),
+            "resolve_ms": stats([(x["stage_ms"] or {}).get("score") for x in dec])}
+
+
+def _parser_summary(rows) -> dict:
+    dec = [x for x in _decided(rows) if x["app_observed_ms"] is not None]
+    return {"definition": "the time from submission to a validated target or a decline (selected, ask, unsupported, invalid or "
+                          "budget), on the headset clock; technical failures are counted apart and never timed as answers",
+            "cold": {"request_id": dec[0]["request_id"], "app_observed_ms": dec[0]["app_observed_ms"]} if dec else None,
+            "warm_app_observed_ms": stats([x["app_observed_ms"] for x in dec[1:]]),
+            "technical_failures": sum(1 for x in rows if x.get("path") == "parser" and x["parser_kind"] == "failed"),
+            "stages": "eval is the constrained decode, score the resolution and build the strict parsing of the records",
+            "all": _parser_group(rows)}
+
+
 def stats(values) -> dict:
     v = sorted(x for x in values if isinstance(x, (int, float)) and not math.isnan(x))
     if not v:
@@ -87,7 +123,7 @@ def measure_report(*, run_id, goldens, references=None, pull=None, repo=None) ->
                      "app_observed_ms": t.get("app_observed_ms"),
                      "queue_ms": (t["inference_start"] - t["queued"]) if evaluated and t.get("inference_start") is not None and t.get("queued") is not None else None,
                      "inference_ms": (t["inference_end"] - t["inference_start"]) if evaluated and t.get("inference_end") is not None else None,
-                     "stage_ms": o.get("ms") if evaluated else None, "memory_kb": r.get("memory_kb")})
+                     "stage_ms": o.get("ms") if evaluated else None, "memory_kb": r.get("memory_kb")} | _parser_fields(o))
     groups = {}
     for x in rows:
         scene = f"{x['objects']} objects" if x["objects"] is not None else "unknown scene"
@@ -103,6 +139,9 @@ def measure_report(*, run_id, goldens, references=None, pull=None, repo=None) ->
                                                      if x["inference_ms"] is not None and x["queue_ms"] is not None]),
                       "tokens": stats([x["tokens"] for x in ev]),
                       "stage_ms": {k: stats([(x["stage_ms"] or {}).get(k) for x in ev]) for k in ("build", "tokenize", "eval", "score")}}
+    for key, xs in groups.items():
+        if any(x.get("path") == "parser" for x in xs):
+            table[key]["parser"] = _parser_group(xs)
     mem = [x["memory_kb"] for x in rows if x["memory_kb"]]
     agree = [x for x in rows if x["golden"] and x["golden"] in refs and x["status"] in ("completed", "ask") and x["choice"]]
     summary = {"format_version": 1, "record_type": "a25_measure_summary", "run_id": run_id, "pull": src.name, "session": session.get("session"),
@@ -115,6 +154,8 @@ def measure_report(*, run_id, goldens, references=None, pull=None, repo=None) ->
                "descriptive_baseline_agreement": {"compared": len(agree), "same_choice": sum(refs[x["golden"]] == x["choice"] for x in agree),
                                                   "note": "golden dataset commands only; against the D2 CPU float32/eager baseline; descriptive, "
                                                           "not an accuracy claim or numerical acceptance"} if references is not None else None}
+    if any(x.get("path") == "parser" for x in rows):
+        summary["parser"] = _parser_summary(rows)
     out = folder / "raw" / "measure" / _stamp()
     if out.exists():
         _fail(f"{out} already exists (nothing is overwritten)")
@@ -149,4 +190,17 @@ def render(s) -> str:
     if s["descriptive_baseline_agreement"]:
         d = s["descriptive_baseline_agreement"]
         L += ["", f"Descriptive: {d['same_choice']} of {d['compared']} golden dataset commands chose as the CPU baseline did ({d['note']})."]
+    if s.get("parser"):
+        p, a = s["parser"], s["parser"]["all"]
+        cold = "-" if not p["cold"] else "%.2f s (%s)" % (p["cold"]["app_observed_ms"] / 1000, p["cold"]["request_id"])
+        w = p["warm_app_observed_ms"]
+        L += ["", "## The parser path (A2.7, D116)", "", p["definition"] + ".", "",
+              f"- Cold (the session's first decided request): {cold}; warm: median {f(w, 'median')} s, p90 {f(w, 'p90')} s, "
+              f"max {f(w, 'max')} s (n = {w['n']}).",
+              f"- Kinds: {a['kinds']}; technical failures: {p['technical_failures']}.",
+              f"- Tokens (median): prompt {a['prompt_tokens'].get('median', '-')}, generated {a['generated_tokens'].get('median', '-')} "
+              "(the end token included).",
+              f"- Decode s (median / p90): {f(a['decode_ms'], 'median')} / {f(a['decode_ms'], 'p90')}; resolve ms (median): "
+              f"{a['resolve_ms'].get('median', '-')}.",
+              f"- Stages: {p['stages']}."]
     return "\n".join(L) + "\n"

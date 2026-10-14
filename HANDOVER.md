@@ -39,15 +39,16 @@ memory or chat.
   `second-eyes-data\a24-20261012-032009`, its corrected analysis `analysis-v2`.
   - For long GPU runs on the RTX PC, set `PYTORCH_CUDA_ALLOC_CONF=garbage_collection_threshold:0.8,max_split_size_mb:512`
     first (`notes/failures.md`, 2026-10-12).
-- **A2.7 is in progress** (D115 to D117), parser-only: the candidate `a24.parser.s1` (epoch 2) with the accepted
+- **A2.7 is in progress** (D115 to D118), parser-only: the candidate `a24.parser.s1` (epoch 2) with the accepted
   resolver, exported to GGUF Q8_0 and decoded on the headset by libse_llama's constrained decoding. The plan and its frozen
   acceptance criteria are in `notes/phases/A2.7_plan.md`; the commands in `docs/a27-export.md` and `docs/a27-headset.md`.
   - **Delivery 1** (desktop) is accepted (D116): the exported Q8_0 decodes all 2,715 commands exactly as float32.
-  - **Delivery 2** (D116, corrected in D117): the parser path in C# on the headset, reproducing A2.4's records for all 5,430
-    real resolutions and 1,719 reader strings; the parser folder (amended in D117: the whole bundle's readers and every
-    expected query); a judge that verifies its evidence; the session's parser path with model verification; the Parser check.
-  - **Next:** Delivery 3: push the corrected parser folder and the model, install the APK, run the Parser check and judge it
-    (criteria 1, 2, 4, 6 and 7 on the headset), then measure the deployed path (latency, tokens, memory, frames).
+  - **Delivery 2** (D116, corrected in D117, accepted in D118): the parser path in C# on the headset, reproducing A2.4's
+    records for all 5,430 real resolutions and 1,719 reader strings, queries included; the corrected parser folder; a judge
+    that verifies its evidence; the session's parser path with model verification; the Parser check.
+  - **Delivery 3** (D118): on the headset, with the reviewed APK, parser folder, library and model: the Parser check
+    (criteria 1, 2, 4 and 7), the deployed identity (criterion 6) and the deployed path's measurements.
+  - **Next:** A2.7's closing, from Delivery 3's results.
 - **A2.8** (frozen evaluation and preliminary Gate B) is **pending** (D115). The lab commands are neither made nor
   sealed: the project lead makes and seals them once the whole system runs, and only then are they evaluated. Until
   then, development uses basic commands. A2.8 also needs O20's thresholds, agreed with the advisor. Never request or

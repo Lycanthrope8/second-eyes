@@ -627,6 +627,134 @@ def test_reader_coverage():
           "included, in order", AC.reference_texts(rows) == ["chair | near | table", "lamp | on | desk", "door | closest 2 | sofa"])
 
 
+def test_device():
+    """A2.7 Delivery 3: the parser folder's push and the results' pull, on A2.5's labelled fake device."""
+    import importlib
+    from grounding.a27 import device as DV
+    TD = importlib.import_module("grounding.tests.test_quest_replay_device")
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        repo = tmp / "repo"
+        TD.make_run(repo, "20261015_A2_r101")
+        model = tmp / "a24.parser.s1.q8_0.gguf"
+        model.write_bytes(b"GGUF" + bytes(range(200)))
+        folder = tmp / "parser"   # a complete minimal folder: it passes the judge's own check (headset.verify_folder)
+        files = {"assets/parser.json": json.dumps({"gguf_file": model.name, "gguf_sha256": hashlib.sha256(model.read_bytes()).hexdigest()}).encode(),
+                 "assets/grammar.gbnf": b"root ::= x\n", "maps/m.json": b"{}",
+                 "acceptance/decodes.jsonl": b'{"parent_command_id": "p1"}\n', "acceptance/masks.jsonl": b'{"prefix": []}\n',
+                 "acceptance/resolutions.json": b'{"resolutions": [{"parent_command_id": "p1", "view": "full_inventory"}]}',
+                 "acceptance/readers.jsonl": b'{"text": "chair | near | table"}\n'}
+        for k, v in files.items():
+            (folder / k).parent.mkdir(parents=True, exist_ok=True)
+            (folder / k).write_bytes(v)
+        (folder / "manifest.json").write_text(json.dumps({"record_type": "a27_parser_folder", "counts": {"decodes": 1, "masks": 1,
+            "resolutions": 1, "readers": 1}, "files": {k: {"sha256": hashlib.sha256(v).hexdigest(), "bytes": len(v)} for k, v in files.items()}}),
+            encoding="utf-8")
+        dev = TD.FakeDevice()
+        r = DV.push_parser(folder=folder, run_id="20261015_A2_r101", model=model, adb=dev, repo=repo, progress=lambda m: None)
+        pushes = [c[2] for c in dev.calls if c[0] == "push"]
+        check("parser-push: every file into files/parser, the manifest last, then the model; a receipt in the run",
+              pushes[:len(files) + 1][-1] == f"{DV.REMOTE_PARSER}/manifest.json" and all(f"{DV.REMOTE_PARSER}/{k}" in dev.files for k in files)
+              and pushes[-1] == f"{DV.APP_DIR}/{model.name}" and r["model"]["pushed"] and Path(r["receipt"]).is_file())
+        bad_model = tmp / "other.gguf"
+        bad_model.write_bytes(b"GGUF other")
+        dev2 = TD.FakeDevice()
+        check("parser-push: a model other than the folder's candidate is refused before anything is pushed",
+              raises(lambda: DV.push_parser(folder=folder, run_id="20261015_A2_r101", model=bad_model, adb=dev2, repo=repo,
+                                            progress=lambda m: None), "not the exported candidate")
+              and not [c for c in dev2.calls if c[0] == "push"])
+        (folder / "maps/m.json").write_bytes(b"{ }")
+        check("parser-push: a folder whose files differ from its manifest is refused",
+              raises(lambda: DV.push_parser(folder=folder, run_id="20261015_A2_r101", adb=TD.FakeDevice(), repo=repo, progress=lambda m: None),
+                     "differs from its manifest"))
+        (folder / "maps/m.json").write_bytes(b"{}")
+        check("parser-push: a short transfer is caught by the size check on the headset",
+              raises(lambda: DV.push_parser(folder=folder, run_id="20261015_A2_r101", adb=TD.FakeDevice(truncate=True), repo=repo,
+                                            progress=lambda m: None), "bytes on the headset"))
+        dev3 = TD.FakeDevice()
+        for stamp, done in (("20261015-090000", True), ("20261015-100000", True), ("20261015-110000", False)):
+            base = f"{DV.REMOTE_RESULTS}/{stamp}"
+            dev3.files.update({f"{base}/run.json": b'{"manifest_sha256": "x"}', f"{base}/decodes.jsonl": b"{}\n"})
+            if done:
+                dev3.files[f"{base}/done.json"] = b"{}"
+        p = DV.pull_parser(run_id="20261015_A2_r101", adb=dev3, repo=repo, progress=lambda m: None)
+        check("parser-pull: the newest finished results folder (an unfinished newer one is left), every present file copied",
+              p["results"] == "20261015-100000" and (Path(p["folder"]) / "done.json").is_file() and (Path(p["folder"]) / "run.json").is_file())
+        check("parser-pull: an existing folder is never overwritten",
+              raises(lambda: DV.pull_parser(run_id="20261015_A2_r101", adb=dev3, repo=repo, progress=lambda m: None), "already exists"))
+
+
+def test_identity_policy():
+    """A2.7 Delivery 3, criterion 6: the parser's identity policy is A2.5's checks with the exported candidate's model."""
+    from grounding.quest import runtime_identity as RI
+    a25 = json.loads((ROOT / "grounding" / "quest" / "runtime-identity.v1.json").read_text(encoding="utf-8"))
+    path = ROOT / "grounding" / "a27" / "runtime-identity-parser.v1.json"
+    a27 = RI.load_policy(path)
+    changed = {k for k in a25 if a25[k] != a27.get(k)}
+    check("the parser identity policy loads through the identity check's own loader, with A2.5's checks and the exported "
+          "candidate's model (only the model, provenance and descriptive fields differ)",
+          set(a25) == set(a27) and changed <= {"decisions", "purpose", "model_file", "model_file_source", "accepted_model_sha256",
+                                                  "accepted_model_source", "provenance_runs", "provenance_rule"}
+          and a27["model_file"] == "a24.parser.s1.q8_0.gguf" and a27["accepted_model_sha256"].startswith("86bc77bc"), str(sorted(changed)))
+
+
+def test_measure_summary():
+    """A2.7 Delivery 3: the parser sessions' reports combined: cold across sessions, warm pooled per scene size."""
+    import importlib
+    import time
+    from grounding.a27 import measure as AM
+    TD = importlib.import_module("grounding.tests.test_quest_replay_device")
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp) / "repo"
+        TD.make_run(repo, "20261015_A2_r102")
+        check("measure-summary: no parser report yet is refused", raises(lambda: AM.summarize(run_id="20261015_A2_r102", repo=repo), "no parser session"))
+
+        def row(rid, kind, ms, objects, gen=9):
+            return {"request_id": rid, "path": "parser", "parser_kind": kind, "execution_path": "U", "app_observed_ms": ms, "objects": objects,
+                    "generated_tokens": gen, "tokens": 120, "stage_ms": {"eval": ms - 50, "score": 3.0}}
+        for k, (sess, rows) in enumerate((("s1", [row("a", "selected", 9000.0, 3), row("b", "ask", 3000.0, 3), row("c", "failed", 100.0, 6)]),
+                                         ("s2", [row("d", "selected", 8000.0, 6), row("e", "unsupported", 2500.0, 6), row("f", "selected", 3500.0, 10)]),
+                                         ("s3", [row("g", "ask", 7000.0, 10), row("h", "selected", 2000.0, 10)]))):
+            d = repo / "runs" / "20261015_A2_r102" / "raw" / "measure" / f"20261015-12000{k}"
+            d.mkdir(parents=True)
+            (d / "summary.json").write_text(json.dumps({"session": sess, "rows": rows, "memory": {"after_requests_peak_kb": {"max": 900000 + k}},
+                                                        "session_settings": {}, "parser": {"technical_failures": sum(r["parser_kind"] == "failed" for r in rows)}}),
+                                            encoding="utf-8")
+        s = AM.summarize(run_id="20261015_A2_r102", repo=repo)
+        check("measure-summary: cold is each session's first decided request (three sessions, median 8.0 s), warm the rest pooled",
+              s["cold_ms"]["n"] == 3 and s["cold_ms"]["median"] == 8000.0 and s["warm_ms"]["n"] == 4 and s["warm_ms"]["median"] == 2750.0
+              and s["technical_failures"] == 1 and s["kinds"]["failed"] == 1, json.dumps(s["cold_ms"]))
+        check("measure-summary: warm per scene size, and the peak memory across sessions",
+              set(s["warm_ms_by_objects"]) == {"3", "6", "10"} and s["peak_memory_kb"] == 900002
+              and (Path(s["folder"]) / "report.md").is_file())
+        time.sleep(1.1)
+        # measure-sessions: a pull of two sessions, each measured by A2.5's report, then combined
+        TD.make_run(repo, "20261015_A2_r103")
+        g = Path(tmp) / "goldens"
+        (g / "headset" / "scenes").mkdir(parents=True)
+        (g / "headset" / "scenes" / "s3.json").write_text(json.dumps({"objects": [1, 2, 3]}), encoding="utf-8")
+        (g / "headset" / "goldens.jsonl").write_text(json.dumps({"snapshot_id": "s3", "scene_file": "scenes/s3.json", "prompt_sha256": "g" * 64,
+                                                                 "kind": "dataset_command", "request_id": "g1"}) + "\n", encoding="utf-8")
+
+        def line(rid, kind, status, ms):
+            o = {"status": status, "reason": kind, "execution_path": "U", "tokens": 120, "prompt_sha256": "p" * 64, "source": "preset",
+                 "ms": {"build": 1.0, "tokenize": 2.0, "eval": ms - 40, "score": 3.0, "total": ms - 30}, "path": "parser",
+                 "parser": {"kind": kind, "outcome": "resolved", "output_tokens": [1, 2, 3, 4]}}
+            return {"request_id": rid, "snapshot_id": "s3", "outcome": o, "times": {"intake": "preset", "queued": 1.0, "inference_start": 1.0,
+                    "inference_end": ms - 39.0, "app_observed_ms": ms}, "memory_kb": {"rss": 800000, "peak": 850000}}
+        pull = repo / "runs" / "20261015_A2_r103" / "raw" / "outbox" / "20261015-150000"
+        for sub_, sid, lines in (("session", "sB", [line("p1", "selected", "completed", 6000.0), line("p2", "ask", "ask", 2000.0)]),
+                                 ("sessions/sA", "sA", [line("q1", "selected", "completed", 7000.0), line("q2", "selected", "completed", 2500.0)])):
+            (pull / sub_).mkdir(parents=True)
+            (pull / sub_ / "session.json").write_text(json.dumps({"session": sid, "purpose": "operational"}), encoding="utf-8")
+            (pull / sub_ / "outcomes.jsonl").write_text("".join(json.dumps(x) + "\n" for x in lines), encoding="utf-8")
+        r = AM.measure_sessions(run_id="20261015_A2_r103", goldens=g, repo=repo, progress=lambda m: None)
+        check("measure-sessions: every session of a multi-session pull measured by A2.5's report, then combined (two cold samples)",
+              sorted(r["measured_sessions"]) == ["sA", "sB"] and r["cold_ms"]["n"] == 2 and r["cold_ms"]["median"] == 6500.0
+              and r["warm_ms"]["n"] == 2 and not (repo / "runs" / "20261015_A2_r103" / "raw" / "outbox" / "20261015-150000-sessions").exists(),
+              json.dumps(r["cold_ms"]))
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--lib")
@@ -642,6 +770,9 @@ def main() -> int:
         test_evaluation_binding(tmp)
         test_verdicts()
         test_reader_coverage()
+        test_device()
+        test_identity_policy()
+        test_measure_summary()
         if a.lib and a.gguf:
             test_desktop_native(a.lib, a.gguf, tmp)
         if a.export_llama:

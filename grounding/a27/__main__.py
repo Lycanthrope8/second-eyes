@@ -41,6 +41,21 @@ def main(argv=None) -> int:
         a.add_argument(k, required=True)
     a.add_argument("--lib")
     a.add_argument("--gguf")
+    a = sub.add_parser("parser-push", help="push the parser folder (and the model) to the headset, the manifest last")
+    a.add_argument("--folder", required=True)
+    a.add_argument("--run", required=True)
+    a.add_argument("--model")
+    a.add_argument("--adb", default="adb")
+    a = sub.add_parser("parser-pull", help="pull a finished parser-check results folder into a run")
+    a.add_argument("--run", required=True)
+    a.add_argument("--results")
+    a.add_argument("--adb", default="adb")
+    a = sub.add_parser("measure-summary", help="combine the parser sessions' measurement reports of a run (cold, warm, tokens)")
+    a.add_argument("--run", required=True)
+    a = sub.add_parser("measure-sessions", help="A2.5's measure-report for every session of the newest pull, then the summary")
+    a.add_argument("--run", required=True)
+    a.add_argument("--goldens", required=True)
+    a.add_argument("--references")
     a = sub.add_parser("compare", help="judge the desktop halves of criteria 4 and 7")
     for k in ("--bundle", "--desktop", "--prep", "--work", "--out"):
         a.add_argument(k, required=True)
@@ -79,6 +94,21 @@ def main(argv=None) -> int:
     elif x.cmd == "goldens":
         from . import goldens as GD
         print(json.dumps(GD.write_all(samples=x.samples, official=x.official, out=x.out, lib=x.lib, gguf=x.gguf), indent=1))
+    elif x.cmd in ("parser-push", "parser-pull"):
+        from ..quest.runtime_identity import Adb
+        from . import device as DV
+        adb = Adb(x.adb)
+        r = (DV.push_parser(folder=x.folder, run_id=x.run, model=x.model, adb=adb) if x.cmd == "parser-push"
+             else DV.pull_parser(run_id=x.run, results=x.results, adb=adb))
+        print(json.dumps({k: v for k, v in r.items() if k != "files"}, indent=1))
+    elif x.cmd == "measure-sessions":
+        from . import measure as AM
+        s = AM.measure_sessions(run_id=x.run, goldens=x.goldens, references=x.references)
+        print(json.dumps({k: s[k] for k in ("measured_sessions", "cold_ms", "warm_ms", "kinds", "technical_failures", "folder")}, indent=1))
+    elif x.cmd == "measure-summary":
+        from . import measure as AM
+        s = AM.summarize(run_id=x.run)
+        print(json.dumps({k: s[k] for k in ("cold_ms", "warm_ms", "kinds", "technical_failures", "folder")}, indent=1))
     elif x.cmd == "port-goldens":
         from . import acceptance as AC
         print(json.dumps(AC.build(bundle=x.bundle, prep=x.prep, work=x.work, out=x.out), indent=1))

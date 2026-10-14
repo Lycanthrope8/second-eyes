@@ -45,6 +45,8 @@ def main(argv=None) -> int:
                                                  "with read-only adb")
     ri.add_argument("--out", required=True)
     ri.add_argument("--adb", default="adb", help="the adb executable (default: adb on PATH)")
+    ri.add_argument("--policy", default=None, help="another identity policy (A2.7: grounding/a27/runtime-identity-parser.v1.json); "
+                                                   "default: A2.5's")
     pu = sub.add_parser("replay-push", help="push a replay bundle's headset files to the app (never the references)")
     pu.add_argument("--bundle", required=True)
     pu.add_argument("--run", required=True, help="the run that receives the push receipt")
@@ -550,7 +552,7 @@ def _analysis(a) -> int:
 def _runtime_identity(a) -> int:
     from . import runtime_identity as RI
     try:
-        rec = RI.check_runtime_identity(out=a.out, adb=RI.Adb(a.adb), progress=lambda m: print(f"  ... {m}", flush=True))
+        rec = RI.check_runtime_identity(out=a.out, adb=RI.Adb(a.adb), policy=a.policy, progress=lambda m: print(f"  ... {m}", flush=True))
     except EvaluationInputError as e:
         for i in e.issues:
             print(f"not run: {i['code']} at {i['path']}: {i['message']}", file=sys.stderr)

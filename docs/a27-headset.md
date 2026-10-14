@@ -97,3 +97,24 @@ count; the results naming this folder and the exported candidate's model, after 
 consistent with the run's record; one result per expected case (a duplicate or an unexpected case refuses the evidence,
 a missing one leaves its criterion not met). Any failed prerequisite leaves every criterion not met. A prompt whose
 native tokens differ fails criterion 7; a resolution or reader whose constructed query differs fails criterion 1 or 2.
+
+## Delivery 3: on the headset
+
+| Command | What |
+|---|---|
+| `python -m grounding.a27 parser-push --folder FOLDER --run RUN --model GGUF` | the parser folder (the manifest last, the old one removed first) and the model, checked here by SHA-256 and on the headset by size; a receipt in the run |
+| `python -m grounding.quest runtime-identity --out DIR --policy grounding/a27/runtime-identity-parser.v1.json` | criterion 6: the deployed library against its Android build record (with every function the header declares) and the parser model against the exported candidate, with read-only adb |
+| `python -m grounding.a27 parser-pull --run RUN [--results STAMP]` | the newest finished Parser check (with `done.json`) into `runs/RUN/raw/parser/` |
+| `python -m grounding.a27 headset-judge --folder FOLDER --results RESULTS --out JUDGED` | criteria 1, 2, 4 and 7, headset halves |
+| `python -m grounding.quest outbox-pull --run RUN --sessions N` | A2.5's pull of the newest N sessions |
+| `python -m grounding.a27 measure-sessions --run RUN --goldens DIR` | A2.5's `measure-report` for every session of that pull (each copied to `raw/outbox-sessions/`), then the summary across sessions |
+| `python -m grounding.a27 measure-summary --run RUN` | the summary alone, over the run's parser reports |
+
+**The measurements** (D115: measured, not judged) cover the time from submission to a validated target or a decline,
+on the headset clock. A selection, an ask, or an unsupported, invalid or budget refusal counts as answered; a technical
+failure is counted apart and never timed. Cold is each session's first such request, warm the rest; prompt and generated
+tokens; decode and resolve times; memory as the runtime reports it; frames and heat from A1's `tools/profile.py` with
+OVR Metrics' CSV. The commands come from the panel's Preset button (the scene's next golden dataset command), so the
+headset stays on for the whole recording (open item O14). A2.5's `measure-report` adds a parser section to a parser
+session's report: generated tokens, outcome kinds, cold and warm. Its stage names keep A2.5's columns: `eval` is the
+constrained decode, `score` the resolution, `build` the strict parsing of the records.

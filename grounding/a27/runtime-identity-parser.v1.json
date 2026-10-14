@@ -1,0 +1,28 @@
+{
+  "format_version": 1,
+  "record_type": "a25_runtime_identity_policy",
+  "policy_id": "a25.runtime_identity.v1",
+  "decisions": [
+    "D99",
+    "D115",
+    "D116"
+  ],
+  "purpose": "A2.7 Delivery 3, criterion 6 (D115): the installed app's native library (the grammar-enabled libse_llama, D116) and the parser model it loads, checked on the laptop against the Android build record and the exported candidate. The same checks as A2.5's policy; only the model differs",
+  "package": "com.secondeyes.quest",
+  "device_data_dir": "/sdcard/Android/data/com.secondeyes.quest/files",
+  "model_file": "a24.parser.s1.q8_0.gguf",
+  "model_file_source": "the parser folder's assets/parser.json (gguf_file), the model the parser session and the Parser check load",
+  "accepted_model_sha256": "86bc77bc12f5aaa4cf832eadf0ea8d73f046ddda23e5e5c7733fe71e91405625",
+  "accepted_model_source": "export/export.json of a27-20261013-200925 (Delivery 1, accepted in D116)",
+  "accepted_file_type": 7,
+  "accepted_file_type_name": "MOSTLY_Q8_0",
+  "accepted_llama_cpp": "b11277 (eae11d22)",
+  "accepted_llama_cpp_source": "native/llama.cpp.pin, as tools/build_llama.py records it in build.json and native/CMakeLists.txt compiles it into se_llama_version()",
+  "build_record": "native/out/android-arm64/build.json",
+  "unity_copy": "quest-app/Assets/Plugins/Android/libs/arm64-v8a/libse_llama.so",
+  "apk_library_entry": "lib/arm64-v8a/libse_llama.so",
+  "header": "native/se_llama.h",
+  "provenance_runs": [],
+  "provenance_rule": "A2.7's library is a new build (D116): A1.8c's command-line runs recorded other binaries, so continuity with them does not apply. The current deployed identity is what this policy verifies",
+  "supporting_string": "b11277 (eae11d22)"
+}
