@@ -45,6 +45,9 @@ namespace SecondEyes.Grounding.Parsing
 
         public sealed class Summary { public int Decodes, Masks, Resolutions, Readers, Technical; public double Seconds; }
 
+        /// <summary>The SHA-256 of a query's canonical JSON (Python's json.dumps with sorted keys), as the judge expects.</summary>
+        public static string QuerySha(JNode q) { return q == null ? null : ReplayHash.Sha256Hex(Utf8.GetBytes(PyJson.Canonical(q))); }
+
         public static Summary Run(ParserFolder f, IParserNative native, IParserMasks masks, string outDir, Action<string> progress,
                                   Func<bool> cancelled)
         {
@@ -127,7 +130,8 @@ namespace SecondEyes.Grounding.Parsing
                         {
                             var o = f.Assets.Checker.Resolve(r["interp"], recs[(int)r["scene"].Num], recs[(int)r["command"].Num], recs[(int)r["map"].Num]);
                             j.Key("outcome").S(o.Outcome).Key("target_id").S(o.TargetId).Key("candidate_ids").Strs(o.CandidateIds.ToArray())
-                             .Key("technical").B(false).Key("technical_failure").B(false).Key("error").Null();
+                             .Key("technical").B(false).Key("technical_failure").B(false).Key("error").Null()
+                             .Key("query_sha256").S(QuerySha(o.Query));
                         }
                         catch (Exception e)
                         {
@@ -142,6 +146,8 @@ namespace SecondEyes.Grounding.Parsing
                     if (sum.Resolutions % 50 == 0 && progress != null) progress("resolutions " + sum.Resolutions);
                 }
             }
+            JNode ctx = File.Exists(Path.Combine(acc, "reader-context.json"))
+                ? JParse.Parse(File.ReadAllText(Path.Combine(acc, "reader-context.json"), Utf8)) : null;
             using (var w = new StreamWriter(Path.Combine(outDir, "readers.jsonl"), false, Utf8))
             {
                 foreach (var r in Lines(Path.Combine(acc, "readers.jsonl")))
@@ -150,7 +156,10 @@ namespace SecondEyes.Grounding.Parsing
                     try
                     {
                         var p = Language.ParseOutput(r["text"].Text, f.Assets.Spec);
-                        j.Key("valid").B(true).Key("render").S(Language.Render(p)).Key("interpretation").S(PyJson.Canonical(Language.Interpretation(p)));
+                        var interp = Language.Interpretation(p);
+                        j.Key("valid").B(true).Key("render").S(Language.Render(p)).Key("interpretation").S(PyJson.Canonical(interp))
+                         .Key("query_sha256").S(ctx == null ? null
+                              : QuerySha(Checker.Query(interp, ctx["scene"], ctx["command"], f.Assets.Checker.QuerySuffix)));
                     }
                     catch (LanguageError) { j.Key("valid").B(false).Key("render").Null().Key("interpretation").Null(); }
                     w.WriteLine(j.End().ToString());

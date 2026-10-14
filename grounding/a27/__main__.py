@@ -30,6 +30,9 @@ def main(argv=None) -> int:
         a.add_argument(k, required=True)
     a.add_argument("--maps-from", action="append", required=True)
     a.add_argument("--port-out", help="also write the full acceptance export (criteria 1 and 2 on the PC) there")
+    a = sub.add_parser("headset-amend", help="Delivery 2's corrections on the existing parser folder and port export (D117)")
+    for k in ("--parser", "--port", "--out-parser", "--out-port"):
+        a.add_argument(k, required=True)
     a = sub.add_parser("headset-judge", help="judge the headset's parser-check results (Delivery 3)")
     for k in ("--folder", "--results", "--out"):
         a.add_argument(k, required=True)
@@ -64,10 +67,13 @@ def main(argv=None) -> int:
         from . import headset as H
         print(json.dumps(H.build(bundle=x.bundle, desktop=x.desktop, export=x.export, prep=x.prep, work=x.work,
                                  maps_from=x.maps_from, out=x.out, port_out=x.port_out), indent=1))
+    elif x.cmd == "headset-amend":
+        from . import headset as H
+        print(json.dumps(H.amend(parser=x.parser, port=x.port, out_parser=x.out_parser, out_port=x.out_port), indent=1))
     elif x.cmd == "headset-judge":
         from . import headset as H
         v = H.judge(folder=x.folder, results=x.results, out=x.out)
-        print(json.dumps({k: v[k] for k in ("criterion_1_headset", "criterion_2_headset", "criterion_4_headset",
+        print(json.dumps({k: v[k] for k in ("prerequisites", "criterion_1_headset", "criterion_2_headset", "criterion_4_headset",
                                             "criterion_7_headset", "decodes", "masks", "resolutions", "readers")}, indent=1))
         print("technical failures:", len(v["technical_failures"]))
     elif x.cmd == "goldens":

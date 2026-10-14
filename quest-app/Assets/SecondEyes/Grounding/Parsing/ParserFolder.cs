@@ -97,6 +97,24 @@ namespace SecondEyes.Grounding.Parsing
             return null;
         }
 
+        /// <summary>D117: the model file's SHA-256, which must be the exported candidate's (parser.json). Streams the file
+        /// once; InvalidDataException on a mismatch, so no other weights are ever loaded under this folder.</summary>
+        public string VerifyModel(string path)
+        {
+            string sha;
+            using (var h = System.Security.Cryptography.SHA256.Create())
+            using (var fs = File.OpenRead(path))
+            {
+                byte[] d = h.ComputeHash(fs);
+                var sb = new StringBuilder();
+                foreach (byte b in d) sb.Append(b.ToString("x2", System.Globalization.CultureInfo.InvariantCulture));
+                sha = sb.ToString();
+            }
+            if (sha != GgufSha256)
+                throw new InvalidDataException("the model file " + Path.GetFileName(path) + " (" + sha + ") is not the exported candidate (" + GgufSha256 + ")");
+            return sha;
+        }
+
         /// <summary>The scene's category map, or null when the folder has none for its ID.</summary>
         public string MapFor(JNode scene)
         {

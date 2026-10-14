@@ -528,6 +528,7 @@ static class Program
             {
                 var o = checker.Resolve(c["interp"], recs[(int)c["scene"].Num], recs[(int)c["command"].Num], recs[(int)c["map"].Num]);
                 outcome = o.Outcome; target = o.TargetId ?? "None"; cands = string.Join(",", o.CandidateIds);
+                if (c.Has("query") && c["query"].Kind != JKind.Null) Eq("acceptance query", where, c["query"].Text, Canon(o.Query));
             }
             Eq("acceptance outcome", where, e["outcome"].Text, outcome);
             Eq("acceptance target", where, Opt(e["target_id"]), target);
@@ -537,6 +538,8 @@ static class Program
             if (c["headset"].Bool) headset++;
         }
         int valid = 0;
+        JNode ctxScene = g.Has("reader_context") ? recs[(int)g["reader_context"]["scene"].Num] : null;
+        JNode ctxCommand = g.Has("reader_context") ? recs[(int)g["reader_context"]["command"].Num] : null;
         foreach (var r in g["readers"].Items)
         {
             Parsed p = null;
@@ -546,6 +549,8 @@ static class Program
             valid++;
             Eq("acceptance reader render", r["text"].Text, r["render"].Text, Language.Render(p));
             Eq("acceptance reader interpretation", r["text"].Text, r["interpretation"].Text, Canon(Language.Interpretation(p)));
+            if (ctxScene != null && r.Has("query") && r["query"].Kind != JKind.Null)
+                Eq("acceptance reader query", r["text"].Text, r["query"].Text, Canon(Checker.Query(Language.Interpretation(p), ctxScene, ctxCommand, checker.QuerySuffix)));
         }
         var parts = new List<string>();
         foreach (var kv in outcomes) parts.Add(kv.Key + " " + kv.Value);
@@ -597,6 +602,7 @@ static class Program
         IParserMasks masks;
         IntPtr model = IntPtr.Zero;
         SecondEyes.Grounding.LlamaParser real = null;
+        string startup = null, modelSha = f.GgufSha256;   // with expected values, the folder's own candidate
         if (lib == null)
         {
             var e = new ExpectedNative();
@@ -619,12 +625,14 @@ static class Program
             model = SecondEyes.Grounding.LlamaNative.se_load_ex(SecondEyes.Grounding.LlamaNative.Utf8(gguf), f.Assets.ContextTokens, 2, 16, 0);
             real = new SecondEyes.Grounding.LlamaParser(model, f.Gbnf, f.Assets.EndToken);
             native = real; masks = real;
-            string startup = f.StartupCheck(real);
+            startup = f.StartupCheck(real);
             Console.WriteLine("startup check: " + (startup ?? "passed"));
+            try { modelSha = f.VerifyModel(gguf); } catch (InvalidDataException e) { modelSha = "mismatch"; Console.WriteLine(e.Message); }
         }
         var sum = ParserAcceptance.Run(f, native, masks, outDir, null, null);
         File.WriteAllText(Path.Combine(outDir, "run.json"), new SecondEyes.Grounding.Replay.JsonWriter().BeginObj().Key("record_type").S("a27_parser_check_run")
             .Key("manifest_sha256").S(f.ManifestSha256).Key("native").S(lib == null ? "expected values (plumbing test)" : "libse_llama (" + lib + ")")
+            .Key("gguf_sha256").S(modelSha).Key("startup_check").S(startup ?? "passed")
             .Key("decodes").I(sum.Decodes).Key("masks").I(sum.Masks).Key("resolutions").I(sum.Resolutions).Key("readers").I(sum.Readers)
             .Key("technical").I(sum.Technical).Key("seconds").D(sum.Seconds).End().ToString());
         if (real != null) { real.Dispose(); SecondEyes.Grounding.LlamaNative.se_free(model); }

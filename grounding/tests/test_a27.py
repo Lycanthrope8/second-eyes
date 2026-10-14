@@ -467,64 +467,164 @@ def test_bundle_compare_fixture(samples, official, tmp: Path):
     check("a masks.json that differs from the desktop run's recorded checksum is refused before criterion 4 is judged",
           raises(lambda: CP.compare(bundle=tmp / "bundle", desktop=tampered, prep=p26, work=w26, out=tmp / "cmp-masks"),
                  "masks.json changed"))
-    # the headset's parser folder from this chain, and the judge of the headset's results
+    # the headset's parser folder from this chain, and the judge of the headset's results (D116, corrected in D117)
+    import shutil
     from grounding.a27 import headset as H
+    from grounding.a24 import gbnf_check as GC
+    from grounding.a24 import language as LANG
     export = tmp / "export"
     export.mkdir()
     (export / "export.json").write_text(json.dumps({"gguf": {"file": "a24.parser.s1.q8_0.gguf", "sha256": "e" * 64},
                                                     "identity": {"model_name": "a24.parser.s1 (labelled stand-in)"}}), encoding="utf-8")
-    hf = tmp / "parser"
-    info = H.build(bundle=tmp / "bundle", desktop=tmp / "desk-same", export=export, prep=p26, work=w26, maps_from=[w26], out=hf)
+    hf, port_dir = tmp / "parser", tmp / "port"
+    info = H.build(bundle=tmp / "bundle", desktop=tmp / "desk-same", export=export, prep=p26, work=w26, maps_from=[w26], out=hf,
+                   port_out=port_dir)
     man = json.loads((hf / "manifest.json").read_text(encoding="utf-8"))
+    brows = [json.loads(x) for x in (tmp / "bundle" / "requests.jsonl").read_text(encoding="utf-8").splitlines() if x.strip()]
+    all_texts = len({r["reference"]["text"] for r in brows}) + len(GC.corpus(LANG.load_spec()))
     check("the headset's parser folder: every asset, the maps, the startup check and the acceptance files, each pinned in "
           "the manifest by SHA-256", all(hashlib.sha256((hf / k).read_bytes()).hexdigest() == v["sha256"] for k, v in man["files"].items())
           and info["decodes"] == size and info["maps"] >= 1 and "assets/grammar.gbnf" in man["files"]
           and (hf / "startup-check.json").is_file(), json.dumps(info))
+    hres = json.loads((hf / "acceptance" / "resolutions.json").read_text(encoding="utf-8"))["resolutions"]
+    hread = [json.loads(x) for x in (hf / "acceptance" / "readers.jsonl").read_text(encoding="utf-8").splitlines()]
+    check("D117: the headset's readers come from the whole bundle (every distinct reference output and the corpus), while its "
+          "resolutions stay the frozen subset's, and every case carries its expected query",
+          info["readers"] == all_texts and len(hread) == all_texts and all(e["headset"] for e in hres)
+          and len(hres) == 2 * sum(r["headset"] for r in brows) and all((e["query"] is not None) == (e["interp"] is not None) for e in hres)
+          and all((r["query"] is not None) == r["valid"] for r in hread) and (hf / "acceptance" / "reader-context.json").is_file(),
+          f"{info['readers']} readers, {all_texts} expected")
 
-    def results(name, mutate=None):
+    def results(folder, name, mutate=None, run_extra=None):
         r = tmp / name
         r.mkdir()
-        dec = [json.loads(x) for x in (hf / "acceptance" / "decodes.jsonl").read_text(encoding="utf-8").splitlines()]
-        rows = [{"parent_command_id": d["parent_command_id"], "prompt_ids": d["prompt_ids"], "tokens": d["tokens"], "status": d["status"],
-                 "error": None} for d in dec]
-        masks = [dict(m, error=None) for m in (json.loads(x) for x in (hf / "acceptance" / "masks.jsonl").read_text(encoding="utf-8").splitlines())]
-        res = json.loads((hf / "acceptance" / "resolutions.json").read_text(encoding="utf-8"))["resolutions"]
-        rr = [{"parent_command_id": e["parent_command_id"], "view": e["view"], "outcome": "technical" if e["expected"]["technical"] else e["expected"]["outcome"],
+        dec = [json.loads(x) for x in (folder / "acceptance" / "decodes.jsonl").read_text(encoding="utf-8").splitlines()]
+        rows = [{"parent_command_id": d["parent_command_id"], "prompt_ids": list(d["prompt_ids"]), "tokens": list(d["tokens"]),
+                 "status": d["status"], "error": None} for d in dec]
+        masks = [dict(m, error=None) for m in (json.loads(x) for x in (folder / "acceptance" / "masks.jsonl").read_text(encoding="utf-8").splitlines())]
+        res = json.loads((folder / "acceptance" / "resolutions.json").read_text(encoding="utf-8"))["resolutions"]
+        qs = lambda q: None if q is None else hashlib.sha256(q.encode("utf-8")).hexdigest()  # noqa: E731
+        rr = [{"parent_command_id": e["parent_command_id"], "view": e["view"],
+               "outcome": "technical" if e["expected"]["technical"] else e["expected"]["outcome"],
                "target_id": None if e["expected"]["technical"] else e["expected"]["target_id"],
                "candidate_ids": [] if e["expected"]["technical"] else (e["expected"]["candidate_ids"] or []),
-               "technical": e["expected"]["technical"], "technical_failure": False, "error": None} for e in res]
-        readers = [json.loads(x) for x in (hf / "acceptance" / "readers.jsonl").read_text(encoding="utf-8").splitlines()]
+               "technical": e["expected"]["technical"], "technical_failure": False, "error": None, "query_sha256": qs(e.get("query"))} for e in res]
+        readers = [json.loads(x) for x in (folder / "acceptance" / "readers.jsonl").read_text(encoding="utf-8").splitlines()]
+        rd = [dict({k: x.get(k) for k in ("text", "valid", "render", "interpretation")}, query_sha256=qs(x.get("query"))) for x in readers]
         if mutate:
-            mutate(rows, masks, rr)
+            mutate(rows, masks, rr, rd)
         (r / "decodes.jsonl").write_bytes(encode_jsonl(rows))
         (r / "masks.jsonl").write_bytes(encode_jsonl(masks))
         (r / "resolutions.jsonl").write_bytes(encode_jsonl(rr))
-        (r / "readers.jsonl").write_bytes(encode_jsonl([{k: x.get(k) for k in ("text", "valid", "render", "interpretation")} for x in readers]))
-        (r / "run.json").write_text(json.dumps({"manifest_sha256": hashlib.sha256((hf / "manifest.json").read_bytes()).hexdigest()}),
-                                    encoding="utf-8")
+        (r / "readers.jsonl").write_bytes(encode_jsonl(rd))
+        parser_cfg = json.loads((folder / "assets" / "parser.json").read_text(encoding="utf-8"))
+        run = {"manifest_sha256": hashlib.sha256((folder / "manifest.json").read_bytes()).hexdigest(), "gguf_sha256": parser_cfg["gguf_sha256"],
+               "startup_check": "passed", "decodes": len(rows), "masks": len(masks), "resolutions": len(rr), "readers": len(rd)}
+        run.update(run_extra or {})
+        (r / "run.json").write_text(json.dumps(run), encoding="utf-8")
         return r
-    v = H.judge(folder=hf, results=results("res-same"), out=tmp / "judge-same")
-    check("the judge: results equal to the folder's expectations meet criteria 1, 2, 4 and 7 (headset halves)",
-          all(v[k] == "met" for k in ("criterion_1_headset", "criterion_2_headset", "criterion_4_headset", "criterion_7_headset"))
-          and not v["technical_failures"], json.dumps({k: v[k] for k in ("decodes", "masks", "resolutions", "readers")}))
+    crit = ("criterion_1_headset", "criterion_2_headset", "criterion_4_headset", "criterion_7_headset")
+    v = H.judge(folder=hf, results=results(hf, "res-same"), out=tmp / "judge-same")
+    check("the judge: results equal to the folder's expectations, after verified prerequisites, meet criteria 1, 2, 4 and 7 (headset halves)",
+          all(v[k] == "met" for k in crit) and not v["technical_failures"] and isinstance(v["prerequisites"], str),
+          json.dumps({k: v[k] for k in ("prerequisites", "decodes", "masks", "resolutions", "readers")}))
 
-    def breaks(rows, masks, rr):
+    def breaks(rows, masks, rr, rd):
         rows[0]["tokens"] = rows[0]["tokens"][:-1] + [rows[0]["tokens"][-1] + 1]
         masks[0]["count"] += 1
         rr[0]["technical_failure"] = True
         rr[0]["error"] = "ResolverFault: a planted fault"
-    v = H.judge(folder=hf, results=results("res-broken", breaks), out=tmp / "judge-broken")
+    v = H.judge(folder=hf, results=results(hf, "res-broken", breaks), out=tmp / "judge-broken")
     check("the judge: a changed decode fails criterion 7, a changed mask criterion 4, and a technical failure is listed "
           "apart, never an outcome", v["criterion_7_headset"] == "not met" and v["criterion_4_headset"] == "not met"
           and len(v["technical_failures"]) == 1 and v["technical_failures"][0]["criterion"] == 1)
-    other_run = results("res-other")
-    (other_run / "run.json").write_text(json.dumps({"manifest_sha256": "0" * 64}), encoding="utf-8")
+
+    def token_shift(rows, masks, rr, rd):
+        rows[0]["prompt_ids"] = rows[0]["prompt_ids"][:-1] + [rows[0]["prompt_ids"][-1] + 1]
+    v = H.judge(folder=hf, results=results(hf, "res-tokens", token_shift), out=tmp / "judge-tokens")
+    check("D117 probe: prompt token IDs that differ fail criterion 7, even when the output tokens equal the expected ones",
+          v["criterion_7_headset"] == "not met" and v["decodes"]["prompt_token_mismatches"] == 1, json.dumps(v["decodes"]))
+    v = H.judge(folder=hf, results=results(hf, "res-startup", run_extra={"startup_check": "the tokenization of 'x' differs at token 3"}),
+                out=tmp / "judge-startup")
+    check("D117 probe: a failed startup check leaves every criterion not met, the failure named as a prerequisite",
+          all(v[k] == "not met" for k in crit) and "startup check" in json.dumps(v["prerequisites"]))
+    v = H.judge(folder=hf, results=results(hf, "res-model", run_extra={"gguf_sha256": "f" * 64}), out=tmp / "judge-model")
+    check("D117 probe: a model other than the exported candidate leaves every criterion not met",
+          all(v[k] == "not met" for k in crit) and "not the exported candidate" in json.dumps(v["prerequisites"]))
+    def bump_first_token(p):
+        rows_ = [json.loads(x) for x in p.read_text(encoding="utf-8").splitlines() if x.strip()]
+        rows_[0]["tokens"][0] += 1
+        p.write_bytes(encode_jsonl(rows_))
+    for name, edit, what in (("decodes", bump_first_token, "expected decode tokens changed without the manifest"),
+                             ("masks", lambda p: p.write_text("", encoding="utf-8"), "the expected mask file emptied")):
+        bad = tmp / f"parser-{name}"
+        shutil.copytree(hf, bad)
+        edit(bad / "acceptance" / f"{name}.jsonl")
+        rr_ = results(hf, f"res-for-{name}")
+        check(f"D117 probe: {what} is refused before anything is judged",
+              raises(lambda: H.judge(folder=bad, results=rr_, out=tmp / f"judge-{name}"), "differs from its manifest"))
+
+    def drop(rows, masks, rr, rd):
+        del rr[-1]
+    v = H.judge(folder=hf, results=results(hf, "res-missing", drop, run_extra={"resolutions": len(hres) - 1}), out=tmp / "judge-missing")
+    check("D117: a missing result leaves its criterion not met (coverage)", v["criterion_1_headset"] == "not met"
+          and v["resolutions"]["missing"] == 1)
+
+    def dup(rows, masks, rr, rd):
+        rows.append(dict(rows[0]))
+    check("D117: a duplicated result refuses the evidence",
+          raises(lambda: H.judge(folder=hf, results=results(hf, "res-dup", dup), out=tmp / "judge-dup"), "duplicate result"))
+
+    def query_shift(rows, masks, rr, rd):
+        k = next(i for i, x in enumerate(rr) if x["query_sha256"])
+        rr[k]["query_sha256"] = "0" * 64
+        j = next(i for i, x in enumerate(rd) if x["query_sha256"])
+        rd[j]["query_sha256"] = "0" * 64
+    v = H.judge(folder=hf, results=results(hf, "res-query", query_shift), out=tmp / "judge-query")
+    check("D117: a constructed query that differs fails criterion 1 (resolutions) and criterion 2 (readers)",
+          v["criterion_1_headset"] == "not met" and v["criterion_2_headset"] == "not met" and v["criterion_4_headset"] == "met")
+    other_run = results(hf, "res-other", run_extra={"manifest_sha256": "0" * 64})
     check("results from another parser folder are refused", raises(lambda: H.judge(folder=hf, results=other_run, out=tmp / "judge-other"),
                                                                    "another parser folder"))
+    # amend: Delivery 2's corrections on an existing folder (one built before them: a 1-reader, query-free acceptance)
+    old = tmp / "parser-old"
+    shutil.copytree(hf, old)
+    acc = old / "acceptance"
+    ores = json.loads((acc / "resolutions.json").read_text(encoding="utf-8"))
+    for e in ores["resolutions"]:
+        e.pop("query", None)
+    (acc / "resolutions.json").write_bytes(H.encode_json(ores))
+    (acc / "readers.jsonl").write_bytes(encode_jsonl([{k: v_ for k, v_ in hread[0].items() if k != "query"}]))
+    (acc / "reader-context.json").unlink()
+    oman = json.loads((old / "manifest.json").read_text(encoding="utf-8"))
+    oman["files"] = {k: {"sha256": hashlib.sha256((old / k).read_bytes()).hexdigest(), "bytes": (old / k).stat().st_size}
+                     for k in oman["files"] if (old / k).is_file()}
+    oman["counts"]["readers"] = 1
+    (old / "manifest.json").write_bytes(H.encode_json(oman))
+    a = H.amend(parser=old, port=port_dir, out_parser=tmp / "parser-amended", out_port=tmp / "port-amended")
+    am = tmp / "parser-amended"
+    same_files = all((am / k).read_bytes() == (old / k).read_bytes() for k in oman["files"]
+                     if k not in ("acceptance/resolutions.json", "acceptance/readers.jsonl"))
+    v = H.judge(folder=am, results=results(am, "res-amended"), out=tmp / "judge-amended")
+    check("D117 amend: the full readers and every query added, the decodes, masks, maps, assets and startup check carried over "
+          "byte for byte, the same resolutions; the amended folder verifies and its expectations are met",
+          a["readers"] == all_texts and a["resolutions"] == len(hres) and same_files and all(v[k] == "met" for k in crit)
+          and json.loads((am / "manifest.json").read_text(encoding="utf-8"))["amended"]["decision"] == "D117", json.dumps(a)[:300])
     other = desktop_folder("desk-other", same)
     (other / "manifest.json").write_bytes(encode_json({"lock": {"bundle_manifest_sha256": "0" * 64}}))
     check("a desktop run of another bundle is refused", raises(lambda: CP.compare(
         bundle=tmp / "bundle", desktop=other, prep=p26, work=w26, out=tmp / "cmp-other"), "another bundle"))
+
+
+def test_reader_coverage():
+    """D117: criterion 2's readers cover the whole bundle, not only the headset subset (the bug Delivery 2 shipped)."""
+    from grounding.a27 import acceptance as AC
+    rows = [{"headset": True, "reference": {"text": "chair | near | table"}},
+            {"headset": False, "reference": {"text": "lamp | on | desk"}},
+            {"headset": True, "reference": {"text": "chair | near | table"}},
+            {"headset": False, "reference": {"text": "door | closest 2 | sofa"}}]
+    check("D117: the readers are every distinct reference output of the bundle, the commands outside the headset subset "
+          "included, in order", AC.reference_texts(rows) == ["chair | near | table", "lamp | on | desk", "door | closest 2 | sofa"])
 
 
 def main() -> int:
@@ -541,6 +641,7 @@ def main() -> int:
         test_candidate(tmp)
         test_evaluation_binding(tmp)
         test_verdicts()
+        test_reader_coverage()
         if a.lib and a.gguf:
             test_desktop_native(a.lib, a.gguf, tmp)
         if a.export_llama:

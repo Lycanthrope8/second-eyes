@@ -16,6 +16,7 @@ namespace SecondEyes.Grounding.Resolution
         public List<string> CandidateIds = new List<string>();
         public List<Issue> QueryIssues = new List<Issue>();
         public RunRecord Run;
+        public JNode Query;   // the grounding query this outcome resolved (D117: the headset records its hash)
     }
 
     public sealed class Checker
@@ -71,6 +72,7 @@ namespace SecondEyes.Grounding.Resolution
         {
             var o = new CheckerOutcome();
             var q = Query(interp, scene, command, QuerySuffix);
+            o.Query = q;
             List<NormInterpretation> norm;
             o.QueryIssues = ResolverValidation.CheckQuery(q, setup.Schemas("grounding-query.v1.json"), out norm);
             if (o.QueryIssues.Count > 0) { o.Outcome = "invalid_label_query"; return o; }

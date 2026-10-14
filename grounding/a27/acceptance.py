@@ -6,12 +6,14 @@ From the Delivery 1 bundle (BUNDLE: the frozen reference outputs and A2.4's reco
 views becomes one frozen resolution (criterion 1): the reference output's interpretation, the view's scene and command
 records, the scene's category map, and A2.4's recorded outcome, target, candidate set and technical flag. Every
 distinct reference output and the grammar's 97-string corpus become reader cases (criterion 2): Python's verdict,
-interpretation and query. Records are stored once and referenced by index. The headset subset's parents are marked, so
+render, interpretation and query. Every case carries its expected grounding query (A2.4's language.query, canonical JSON,
+D117): a resolution's on its own scene and command, a reader string's in one recorded context. Records are stored once and referenced by index. The headset subset's parents are marked, so
 Delivery 3 can push that part to the headset. Judged by tools/csharp-tests/Resolution (mode acceptance) on the PC, and
 on the headset in Delivery 3.
 """
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 from pathlib import Path
@@ -37,6 +39,15 @@ def build(*, bundle, prep, work, out) -> dict:
     return summary
 
 
+def reference_texts(rows) -> list:
+    """Every distinct reference output of the bundle, in order, whatever the headset subset (D117: criterion 2's readers
+    cover the whole bundle; only the resolutions are the subset's)."""
+    seen = {}
+    for r in rows:
+        seen.setdefault(r["reference"]["text"], None)
+    return list(seen)
+
+
 def build_body(*, bundle, prep, work, only_headset=False, parents=None) -> dict:
     """parents: A2.4's parent list, when the caller has loaded it already (it verifies every A2.6 bundle: slow)."""
     bundle, work = Path(bundle), Path(work)
@@ -55,14 +66,13 @@ def build_body(*, bundle, prep, work, only_headset=False, parents=None) -> dict:
             index[key] = len(records)
             records.append(json.loads(body))
         return index[key]
-    resolutions, texts = [], {}
+    resolutions, texts = [], reference_texts(rows)
     for r in rows:
         if only_headset and not r["headset"]:
             continue
         p = parents[r["parent_command_id"]]
         b = work / p["scene"] / "bundle"
         ref_out = r["reference"]
-        texts.setdefault(ref_out["text"], None)
         interp = None
         if ref_out["valid"]:
             interp = L.interpretation(L.parse_output(ref_out["text"], spec))
@@ -76,7 +86,7 @@ def build_body(*, bundle, prep, work, only_headset=False, parents=None) -> dict:
                                 "expected": {"outcome": e["outcome"], "target_id": e.get("target_id"),
                                              "candidate_ids": e.get("candidate_ids"), "technical": bool(e.get("technical"))}})
     readers = []
-    for t in list(texts) + [s for s, _ in GC.corpus(spec)]:
+    for t in texts + [s for s, _ in GC.corpus(spec)]:
         try:
             parsed = L.parse_output(t, spec)
             interp = L.interpretation(parsed)
@@ -85,6 +95,33 @@ def build_body(*, bundle, prep, work, only_headset=False, parents=None) -> dict:
         except L.LanguageError:
             readers.append({"text": t, "valid": False})
     from .goldens import resolver_protocol
-    return {"format_version": 1, "record_type": "a27_port_acceptance", "bundle_manifest_sha256":
-            hashlib.sha256((bundle / "manifest.json").read_bytes()).hexdigest(), "protocol": resolver_protocol(),
-            "records": records, "resolutions": resolutions, "readers": readers}
+    return add_queries({"format_version": 1, "record_type": "a27_port_acceptance", "bundle_manifest_sha256":
+                        hashlib.sha256((bundle / "manifest.json").read_bytes()).hexdigest(), "protocol": resolver_protocol(),
+                        "records": records, "resolutions": resolutions, "readers": readers})
+
+
+def canon(x) -> str:
+    """Python's canonical JSON, as the C# side writes it (PyJson.Canonical)."""
+    return json.dumps(x, sort_keys=True, separators=(",", ":"))
+
+
+def add_queries(body: dict) -> dict:
+    """Each case's expected grounding query (D117), by A2.4's language.query in canonical JSON: a resolution's on its own
+    scene and command (none when the reference output was technical); a valid reader string's in one fixed context,
+    the first resolvable entry's scene and command, recorded as reader_context (indices into the records)."""
+    suffix = body["protocol"]["query_suffix"]
+    recs = body["records"]
+    for e in body["resolutions"]:
+        e["query"] = None if e["interp"] is None else canon(L.query(copy.deepcopy(e["interp"]), recs[e["scene"]],
+                                                                    recs[e["command"]], suffix))
+    ctx = next((e for e in body["resolutions"] if e["interp"] is not None), None)
+    if ctx is None:
+        raise SystemExit("no resolvable entry to give the reader strings a context")
+    body["reader_context"] = {"scene": ctx["scene"], "command": ctx["command"]}
+    spec = L.load_spec()
+    for r in body["readers"]:
+        r["query"] = None
+        if r["valid"]:
+            interp = L.interpretation(L.parse_output(r["text"], spec))
+            r["query"] = canon(L.query(interp, recs[ctx["scene"]], recs[ctx["command"]], suffix))
+    return body

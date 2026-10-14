@@ -92,6 +92,11 @@ def good_symbols():
                                           sym("llama_internal", vis=HIDDEN)]
 
 
+# A2.7 (D115, D116): the grammar functions libse_llama gained for constrained decoding; the header's other 23 are A2.5's
+GRAMMAR = {"se_grammar_new", "se_grammar_free", "se_grammar_reset", "se_grammar_allowed", "se_grammar_pick", "se_grammar_accept",
+           "se_decode_constrained"}
+
+
 def check_elf(B):
     print("-- the ELF reader (hand-built ARM64 shared objects)")
     elf = B.elf_dynamic_symbols(build_elf(good_symbols()))
@@ -105,7 +110,7 @@ def check_elf(B):
           and s["malloc"]["defined"] is False and s["llama_internal"]["visibility"] == "HIDDEN")
     r = B.usable_exports(s, REQUIRED)
     check(f"all {len(REQUIRED)} header functions are usable; extra exports and imports change nothing",
-          all(r[n]["usable"] for n in REQUIRED) and len(REQUIRED) == 23)
+          all(r[n]["usable"] for n in REQUIRED) and len(REQUIRED) == 30 and GRAMMAR <= set(REQUIRED))
     cases = [("missing", lambda xs: [x for x in xs if x[0] != "se_logits"], "se_logits", "not in the dynamic symbol table"),
              ("undefined", lambda xs: [sym(x[0], defined=False) if x[0] == "se_logprob" else x for x in xs], "se_logprob",
               "undefined"),
@@ -439,7 +444,8 @@ def check_tracked_policy(RI):
                 for r in pol["provenance_runs"]]
     check("the provenance runs are A1.8c's command-line runs (their purposes)",
           all(p.startswith("A1.8c O18: llama.cpp from adb shell") for p in purposes), str(purposes))
-    check("the header declares 23 functions", len(REQUIRED) == 23 and RI.header_functions(HEADER) == REQUIRED)
+    check("the header declares 30 functions: A2.5's 23 and A2.7's 7 grammar functions (D115, D116)",
+          len(REQUIRED) == 30 and GRAMMAR <= set(REQUIRED) and RI.header_functions(HEADER) == REQUIRED)
 
 
 def main() -> int:

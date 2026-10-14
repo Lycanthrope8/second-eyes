@@ -37,18 +37,6 @@ namespace SecondEyes.Grounding.Parsing
 
         private void Say(string text) { main.Post(_ => status(text), null); }
 
-        private static string FileSha256(string path)
-        {
-            using (var sha = SHA256.Create())
-            using (var fs = File.OpenRead(path))
-            {
-                byte[] h = sha.ComputeHash(fs);
-                var sb = new StringBuilder();
-                foreach (byte b in h) sb.Append(b.ToString("x2", CultureInfo.InvariantCulture));
-                return sb.ToString();
-            }
-        }
-
         public async Task<string> RunAsync()
         {
             string stamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
@@ -59,8 +47,7 @@ namespace SecondEyes.Grounding.Parsing
             string model = Path.Combine(Application.persistentDataPath, f.GgufFile);
             if (!File.Exists(model)) throw new FileNotFoundException("the parser model " + f.GgufFile + " isn't on the headset");
             Say("Parser check: hashing the model...");
-            string ggufSha = await Task.Run(() => FileSha256(model));
-            if (ggufSha != f.GgufSha256) throw new InvalidDataException("the model on the headset is not the exported candidate");
+            string ggufSha = await Task.Run(() => f.VerifyModel(model));   // throws unless it is the exported candidate
             long rssBefore = LlamaRuntime.MemoryKb(false), peakBefore = LlamaRuntime.MemoryKb(true);
             runtime = new LlamaRuntime(main);
             string captureError = null;
@@ -75,6 +62,17 @@ namespace SecondEyes.Grounding.Parsing
             {
                 startup = await runtime.WithModel(s => f.StartupCheck(parser));
                 system = await runtime.WithModel(s => LlamaNative.Str(LlamaNative.se_system_info()));
+                if (startup != null)   // D117: no acceptance after a failed startup check; the record says why
+                {
+                    var u8 = new UTF8Encoding(false);
+                    File.WriteAllText(Path.Combine(dir, "run.json"), new JsonWriter().BeginObj().Key("record_type").S("a27_parser_check_run")
+                        .Key("results").S(stamp).Key("manifest_sha256").S(f.ManifestSha256).Key("candidate").S(f.Candidate)
+                        .Key("gguf_file").S(f.GgufFile).Key("gguf_sha256").S(ggufSha).Key("llama_cpp").S(runtime.Version).Key("system_info").S(system)
+                        .Key("startup_check").S(startup).Key("acceptance").S("not run: the startup check failed").End().ToString() + "\n", u8);
+                    File.WriteAllText(Path.Combine(dir, "done.json"), new JsonWriter().BeginObj().Key("record_type").S("a27_parser_check_done")
+                        .Key("results").S(stamp).End().ToString() + "\n", u8);
+                    return "Parser check " + stamp + ": the startup check failed (" + startup + "); no acceptance was run. Pull files/parser-results/" + stamp + ".";
+                }
                 Say("Parser check: running " + f.Manifest["counts"]["decodes"].Text + " decodes, " + f.Manifest["counts"]["masks"].Text + " masks, "
                     + f.Manifest["counts"]["resolutions"].Text + " resolutions...");
                 sum = await runtime.WithModel(s => ParserAcceptance.Run(f, parser, parser, dir, Say, null));

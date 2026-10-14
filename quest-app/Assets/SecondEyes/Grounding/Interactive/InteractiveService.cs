@@ -54,6 +54,7 @@ namespace SecondEyes.Grounding.Interactive
         private GoldenRunner.Goldens goldens;
         private ParserFolder parser;        // A2.7 (D115): when set, operational requests take the parser path
         private LlamaParser parserNative;   // the parser's grammar on the loaded model; freed on the model's thread
+        private string parserModelSha;      // D117: the verified SHA-256 of the parser model this session loaded
         private StreamWriter log;
         private string sessionStamp;
         private int presetCount, epoch;
@@ -109,6 +110,12 @@ namespace SecondEyes.Grounding.Interactive
             long rssBefore = LlamaRuntime.MemoryKb(false), peakBefore = LlamaRuntime.MemoryKb(true);
             string captureError = null, capturePath = Path.Combine(dir, "startup-log.txt");
             runtime = new LlamaRuntime(main);
+            if (parserFolder != null)   // D117: the weights themselves, once per session, before they are loaded
+            {
+                ParserFolder vf = parserFolder;
+                Say("Verifying the parser model...");
+                parserModelSha = await Task.Run(() => vf.VerifyModel(modelPath));
+            }
             int ctx = parserFolder != null ? parserFolder.Assets.ContextTokens : Pipeline.ContextTokens;
             double loadMs = await runtime.LoadCapturedAsync(modelPath, ctx, ReplayRunner.Threads, ReplayRunner.Flags,
                                                             capturePath, e => captureError = captureError == null ? e : captureError + "; " + e);
@@ -126,7 +133,8 @@ namespace SecondEyes.Grounding.Interactive
                 LlamaParser pn = parserNative;
                 string parserCheck = await runtime.WithModel(s => pf.StartupCheck(pn));
                 Event("interactive.parser_startup_check", new JsonWriter().BeginObj().Key("session").S(sessionStamp)
-                    .Key("manifest_sha256").S(pf.ManifestSha256).Key("candidate").S(pf.Candidate).Key("ok").B(parserCheck == null)
+                    .Key("manifest_sha256").S(pf.ManifestSha256).Key("candidate").S(pf.Candidate).Key("model_sha256").S(parserModelSha)
+                    .Key("ok").B(parserCheck == null)
                     .Key("first_failure").S(parserCheck).End().ToString());
                 if (parserCheck != null)
                     throw new InvalidOperationException("the parser's startup check failed (" + parserCheck + "); no request will be served");
@@ -135,7 +143,7 @@ namespace SecondEyes.Grounding.Interactive
             File.WriteAllText(Path.Combine(dir, "session.json"), new JsonWriter().BeginObj().Key("record_type").S("a25_interactive_session")
                 .Key("session").S(sessionStamp).Key("purpose").S("operational").Key("cache_mode").S("Off").Key("execution_path").S("U")
                 .Key("grounding_path").S(parser != null ? "parser" : "direct").Key("parser_manifest_sha256").S(parser != null ? parser.ManifestSha256 : null)
-                .Key("parser_candidate").S(parser != null ? parser.Candidate : null)
+                .Key("parser_candidate").S(parser != null ? parser.Candidate : null).Key("parser_model_sha256").S(parserModelSha)
                 .Key("golden_manifest_sha256").S(goldens.ManifestSha256).Key("prompt_asset_sha256").S(goldens.AssetSha256)
                 .Key("model").S(modelPath).Key("context_tokens").I(ctx).Key("flags").I(ReplayRunner.Flags)
                 .Key("llama_cpp").S(runtime.Version).Key("load_ms").D(loadMs).Key("app_version").S(Application.version)

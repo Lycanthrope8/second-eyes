@@ -56,20 +56,29 @@ file by SHA-256 at load and logs the manifest's hash with every outcome and run.
 - `maps/`: every category map of A2.2d's bundle (the interactive snapshots) and A2.6's work (the acceptance scenes);
 - `startup-check.json`: fixed parser prompts with their pinned token IDs;
 - `acceptance/`: Delivery 3's material: the frozen 300-command subset's decodes, the 21 frozen prefixes and every step
-  of the 20-command mask sample, the subset's 600 resolutions, every distinct reference output and the 97-string corpus.
+  of the 20-command mask sample, the subset's 600 resolutions, and the readers: every distinct reference output of the
+  whole bundle (1,622) and the 97-string corpus, 1,719 in all (D117). Every resolution and valid reader carries its
+  expected grounding query (A2.4's `language.query`, canonical JSON); the readers' queries use one recorded context,
+  `reader-context.json` (the first resolvable entry's scene and command).
 
 `--port-out` also writes the full acceptance export (all 2,715 parents in both views, 5,430 resolutions) for the PC's
 C# check, from the same load of A2.4's parent list (about 45 minutes on the RTX PC).
 
+**Delivery 2's corrections (D117)** apply to existing folders without that load: `python -m grounding.a27 headset-amend
+--parser OLD --port OLD_PORT --out-parser NEW --out-port NEW_PORT` adds the full readers, the queries and the reader
+context, carries the decodes, masks, maps, assets, startup check and 600 resolutions over byte for byte, and records
+what it amended in the manifest.
+
 ## On the headset
 
-- **Session** (the panel's session row): with the parser folder present, the session loads the folder's GGUF with a
+- **Session** (the panel's session row): with the parser folder present, the session first verifies the model file's
+  SHA-256 against the exported candidate (D117; a mismatch refuses the session), then loads it with a
   1,024-token context, runs A2.5's startup guard and then the parser's startup check (each fixed prompt, built and
   tokenized natively, must equal the PC's IDs), and grounds every operational request through the parser. Without the
-  folder, A2.5's direct path, for diagnostics. `session.json` records `grounding_path`, the folder's manifest hash and
-  the candidate.
-- **Parser check (A2.7)**: verifies the folder and the model file's SHA-256, loads it, runs the startup check and the
-  acceptance, and writes `files/parser-results/STAMP/` (decodes, masks, resolutions and readers as JSONL, `run.json`
+  folder, A2.5's direct path, for diagnostics. `session.json` records `grounding_path`, the folder's manifest hash, the candidate and
+  the verified model hash.
+- **Parser check (A2.7)**: verifies the folder and the model file's SHA-256, loads it, runs the startup check and, only
+  if it passes (D117), the acceptance, and writes `files/parser-results/STAMP/` (decodes, masks, resolutions and readers as JSONL, `run.json`
   with the identity and memory, `done.json` last). The PC judges: `python -m grounding.a27 headset-judge --folder
   FOLDER --results RESULTS --out JUDGED`.
 
@@ -80,4 +89,11 @@ C# check, from the same load of A2.4's parent list (about 45 minutes on the RTX 
 | `python -m grounding.a27 goldens --samples --official --out [--lib --gguf]` | laptop | every golden file the Resolution modes compare with, from A2.4's fixture |
 | `python -m grounding.a27 headset ... [--port-out]` | RTX PC | the parser folder, and the full acceptance export |
 | `python -m grounding.a27 port-goldens --bundle --prep --work --out` | RTX PC | the full acceptance export alone |
+| `python -m grounding.a27 headset-amend --parser --port --out-parser --out-port` | laptop | Delivery 2's corrections on the existing folders (D117) |
 | `python -m grounding.a27 headset-judge --folder --results --out` | any | Delivery 3's verdicts, criteria 1, 2, 4 and 7 (headset halves) |
+
+**The judge verifies the evidence before judging (D117):** the folder, file by file against its manifest, with every
+count; the results naming this folder and the exported candidate's model, after a passed startup check, with counts
+consistent with the run's record; one result per expected case (a duplicate or an unexpected case refuses the evidence,
+a missing one leaves its criterion not met). Any failed prerequisite leaves every criterion not met. A prompt whose
+native tokens differ fails criterion 7; a resolution or reader whose constructed query differs fails criterion 1 or 2.
