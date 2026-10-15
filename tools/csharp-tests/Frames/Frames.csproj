@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- A4 Delivery 1, stage 1: the frame library's checks (docs/frames.md), every expectation worked out by hand from the
+       definitions. Unity's C# level (9.0), no packages; the sources are the app's own files. See ../README.md. -->
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable><ImplicitUsings>disable</ImplicitUsings><EnableDefaultCompileItems>false</EnableDefaultCompileItems></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)../../../quest-app/Assets/SecondEyes/Perception/Frames/*.cs" />
+  </ItemGroup>
+</Project>
