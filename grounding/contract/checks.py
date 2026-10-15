@@ -1,4 +1,4 @@
-"""Semantic and cross-record rules of the scene contract, v1 (A2.1a, D66).
+"""Semantic and cross-record rules of the scene contract, v1 (A2.1a, D66), with scene formats v2 (D74) and v3 (A4).
 
 The JSON Schemas in schemas/ check structure; these functions check what a schema can't: finite numbers, identities
 and references, geometry, evidence provenance, the evidence profiles, the user pose, category maps, and agreement
@@ -45,6 +45,8 @@ CODES = {
     "E_PROFILE_WITHHELD": "a restricted scene shows orientation, semantic front or colours",
     "E_PROFILE_SIZE": "a restricted scene's size is neither a category prior nor unknown for lack of one",
     "E_PROFILE_ANNOTATED": "an annotated scene contains an assumed value or a profile's unknown",
+    "E_PROFILE_PERCEIVED": "a perceived scene's value has an evidence kind, source kind or unknown reason its profile doesn't allow",
+    "E_ASSOCIATION": "a perceived object's views and association disagree, or a possible duplicate isn't listed back",
     "E_POSE_RESERVED": "pose_kind quest_head is reserved; v1 doesn't accept live headset poses",
     "E_POSE_NONE_KNOWN": "pose_kind none with a known pose component",
     "E_POSE_EVIDENCE": "an authored or dataset pose component isn't annotated by a source of its kind",
@@ -56,7 +58,7 @@ CODES = {
     "E_DUPLICATE_RECORD": "two records have the same identity",
     "E_SCENE_MISMATCH": "a command's scene is present, but not at the command's revision",
     "E_FRAME_MISMATCH": "a command's pose frame differs from its scene's frame",
-    "E_FRAME_SOURCE": "a scene v2 conversion's source_id doesn't name a dataset source in sources",
+    "E_FRAME_SOURCE": "a scene's frame conversion doesn't name a source of the kind its format needs (v2: dataset; v3: sensor_capture)",
     "E_FRAME_CONVERSION": "a scene v2 identity conversion's source_frame_id isn't the scene's frame_id",
     "E_CATEGORY_UNMAPPED": "an object's raw label, standard and model labels are not an entry of the scene's map",
     "W_NOT_CROSS_CHECKED": "warning: a referenced scene or map was not among the records, so that check didn't run",
@@ -78,6 +80,25 @@ UNKNOWN_SOURCE_KINDS = {
     "not_estimated": None,      # any source kind
 }
 OBJECT_SOURCE_KINDS = {"dataset", "fixture"}
+# Scene v3 (A4): a scan's camera, capture and processing are a sensor_capture source. It stands behind inferred values
+# (centres, categories, colours, confidences) and measured ones (capture times); objects come only from it.
+KNOWN_SOURCE_KINDS_V3 = dict(KNOWN_SOURCE_KINDS, inferred=KNOWN_SOURCE_KINDS["inferred"] | {"sensor_capture"},
+                             measured={"sensor_capture"})
+OBJECT_SOURCE_KINDS_V3 = {"sensor_capture"}
+# The perceived profile (scene v3): per object value, the (evidence kind, source kind) pairs a known value may have and
+# the reasons an unknown value may give. Nothing is annotated, so nothing is an oracle's; a size is a prior or unknown;
+# orientation and front are never estimated.
+PERCEIVED_FIELDS = {
+    "category": ({("inferred", "sensor_capture")}, {"not_estimated"}),
+    "geometry.center_m": ({("inferred", "sensor_capture")}, {"not_estimated"}),
+    "geometry.size_m": ({("assumed", "prior_table")}, {"no_permitted_prior"}),
+    "geometry.rotation_xyzw": (set(), {"not_estimated"}),
+    "semantic_front": (set(), {"not_estimated"}),
+    "attributes.colours": ({("inferred", "sensor_capture")}, {"not_estimated"}),
+    "observation.capture_time": ({("measured", "sensor_capture")}, {"not_estimated"}),
+    "observation.detector_confidence": ({("inferred", "sensor_capture")}, {"not_estimated"}),
+    "observation.geometry_uncertainty": (set(), {"not_estimated"}),
+}
 POSE_SOURCE_KIND = {"authored": "fixture", "dataset_camera": "dataset", "dataset_viewpoint": "dataset"}
 POSE_HEADING_SOURCE = {"authored": "authored", "dataset_camera": "camera_yaw", "dataset_viewpoint": "camera_yaw"}
 
@@ -126,6 +147,8 @@ class _Record:
 
     def __init__(self, file: str, record: dict):
         self.file, self.record, self.issues = file, record, []
+        v3 = record.get("record_type") == "scene" and record.get("schema_version") == 3
+        self.known_kinds = KNOWN_SOURCE_KINDS_V3 if v3 else KNOWN_SOURCE_KINDS
         for path, x in _numbers(record, "$"):
             if not _finite(x):
                 self.add(path, "E_NONFINITE", "number is too large for a double")
@@ -168,8 +191,8 @@ class _Record:
             return
         if w["state"] == "known":
             ev = w["evidence"]["kind"]
-            if kind not in KNOWN_SOURCE_KINDS[ev]:
-                why = ("v1 has no source kind for measured values" if ev == "measured"
+            if kind not in self.known_kinds[ev]:
+                why = ("v1 has no source kind for measured values" if ev == "measured" and not self.known_kinds[ev]
                        else f"{ev} evidence can't come from a {kind} source")
                 self.add(f"{path}.evidence", "E_EVIDENCE_SOURCE", why)
         else:
@@ -213,9 +236,54 @@ def _object_values(obj: dict, base: str):
     ]
 
 
+def _perceived(r: _Record, obj: dict, base: str, kinds: dict) -> None:
+    """The perceived profile's per-value rules (scene v3); kinds holds each value's resolved source kind."""
+    for path, w in _object_values(obj, base):
+        kind = kinds.get(path)
+        if kind is None:
+            continue   # the unresolved source is already reported
+        allowed_known, allowed_unknown = PERCEIVED_FIELDS[path[len(base) + 1:]]
+        if w["state"] == "known" and (w["evidence"]["kind"], kind) not in allowed_known:
+            r.add(path, "E_PROFILE_PERCEIVED", f"a perceived value can't be {w['evidence']['kind']} from a {kind} source")
+        elif w["state"] == "unknown" and w["reason"] not in allowed_unknown:
+            r.add(path, "E_PROFILE_PERCEIVED", f"a perceived value can't be unknown for reason {w['reason']}")
+    views, center = obj["observation"]["views"], obj["geometry"]["center_m"]
+    if views["positions"] == 1 and center["state"] == "known" and not center["evidence"]["assumptions"]:
+        r.add(f"{base}.geometry.center_m.evidence.assumptions", "E_PROFILE_PERCEIVED",
+              "a centre placed from one position rests on a size prior, so it names that assumption")
+
+
+def _associations(r: _Record, objects: list) -> None:
+    """Views and association status agree, and every possible duplicate is a listed-back object of the scene (v3)."""
+    lists = {obj["object_id"]: obj["observation"]["association"]["may_duplicate"] for obj in objects}
+    for i, obj in enumerate(objects):
+        base, oid = f"$.objects[{i}].observation", obj["object_id"]
+        views, assoc = obj["observation"]["views"], obj["observation"]["association"]
+        status, dup = assoc["status"], assoc["may_duplicate"]
+        if views["positions"] > views["keyframes"]:
+            r.add(f"{base}.views", "E_ASSOCIATION", "more positions than keyframes")
+        if status == "possible_duplicate" and not dup:
+            r.add(f"{base}.association.may_duplicate", "E_ASSOCIATION", "a possible duplicate names what it may duplicate")
+        elif status != "possible_duplicate" and dup:
+            r.add(f"{base}.association.may_duplicate", "E_ASSOCIATION", f"a {status} object names no possible duplicates")
+        if status == "multi_position" and views["positions"] < 2:
+            r.add(f"{base}.association.status", "E_ASSOCIATION", "multi_position needs two or more positions")
+        elif status == "single_position" and views["positions"] != 1:
+            r.add(f"{base}.association.status", "E_ASSOCIATION", "single_position means exactly one position")
+        for j, other in enumerate(dup):
+            path = f"{base}.association.may_duplicate[{j}]"
+            if other == oid:
+                r.add(path, "E_ASSOCIATION", "an object can't duplicate itself")
+            elif other not in lists:
+                r.add(path, "E_ASSOCIATION", f"{other} is not an object of this scene")
+            elif oid not in lists[other]:
+                r.add(path, "E_ASSOCIATION", f"{other} doesn't list {oid} back")
+
+
 def _scene(r: _Record) -> None:
     scene, seen = r.record, {}
     profile = scene["evidence_profile"]
+    version = scene["schema_version"]
     if scene["schema_version"] == 2:  # the dataset-frame representation (D74); v1 frames carry no conversion record
         frame = scene["coordinate_frame"]
         conversion = frame["conversion"]
@@ -226,6 +294,12 @@ def _scene(r: _Record) -> None:
             r.add("$.coordinate_frame.conversion.source_frame_id", "E_FRAME_CONVERSION",
                   f"an identity conversion's source frame {conversion['source_frame_id']!r} must be the scene frame "
                   f"{frame['frame_id']!r}")
+    if version == 3:  # the headset's tracking space through the basis change (docs/frames.md)
+        conversion = scene["coordinate_frame"]["conversion"]
+        if r.sources.get(conversion["source_id"]) != "sensor_capture":
+            r.add("$.coordinate_frame.conversion.source_id", "E_FRAME_SOURCE",
+                  f"conversion source {conversion['source_id']!r} is not a sensor_capture source in sources")
+    object_kinds = OBJECT_SOURCE_KINDS_V3 if version == 3 else OBJECT_SOURCE_KINDS
     for i, obj in enumerate(scene["objects"]):
         base = f"$.objects[{i}]"
         if obj["object_id"] in seen:
@@ -235,10 +309,14 @@ def _scene(r: _Record) -> None:
         for path, sid in [(f"{base}.source_ref.source_id", obj["source_ref"]["source_id"]),
                           (f"{base}.observation.source", obj["observation"]["source"])]:
             kind = r.source_kind(path, sid)
-            if kind is not None and kind not in OBJECT_SOURCE_KINDS:
-                r.add(path, "E_EVIDENCE_SOURCE", f"objects come from a dataset or fixture, not a {kind} source")
+            if kind is not None and kind not in object_kinds:
+                r.add(path, "E_EVIDENCE_SOURCE", (f"objects come from a sensor_capture source, not a {kind} source"
+                                                  if version == 3 else
+                                                  f"objects come from a dataset or fixture, not a {kind} source"))
+        kinds = {}
         for path, w in _object_values(obj, base):
-            r.provenance(path, w, r.references(path, w))
+            kinds[path] = r.references(path, w)
+            r.provenance(path, w, kinds[path])
         r.quaternion(f"{base}.geometry.rotation_xyzw", obj["geometry"]["rotation_xyzw"])
         r.unit_vector(f"{base}.semantic_front", obj["semantic_front"])
         if profile == "restricted":
@@ -252,11 +330,15 @@ def _scene(r: _Record) -> None:
                     or (size["state"] == "unknown" and size["reason"] == "no_permitted_prior")):
                 r.add(f"{base}.geometry.size_m", "E_PROFILE_SIZE",
                       "restricted sizes are a category prior (assumed) or unknown (no_permitted_prior)")
+        elif profile == "perceived":
+            _perceived(r, obj, base, kinds)
         else:
             for path, w in _object_values(obj, base):
                 if ((w["state"] == "known" and w["evidence"]["kind"] == "assumed")
                         or (w["state"] == "unknown" and w["reason"] in ("withheld_by_profile", "no_permitted_prior"))):
                     r.add(path, "E_PROFILE_ANNOTATED", "the annotated profile has no assumed values or profile unknowns")
+    if profile == "perceived":
+        _associations(r, scene["objects"])
 
 
 def _command(r: _Record) -> None:

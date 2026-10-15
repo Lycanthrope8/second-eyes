@@ -1,0 +1,343 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "capture.v1.json",
+  "title": "Second Eyes capture record, format v1",
+  "description": "One scan on the headset (A4): the camera with its intrinsics, the app and detector that ran, and every keyframe with its capture time, the camera's pose in quest_tracking at capture as Unity reports it, the tracking epoch and state, the detections, and the image when image saving is on. Written and checked on the headset (CaptureCheck.cs); a perceived scene (scene v3) is built from it. Rules: docs/capture-record.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "record_type",
+    "capture_id",
+    "camera",
+    "app",
+    "tracking_frame",
+    "keyframes"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "record_type": {
+      "const": "capture"
+    },
+    "capture_id": {
+      "$ref": "#/$defs/id"
+    },
+    "camera": {
+      "$ref": "#/$defs/camera"
+    },
+    "app": {
+      "$ref": "#/$defs/app"
+    },
+    "tracking_frame": {
+      "const": "quest_tracking"
+    },
+    "keyframes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/keyframe"
+      },
+      "minItems": 1
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_.-]{0,127}(?![\\s\\S])",
+      "description": "Lower-case identifier: letters, digits, '_', '.', '-'; starts with a letter or digit."
+    },
+    "label": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^\\S(.*\\S)?(?![\\s\\S])",
+      "description": "A non-empty label without leading or trailing whitespace."
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1
+    },
+    "vec3": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "quat": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}(?![\\s\\S])",
+      "description": "A SHA-256 in lower-case hex."
+    },
+    "camera": {
+      "description": "The camera that took the keyframes. Intrinsics follow OpenCV's pixel convention (docs/frames.md); source says where they came from.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "camera_id",
+        "width_px",
+        "height_px",
+        "intrinsics",
+        "distortion"
+      ],
+      "properties": {
+        "camera_id": {
+          "$ref": "#/$defs/id"
+        },
+        "width_px": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height_px": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "intrinsics": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "fx",
+            "fy",
+            "cx",
+            "cy",
+            "source"
+          ],
+          "properties": {
+            "fx": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "fy": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "cx": {
+              "type": "number"
+            },
+            "cy": {
+              "type": "number"
+            },
+            "source": {
+              "$ref": "#/$defs/text"
+            }
+          }
+        },
+        "distortion": {
+          "enum": [
+            "none",
+            "unknown"
+          ],
+          "description": "none: the images carry no lens distortion (stated by the source); unknown: not stated."
+        }
+      }
+    },
+    "app": {
+      "description": "What produced the keyframes' detections.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "build",
+        "detector_package_id",
+        "detector_package_sha256"
+      ],
+      "properties": {
+        "build": {
+          "$ref": "#/$defs/text"
+        },
+        "detector_package_id": {
+          "$ref": "#/$defs/id"
+        },
+        "detector_package_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "keyframe": {
+      "description": "One stop of the scan: its place in the scan (index, standing position, step at that position), its capture time, the tracking epoch and state, the camera's pose at capture, the detections and the image.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "index",
+        "position_index",
+        "step_index",
+        "capture_time",
+        "tracking",
+        "camera_pose",
+        "detections",
+        "image"
+      ],
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "position_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "step_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "capture_time": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sdk_timestamp",
+            "headset_mono_us"
+          ],
+          "properties": {
+            "sdk_timestamp": {
+              "$ref": "#/$defs/text"
+            },
+            "headset_mono_us": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "description": "The SDK's own timestamp for the image, verbatim, and the same moment on the event log's monotonic clock."
+        },
+        "tracking": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "epoch",
+            "state"
+          ],
+          "properties": {
+            "epoch": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "state": {
+              "enum": [
+                "tracked",
+                "not_tracked"
+              ]
+            }
+          }
+        },
+        "camera_pose": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "translation_m",
+            "rotation_xyzw"
+          ],
+          "properties": {
+            "translation_m": {
+              "$ref": "#/$defs/vec3"
+            },
+            "rotation_xyzw": {
+              "$ref": "#/$defs/quat"
+            }
+          },
+          "description": "The camera's pose in quest_tracking as Unity reports it: position p and rotation q (docs/frames.md)."
+        },
+        "detections": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/detection"
+          }
+        },
+        "image": {
+          "$ref": "#/$defs/image"
+        }
+      }
+    },
+    "detection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label",
+        "score",
+        "box_px"
+      ],
+      "properties": {
+        "label": {
+          "$ref": "#/$defs/label"
+        },
+        "score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "box_px": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 4,
+          "maxItems": 4,
+          "description": "x1, y1, x2, y2 in the image's pixels, top-left origin."
+        }
+      }
+    },
+    "image": {
+      "description": "The keyframe's image, when image saving is on: its file name and SHA-256.",
+      "type": "object",
+      "required": [
+        "state"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "saved",
+            "not_saved"
+          ]
+        }
+      },
+      "if": {
+        "required": [
+          "state"
+        ],
+        "properties": {
+          "state": {
+            "const": "saved"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "state",
+          "file",
+          "sha256"
+        ],
+        "properties": {
+          "state": {
+            "const": "saved"
+          },
+          "file": {
+            "$ref": "#/$defs/text"
+          },
+          "sha256": {
+            "$ref": "#/$defs/sha256"
+          }
+        }
+      },
+      "else": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "state"
+        ],
+        "properties": {
+          "state": {
+            "const": "not_saved"
+          }
+        }
+      }
+    }
+  }
+}

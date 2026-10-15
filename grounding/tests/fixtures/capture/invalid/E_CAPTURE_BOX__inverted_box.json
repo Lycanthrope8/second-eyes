@@ -1,0 +1,231 @@
+{
+  "schema_version": 1,
+  "record_type": "capture",
+  "capture_id": "scan.fixture.bedroom",
+  "camera": {
+    "camera_id": "quest_left",
+    "width_px": 1280,
+    "height_px": 960,
+    "intrinsics": {
+      "fx": 870.0,
+      "fy": 870.0,
+      "cx": 640.0,
+      "cy": 480.0,
+      "source": "illustrative test values, not the SDK's"
+    },
+    "distortion": "unknown"
+  },
+  "app": {
+    "build": "fixture",
+    "detector_package_id": "yolox-nano-coco",
+    "detector_package_sha256": "0000000000000000000000000000000000000000000000000000000000000001"
+  },
+  "tracking_frame": "quest_tracking",
+  "keyframes": [
+    {
+      "index": 0,
+      "position_index": 0,
+      "step_index": 0,
+      "capture_time": {
+        "sdk_timestamp": "1201000000000",
+        "headset_mono_us": 1200000000
+      },
+      "tracking": {
+        "epoch": 0,
+        "state": "tracked"
+      },
+      "camera_pose": {
+        "translation_m": [
+          0.0,
+          1.55,
+          0.2
+        ],
+        "rotation_xyzw": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "detections": [
+        {
+          "label": "chair",
+          "score": 0.87,
+          "box_px": [
+            412.5,
+            380.0,
+            610.25,
+            820.0
+          ]
+        },
+        {
+          "label": "dining table",
+          "score": 0.79,
+          "box_px": [
+            700.0,
+            410.0,
+            1180.0,
+            760.5
+          ]
+        }
+      ],
+      "image": {
+        "state": "not_saved"
+      }
+    },
+    {
+      "index": 1,
+      "position_index": 0,
+      "step_index": 1,
+      "capture_time": {
+        "sdk_timestamp": "1202100000000",
+        "headset_mono_us": 1201100000
+      },
+      "tracking": {
+        "epoch": 0,
+        "state": "tracked"
+      },
+      "camera_pose": {
+        "translation_m": [
+          0.0,
+          1.55,
+          0.2
+        ],
+        "rotation_xyzw": [
+          0.0,
+          0.258819045103,
+          0.0,
+          0.965925826289
+        ]
+      },
+      "detections": [
+        {
+          "label": "dining table",
+          "score": 0.79,
+          "box_px": [
+            700.0,
+            410.0,
+            1180.0,
+            760.5
+          ]
+        }
+      ],
+      "image": {
+        "state": "saved",
+        "file": "kf-0001.jpg",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "index": 2,
+      "position_index": 0,
+      "step_index": 2,
+      "capture_time": {
+        "sdk_timestamp": "1203200000000",
+        "headset_mono_us": 1202200000
+      },
+      "tracking": {
+        "epoch": 0,
+        "state": "tracked"
+      },
+      "camera_pose": {
+        "translation_m": [
+          0.0,
+          1.55,
+          0.2
+        ],
+        "rotation_xyzw": [
+          0.0,
+          0.5,
+          0.0,
+          0.866025403784
+        ]
+      },
+      "detections": [],
+      "image": {
+        "state": "not_saved"
+      }
+    },
+    {
+      "index": 3,
+      "position_index": 1,
+      "step_index": 0,
+      "capture_time": {
+        "sdk_timestamp": "1206300000000",
+        "headset_mono_us": 1205300000
+      },
+      "tracking": {
+        "epoch": 0,
+        "state": "tracked"
+      },
+      "camera_pose": {
+        "translation_m": [
+          1.2,
+          1.55,
+          0.2
+        ],
+        "rotation_xyzw": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "detections": [
+        {
+          "label": "chair",
+          "score": 0.87,
+          "box_px": [
+            412.5,
+            380.0,
+            610.25,
+            820.0
+          ]
+        },
+        {
+          "label": "bottle",
+          "score": 0.44,
+          "box_px": [
+            931.0,
+            352.0,
+            905.0,
+            420.0
+          ]
+        }
+      ],
+      "image": {
+        "state": "not_saved"
+      }
+    },
+    {
+      "index": 4,
+      "position_index": 1,
+      "step_index": 1,
+      "capture_time": {
+        "sdk_timestamp": "1207400000000",
+        "headset_mono_us": 1206400000
+      },
+      "tracking": {
+        "epoch": 0,
+        "state": "tracked"
+      },
+      "camera_pose": {
+        "translation_m": [
+          1.2,
+          1.55,
+          0.2
+        ],
+        "rotation_xyzw": [
+          0.0,
+          0.258819045103,
+          0.0,
+          0.965925826289
+        ]
+      },
+      "detections": [],
+      "image": {
+        "state": "not_saved"
+      }
+    }
+  ]
+}

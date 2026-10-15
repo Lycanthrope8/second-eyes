@@ -235,8 +235,9 @@ def check_scene_v2() -> None:
     found = [(i.code, i.path) for i in validate.validate([("scene", as_v1)])]
     check("v1 still rejects a dataset conversion: the same record as schema_version 1 fails at the conversion",
           found == [("E_SCHEMA_CONST", "$.coordinate_frame.conversion")], str(found))
-    v3 = [i.code for i in validate.validate([("scene", dict(copy.deepcopy(scene), schema_version=3))])]
-    check("an unsupported scene version still fails cleanly with E_RECORD_TYPE", v3 == ["E_RECORD_TYPE"], str(v3))
+    # Version 3 exists since A4 (the perceived representation), so the unsupported example is 4.
+    v4 = [i.code for i in validate.validate([("scene", dict(copy.deepcopy(scene), schema_version=4))])]
+    check("an unsupported scene version still fails cleanly with E_RECORD_TYPE", v4 == ["E_RECORD_TYPE"], str(v4))
 
 
 def main() -> int:

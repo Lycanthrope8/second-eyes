@@ -1,6 +1,6 @@
 # C# checks outside Unity (A2.5, A2.7, A4)
 
-Six .NET 8 projects compile the app's own C# files at Unity's language level (C# 9). They need no packages:
+Seven .NET 8 projects compile the app's own C# files at Unity's language level (C# 9). They need no packages:
 `nuget.config` clears every source. They live outside `quest-app/Assets`, so Unity never compiles them.
 
 | Project | What it does | Command (from the repository root) |
@@ -9,7 +9,8 @@ Six .NET 8 projects compile the app's own C# files at Unity's language level (C#
 | `UnityGlue` | a type check of the runtime, replay, prompting, interactive and parser glue against Unity stubs | `dotnet build tools/csharp-tests/UnityGlue` |
 | `PanelPartial` | a type check of `ChatPanel.Session.cs`, `ChatPanel.Layout.cs` and `ChatPanel.Prompt.cs` against a shell of the panel members they use (`Shell.cs`) and stand-ins for Unity's UI calls (`UiStubs.cs`) | `dotnet build tools/csharp-tests/PanelPartial` |
 | `Resolution` (A2.7) | the C# port of the parser path against the Python reference, mode by mode (below) | `dotnet run --project tools/csharp-tests/Resolution -- MODE ...` |
-| `UnityApi` (A2.7) | the port and the frame library compiled as a .NET Standard 2.1 library, Unity's API profile: an API Unity lacks fails the build | `dotnet build tools/csharp-tests/UnityApi` |
+| `UnityApi` (A2.7) | the port, the frame library and the capture check compiled as a .NET Standard 2.1 library, Unity's API profile: an API Unity lacks fails the build | `dotnet build tools/csharp-tests/UnityApi` |
+| `Contract` (A4) | the scene contract (formats v1 to v3) and the capture record in C#, on the shared fixtures in `grounding/tests/fixtures/`: every valid file passes, every invalid file fails with exactly the code in its name; a difference that predates A4 is reported by name, not hidden | `dotnet run --project tools/csharp-tests/Contract -- grounding/tests/fixtures schemas` |
 | `Frames` (A4) | the frame library's checks (`docs/frames.md`): quaternions, the Unity basis change, camera poses, transforms and the pinhole camera, every expectation worked out by hand (40 checks) | `dotnet run --project tools/csharp-tests/Frames` |
 
 **The behaviour checks cover:**

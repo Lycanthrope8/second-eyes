@@ -1,0 +1,586 @@
+{
+  "schema_version": 3,
+  "record_type": "scene",
+  "scene_id": "fixture.bedroom",
+  "scene_revision": 0,
+  "evidence_profile": "perceived",
+  "category_map": "map.bedroom",
+  "coordinate_frame": {
+    "frame_id": "scene",
+    "units": "m",
+    "handedness": "right",
+    "up_axis": "+z",
+    "origin": "the headset's tracking origin in epoch 0, re-expressed through the basis change (docs/frames.md)",
+    "conversion": {
+      "kind": "quest_tracking_basis",
+      "source_id": "scan.fx",
+      "source_frame_id": "quest_tracking",
+      "tracking_epoch": 0,
+      "source_to_scene": [
+        [
+          1,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          1,
+          0
+        ],
+        [
+          0,
+          1,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          1
+        ]
+      ]
+    }
+  },
+  "sources": [
+    {
+      "source_id": "scan.fx",
+      "kind": "sensor_capture",
+      "description": "An illustrative scan: the Quest's left passthrough camera from two positions, YOLOX-Nano detections and localization. Values are test values, not measurements",
+      "release": "fixture-v3"
+    },
+    {
+      "source_id": "sizes.fx",
+      "kind": "prior_table",
+      "description": "Illustrative sizes of the bedroom objects, as a tape measure would give them; made up for the test",
+      "release": "fixture-v3"
+    }
+  ],
+  "assumptions": [
+    {
+      "assumption_id": "size_prior",
+      "description": "The object's size is its category's measured size from sizes.fx; a centre placed from one position rests on it."
+    }
+  ],
+  "objects": [
+    {
+      "object_id": "obj_001",
+      "source_ref": {
+        "source_id": "scan.fx",
+        "source_object_id": "track_1",
+        "source_label": "chair"
+      },
+      "category": {
+        "state": "known",
+        "value": {
+          "standard": "chair",
+          "model": "chair"
+        },
+        "evidence": {
+          "kind": "inferred",
+          "source": "scan.fx",
+          "assumptions": []
+        }
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [
+            0.8,
+            2.1,
+            0.45
+          ],
+          "evidence": {
+            "kind": "inferred",
+            "source": "scan.fx",
+            "assumptions": []
+          }
+        },
+        "size_m": {
+          "state": "known",
+          "value": [
+            0.45,
+            0.5,
+            0.9
+          ],
+          "evidence": {
+            "kind": "assumed",
+            "source": "sizes.fx",
+            "assumptions": [
+              "size_prior"
+            ]
+          }
+        },
+        "rotation_xyzw": {
+          "state": "unknown",
+          "reason": "not_estimated",
+          "source": "scan.fx"
+        }
+      },
+      "semantic_front": {
+        "state": "unknown",
+        "reason": "not_estimated",
+        "source": "scan.fx"
+      },
+      "attributes": {
+        "colours": {
+          "state": "unknown",
+          "reason": "not_estimated",
+          "source": "scan.fx"
+        }
+      },
+      "observation": {
+        "source": "scan.fx",
+        "capture_time": {
+          "state": "known",
+          "value": {
+            "clock": "headset_mono",
+            "value_us": 1200500000
+          },
+          "evidence": {
+            "kind": "measured",
+            "source": "scan.fx",
+            "assumptions": []
+          }
+        },
+        "detector_confidence": {
+          "state": "known",
+          "value": 0.87,
+          "evidence": {
+            "kind": "inferred",
+            "source": "scan.fx",
+            "assumptions": []
+          }
+        },
+        "geometry_uncertainty": {
+          "state": "unknown",
+          "reason": "not_estimated",
+          "source": "scan.fx"
+        },
+        "views": {
+          "keyframes": 5,
+          "positions": 2
+        },
+        "association": {
+          "status": "multi_position",
+          "may_duplicate": []
+        }
+      }
+    },
+    {
+      "object_id": "obj_002",
+      "source_ref": {
+        "source_id": "scan.fx",
+        "source_object_id": "track_2",
+        "source_label": "chair"
+      },
+      "category": {
+        "state": "known",
+        "value": {
+          "standard": "chair",
+          "model": "chair"
+        },
+        "evidence": {
+          "kind": "inferred",
+          "source": "scan.fx",
+          "assumptions": []
+        }
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [
+            2.3,
+            1.2,
+            0.45
+          ],
+          "evidence": {
+            "kind": "inferred",
+            "source": "scan.fx",
+            "assumptions": [
+              "size_prior"
+            ]
+          }
+        },
+        "size_m": {
+          "state": "known",
+          "value": [
+            0.45,
+            0.5,
+            0.9
+          ],
+          "evidence": {
+            "kind": "assumed",
+            "source": "sizes.fx",
+            "assumptions": [
+              "size_prior"
+            ]
+          }
+        },
+        "rotation_xyzw": {
+          "state": "unknown",
+          "reason": "not_estimated",
+          "source": "scan.fx"
+        }
+      },
+      "semantic_front": {
+        "state": "unknown",
+        "reason": "not_estimated",
+        "source": "scan.fx"
+      },
+      "attributes": {
+        "colours": {
+          "state": "unknown",
+          "reason": "not_estimated",
+          "source": "scan.fx"
+        }
+      },
+      "observation": {
+        "source": "scan.fx",
+        "capture_time": {
+          "state": "known",
+          "value": {
+            "clock": "headset_mono",
+            "value_us": 1201700000
+          },
+          "evidence": {
+            "kind": "measured",
+            "source": "scan.fx",
+            "assumptions": []
+          }
+        },
+        "detector_confidence": {
+          "state": "known",
+          "value": 0.61,
+          "evidence": {
+            "kind": "inferred",
+            "source": "scan.fx",
+            "assumptions": []
+          }
+        },
+        "geometry_uncertainty": {
+          "state": "unknown",
+          "reason": "not_estimated",
+          "source": "scan.fx"
+        },
+        "views": {
+          "keyframes": 2,
+          "positions": 1
+        },
+        "association": {
+          "status": "possible_duplicate",
+          "may_duplicate": [
+            "obj_003",
+            "obj_009"
+          ]
+        }
+      }
+    },
+    {
+      "object_id": "obj_003",
+      "source_ref": {
+        "source_id": "scan.fx",
+        "source_object_id": "track_3",
+        "source_label": "chair"
+      },
+      "category": {
+        "state": "known",
+        "value": {
+          "standard": "chair",
+          "model": "chair"
+        },
+        "evidence": {
+          "kind": "inferred",
+          "source": "scan.fx",
+          "assumptions": []
+        }
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [
+            2.5,
+            1.0,
+            0.45
+          ],
+          "evidence": {
+            "kind": "inferred",
+            "source": "scan.fx",
+            "assumptions": [
+              "size_prior"
+            ]
+          }
+        },
+        "size_m": {
+          "state": "known",
+          "value": [
+            0.45,
+            0.5,
+            0.9
+          ],
+          "evidence": {
+            "kind": "assumed",
+            "source": "sizes.fx",
+            "assumptions": [
+              "size_prior"
+            ]
+          }
+        },
+        "rotation_xyzw": {
+          "state": "unknown",
+          "reason": "not_estimated",
+          "source": "scan.fx"
+        }
+      },
+      "semantic_front": {
+        "state": "unknown",
+        "reason": "not_estimated",
+        "source": "scan.fx"
+      },
+      "attributes": {
+        "colours": {
+          "state": "unknown",
+          "reason": "not_estimated",
+          "source": "scan.fx"
+        }
+      },
+      "observation": {
+        "source": "scan.fx",
+        "capture_time": {
+          "state": "known",
+          "value": {
+            "clock": "headset_mono",
+            "value_us": 1203100000
+          },
+          "evidence": {
+            "kind": "measured",
+            "source": "scan.fx",
+            "assumptions": []
+          }
+        },
+        "detector_confidence": {
+          "state": "known",
+          "value": 0.58,
+          "evidence": {
+            "kind": "inferred",
+            "source": "scan.fx",
+            "assumptions": []
+          }
+        },
+        "geometry_uncertainty": {
+          "state": "unknown",
+          "reason": "not_estimated",
+          "source": "scan.fx"
+        },
+        "views": {
+          "keyframes": 1,
+          "positions": 1
+        },
+        "association": {
+          "status": "possible_duplicate",
+          "may_duplicate": [
+            "obj_002"
+          ]
+        }
+      }
+    },
+    {
+      "object_id": "obj_004",
+      "source_ref": {
+        "source_id": "scan.fx",
+        "source_object_id": "track_4",
+        "source_label": "dining table"
+      },
+      "category": {
+        "state": "known",
+        "value": {
+          "standard": "table",
+          "model": "table"
+        },
+        "evidence": {
+          "kind": "inferred",
+          "source": "scan.fx",
+          "assumptions": []
+        }
+      },
+      "geometry": {
+        "center_m": {
+          "state": "known",
+          "value": [
+            1.6,
+            2.6,
+            0.37
+          ],
+          "evidence": {
+            "kind": "inferred",
+            "source": "scan.fx",
+            "assumptions": []
+          }
+        },
+        "size_m": {
+          "state": "known",
+          "value": [
+            1.2,
+            0.6,
+            0.74
+          ],
+          "evidence": {
+            "kind": "assumed",
+            "source": "sizes.fx",
+            "assumptions": [
+              "size_prior"
+            ]
+          }
+        },
+        "rotation_xyzw": {
+          "state": "unknown",
+          "reason": "not_estimated",
+          "source": "scan.fx"
+        }
+      },
+      "semantic_front": {
+        "state": "unknown",
+        "reason": "not_estimated",
+        "source": "scan.fx"
+      },
+      "attributes": {
+        "colours": {
+          "state": "known",
+          "value": [
+            "brown"
+          ],
+          "evidence": {
+            "kind": "inferred",
+            "source": "scan.fx",
+            "assumptions": []
+          }
+        }
+      },
+      "observation": {
+        "source": "scan.fx",
+        "capture_time": {
+          "state": "known",
+          "value": {
+            "clock": "headset_mono",
+            "value_us": 1202600000
+          },
+          "evidence": {
+            "kind": "measured",
+            "source": "scan.fx",
+            "assumptions": []
+          }
+        },
+        "detector_confidence": {
+          "state": "known",
+          "value": 0.79,
+          "evidence": {
+            "kind": "inferred",
+            "source": "scan.fx",
+            "assumptions": []
+          }
+        },
+        "geometry_uncertainty": {
+          "state": "unknown",
+          "reason": "not_estimated",
+          "source": "scan.fx"
+        },
+        "views": {
+          "keyframes": 7,
+          "positions": 3
+        },
+        "association": {
+          "status": "multi_position",
+          "may_duplicate": []
+        }
+      }
+    },
+    {
+      "object_id": "obj_005",
+      "source_ref": {
+        "source_id": "scan.fx",
+        "source_object_id": "track_5",
+        "source_label": "bottle"
+      },
+      "category": {
+        "state": "known",
+        "value": {
+          "standard": "bottle",
+          "model": "bottle"
+        },
+        "evidence": {
+          "kind": "inferred",
+          "source": "scan.fx",
+          "assumptions": []
+        }
+      },
+      "geometry": {
+        "center_m": {
+          "state": "unknown",
+          "reason": "not_estimated",
+          "source": "scan.fx"
+        },
+        "size_m": {
+          "state": "unknown",
+          "reason": "no_permitted_prior",
+          "source": "sizes.fx"
+        },
+        "rotation_xyzw": {
+          "state": "unknown",
+          "reason": "not_estimated",
+          "source": "scan.fx"
+        }
+      },
+      "semantic_front": {
+        "state": "unknown",
+        "reason": "not_estimated",
+        "source": "scan.fx"
+      },
+      "attributes": {
+        "colours": {
+          "state": "unknown",
+          "reason": "not_estimated",
+          "source": "scan.fx"
+        }
+      },
+      "observation": {
+        "source": "scan.fx",
+        "capture_time": {
+          "state": "known",
+          "value": {
+            "clock": "headset_mono",
+            "value_us": 1203400000
+          },
+          "evidence": {
+            "kind": "measured",
+            "source": "scan.fx",
+            "assumptions": []
+          }
+        },
+        "detector_confidence": {
+          "state": "known",
+          "value": 0.44,
+          "evidence": {
+            "kind": "inferred",
+            "source": "scan.fx",
+            "assumptions": []
+          }
+        },
+        "geometry_uncertainty": {
+          "state": "unknown",
+          "reason": "not_estimated",
+          "source": "scan.fx"
+        },
+        "views": {
+          "keyframes": 1,
+          "positions": 1
+        },
+        "association": {
+          "status": "single_position",
+          "may_duplicate": []
+        }
+      }
+    }
+  ]
+}

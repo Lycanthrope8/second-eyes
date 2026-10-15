@@ -151,6 +151,42 @@ Every other field, rule, profile and pattern is v1's, and a test keeps the two s
 unchanged and still rejects a dataset conversion. Command contexts, category maps, queries and results keep their
 versions: they name a scene by ID, revision, profile and frame, not by its schema version. Nothing is down-converted.
 
+## Scene format v3 (A4)
+
+`schemas/scene.v3.json` holds a scene built on the headset from a scan. It is v2 with four changes, and a test
+(`grounding/tests/test_contract_v3.py`) keeps the two schemas identical everywhere else:
+
+- **Frame:** the headset's tracking space put through the fixed basis change of `frames.md`, in one tracking epoch:
+
+  ```json
+  {"kind": "quest_tracking_basis", "source_id": "scan.fx", "source_frame_id": "quest_tracking", "tracking_epoch": 0,
+   "source_to_scene": [[1, 0, 0, 0], [0, 0, 1, 0], [0, 1, 0, 0], [0, 0, 0, 1]]}
+  ```
+
+  `source_id` must name a `sensor_capture` source in `sources` (`E_FRAME_SOURCE`); any other matrix fails the schema
+  (`E_SCHEMA_CONST`).
+- **Sources:** `sensor_capture` (a scan's camera, capture and processing) and `prior_table` only. A `sensor_capture`
+  source stands behind `inferred` values and `measured` capture times, and objects come only from it.
+- **Profile:** `perceived` only. Nothing in it is an oracle's:
+
+  | Field | Known | Unknown |
+  |---|---|---|
+  | Category, centre, colours, detector confidence | `inferred`, from the scan | `not_estimated` |
+  | Size | `assumed`, from the size table | `no_permitted_prior` |
+  | Capture time | `measured`, from the scan | `not_estimated` |
+  | Rotation, semantic front, geometry uncertainty | never | `not_estimated` |
+
+  A centre placed from one position rests on its size prior, so its evidence names that assumption; the resolver's
+  conditional flag then fires by its existing rule. Any other combination is `E_PROFILE_PERCEIVED`.
+- **Views and association**, in each object's `observation`: how many keyframes saw it and from how many standing
+  positions, and a status: `multi_position` (two or more positions), `single_position` (one, so its distance comes from
+  its size) or `possible_duplicate`, which names the objects it may be the same as, and each of those must list it
+  back. Uncertain objects are kept apart, never merged. A disagreement is `E_ASSOCIATION`.
+
+The object fields the relation library and resolver read are v2's, so their logic is unchanged. On the headset,
+`ContractCheck.cs` checks v3 with the same rules and codes; `tools/csharp-tests/Contract` runs it on the shared
+fixtures. The capture a scene is built from has its own record and check (`capture-record.md`).
+
 ## Geometry
 
 Rotations are normalized quaternions `[x, y, z, w]` from local to scene axes (S09). `support` says what the source
@@ -164,7 +200,8 @@ specification's parameter register (§10.2) and come with the relation library.
 
 ## Evidence profiles
 
-Both profiles hold oracle identities, categories and centres (specification §9.5).
+Both profiles hold oracle identities, categories and centres (specification §9.5). Scene v3 adds a third, `perceived`,
+which holds none (above).
 
 | Field | `annotated` | `restricted` |
 |---|---|---|
@@ -218,7 +255,8 @@ nested ones included. Free text keeps its own rule: `command.text`, descriptions
 | `E_PROFILE_WITHHELD`, `E_PROFILE_SIZE`, `E_PROFILE_ANNOTATED` | semantic | the profile rules above |
 | `E_POSE_RESERVED`, `E_POSE_NONE_KNOWN`, `E_POSE_EVIDENCE`, `E_HEADING_SOURCE`, `E_POSE_REVISION` | semantic | the pose rules above |
 | `E_MAP_VOCAB`, `E_MAP_DUPLICATE` | semantic | the category map rules above |
-| `E_FRAME_SOURCE`, `E_FRAME_CONVERSION` | semantic | scene v2 only: a conversion source that isn't a dataset source in `sources`; a conversion source frame that isn't the scene frame |
+| `E_FRAME_SOURCE`, `E_FRAME_CONVERSION` | semantic | scene v2: a conversion source that isn't a dataset source in `sources`; a conversion source frame that isn't the scene frame. Scene v3: a conversion source that isn't a `sensor_capture` source |
+| `E_PROFILE_PERCEIVED`, `E_ASSOCIATION` | semantic | scene v3: a value the perceived profile doesn't allow; views and association that disagree, or a possible duplicate not listed back |
 | `E_DUPLICATE_RECORD`, `E_SCENE_MISMATCH`, `E_FRAME_MISMATCH`, `E_CATEGORY_UNMAPPED` | cross-record | the cross-record rules above |
 | `W_NOT_CROSS_CHECKED` | cross-record | a warning: a referenced scene or map wasn't given |
 
@@ -243,7 +281,8 @@ two don't compute identically.
 - Conversions: v1 accepts only frames authored in scene coordinates, and v2 (D74) adds only the identity for
   published dataset coordinates. Non-identity dataset conversions, with their numerical mapping, need a later
   version, defined before the code that applies them.
-- Evidence: no source can supply `measured` values, and authored and dataset poses accept only `annotated` evidence.
+- Evidence: in v1 and v2 no source can supply `measured` values (v3's `sensor_capture` supplies measured capture
+  times), and authored and dataset poses accept only `annotated` evidence.
   These are limits of this increment, not of the contract: a later version can let dataset transformations and
   derived headings, such as a heading computed from a dataset camera's rotation, carry `inferred` evidence. A
   dataset pose is never `measured`.

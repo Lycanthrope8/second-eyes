@@ -6,7 +6,7 @@ using SecondEyes.Grounding.Prompting;
 namespace SecondEyes.Grounding.Resolution
 {
     // A2.7 delivery 2 (D115): grounding/contract/validate.py's layers after parsing and checks.py (A2.1a, D66; scene v2,
-    // D74), free of Unity: the record type and version, the record's JSON Schema, then the semantic rules, then the
+    // D74; scene v3, A4: the perceived representation), free of Unity: the record type and version, the record's JSON Schema, then the semantic rules, then the
     // cross-record rules for records validated together. A layer runs only if the one before it passed. Issues carry
     // the Python's codes and paths; their messages are shorter, since no decision reads them.
     public sealed class Issue
@@ -22,7 +22,7 @@ namespace SecondEyes.Grounding.Resolution
 
         public static readonly Dictionary<string, string> Files = new Dictionary<string, string>
         {
-            { "scene|1", "scene.v1.json" }, { "scene|2", "scene.v2.json" },
+            { "scene|1", "scene.v1.json" }, { "scene|2", "scene.v2.json" }, { "scene|3", "scene.v3.json" },
             { "command_context|1", "command-context.v1.json" }, { "category_map|1", "category-map.v1.json" }
         };
 
@@ -52,10 +52,48 @@ namespace SecondEyes.Grounding.Resolution
             { "not_estimated", null }   // any source kind
         };
         private static readonly HashSet<string> ObjectSourceKinds = new HashSet<string> { "dataset", "fixture" };
+        // Scene v3 (A4), as checks.py: a scan's sensor_capture source stands behind inferred and measured values, and
+        // objects come only from it.
+        private static readonly Dictionary<string, HashSet<string>> KnownSourceKindsV3 = new Dictionary<string, HashSet<string>>
+        {
+            { "annotated", new HashSet<string> { "dataset", "fixture" } },
+            { "inferred", new HashSet<string> { "dataset", "fixture", "prior_table", "sensor_capture" } },
+            { "assumed", new HashSet<string> { "prior_table" } },
+            { "measured", new HashSet<string> { "sensor_capture" } }
+        };
+        private static readonly HashSet<string> ObjectSourceKindsV3 = new HashSet<string> { "sensor_capture" };
+        // The perceived profile, as checks.py's PERCEIVED_FIELDS: per value, the "evidence kind|source kind" pairs a known
+        // value may have, and the reasons an unknown value may give.
+        private static readonly Dictionary<string, KeyValuePair<HashSet<string>, HashSet<string>>> PerceivedFields =
+            new Dictionary<string, KeyValuePair<HashSet<string>, HashSet<string>>>
+        {
+            { "category", Allow(new[] { "inferred|sensor_capture" }, "not_estimated") },
+            { "geometry.center_m", Allow(new[] { "inferred|sensor_capture" }, "not_estimated") },
+            { "geometry.size_m", Allow(new[] { "assumed|prior_table" }, "no_permitted_prior") },
+            { "geometry.rotation_xyzw", Allow(new string[0], "not_estimated") },
+            { "semantic_front", Allow(new string[0], "not_estimated") },
+            { "attributes.colours", Allow(new[] { "inferred|sensor_capture" }, "not_estimated") },
+            { "observation.capture_time", Allow(new[] { "measured|sensor_capture" }, "not_estimated") },
+            { "observation.detector_confidence", Allow(new[] { "inferred|sensor_capture" }, "not_estimated") },
+            { "observation.geometry_uncertainty", Allow(new string[0], "not_estimated") }
+        };
+
+        private static KeyValuePair<HashSet<string>, HashSet<string>> Allow(string[] known, string unknown)
+        {
+            return new KeyValuePair<HashSet<string>, HashSet<string>>(new HashSet<string>(known), new HashSet<string> { unknown });
+        }
         private static readonly Dictionary<string, string> PoseSourceKind = new Dictionary<string, string>
             { { "authored", "fixture" }, { "dataset_camera", "dataset" }, { "dataset_viewpoint", "dataset" } };
         private static readonly Dictionary<string, string> PoseHeadingSource = new Dictionary<string, string>
             { { "authored", "authored" }, { "dataset_camera", "camera_yaw" }, { "dataset_viewpoint", "camera_yaw" } };
+
+        /// <summary>The issue code for a failed JSON Schema keyword, as validate.py's KEYWORD_CODES (shared with the
+        /// capture record's check, A4).</summary>
+        public static string CodeForKeyword(string keyword)
+        {
+            string code;
+            return KeywordCodes.TryGetValue(keyword, out code) ? code : "E_SCHEMA_OTHER";
+        }
 
         private readonly Func<string, Schema> schemaByFile;
 
@@ -145,11 +183,15 @@ namespace SecondEyes.Grounding.Resolution
             public readonly List<Issue> Issues = new List<Issue>();
             public readonly Dictionary<string, string> Sources = new Dictionary<string, string>();
             public readonly HashSet<string> Assumptions = new HashSet<string>();
+            private readonly Dictionary<string, HashSet<string>> knownKinds;
 
             public Rec(string file, JNode record)
             {
                 File = file;
                 Record = record;
+                JNode rt = Get(record, "record_type"), ver = Get(record, "schema_version");
+                bool v3 = rt.Kind == JKind.String && rt.Text == "scene" && ver.Kind == JKind.Number && ver.Num == 3;
+                knownKinds = v3 ? KnownSourceKindsV3 : KnownSourceKinds;
                 Numbers(record, "$");
                 var sources = Get(record, "sources");
                 if (sources.Kind == JKind.Array)
@@ -213,7 +255,7 @@ namespace SecondEyes.Grounding.Resolution
                 if (w["state"].Text == "known")
                 {
                     string ev = w["evidence"]["kind"].Text;
-                    if (!KnownSourceKinds[ev].Contains(kind)) Add(path + ".evidence", "E_EVIDENCE_SOURCE", ev + " evidence can't come from a " + kind + " source");
+                    if (!knownKinds[ev].Contains(kind)) Add(path + ".evidence", "E_EVIDENCE_SOURCE", ev + " evidence can't come from a " + kind + " source");
                 }
                 else
                 {
@@ -260,10 +302,64 @@ namespace SecondEyes.Grounding.Resolution
             };
         }
 
+        /// <summary>The perceived profile's per-value rules (scene v3), as checks.py's _perceived.</summary>
+        private static void Perceived(Rec r, JNode obj, string b, Dictionary<string, string> kinds)
+        {
+            foreach (var pw in ObjectValues(obj, b))
+            {
+                string kind;
+                if (!kinds.TryGetValue(pw.Key, out kind) || kind == null) continue;   // the unresolved source is already reported
+                var allowed = PerceivedFields[pw.Key.Substring(b.Length + 1)];
+                JNode w = pw.Value;
+                if (w["state"].Text == "known" && !allowed.Key.Contains(w["evidence"]["kind"].Text + "|" + kind))
+                    r.Add(pw.Key, "E_PROFILE_PERCEIVED", "a perceived value can't be " + w["evidence"]["kind"].Text + " from a " + kind + " source");
+                else if (w["state"].Text == "unknown" && !allowed.Value.Contains(w["reason"].Text))
+                    r.Add(pw.Key, "E_PROFILE_PERCEIVED", "a perceived value can't be unknown for reason " + w["reason"].Text);
+            }
+            JNode views = obj["observation"]["views"], center = obj["geometry"]["center_m"];
+            if (views["positions"].Num == 1 && center["state"].Text == "known" && center["evidence"]["assumptions"].Items.Count == 0)
+                r.Add(b + ".geometry.center_m.evidence.assumptions", "E_PROFILE_PERCEIVED", "a centre placed from one position names its size prior's assumption");
+        }
+
+        /// <summary>Views and association agree, and possible duplicates list each other back (scene v3), as checks.py's _associations.</summary>
+        private static void Associations(Rec r, List<JNode> objects)
+        {
+            var lists = new Dictionary<string, List<string>>();
+            foreach (JNode obj in objects)   // a repeated ID keeps its last list, as a Python dict does
+            {
+                var dup = new List<string>();
+                foreach (JNode x in obj["observation"]["association"]["may_duplicate"].Items) dup.Add(x.Text);
+                lists[obj["object_id"].Text] = dup;
+            }
+            for (int i = 0; i < objects.Count; i++)
+            {
+                JNode obj = objects[i], views = obj["observation"]["views"], assoc = obj["observation"]["association"];
+                string b = "$.objects[" + i + "].observation", oid = obj["object_id"].Text, status = assoc["status"].Text;
+                var dup = assoc["may_duplicate"].Items;
+                if (views["positions"].Num > views["keyframes"].Num) r.Add(b + ".views", "E_ASSOCIATION", "more positions than keyframes");
+                if (status == "possible_duplicate" && dup.Count == 0)
+                    r.Add(b + ".association.may_duplicate", "E_ASSOCIATION", "a possible duplicate names what it may duplicate");
+                else if (status != "possible_duplicate" && dup.Count > 0)
+                    r.Add(b + ".association.may_duplicate", "E_ASSOCIATION", "a " + status + " object names no possible duplicates");
+                if (status == "multi_position" && views["positions"].Num < 2)
+                    r.Add(b + ".association.status", "E_ASSOCIATION", "multi_position needs two or more positions");
+                else if (status == "single_position" && views["positions"].Num != 1)
+                    r.Add(b + ".association.status", "E_ASSOCIATION", "single_position means exactly one position");
+                for (int j = 0; j < dup.Count; j++)
+                {
+                    string other = dup[j].Text, path = b + ".association.may_duplicate[" + j + "]";
+                    if (other == oid) r.Add(path, "E_ASSOCIATION", "an object can't duplicate itself");
+                    else if (!lists.ContainsKey(other)) r.Add(path, "E_ASSOCIATION", other + " is not an object of this scene");
+                    else if (!lists[other].Contains(oid)) r.Add(path, "E_ASSOCIATION", other + " doesn't list " + oid + " back");
+                }
+            }
+        }
+
         private static void SceneRules(Rec r)
         {
             JNode scene = r.Record;
             string profile = scene["evidence_profile"].Text;
+            double version = scene["schema_version"].Num;
             if (scene["schema_version"].Num == 2)
             {
                 JNode frame = scene["coordinate_frame"], conversion = frame["conversion"];
@@ -273,6 +369,13 @@ namespace SecondEyes.Grounding.Resolution
                 if (conversion["source_frame_id"].Text != frame["frame_id"].Text)
                     r.Add("$.coordinate_frame.conversion.source_frame_id", "E_FRAME_CONVERSION", "an identity conversion's source frame must be the scene frame");
             }
+            if (version == 3)   // the headset's tracking space through the basis change (docs/frames.md)
+            {
+                string kind;
+                if (!r.Sources.TryGetValue(scene["coordinate_frame"]["conversion"]["source_id"].Text, out kind) || kind != "sensor_capture")
+                    r.Add("$.coordinate_frame.conversion.source_id", "E_FRAME_SOURCE", "conversion source is not a sensor_capture source in sources");
+            }
+            HashSet<string> objectKinds = version == 3 ? ObjectSourceKindsV3 : ObjectSourceKinds;
             var seen = new Dictionary<string, int>();
             var objects = scene["objects"].Items;
             for (int i = 0; i < objects.Count; i++)
@@ -285,9 +388,14 @@ namespace SecondEyes.Grounding.Resolution
                                            new KeyValuePair<string, string>(b + ".observation.source", obj["observation"]["source"].Text) })
                 {
                     string kind = r.SourceKind(ps.Key, ps.Value);
-                    if (kind != null && !ObjectSourceKinds.Contains(kind)) r.Add(ps.Key, "E_EVIDENCE_SOURCE", "objects come from a dataset or fixture, not a " + kind + " source");
+                    if (kind != null && !objectKinds.Contains(kind)) r.Add(ps.Key, "E_EVIDENCE_SOURCE", "objects come from a " + (version == 3 ? "sensor_capture source" : "dataset or fixture") + ", not a " + kind + " source");
                 }
-                foreach (var pw in ObjectValues(obj, b)) r.Provenance(pw.Key, pw.Value, r.References(pw.Key, pw.Value));
+                var kinds = new Dictionary<string, string>();
+                foreach (var pw in ObjectValues(obj, b))
+                {
+                    kinds[pw.Key] = r.References(pw.Key, pw.Value);
+                    r.Provenance(pw.Key, pw.Value, kinds[pw.Key]);
+                }
                 r.Quaternion(b + ".geometry.rotation_xyzw", obj["geometry"]["rotation_xyzw"]);
                 r.UnitVector(b + ".semantic_front", obj["semantic_front"]);
                 if (profile == "restricted")
@@ -302,6 +410,8 @@ namespace SecondEyes.Grounding.Resolution
                           || (size["state"].Text == "unknown" && size["reason"].Text == "no_permitted_prior")))
                         r.Add(b + ".geometry.size_m", "E_PROFILE_SIZE", "restricted sizes are a category prior or unknown");
                 }
+                else if (profile == "perceived")
+                    Perceived(r, obj, b, kinds);
                 else
                 {
                     foreach (var pw in ObjectValues(obj, b))
@@ -313,6 +423,7 @@ namespace SecondEyes.Grounding.Resolution
                     }
                 }
             }
+            if (profile == "perceived") Associations(r, objects);
         }
 
         private static void CommandRules(Rec r)

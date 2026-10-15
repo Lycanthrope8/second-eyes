@@ -1,5 +1,5 @@
-"""Check records against the scene contract, v1 (A2.1a, D66), with scene format v2 (A2.2a, D74): scenes, command contexts
-and category maps.
+"""Check records against the scene contract, v1 (A2.1a, D66), with scene formats v2 (A2.2a, D74) and v3 (A4): scenes,
+command contexts and category maps.
 
     python grounding/contract/validate.py FILE.json [FILE.json ...]
 
@@ -28,6 +28,7 @@ REPO = Path(__file__).resolve().parents[2]
 SCHEMAS = {
     ("scene", 1): "scene.v1.json",
     ("scene", 2): "scene.v2.json",
+    ("scene", 3): "scene.v3.json",
     ("command_context", 1): "command-context.v1.json",
     ("category_map", 1): "category-map.v1.json",
 }
