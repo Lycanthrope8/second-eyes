@@ -1,4 +1,4 @@
-# Second Eyes: handover (A2.7 in progress)
+# Second Eyes: handover (A2.7 closed, A2.8 pending)
 
 **Second Eyes** is a research system. A drone pre-scans an indoor space; a Quest 3 headset then grounds typed commands
 ("the chair closest to the door") to objects in that scan.
@@ -13,12 +13,13 @@ memory or chat.
 
 ## 1. Where the truth lives
 
-1. `notes/phases/A2.4_plan.md`: A2.4's adopted plan, delivery 1 and its stages. How A2.4 works:
-   `docs/a24-training.md`. The runbooks: `notes/phases/A2.4_runbook_stage_a.md` and `A2.4_runbook_stage_b.md`.
-2. `notes/decisions.md`, D1–D111, newest first:
-   - D109: A2.4's design and execution plan;
-   - D110: O22's resolver choices confirmed, O22 closed;
+1. `notes/phases/A2.7_closing.md` and `A2.7_plan.md`: A2.7's closing, its plan and frozen criteria, and its deliveries.
+   How it works: `docs/a27-export.md` and `docs/a27-headset.md`; the C# checks: `tools/csharp-tests/README.md`.
+2. `notes/decisions.md`, D1–D119, newest first, with the open items (O28 and O29 the newest) at the top:
+   - D119: A2.7 accepted and closed;
+   - D115: A2.7's plan and frozen criteria; D116 to D118: its deliveries and corrections;
    - D111: phase numbering A2.7 and A2.8, and the lab commands' status;
+   - D109 and D110: A2.4's design and resolver choices;
    - D108: A2.6 closed;
    - D97: the sequence;
    - D104: the request format.
@@ -39,16 +40,14 @@ memory or chat.
   `second-eyes-data\a24-20261012-032009`, its corrected analysis `analysis-v2`.
   - For long GPU runs on the RTX PC, set `PYTORCH_CUDA_ALLOC_CONF=garbage_collection_threshold:0.8,max_split_size_mb:512`
     first (`notes/failures.md`, 2026-10-12).
-- **A2.7 is in progress** (D115 to D118), parser-only: the candidate `a24.parser.s1` (epoch 2) with the accepted
-  resolver, exported to GGUF Q8_0 and decoded on the headset by libse_llama's constrained decoding. The plan and its frozen
-  acceptance criteria are in `notes/phases/A2.7_plan.md`; the commands in `docs/a27-export.md` and `docs/a27-headset.md`.
-  - **Delivery 1** (desktop) is accepted (D116): the exported Q8_0 decodes all 2,715 commands exactly as float32.
-  - **Delivery 2** (D116, corrected in D117, accepted in D118): the parser path in C# on the headset, reproducing A2.4's
-    records for all 5,430 real resolutions and 1,719 reader strings, queries included; the corrected parser folder; a judge
-    that verifies its evidence; the session's parser path with model verification; the Parser check.
-  - **Delivery 3** (D118): on the headset, with the reviewed APK, parser folder, library and model: the Parser check
-    (criteria 1, 2, 4 and 7), the deployed identity (criterion 6) and the deployed path's measurements.
-  - **Next:** A2.7's closing, from Delivery 3's results.
+- **A2.7 is closed** (D119), parser-only: the candidate `a24.parser.s1` (epoch 2), exported to GGUF Q8_0, runs on the Quest
+  through libse_llama's constrained decoding and the C# resolution path. Every criterion of D115 is met on the headset:
+  the deployed identity, 300 decodes identical to the desktop, the masks, 600 resolutions and 1,719 reader strings with
+  their queries, technical failures apart; D105's discrepancy stays unresolved. Measured (`notes/phases/A2.7_closing.md`):
+  about 1.23 s from a Preset to a validated decision, cold and warm; about 72 fps during request processing. Known
+  issues: O28 (a session's start blocks the main thread), O29 (a first-result hitch), O14. Deployment fidelity only:
+  not general language accuracy, nor automatic perception (`notes/limitations.md`).
+  - **Next:** A2.8 stays pending (the sealed lab commands, O20's thresholds); the next app change fixes O28.
 - **A2.8** (frozen evaluation and preliminary Gate B) is **pending** (D115). The lab commands are neither made nor
   sealed: the project lead makes and seals them once the whole system runs, and only then are they evaluated. Until
   then, development uses basic commands. A2.8 also needs O20's thresholds, agreed with the advisor. Never request or
