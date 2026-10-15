@@ -130,7 +130,7 @@ Tests: `python grounding/tests/test_quest_replay_bundle.py [--tokenizer-dir DIR]
 
 ### On the headset
 
-The panel's More page (`quest-panel.md`) has a **Replay (A2.5 d1)** button: one explicit action, disabled while a replay runs. It is
+The panel's More page (`quest-panel.md`) has a **Replay check** button (labelled Replay (A2.5 d1) before A4 Delivery 1): one explicit action, disabled while a replay runs. It is
 available only when two things hold:
 
 - a bundle has been pushed;

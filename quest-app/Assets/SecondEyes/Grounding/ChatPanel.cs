@@ -16,9 +16,10 @@ using Stopwatch = System.Diagnostics.Stopwatch;
 namespace SecondEyes.Grounding
 {
     /// <summary>
-    /// Since A4 Delivery 1 the panel has two pages under a shared top (title, More or Back, status line, text box): the
-    /// main page holds the parser session's row (ChatPanel.Session.cs), and the More page holds the earlier controls
-    /// described below, unchanged. ChatPanel.Layout.cs builds both; docs/quest-panel.md has the layout.
+    /// Since A4 Delivery 1 the panel has two pages under a shared top (title, More or Back, status line). The main page
+    /// holds the result box, the typed prompt with Send (ChatPanel.Prompt.cs) and the session's row (ChatPanel.Session.cs);
+    /// the More page holds the model test described below, its Send labelled "Send to model", and the checks.
+    /// ChatPanel.Layout.cs builds both pages; docs/quest-panel.md has the layout.
     /// The model test panel (A1.7c-2: D40, D43, D49; A1.7d: D50). It shows, about a meter ahead, the prompt's user text,
     /// a row of preset buttons (the fixed prompt and the presets, each a prompt file like grounding/prompts/a17-fixed.json)
     /// and a row with Load model, Repeat, Steps and Send, then the answer. There is no typing (D49).
@@ -631,7 +632,7 @@ namespace SecondEyes.Grounding
 
             running.Dispose();
             running = null;
-            buttonLabel.text = "Send";
+            buttonLabel.text = "Send to model";
             foreach (Button b in presetButtons) b.interactable = true;
             stepsButton.interactable = true;
             if (repeat && !stopped)

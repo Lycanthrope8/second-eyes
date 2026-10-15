@@ -3,21 +3,28 @@ using UnityEngine.UI;
 
 namespace SecondEyes.Grounding
 {
-    // The panel's layout (A4 Delivery 1), built in code like DebugOverlay: 640 units wide at 1 mm each, in two pages.
-    // The top is always shown: the title, More (Back on the More page), the status line and the text box, which shows the
-    // chosen prompt or the session's outcomes. Below it, the main page holds the parser session's row
-    // (ChatPanel.Session.cs), and the More page holds every earlier control, unchanged and at its old place: the
-    // A1.7-A1.8 model test (prompt presets, Load model, Repeat, Steps, Send, Runtime, Backend, Weights, the answer) and
-    // the A2.5-A2.7 checks (Replay, Golden check, Interactive check, Parser check). A hidden page's buttons are inactive,
-    // so the UI pointer can't reach them. Switching pages writes no log event. docs/quest-panel.md has the layout.
+    // The panel's layout (A4 Delivery 1), built in code like DebugOverlay: 640 units wide at 1 mm each, in two pages
+    // under a shared top (the title, More or Back, and the status line).
+    // - The main page: the result box (the session's scene and last outcome), the prompt with Send, the session's row
+    //   (Start session, Scene, Preset, Cancel), and the keyboard, shown while the prompt is open (ChatPanel.Prompt.cs).
+    // - The More page: every earlier control at its old place: the model test (its prompt box, the prompt presets, Load
+    //   model, Repeat, Steps, Send to model, Runtime, Backend, Weights, the model's answer) and the checks (Replay check,
+    //   Prompt check, Pipeline check, Parser check).
+    // A hidden page's buttons are inactive, so the UI pointer can't reach them. Switching pages writes no log event.
+    // docs/quest-panel.md has the layout.
     public partial class ChatPanel
     {
         private const float PanelWidth = 640f, PanelHeight = 776f;   // one canvas size, so switching pages never moves the top
-        private const float MainBottom = 376f, MoreBottom = 736f;    // where the background ends on each page
-        private const float SessionRowY = 304f;                       // the session row, on the main page
+        private const float BoxY = 96f, BoxHeight = 196f;             // the result box (main) and the model test's prompt box (More)
+        private const float PromptRowY = 304f, SessionRowY = 368f, KeyboardY = 432f;
+        private const float MainBottom = 440f, MainKeyboardBottom = 662f, MoreBottom = 736f;   // where the background ends
+        private const float KeyWidth = 56f, KeyHeight = 48f, KeyGap = 6f, WideKey = 110f, SpaceKey = 300f;
+        private static readonly string[] KeyRows = { "qwertyuiop", "asdfghjkl", "zxcvbnm" };
+        private const string NoSessionHint = "No session yet. Press Start session, then press the prompt below, type a command and press Send.";
 
-        private RectTransform background, mainPage, morePage;
-        private Text moreLabel;
+        private RectTransform background, mainPage, morePage, keyboard;
+        private Text moreLabel, resultText, promptText;
+        private Button sendTypedButton;
         private bool showingMore;
 
         private void BuildPanel()
@@ -38,26 +45,72 @@ namespace SecondEyes.Grounding
             status = Label(panel, "Status", 20f, 56f, 600f, 30f, 18, FontStyle.Normal);
             status.color = new Color(0.75f, 0.8f, 0.85f);
 
-            // The text box only shows text: the chosen prompt (the preset buttons choose it, D49), or the session's outcomes.
-            RectTransform box = Box(panel, "TextBox", 20f, 96f, 600f, 196f);
-            Image boxImage = box.gameObject.AddComponent<Image>();
-            boxImage.color = new Color(0.16f, 0.18f, 0.21f);
-            boxText = Label(box, "Text", 12f, 8f, 576f, 180f, 16, FontStyle.Normal);
-            boxText.supportRichText = false;
-
             // Both pages cover the whole canvas, so their children keep the panel's coordinates.
             mainPage = Box(panel, "MainPage", 0f, 0f, PanelWidth, PanelHeight);
             morePage = Box(panel, "MorePage", 0f, 0f, PanelWidth, PanelHeight);
             BuildMorePage();
+            BuildMainPage();
             BuildSessionRow();
             ShowPage(false);
+            ShowKeyboard(false);
             UpdateReplayButton();
             UpdateLabels();
         }
 
-        /// <summary>The More page: the A1.7-A1.8 model test and the A2.5-A2.7 checks, as they were.</summary>
+        /// <summary>The main page: the result box, the prompt with Send, and the keyboard (hidden until the prompt is
+        /// pressed). The session's row is added by BuildSessionRow.</summary>
+        private void BuildMainPage()
+        {
+            RectTransform box = Box(mainPage, "ResultBox", 20f, BoxY, 600f, BoxHeight);
+            box.gameObject.AddComponent<Image>().color = new Color(0.16f, 0.18f, 0.21f);
+            resultText = Label(box, "Text", 12f, 8f, 576f, 180f, 13, FontStyle.Normal);
+            resultText.supportRichText = false;
+            resultText.text = NoSessionHint;
+
+            RowButton("Prompt", 20f, 450f, out promptText, ToggleKeyboard, PromptRowY, mainPage);
+            promptText.alignment = TextAnchor.MiddleLeft;
+            promptText.fontSize = 16;
+            Text sendLabel;
+            sendTypedButton = RowButton("Send", 482f, 138f, out sendLabel, SendTyped, PromptRowY, mainPage);
+            sendLabel.text = "Send";
+
+            keyboard = Box(mainPage, "Keyboard", 0f, KeyboardY, PanelWidth, 4f * KeyHeight + 3f * KeyGap);
+            for (int r = 0; r < KeyRows.Length; r++)
+            {
+                string row = KeyRows[r];
+                bool withDelete = r == KeyRows.Length - 1;
+                float width = row.Length * KeyWidth + (row.Length - 1) * KeyGap + (withDelete ? KeyGap + WideKey : 0f);
+                float x = (PanelWidth - width) / 2f, y = r * (KeyHeight + KeyGap);
+                for (int k = 0; k < row.Length; k++)
+                {
+                    char c = row[k];
+                    Key("Key " + c, c.ToString(), x + k * (KeyWidth + KeyGap), y, KeyWidth, () => TypeKey(c));
+                }
+                if (withDelete) Key("Delete", "Delete", x + row.Length * (KeyWidth + KeyGap), y, WideKey, DeleteLast);
+            }
+            float lastY = KeyRows.Length * (KeyHeight + KeyGap);
+            float lastX = (PanelWidth - (WideKey + SpaceKey + WideKey + 2f * KeyGap)) / 2f;
+            Key("Clear", "Clear", lastX, lastY, WideKey, ClearTyped);
+            Key("Space", "Space", lastX + WideKey + KeyGap, lastY, SpaceKey, () => TypeKey(' '));
+            Key("Done", "Done", lastX + WideKey + SpaceKey + 2f * KeyGap, lastY, WideKey, () => ShowKeyboard(false));
+        }
+
+        private void Key(string name, string text, float x, float y, float width, UnityEngine.Events.UnityAction onClick)
+        {
+            Text label;
+            RowButton(name, x, width, out label, onClick, y, keyboard, KeyHeight);
+            label.text = text;
+        }
+
+        /// <summary>The More page: the model test and the checks, at their old places.</summary>
         private void BuildMorePage()
         {
+            // The model test's text box only shows the chosen prompt; the preset buttons below choose it (D49).
+            RectTransform box = Box(morePage, "TextBox", 20f, BoxY, 600f, BoxHeight);
+            Image boxImage = box.gameObject.AddComponent<Image>();
+            boxImage.color = new Color(0.16f, 0.18f, 0.21f);
+            boxText = Label(box, "Text", 12f, 8f, 576f, 180f, 16, FontStyle.Normal);
+            boxText.supportRichText = false;
             for (int k = 0; k < choices.Count && k < 4; k++)   // up to four prompts fit in a row
             {
                 int which = k;
@@ -80,11 +133,11 @@ namespace SecondEyes.Grounding
             repeatButton.interactable = false;   // until the model is loaded
             stepsButton = RowButton("Steps", 326f, 120f, out stepsLabel, NextSteps, 362f, morePage);
 
-            RectTransform buttonBox = Box(morePage, "Send", 460f, 362f, 160f, 52f);
+            RectTransform buttonBox = Box(morePage, "SendToModel", 460f, 362f, 160f, 52f);
             Image buttonImage = buttonBox.gameObject.AddComponent<Image>();
             buttonImage.color = new Color(0.2f, 0.5f, 0.95f);
             buttonLabel = Label(buttonBox, "Label", 0f, 0f, 160f, 56f, 22, FontStyle.Bold);
-            buttonLabel.text = "Send";
+            buttonLabel.text = "Send to model";
             buttonLabel.alignment = TextAnchor.MiddleCenter;
             sendButton = buttonBox.gameObject.AddComponent<Button>();
             sendButton.targetGraphic = buttonImage;
@@ -97,16 +150,17 @@ namespace SecondEyes.Grounding
             weightsButton = RowButton("Weights", 426f, 194f, out weightsLabel, ToggleWeights, 424f, morePage);
             runtimeButton.interactable = backendButton.interactable = weightsButton.interactable = false;   // until the settings are read
 
-            Label(morePage, "AnswerTitle", 20f, 488f, 600f, 28f, 18, FontStyle.Bold).text = "Answer";
+            Label(morePage, "AnswerTitle", 20f, 488f, 600f, 28f, 18, FontStyle.Bold).text = "Model answer";
             answer = Label(morePage, "Answer", 20f, 518f, 600f, 130f, 18, FontStyle.Normal);
+            // The checks keep their code names (Replay, Golden, Interactive, ParserCheck); docs/quest-panel.md maps the labels.
             replayButton = RowButton("Replay", 20f, 140f, out replayLabel, StartReplay, 664f, morePage);
-            replayLabel.text = "Replay (A2.5 d1)";
+            replayLabel.text = "Replay check";
             goldenButton = RowButton("Golden", 173f, 140f, out goldenLabel, StartGolden, 664f, morePage);
-            goldenLabel.text = "Golden check (A2.5 d2)";
+            goldenLabel.text = "Prompt check";
             interactiveButton = RowButton("Interactive", 326f, 140f, out interactiveLabel, StartInteractive, 664f, morePage);
-            interactiveLabel.text = "Interactive check (A2.5 d3)";
+            interactiveLabel.text = "Pipeline check";
             parserButton = RowButton("ParserCheck", 479f, 141f, out parserLabel, StartParserCheck, 664f, morePage);
-            parserLabel.text = "Parser check (A2.7)";
+            parserLabel.text = "Parser check";
         }
 
         private void ToggleMore()
@@ -121,10 +175,17 @@ namespace SecondEyes.Grounding
             mainPage.gameObject.SetActive(!more);
             morePage.gameObject.SetActive(more);
             moreLabel.text = more ? "Back" : "More";
-            background.sizeDelta = new Vector2(PanelWidth, more ? MoreBottom : MainBottom);
+            FitBackground();
         }
 
-        /// <summary>A button with a centred label, on the given page (the panel itself by default).</summary>
+        /// <summary>The background ends below the shown page, and below the keyboard while it is open.</summary>
+        private void FitBackground()
+        {
+            float bottom = showingMore ? MoreBottom : keyboardOpen ? MainKeyboardBottom : MainBottom;
+            background.sizeDelta = new Vector2(PanelWidth, bottom);
+        }
+
+        /// <summary>A button with a centred label, on the given parent (the panel itself by default).</summary>
         private Button RowButton(string name, float x, float width, out Text label, UnityEngine.Events.UnityAction onClick,
                                  float y = 362f, RectTransform parent = null, float height = 52f)
         {

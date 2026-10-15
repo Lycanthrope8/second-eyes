@@ -1,4 +1,4 @@
-// Stand-ins for the Unity calls ChatPanel.Layout.cs and ChatPanel.Session.cs make (A4 Delivery 1): a type check only,
+// Stand-ins for the Unity calls ChatPanel.Layout.cs, ChatPanel.Prompt.cs and ChatPanel.Session.cs make (A4 Delivery 1): a type check only,
 // never run. Each keeps Unity's own name, namespace and member signature, and properties stay properties, so code that
 // compiles here uses only what Unity has. Only the members the two files use are here; add one only when a panel file
 // starts using it.

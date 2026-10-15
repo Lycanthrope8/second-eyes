@@ -22,7 +22,8 @@ The design is D104 (confirmed by the project lead; supported by ChatGPT's review
   - the choices line and the prompt.
 - **`GoldenCore.cs`**, plain C#: rebuilds one golden and compares its document, mapping, mapping hash, prompt bytes and,
   if given a tokenizer, its token IDs.
-- **`GoldenRunner.cs`**, the Unity glue behind the panel's **Golden check (A2.5 d2)** button, next to Replay on its More page (`quest-panel.md`). It:
+- **`GoldenRunner.cs`**, the Unity glue behind the panel's **Prompt check** button (labelled Golden check (A2.5 d2) before A4 Delivery 1), next to Replay check on its
+  More page (`quest-panel.md`). It:
   1. checks every pushed file against `golden-manifest.json`;
   2. loads the model only for its tokenizer, with 1,024 tokens of context and nothing evaluated;
   3. checks every golden;

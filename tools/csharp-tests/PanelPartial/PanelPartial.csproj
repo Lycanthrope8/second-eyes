@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- A type check of ChatPanel.Session.cs and ChatPanel.Layout.cs against a shell of the panel members they use (Shell.cs) and stand-ins for the Unity UI calls they make (UiStubs.cs). Unity's C# level (9.0), no packages; the sources are the app's own files. See ../README.md. -->
+  <!-- A type check of ChatPanel.Session.cs, ChatPanel.Layout.cs and ChatPanel.Prompt.cs against a shell of the panel members they use (Shell.cs) and stand-ins for the Unity UI calls they make (UiStubs.cs). Unity's C# level (9.0), no packages; the sources are the app's own files. See ../README.md. -->
   <PropertyGroup><OutputType>Library</OutputType><TargetFramework>net8.0</TargetFramework><LangVersion>9.0</LangVersion>
     <Nullable>disable</Nullable><ImplicitUsings>disable</ImplicitUsings><EnableDefaultCompileItems>false</EnableDefaultCompileItems></PropertyGroup>
   <ItemGroup>
@@ -20,6 +20,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)../../../quest-app/Assets/SecondEyes/Grounding/Interactive/InteractiveService.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)../../../quest-app/Assets/SecondEyes/Grounding/ChatPanel.Session.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)../../../quest-app/Assets/SecondEyes/Grounding/ChatPanel.Layout.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)../../../quest-app/Assets/SecondEyes/Grounding/ChatPanel.Prompt.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)../../../quest-app/Assets/SecondEyes/Grounding/LlamaParser.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)../../../quest-app/Assets/SecondEyes/Grounding/Resolution/*.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)../../../quest-app/Assets/SecondEyes/Grounding/Parsing/*.cs" />

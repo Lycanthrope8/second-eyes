@@ -13,15 +13,16 @@ namespace SecondEyes.Grounding
     // A2.5 delivery 4: the interactive session's row, on the panel's main page since A4 Delivery 1 (ChatPanel.Layout.cs).
     // Start session starts it and End session ends it (its own model load, path U). Scene cycles through the 3-, 6- and
     // 10-object snapshots. Preset sends the current scene's next dataset command. Cancel cancels queued requests and flags
-    // the running one. ADB inbox requests arrive while the session runs. The text box shows the scene's objects with their
-    // letters, the target marked with an arrow, and the last outcome.
+    // the running one. ADB inbox requests arrive while the session runs, and Send submits a typed command
+    // (ChatPanel.Prompt.cs). The result box shows the scene's objects with their letters, the target marked with an
+    // arrow, and the last outcome.
     public partial class ChatPanel
     {
         private Button sessionButton, sceneButton, sendPresetButton, cancelButton;
         private Text sessionLabel, sceneLabel, sendPresetLabel, cancelLabel;
         private InteractiveService interactiveSession;
         private bool sessionStarting, loadWasBeforeSession;
-        private int sceneIndex, presetIndex, boxFontBefore;
+        private int sceneIndex, presetIndex;
 
         private void BuildSessionRow()
         {
@@ -43,6 +44,7 @@ namespace SecondEyes.Grounding
             if (sceneButton != null) sceneButton.interactable = on;
             if (sendPresetButton != null) sendPresetButton.interactable = on;
             if (cancelButton != null) cancelButton.interactable = on;
+            if (sendTypedButton != null) sendTypedButton.interactable = on;   // the typed command (ChatPanel.Prompt.cs)
             if (sessionLabel != null) sessionLabel.text = on ? "End session" : "Start session";
         }
 
@@ -78,7 +80,6 @@ namespace SecondEyes.Grounding
             sessionStarting = true;
             loadWasBeforeSession = loadButton.interactable;
             loadButton.interactable = false;
-            boxFontBefore = boxText.fontSize;
             interactiveSession = new InteractiveService(System.Threading.SynchronizationContext.Current, SetStatus, ShowOutcome);
             UpdateReplayButton();
             UpdateSessionButtons();
@@ -122,8 +123,7 @@ namespace SecondEyes.Grounding
             sessionStarting = false;
             replaying = false;
             loadButton.interactable = loadWasBeforeSession;
-            boxText.fontSize = boxFontBefore > 0 ? boxFontBefore : boxText.fontSize;
-            boxText.text = text;   // the chat prompt the box showed before the session
+            resultText.text = NoSessionHint;
             UpdateReplayButton();
             UpdateSessionButtons();
             if (r == null || r.Clean)
@@ -217,8 +217,7 @@ namespace SecondEyes.Grounding
             if (present)
                 sb.Append("Last: ").Append(t.RequestId).Append(", ").Append(o.Status).Append(o.Reason != null ? " (" + o.Reason + ")" : "")
                   .Append(", ").Append(Seconds(t.Times.AppObserved));
-            boxText.fontSize = 13;
-            boxText.text = sb.ToString();
+            resultText.text = sb.ToString();
         }
     }
 }

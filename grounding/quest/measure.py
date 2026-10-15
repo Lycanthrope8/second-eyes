@@ -4,7 +4,7 @@ it).
 It reads a pulled session (`outbox-pull`: `session/session.json`, `outcomes.jsonl`, `startup-log.txt`) and the run's
 inbox receipts, and writes `raw/measure/<UTC time>/summary.json` and `report.md`. It reports:
 
-- per scene size and intake (`adb_inbox` or `preset`): status counts; app-observed latency (detection or button event to
+- per scene size and intake (`adb_inbox`, `preset` or, since A4 Delivery 1, `typed`): status counts; app-observed latency (detection or button event to
   outcome, on the headset clock); queue wait; evaluation; the pipeline's stage times; tokens;
 - memory as the runtime reports it: llama.cpp's buffer lines in the load log, and the wrapper's resident and peak memory
   around the load and after every answered request;

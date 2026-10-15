@@ -57,7 +57,7 @@ namespace SecondEyes.Grounding.Interactive
         private string parserModelSha;      // D117: the verified SHA-256 of the parser model this session loaded
         private StreamWriter log;
         private string sessionStamp;
-        private int presetCount, epoch;
+        private int presetCount, typedCount, epoch;
 
         public InteractiveService(SynchronizationContext main, Action<string> status, Action<Ticket, InteractiveOutcome> onOutcome)
         {
@@ -190,6 +190,32 @@ namespace SecondEyes.Grounding.Interactive
             t.Times.Detected = pressed;
             t.Request = new InteractiveRequest { RequestId = t.RequestId, Source = "preset", SnapshotId = b.SnapshotId,
                                                  SnapshotSha256 = b.SnapshotSha256, SceneText = b.SceneText, CommandText = p.CommandText };
+            core.Claim(t.RequestId);
+            t.Times.Validated = Now;
+            if (!core.Admit(t))
+            {
+                t.Times.Outcome = Now;
+                Publish(t, SessionCore.Answer(t.RequestId, t.Source, "cancelled", "session_ended", "the session was ending; not admitted"));
+                return t.RequestId;
+            }
+            t.Times.Queued = Now;
+            return t.RequestId;
+        }
+
+        /// <summary>A command typed on the panel (A4 Delivery 1). It is handled exactly as a preset is, with the person's text
+        /// as the command and "typed" as its source and intake; its timing starts at the Send press, as a preset's starts at
+        /// its button (D99(3)). The panel sends only text that is non-empty after trimming, the inbox's own rule.</summary>
+        public string SubmitTyped(string commandText)
+        {
+            double pressed = Now;
+            SceneBinding b = Current;
+            typedCount++;
+            var t = new Ticket { RequestId = "typed-" + sessionStamp + "-" + typedCount.ToString("D3", CultureInfo.InvariantCulture),
+                                 Source = "typed", SceneEpoch = b.Epoch, Session = sessionStamp };
+            t.Times.Intake = "typed";
+            t.Times.Detected = pressed;
+            t.Request = new InteractiveRequest { RequestId = t.RequestId, Source = "typed", SnapshotId = b.SnapshotId,
+                                                 SnapshotSha256 = b.SnapshotSha256, SceneText = b.SceneText, CommandText = commandText };
             core.Claim(t.RequestId);
             t.Times.Validated = Now;
             if (!core.Admit(t))

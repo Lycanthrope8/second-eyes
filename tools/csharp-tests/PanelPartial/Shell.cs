@@ -1,5 +1,5 @@
-// Type-check shell for ChatPanel.Session.cs and ChatPanel.Layout.cs: the members of ChatPanel.cs they use, with their
-// types there (A2.5 delivery 4; A4 Delivery 1 added the layout). The Unity calls they make are in UiStubs.cs.
+// Type-check shell for ChatPanel.Session.cs, ChatPanel.Layout.cs and ChatPanel.Prompt.cs: the members of ChatPanel.cs they use, with
+// their types there (A2.5 delivery 4; A4 Delivery 1 added the layout and the prompt). The Unity calls they make are in UiStubs.cs.
 #pragma warning disable 0169, 0414, 0649   // the stand-in fields exist for the type check only
 namespace SecondEyes.Grounding
 {

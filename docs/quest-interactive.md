@@ -39,8 +39,8 @@ explicit amendment by the project lead.
 
 ## The Interactive check
 
-**Interactive check (A2.5 d3)**, on the panel's More page (`quest-panel.md`), needs the goldens on the headset
-(`golden-push`). It sends the 32 golden requests through the pipeline twice, cache off and then exact prefix, in about 15 minutes. It writes
+**Pipeline check**, on the panel's More page (`quest-panel.md`; labelled Interactive check (A2.5 d3) before A4 Delivery 1),
+needs the goldens on the headset (`golden-push`). It sends the 32 golden requests through the pipeline twice, cache off and then exact prefix, in about 15 minutes. It writes
 `files/interactive/results/<UTC time>/`: `identity.json`, `outcomes-off.jsonl`, `outcomes-prefix.jsonl` and
 `done.json`, written last.
 
@@ -57,7 +57,9 @@ choices and offered logits that agree with and without the cache.
 
 The session row, on the panel's main page (`quest-panel.md`), has four buttons: **Start session** (**End session** while
 one runs; labelled Session (A2.5 d4) before A4 Delivery 1), Scene (3, 6 or 10 objects), Preset (the scene's next golden
-dataset command) and Cancel.
+dataset command) and Cancel. Since A4 Delivery 1 the main page also has a prompt with **Send**: a command typed on the
+panel's keyboard becomes a request with source and intake `typed` (`InteractiveService.SubmitTyped`), handled exactly
+as a preset is, its timing starting at the Send press.
 
 A running session answers the ADB inbox. Requests are pushed under a temporary name and renamed when complete, and each
 request ID is processed once. Every request is answered under its ID: `outbox/(ID).ack.json`, then
