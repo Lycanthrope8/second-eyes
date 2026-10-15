@@ -299,7 +299,7 @@ def check_frames(A, stage):
         "unresolved_source": variant(lambda s: s[conv[0]][conv[1]].__setitem__("source_id", "nope")),
         "inconsistent_frame_ids": variant(lambda s: s[conv[0]][conv[1]].__setitem__("source_frame_id", "other.frame")),
         "v1_with_dataset_conversion": variant(lambda s: s.__setitem__("schema_version", 1)),
-        "unsupported_version_3": variant(lambda s: s.__setitem__("schema_version", 3)),
+        "unsupported_version_4": variant(lambda s: s.__setitem__("schema_version", 4)),   # 3 exists since A4
     }
     for name, scene in cases.items():
         found = [(i.code, i.path) for i in contract.validate([("scene", scene)]) if i.is_error]

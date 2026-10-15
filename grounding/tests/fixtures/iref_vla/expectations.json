@@ -355,7 +355,7 @@
    "E_SCHEMA_CONST",
    "$.coordinate_frame.conversion"
   ],
-  "unsupported_version_3": [
+  "unsupported_version_4": [
    "E_RECORD_TYPE",
    "$"
   ]
