@@ -77,8 +77,8 @@ what it amended in the manifest.
   tokenized natively, must equal the PC's IDs), and grounds every operational request through the parser. Without the
   folder, A2.5's direct path, for diagnostics. `session.json` records `grounding_path`, the folder's manifest hash, the candidate and
   the verified model hash.
-- **Parser check (A2.7)**: verifies the folder and the model file's SHA-256, loads it, runs the startup check and, only
-  if it passes (D117), the acceptance, and writes `files/parser-results/STAMP/` (decodes, masks, resolutions and readers as JSONL, `run.json`
+- **Parser check (A2.7)**, on the panel's More page (`quest-panel.md`): verifies the folder and the model file's SHA-256,
+  loads it, runs the startup check and, only if it passes (D117), the acceptance, and writes `files/parser-results/STAMP/` (decodes, masks, resolutions and readers as JSONL, `run.json`
   with the identity and memory, `done.json` last). The PC judges: `python -m grounding.a27 headset-judge --folder
   FOLDER --results RESULTS --out JUDGED`.
 

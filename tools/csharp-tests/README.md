@@ -7,7 +7,7 @@ Five .NET 8 projects compile the app's own C# files at Unity's language level (C
 |---|---|---|
 | `Behavior` | the behaviour checks of the pure cores, against the real goldens (64 checks) | `dotnet run --project tools/csharp-tests/Behavior -- <goldens>\headset` |
 | `UnityGlue` | a type check of the runtime, replay, prompting, interactive and parser glue against Unity stubs | `dotnet build tools/csharp-tests/UnityGlue` |
-| `PanelPartial` | a type check of `ChatPanel.Session.cs` against a shell of the panel members it uses | `dotnet build tools/csharp-tests/PanelPartial` |
+| `PanelPartial` | a type check of `ChatPanel.Session.cs` and `ChatPanel.Layout.cs` against a shell of the panel members they use (`Shell.cs`) and stand-ins for Unity's UI calls (`UiStubs.cs`) | `dotnet build tools/csharp-tests/PanelPartial` |
 | `Resolution` (A2.7) | the C# port of the parser path against the Python reference, mode by mode (below) | `dotnet run --project tools/csharp-tests/Resolution -- MODE ...` |
 | `UnityApi` (A2.7) | the port compiled as a .NET Standard 2.1 library, Unity's API profile: an API Unity lacks fails the build | `dotnet build tools/csharp-tests/UnityApi` |
 

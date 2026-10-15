@@ -33,7 +33,7 @@ After a new export, run the steps again from 2. `copy_to_unity.py` then gives th
 
 The app carries the 16-bit file. A 32-bit file of the same export (1.98 GB) doesn't go into the app: it is pushed
 once into the app's data folder on the headset, where Meta's runner looks first, and the panel's Weights button
-picks it before Load.
+(on its More page, `docs/quest-panel.md`) picks it before Load.
 
 1. `python grounding/copy_to_unity.py grounding/models/qwen2.5-0.5b-instruct.json --quantization None`: `model.json`
    now names the 32-bit file (`…-f32.sentis`, the same fingerprint as the 16-bit one).

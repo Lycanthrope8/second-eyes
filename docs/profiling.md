@@ -39,7 +39,7 @@ Taking the headset off and putting it back on while the app runs currently makes
 Six runs of one build, in two blocks. Each block starts with steps 1 and 2 of the procedure above: a freshly rebooted
 headset, worn, two minutes in Home, and OVR Metrics' CSV recording on. Within a block the headset stays on, and each run
 is its own app session: start the app, set the condition, record, quit the app, pull its log. The panel starts with the
-model off (D50).
+model off (D50). Since A4 Delivery 1 the panel buttons named below are on its More page (`quest-panel.md`).
 
 | Run | Block | Condition | Set it by | Minutes |
 |---|---|---|---|---|

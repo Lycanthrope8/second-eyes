@@ -10,11 +10,11 @@ using UnityEngine.UI;
 
 namespace SecondEyes.Grounding
 {
-    // A2.5 delivery 4: the interactive interactiveSession's row on the panel. Session starts and ends it (its own model load,
-    // path U). Scene cycles through the 3-, 6- and 10-object snapshots. Preset sends the current scene's next dataset
-    // command. Cancel cancels queued requests and flags the running one. ADB inbox requests arrive while the interactiveSession
-    // runs. The text box shows the scene's objects with their letters, the target marked with an arrow, and the last
-    // outcome.
+    // A2.5 delivery 4: the interactive session's row, on the panel's main page since A4 Delivery 1 (ChatPanel.Layout.cs).
+    // Start session starts it and End session ends it (its own model load, path U). Scene cycles through the 3-, 6- and
+    // 10-object snapshots. Preset sends the current scene's next dataset command. Cancel cancels queued requests and flags
+    // the running one. ADB inbox requests arrive while the session runs. The text box shows the scene's objects with their
+    // letters, the target marked with an arrow, and the last outcome.
     public partial class ChatPanel
     {
         private Button sessionButton, sceneButton, sendPresetButton, cancelButton;
@@ -25,10 +25,10 @@ namespace SecondEyes.Grounding
 
         private void BuildSessionRow()
         {
-            sessionButton = RowButton("Session", 20f, 140f, out sessionLabel, ToggleSession, 712f);
-            sceneButton = RowButton("Scene", 173f, 140f, out sceneLabel, NextScene, 712f);
-            sendPresetButton = RowButton("SendPreset", 326f, 140f, out sendPresetLabel, SendPreset, 712f);
-            cancelButton = RowButton("CancelRequests", 479f, 141f, out cancelLabel, CancelRequests, 712f);
+            sessionButton = RowButton("Session", 20f, 140f, out sessionLabel, ToggleSession, SessionRowY, mainPage);
+            sceneButton = RowButton("Scene", 173f, 140f, out sceneLabel, NextScene, SessionRowY, mainPage);
+            sendPresetButton = RowButton("SendPreset", 326f, 140f, out sendPresetLabel, SendPreset, SessionRowY, mainPage);
+            cancelButton = RowButton("CancelRequests", 479f, 141f, out cancelLabel, CancelRequests, SessionRowY, mainPage);
             sceneLabel.text = "Scene";
             sendPresetLabel.text = "Preset";
             cancelLabel.text = "Cancel";
@@ -43,7 +43,7 @@ namespace SecondEyes.Grounding
             if (sceneButton != null) sceneButton.interactable = on;
             if (sendPresetButton != null) sendPresetButton.interactable = on;
             if (cancelButton != null) cancelButton.interactable = on;
-            if (sessionLabel != null) sessionLabel.text = on ? "End interactiveSession" : "Session (A2.5 d4)";
+            if (sessionLabel != null) sessionLabel.text = on ? "End session" : "Start session";
         }
 
         private async void ToggleSession()

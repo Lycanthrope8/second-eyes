@@ -16,6 +16,9 @@ using Stopwatch = System.Diagnostics.Stopwatch;
 namespace SecondEyes.Grounding
 {
     /// <summary>
+    /// Since A4 Delivery 1 the panel has two pages under a shared top (title, More or Back, status line, text box): the
+    /// main page holds the parser session's row (ChatPanel.Session.cs), and the More page holds the earlier controls
+    /// described below, unchanged. ChatPanel.Layout.cs builds both; docs/quest-panel.md has the layout.
     /// The model test panel (A1.7c-2: D40, D43, D49; A1.7d: D50). It shows, about a meter ahead, the prompt's user text,
     /// a row of preset buttons (the fixed prompt and the presets, each a prompt file like grounding/prompts/a17-fixed.json)
     /// and a row with Load model, Repeat, Steps and Send, then the answer. There is no typing (D49).
@@ -855,85 +858,6 @@ namespace SecondEyes.Grounding
             return value.ToString("F1", CultureInfo.InvariantCulture);
         }
 
-        // ---- The panel, built in code like DebugOverlay: 640 x 600 units at 1 mm each. ----
-
-        private void BuildPanel()
-        {
-            var canvasObject = new GameObject("ChatPanelCanvas", typeof(Canvas), typeof(CanvasScaler));
-            canvasObject.transform.SetParent(transform, false);
-            canvasObject.GetComponent<Canvas>().renderMode = RenderMode.WorldSpace;
-            canvasObject.GetComponent<CanvasScaler>().dynamicPixelsPerUnit = 4f;   // sharper text in world space
-            panel = (RectTransform)canvasObject.transform;
-            panel.sizeDelta = new Vector2(640f, 776f);   // two rows more: Replay and checks (A2.5), and the session (A2.5 d4)
-            panel.localScale = Vector3.one * 0.001f;
-            panel.position = new Vector3(0f, -100f, 0f);   // out of sight until Place() runs
-
-            Image background = Box(panel, "Background", 0f, 0f, 640f, 666f).gameObject.AddComponent<Image>();
-            background.color = new Color(0.08f, 0.09f, 0.11f, 0.92f);
-            Label(panel, "Title", 20f, 16f, 600f, 36f, 26, FontStyle.Bold).text = "Second Eyes · model test (A1.7)";
-            status = Label(panel, "Status", 20f, 56f, 600f, 30f, 18, FontStyle.Normal);
-            status.color = new Color(0.75f, 0.8f, 0.85f);
-
-            // The text box only shows the prompt; the preset buttons below choose it (D49).
-            RectTransform box = Box(panel, "TextBox", 20f, 96f, 600f, 196f);
-            Image boxImage = box.gameObject.AddComponent<Image>();
-            boxImage.color = new Color(0.16f, 0.18f, 0.21f);
-            boxText = Label(box, "Text", 12f, 8f, 576f, 180f, 16, FontStyle.Normal);
-            boxText.supportRichText = false;
-            for (int k = 0; k < choices.Count && k < 4; k++)   // up to four prompts fit in a row
-            {
-                int which = k;
-                RectTransform presetBox = Box(panel, "Preset " + choices[k].id, 20f + k * 153f, 300f, 140f, 50f);
-                Image presetImage = presetBox.gameObject.AddComponent<Image>();
-                presetImage.color = PresetColor;
-                Text presetText = Label(presetBox, "Label", 6f, 3f, 128f, 44f, 14, FontStyle.Normal);
-                presetText.text = Command(choices[k]);
-                presetText.alignment = TextAnchor.MiddleCenter;
-                Button preset = presetBox.gameObject.AddComponent<Button>();
-                preset.targetGraphic = presetImage;
-                preset.onClick.AddListener(() => Choose(which));
-                presetButtons.Add(preset);
-            }
-
-            loadButton = RowButton("Load", 20f, 140f, out loadLabel, LoadModel);
-            loadLabel.text = "Load model";
-            loadButton.interactable = false;   // until the settings are read
-            repeatButton = RowButton("Repeat", 173f, 140f, out repeatLabel, ToggleRepeat);
-            repeatButton.interactable = false;   // until the model is loaded
-            stepsButton = RowButton("Steps", 326f, 120f, out stepsLabel, NextSteps);
-
-            RectTransform buttonBox = Box(panel, "Send", 460f, 362f, 160f, 52f);
-            Image buttonImage = buttonBox.gameObject.AddComponent<Image>();
-            buttonImage.color = new Color(0.2f, 0.5f, 0.95f);
-            buttonLabel = Label(buttonBox, "Label", 0f, 0f, 160f, 56f, 22, FontStyle.Bold);
-            buttonLabel.text = "Send";
-            buttonLabel.alignment = TextAnchor.MiddleCenter;
-            sendButton = buttonBox.gameObject.AddComponent<Button>();
-            sendButton.targetGraphic = buttonImage;
-            sendButton.interactable = false;
-            sendButton.onClick.AddListener(OnButton);
-
-            // Backend and Weights apply at Load (A1.8a, D53)
-            runtimeButton = RowButton("Runtime", 20f, 190f, out runtimeLabel, ToggleRuntime, 424f);
-            backendButton = RowButton("Backend", 223f, 190f, out backendLabel, ToggleBackend, 424f);
-            weightsButton = RowButton("Weights", 426f, 194f, out weightsLabel, ToggleWeights, 424f);
-            runtimeButton.interactable = backendButton.interactable = weightsButton.interactable = false;   // until the settings are read
-
-            Label(panel, "AnswerTitle", 20f, 488f, 600f, 28f, 18, FontStyle.Bold).text = "Answer";
-            answer = Label(panel, "Answer", 20f, 518f, 600f, 130f, 18, FontStyle.Normal);
-            replayButton = RowButton("Replay", 20f, 140f, out replayLabel, StartReplay, 664f);
-            replayLabel.text = "Replay (A2.5 d1)";
-            goldenButton = RowButton("Golden", 173f, 140f, out goldenLabel, StartGolden, 664f);
-            goldenLabel.text = "Golden check (A2.5 d2)";
-            interactiveButton = RowButton("Interactive", 326f, 140f, out interactiveLabel, StartInteractive, 664f);
-            interactiveLabel.text = "Interactive check (A2.5 d3)";
-            parserButton = RowButton("ParserCheck", 479f, 141f, out parserLabel, StartParserCheck, 664f);
-            parserLabel.text = "Parser check (A2.7)";
-            BuildSessionRow();
-            UpdateReplayButton();
-            UpdateLabels();
-        }
-
         /// <summary>A2.5 (D103): Replay is available when a bundle has been pushed, no replay runs, and no panel model
         /// was loaded in this session: the replay loads its own, with 8,192 tokens of context, and frees it after.</summary>
         private void UpdateReplayButton()
@@ -1067,43 +991,6 @@ namespace SecondEyes.Grounding
                 loadButton.interactable = loadWas;
                 UpdateReplayButton();
             }
-        }
-
-        private Button RowButton(string name, float x, float width, out Text label, UnityEngine.Events.UnityAction onClick,
-                                 float y = 362f)
-        {
-            RectTransform rect = Box(panel, name, x, y, width, 52f);
-            Image image = rect.gameObject.AddComponent<Image>();
-            image.color = PresetColor;
-            label = Label(rect, "Label", 4f, 0f, width - 8f, 52f, 17, FontStyle.Normal);
-            label.alignment = TextAnchor.MiddleCenter;
-            Button button = rect.gameObject.AddComponent<Button>();
-            button.targetGraphic = image;
-            button.onClick.AddListener(onClick);
-            return button;
-        }
-
-        /// <summary>A child rectangle placed from the parent's top-left corner, in panel units.</summary>
-        private static RectTransform Box(Transform parent, string name, float x, float y, float width, float height)
-        {
-            var box = new GameObject(name, typeof(RectTransform)).GetComponent<RectTransform>();
-            box.SetParent(parent, false);
-            box.anchorMin = box.anchorMax = box.pivot = new Vector2(0f, 1f);
-            box.anchoredPosition = new Vector2(x, -y);
-            box.sizeDelta = new Vector2(width, height);
-            return box;
-        }
-
-        private static Text Label(Transform parent, string name, float x, float y, float width, float height, int size, FontStyle style)
-        {
-            Text label = Box(parent, name, x, y, width, height).gameObject.AddComponent<Text>();
-            label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            label.fontSize = size;
-            label.fontStyle = style;
-            label.color = Color.white;
-            label.horizontalOverflow = HorizontalWrapMode.Wrap;
-            label.verticalOverflow = VerticalWrapMode.Truncate;
-            return label;
         }
     }
 }
