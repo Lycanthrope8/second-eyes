@@ -1,0 +1,255 @@
+{
+  "schema_version": 1,
+  "record_type": "capture",
+  "capture_id": "scan.fixture.bedroom",
+  "camera": {
+    "camera_id": "quest_left",
+    "width_px": 1280,
+    "height_px": 960,
+    "intrinsics": {
+      "fx": 870.0,
+      "fy": 870.0,
+      "cx": 640.0,
+      "cy": 480.0,
+      "source": "illustrative test values, not the SDK's"
+    },
+    "distortion": "unknown"
+  },
+  "app": {
+    "build": "fixture"
+  },
+  "detector": {
+    "package_id": "yolox_nano_coco.se1",
+    "package_sha256": "0000000000000000000000000000000000000000000000000000000000000001",
+    "input_px": 416,
+    "letterbox": "top_left",
+    "score_threshold": 0.3,
+    "nms": "class_agnostic_greedy",
+    "nms_iou_threshold": 0.45,
+    "boxes": "source_pixels_unclipped"
+  },
+  "configuration": {
+    "perception_folder_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "category_map_id": "map.bedroom",
+    "size_priors_id": "sizes.bedroom"
+  },
+  "clock": {
+    "sdk_unit": "ns",
+    "offset_us": 5000
+  },
+  "tracking_frame": "quest_tracking",
+  "camera_pose_convention": "optical_to_quest_tracking",
+  "nominal_step_deg": 30,
+  "keyframes": [
+    {
+      "index": 0,
+      "frame_id": "kf-0000",
+      "position_index": 0,
+      "step_index": 0,
+      "capture_time": {
+        "sdk_value": 1199995000123,
+        "headset_mono_us": 1200000000
+      },
+      "tracking": {
+        "epoch": 0,
+        "state": "tracked"
+      },
+      "camera_pose": {
+        "translation_m": [
+          0.0,
+          1.55,
+          0.2
+        ],
+        "rotation_xyzw": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "detections": [
+        {
+          "label": "chair",
+          "score": 0.87,
+          "box_px": [
+            412.5,
+            380.0,
+            610.25,
+            820.0
+          ]
+        },
+        {
+          "label": "dining table",
+          "score": 0.79,
+          "box_px": [
+            700.0,
+            410.0,
+            1291.5,
+            760.5
+          ]
+        }
+      ],
+      "image": {
+        "state": "not_saved"
+      }
+    },
+    {
+      "index": 1,
+      "frame_id": "kf-0001",
+      "position_index": 0,
+      "step_index": 1,
+      "capture_time": {
+        "sdk_value": 1201095000123,
+        "headset_mono_us": 1201100000
+      },
+      "tracking": {
+        "epoch": 0,
+        "state": "tracked"
+      },
+      "camera_pose": {
+        "translation_m": [
+          0.0,
+          1.55,
+          0.2
+        ],
+        "rotation_xyzw": [
+          0.0,
+          0.258819045103,
+          0.0,
+          0.965925826289
+        ]
+      },
+      "detections": [
+        {
+          "label": "dining table",
+          "score": 0.79,
+          "box_px": [
+            700.0,
+            410.0,
+            1291.5,
+            760.5
+          ]
+        }
+      ],
+      "image": {
+        "state": "saved",
+        "file": "kf-0001.jpg",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "index": 2,
+      "frame_id": "kf-0002",
+      "position_index": 0,
+      "step_index": 2,
+      "capture_time": {
+        "sdk_value": 1202195000123,
+        "headset_mono_us": 1202200000
+      },
+      "tracking": {
+        "epoch": 0,
+        "state": "tracked"
+      },
+      "camera_pose": {
+        "translation_m": [
+          0.0,
+          1.55,
+          0.2
+        ],
+        "rotation_xyzw": [
+          0.0,
+          0.5,
+          0.0,
+          0.866025403784
+        ]
+      },
+      "detections": [],
+      "image": {
+        "state": "not_saved"
+      }
+    },
+    {
+      "index": 3,
+      "frame_id": "kf-0003",
+      "position_index": 1,
+      "step_index": 0,
+      "capture_time": {
+        "sdk_value": 1205295000123,
+        "headset_mono_us": 1205300000
+      },
+      "tracking": {
+        "epoch": 0,
+        "state": "tracked"
+      },
+      "camera_pose": {
+        "translation_m": [
+          1.2,
+          1.55,
+          0.2
+        ],
+        "rotation_xyzw": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "detections": [
+        {
+          "label": "chair",
+          "score": 0.87,
+          "box_px": [
+            412.5,
+            380.0,
+            610.25,
+            820.0
+          ]
+        },
+        {
+          "label": "bottle",
+          "score": 0.44,
+          "box_px": [
+            905.0,
+            352.0,
+            931.0,
+            420.0
+          ]
+        }
+      ],
+      "image": {
+        "state": "not_saved"
+      }
+    },
+    {
+      "index": 4,
+      "frame_id": "kf-0004",
+      "position_index": 1,
+      "step_index": 1,
+      "capture_time": {
+        "sdk_value": 1206395000123,
+        "headset_mono_us": 1206400000
+      },
+      "tracking": {
+        "epoch": 0,
+        "state": "tracked"
+      },
+      "camera_pose": {
+        "translation_m": [
+          1.2,
+          1.55,
+          0.2
+        ],
+        "rotation_xyzw": [
+          0.0,
+          0.258819045103,
+          0.0,
+          0.965925826289
+        ]
+      },
+      "detections": [],
+      "image": {
+        "state": "not_saved"
+      }
+    }
+  ]
+}

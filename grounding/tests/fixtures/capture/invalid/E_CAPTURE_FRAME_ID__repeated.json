@@ -16,18 +16,38 @@
     "distortion": "unknown"
   },
   "app": {
-    "build": "fixture",
-    "detector_package_id": "yolox-nano-coco",
-    "detector_package_sha256": "0000000000000000000000000000000000000000000000000000000000000001"
+    "build": "fixture"
+  },
+  "detector": {
+    "package_id": "yolox_nano_coco.se1",
+    "package_sha256": "0000000000000000000000000000000000000000000000000000000000000001",
+    "input_px": 416,
+    "letterbox": "top_left",
+    "score_threshold": 0.3,
+    "nms": "class_agnostic_greedy",
+    "nms_iou_threshold": 0.45,
+    "boxes": "source_pixels_unclipped"
+  },
+  "configuration": {
+    "perception_folder_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "category_map_id": "map.bedroom",
+    "size_priors_id": "sizes.bedroom"
+  },
+  "clock": {
+    "sdk_unit": "ns",
+    "offset_us": 5000
   },
   "tracking_frame": "quest_tracking",
+  "camera_pose_convention": "unity_camera_to_quest_tracking",
+  "nominal_step_deg": 30,
   "keyframes": [
     {
       "index": 0,
+      "frame_id": "kf-0000",
       "position_index": 0,
       "step_index": 0,
       "capture_time": {
-        "sdk_timestamp": "1201000000000",
+        "sdk_value": 1199995000123,
         "headset_mono_us": 1200000000
       },
       "tracking": {
@@ -64,7 +84,7 @@
           "box_px": [
             700.0,
             410.0,
-            1300.0,
+            1291.5,
             760.5
           ]
         }
@@ -75,10 +95,11 @@
     },
     {
       "index": 1,
+      "frame_id": "kf-0001",
       "position_index": 0,
       "step_index": 1,
       "capture_time": {
-        "sdk_timestamp": "1202100000000",
+        "sdk_value": 1201095000123,
         "headset_mono_us": 1201100000
       },
       "tracking": {
@@ -105,7 +126,7 @@
           "box_px": [
             700.0,
             410.0,
-            1300.0,
+            1291.5,
             760.5
           ]
         }
@@ -118,10 +139,11 @@
     },
     {
       "index": 2,
+      "frame_id": "kf-0002",
       "position_index": 0,
       "step_index": 2,
       "capture_time": {
-        "sdk_timestamp": "1203200000000",
+        "sdk_value": 1202195000123,
         "headset_mono_us": 1202200000
       },
       "tracking": {
@@ -148,10 +170,11 @@
     },
     {
       "index": 3,
+      "frame_id": "kf-0003",
       "position_index": 1,
       "step_index": 0,
       "capture_time": {
-        "sdk_timestamp": "1206300000000",
+        "sdk_value": 1205295000123,
         "headset_mono_us": 1205300000
       },
       "tracking": {
@@ -199,10 +222,11 @@
     },
     {
       "index": 4,
+      "frame_id": "kf-0003",
       "position_index": 1,
       "step_index": 1,
       "capture_time": {
-        "sdk_timestamp": "1207400000000",
+        "sdk_value": 1206395000123,
         "headset_mono_us": 1206400000
       },
       "tracking": {

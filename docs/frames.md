@@ -15,6 +15,7 @@ length, and times in the log's clocks (`mono_us`, `utc_us`; `logging.md`). Units
 |---|---|---|
 | `quest_tracking` | the SDK's world space on the headset (Unity's world) | left-handed: x right, y up (gravity), z forward; metres |
 | `camera:<id>` | a camera's optical frame, origin at its optical centre | right-handed: x right, y down, z forward (OpenCV's) |
+| `unity_camera:<id>` | the same camera in Unity's own camera axes | left-handed: x right, y up, z forward |
 | `scene` | the frame of scene records and of the semantic memory | right-handed, z up (gravity), metres (A2.1's, S07) |
 | `pad`, `drone_body` | the drone's take-off pad and body | named now; defined in A6 |
 | `vicon` | Vicon's world | evaluation only, never in an operational record; defined when Vicon is used (D10) |
@@ -49,7 +50,8 @@ matrices carry this into the project's right-handed frames:
 - `B = [[1,0,0],[0,0,1],[0,1,0]]` re-expresses a `quest_tracking` vector in `scene` (it swaps y and z);
 - `F = diag(1, −1, 1)` re-expresses an OpenCV optical-frame vector in Unity's camera axes (it flips y).
 
-So a camera's pose becomes `T_scene_camera = (B R(q) F, B p)`. `B` and `F` each have determinant −1, so their product
+Unity's pose is itself a proper transform, `T_quest_tracking_unity_camera`, since both of its frames are left-handed;
+a capture record stores it exactly so (`capture-record.md`). So a camera's pose becomes `T_scene_camera = (B R(q) F, B p)`. `B` and `F` each have determinant −1, so their product
 with `R(q)` is a proper rotation, which is converted back to a quaternion only after the matrix product. Quaternion
 components are never swapped by hand. `Perception/Frames/UnityBasis.cs` is the only code that applies `B` and `F`;
 tools/csharp-tests/Frames checks it on poses whose results are worked out by hand (translation, rotation, inverses,

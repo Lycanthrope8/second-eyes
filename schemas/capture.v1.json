@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "capture.v1.json",
   "title": "Second Eyes capture record, format v1",
-  "description": "One scan on the headset (A4): the camera with its intrinsics, the app and detector that ran, and every keyframe with its capture time, the camera's pose in quest_tracking at capture as Unity reports it, the tracking epoch and state, the detections, and the image when image saving is on. Written and checked on the headset (CaptureCheck.cs); a perceived scene (scene v3) is built from it. Rules: docs/capture-record.md.",
+  "description": "One scan on the headset (A4): the camera with its intrinsics, the detector with its exact settings and the identities of the category map, size priors and perception folder the scan used, the clock mapping, and every keyframe with its frame ID, capture time, the camera's pose in quest_tracking at capture as Unity reports it, the tracking epoch and state, the detections from that same frame, and the image when image saving is on. Written and checked on the headset (CaptureCheck.cs); a perceived scene (scene v3) is built from it, and the localization can be rerun on the PC from it. Rules: docs/capture-record.md.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -11,7 +11,12 @@
     "capture_id",
     "camera",
     "app",
+    "detector",
+    "configuration",
+    "clock",
     "tracking_frame",
+    "camera_pose_convention",
+    "nominal_step_deg",
     "keyframes"
   ],
   "properties": {
@@ -30,8 +35,26 @@
     "app": {
       "$ref": "#/$defs/app"
     },
+    "detector": {
+      "$ref": "#/$defs/detector"
+    },
+    "configuration": {
+      "$ref": "#/$defs/configuration"
+    },
+    "clock": {
+      "$ref": "#/$defs/clock"
+    },
     "tracking_frame": {
       "const": "quest_tracking"
+    },
+    "camera_pose_convention": {
+      "const": "unity_camera_to_quest_tracking",
+      "description": "Each keyframe's camera_pose maps Unity's camera axes (unity_camera: x right, y up, z forward) into quest_tracking; both are left-handed, so the rotation is proper. The optical frame and the scene are reached only through UnityBasis (docs/frames.md)."
+    },
+    "nominal_step_deg": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "The turn the scan procedure asks for between steps at one position; a keyframe's nominal angle is step_index x nominal_step_deg."
     },
     "keyframes": {
       "type": "array",
@@ -141,32 +164,25 @@
       }
     },
     "app": {
-      "description": "What produced the keyframes' detections.",
+      "description": "The app build that wrote the record.",
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "build",
-        "detector_package_id",
-        "detector_package_sha256"
+        "build"
       ],
       "properties": {
         "build": {
           "$ref": "#/$defs/text"
-        },
-        "detector_package_id": {
-          "$ref": "#/$defs/id"
-        },
-        "detector_package_sha256": {
-          "$ref": "#/$defs/sha256"
         }
       }
     },
     "keyframe": {
-      "description": "One stop of the scan: its place in the scan (index, standing position, step at that position), its capture time, the tracking epoch and state, the camera's pose at capture, the detections and the image.",
+      "description": "One stop of the scan: its frame ID and place in the scan (index, standing position, step at that position), its capture time, the tracking epoch and state, the camera's pose at capture, the detections the detector made on this very frame, and the image.",
       "type": "object",
       "additionalProperties": false,
       "required": [
         "index",
+        "frame_id",
         "position_index",
         "step_index",
         "capture_time",
@@ -180,6 +196,10 @@
           "type": "integer",
           "minimum": 0
         },
+        "frame_id": {
+          "$ref": "#/$defs/id",
+          "description": "Unique within the capture; it ties the image, its pose and its detections together."
+        },
         "position_index": {
           "type": "integer",
           "minimum": 0
@@ -192,19 +212,20 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
-            "sdk_timestamp",
+            "sdk_value",
             "headset_mono_us"
           ],
           "properties": {
-            "sdk_timestamp": {
-              "$ref": "#/$defs/text"
+            "sdk_value": {
+              "type": "integer",
+              "minimum": 0
             },
             "headset_mono_us": {
               "type": "integer",
               "minimum": 0
             }
           },
-          "description": "The SDK's own timestamp for the image, verbatim, and the same moment on the event log's monotonic clock."
+          "description": "The SDK's own timestamp for the image, in clock.sdk_unit, and the same moment on the event log's monotonic clock."
         },
         "tracking": {
           "type": "object",
@@ -278,7 +299,7 @@
           },
           "minItems": 4,
           "maxItems": 4,
-          "description": "x1, y1, x2, y2 in the image's pixels, top-left origin."
+          "description": "x1, y1, x2, y2 in the source image's pixels (detector.boxes); not clipped."
         }
       }
     },
@@ -336,6 +357,96 @@
           "state": {
             "const": "not_saved"
           }
+        }
+      }
+    },
+    "detector": {
+      "description": "The detector package and the settings that produced the detections, as in its manifest (detector-package.json).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "package_id",
+        "package_sha256",
+        "input_px",
+        "letterbox",
+        "score_threshold",
+        "nms",
+        "nms_iou_threshold",
+        "boxes"
+      ],
+      "properties": {
+        "package_id": {
+          "$ref": "#/$defs/id"
+        },
+        "package_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "input_px": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "letterbox": {
+          "const": "top_left"
+        },
+        "score_threshold": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 1
+        },
+        "nms": {
+          "const": "class_agnostic_greedy"
+        },
+        "nms_iou_threshold": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 1
+        },
+        "boxes": {
+          "const": "source_pixels_unclipped",
+          "description": "Boxes are in the source image's pixels: the model's input-pixel boxes divided by the letterbox ratio, not clipped, so a box may run past the image's edge."
+        }
+      }
+    },
+    "configuration": {
+      "description": "The identities of what turned detections into a scene on the headset.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "perception_folder_sha256",
+        "category_map_id",
+        "size_priors_id"
+      ],
+      "properties": {
+        "perception_folder_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "category_map_id": {
+          "$ref": "#/$defs/id"
+        },
+        "size_priors_id": {
+          "$ref": "#/$defs/id"
+        }
+      }
+    },
+    "clock": {
+      "description": "How the SDK's image timestamps map to the event log's monotonic clock: headset_mono_us = the SDK value in microseconds (rounded down) + offset_us.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sdk_unit",
+        "offset_us"
+      ],
+      "properties": {
+        "sdk_unit": {
+          "enum": [
+            "ns",
+            "us",
+            "ms",
+            "100ns"
+          ]
+        },
+        "offset_us": {
+          "type": "integer"
         }
       }
     }
