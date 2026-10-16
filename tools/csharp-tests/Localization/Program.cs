@@ -15,6 +15,9 @@ using SecondEyes.Grounding.Resolution;
 using SecondEyes.Perception.Capture;
 using SecondEyes.Perception.Frames;
 using SecondEyes.Perception.Localization;
+using SecondEyes.Perception.Scan;
+using SecondEyes.Perception;
+using System.Security.Cryptography;
 
 static class Program
 {
@@ -91,11 +94,70 @@ static class Program
         return builder.Build();
     }
 
+    static string Codes(IEnumerable<Issue> issues) { return string.Join(", ", issues.Select(i => i.Code + " " + i.Path).Take(4)); }
+
     static Vec3 Centre(JNode obj) { var v = obj["geometry"]["center_m"]["value"].Items; return new Vec3(v[0].Num, v[1].Num, v[2].Num); }
     static bool Known(JNode obj) { return obj["geometry"]["center_m"]["state"].Text == "known"; }
     static string Status(JNode obj) { return obj["observation"]["association"]["status"].Text; }
     static string Cat(JNode obj) { return obj["category"]["value"]["standard"].Text; }
     static double Nearest(JNode obj, List<Box> boxes) { return boxes.Where(b => b.Category == Cat(obj)).Min(b => (Centre(obj) - b.Centre).Norm); }
+
+    /// <summary>A perception folder built here from the repository's files, as grounding/quest/perception_device.py builds one.</summary>
+    static PerceptionFolder BuildFolder(string dir)
+    {
+        var files = new SortedDictionary<string, string>(StringComparer.Ordinal);
+        foreach (string n in new[] { "capture.v1.json", "category-map.v1.json", "command-context.v2.json", "grounding-query.v2.json", "grounding-result.v2.json",
+                                     "localization-config.v1.json", "scan-config.v1.json", "scene.v3.json", "size-priors.v1.json" })
+            files["schemas/" + n] = Path.Combine("schemas", n);
+        files["configs/scan.default.v1.json"] = Path.Combine("perception", "scan", "scan.default.v1.json");
+        files["configs/localization.default.v1.json"] = Path.Combine("perception", "localization", "localization.default.v1.json");
+        files["maps/category-map.bedroom.v1.json"] = Path.Combine("perception", "bedroom", "category-map.bedroom.v1.json");
+        files["priors/size-priors.bedroom.v1.json"] = Path.Combine("perception", "bedroom", "size-priors.bedroom.v1.json");
+        var listed = JNode.Obj();
+        using (var h = SHA256.Create())
+            foreach (var kv in files)
+            {
+                byte[] b = File.ReadAllBytes(kv.Value);
+                string to = Path.Combine(dir, kv.Key);
+                Directory.CreateDirectory(Path.GetDirectoryName(to));
+                File.WriteAllBytes(to, b);
+                listed.Add(kv.Key, JNode.Obj().Add("bytes", Localizer.Int(b.Length)).Add("sha256", JNode.Str(string.Concat(h.ComputeHash(b).Select(x => x.ToString("x2"))))));
+            }
+        JNode m = JNode.Obj().Add("format_version", Localizer.Int(1)).Add("record_type", JNode.Str("a4_perception_folder")).Add("files", listed)
+            .Add("scan_config", JNode.Str("configs/scan.default.v1.json")).Add("localization_config", JNode.Str("configs/localization.default.v1.json"))
+            .Add("size_priors", JNode.Str("priors/size-priors.bedroom.v1.json")).Add("category_map", JNode.Str("maps/category-map.bedroom.v1.json"));
+        File.WriteAllText(Path.Combine(dir, "manifest.json"), SecondEyes.Grounding.Parsing.PyJson.Canonical(m));
+        return PerceptionFolder.Load(dir);
+    }
+
+    /// <summary>One synthetic frame: what the headset's inference would return for the boxes seen from this pose.</summary>
+    static ScanFrame Frame(List<Box> boxes, (double x, double y) at, double yawDeg, DateTime stamp, long copyMonoUs, List<JNode> classes)
+    {
+        double yaw = yawDeg * Math.PI / 180;
+        var pu = new Vec3(at.x, Height, at.y);
+        var qu = new Quat(0, Math.Sin(yaw / 2), 0, Math.Cos(yaw / 2));
+        RigidTransform toCamera = UnityBasis.CameraToScene("quest_left", 0, pu, qu).Inverse();
+        var f = new ScanFrame { Completed = true, Tracked = true, RawStamp = stamp, CopyMonoUs = copyMonoUs, TrackingEpoch = 0,
+                                TranslationM = new[] { pu.X, pu.Y, pu.Z }, RotationXyzw = new[] { qu.X, qu.Y, qu.Z, qu.W } };
+        foreach (Box b in boxes)
+        {
+            double u0 = double.MaxValue, v0 = double.MaxValue, u1 = double.MinValue, v1 = double.MinValue;
+            bool front = true;
+            for (int c = 0; c < 8 && front; c++)
+            {
+                var corner = b.Centre + new Vec3(((c & 1) == 0 ? -0.5 : 0.5) * b.Size.X, ((c & 2) == 0 ? -0.5 : 0.5) * b.Size.Y, ((c & 4) == 0 ? -0.5 : 0.5) * b.Size.Z);
+                Vec3 local = toCamera.ApplyToPoint(corner);
+                double u, v;
+                if (local.Z < 0.1 || !Pin.TryProject(local, out u, out v)) { front = false; break; }
+                u0 = Math.Min(u0, u); v0 = Math.Min(v0, v); u1 = Math.Max(u1, u); v1 = Math.Max(v1, v);
+            }
+            if (!front) continue;
+            double x1 = Math.Max(0, u0 + 0.5), y1 = Math.Max(0, v0 + 0.5), x2 = Math.Min(W, u1 + 0.5), y2 = Math.Min(H, v1 + 0.5);
+            if (x2 - x1 < 2 || y2 - y1 < 2) continue;
+            f.Detections.Add(new RawDetection { ClassId = classes.FindIndex(c => c.Text == b.Label), Score = 0.9, X1 = x1, Y1 = y1, X2 = x2, Y2 = y2 });
+        }
+        return f;
+    }
 
     static int Main(string[] args)
     {
@@ -218,6 +280,64 @@ static class Program
         }
         Check("two chairs placed from one position", c10.Count == 2 && c10.All(Known));
         map = realMap;
+
+        Console.WriteLine("10. The scan session on the headset, with synthetic frames");
+        long sv; string su, sk;
+        Check("a DateTime stamp becomes its 100 ns ticks", SdkStamp.TryConvert(new DateTime(2026, 10, 16, 19, 0, 0, DateTimeKind.Utc), out sv, out su, out sk)
+              && su == "100ns" && sv == new DateTime(2026, 10, 16, 19, 0, 0, DateTimeKind.Utc).Ticks && sk == "DateTime");
+        Check("a whole number is read as nanoseconds, seconds become microseconds", SdkStamp.TryConvert(123456789L, out sv, out su, out sk) && su == "ns" && sv == 123456789L
+              && SdkStamp.TryConvert(12.5, out sv, out su, out sk) && su == "us" && sv == 12500000L);
+        Check("a negative number or a string is refused", !SdkStamp.TryConvert(-5L, out sv, out su, out sk) && !SdkStamp.TryConvert("now", out sv, out su, out sk));
+        string pfDir = Path.Combine(Path.GetTempPath(), "pf-" + Guid.NewGuid().ToString("N"));
+        PerceptionFolder folder = BuildFolder(pfDir);
+        Check("a perception folder built from the repository loads", folder.CategoryMapId == "map.bedroom.v1" && folder.SizePriorsId == "sizes.bedroom.v1");
+        var classes = Manifest["classes"].Items;
+        var bedroom = new List<Box> {
+            new Box { Label = "chair", Category = "chair", Centre = new Vec3(-0.6, 3.0, 0.44), Size = new Vec3(0.55, 0.45, 0.88) },
+            new Box { Label = "chair", Category = "chair", Centre = new Vec3(0.7, 3.2, 0.575), Size = new Vec3(0.55, 0.45, 1.15) },
+            new Box { Label = "tv", Category = "television", Centre = new Vec3(1.6, 4.0, 0.9), Size = new Vec3(0.62, 0.10, 0.37) },
+            new Box { Label = "laptop", Category = "laptop", Centre = new Vec3(-1.4, 3.6, 0.85), Size = new Vec3(0.34, 0.25, 0.25) } };
+        var cam = new CaptureCamera { CameraId = "quest_left", WidthPx = W, HeightPx = H, Fx = F, Fy = F, Cx = Cx, Cy = Cy, IntrinsicsSource = "synthetic", Distortion = "unknown" };
+        Func<string, ScanSession> fresh = id => { var x = new ScanSession(id, folder, Manifest, new string('0', 63) + "1", "synthetic"); x.SetCamera(cam, JNode.Obj().Add("source", JNode.Str("synthetic"))); return x; };
+        var s10 = fresh("scan.synthetic.s10");
+        var t0 = new DateTime(2026, 10, 16, 19, 0, 0, DateTimeKind.Utc);
+        long mono = 9000000000L; int k = 0; var ages = new[] { 40000L, 52000L, 31000L, 47000L, 38000L, 61000L, 44000L, 35000L };
+        foreach (var at in new[] { (-1.2, 0.0), (1.2, 0.2) })
+            foreach (double yawDeg in new[] { -30.0, 0, 30 })
+            {
+                int rulePosition = at.Item1 < 0 ? 0 : 1;
+                var stamp = t0.AddTicks(k * 11000000L);
+                var fr = Frame(bedroom, at, yawDeg, stamp, mono + k * 1100000L + ages[k % ages.Length], classes);
+                if (k == 2) { var failed = Frame(bedroom, at, yawDeg, stamp, mono, classes); failed.Completed = false; failed.Error = "synthetic failure"; s10.Add(rulePosition, failed); }
+                if (k == 4) { var untracked = Frame(bedroom, at, yawDeg, stamp, mono, classes); untracked.Tracked = false; s10.Add(rulePosition, untracked); }
+                s10.Add(rulePosition, fr);
+                k++;
+            }
+        ScanResult r10 = s10.Finish();
+        Check("six keyframes kept, one failed inference and one untracked frame left out", s10.Kept == 6 && s10.Failed == 2, s10.Kept + " kept, " + s10.Failed + " left out");
+        Check("the capture passes its check, numbered without gaps", r10.Error == null && r10.CaptureIssues.Count == 0, r10.Error ?? Codes(r10.CaptureIssues));
+        Check("its clock: 100 ns ticks, offset set at the first keyframe", r10.Capture != null && r10.Capture["clock"]["sdk_unit"].Text == "100ns");
+        Check("the scene passes the contract (scene v3) with the bedroom's map", r10.Ok, Codes(r10.SceneIssues));
+        var objs10 = r10.Scene == null ? new List<JNode>() : r10.Scene["objects"].Items;
+        Check("both chairs placed from two positions within 0.15 m", objs10.Count(x => Cat(x) == "chair" && Status(x) == "multi_position" && Known(x) && Nearest(x, bedroom) <= 0.15) == 2,
+              string.Join("; ", objs10.Select(x => Cat(x) + " " + Status(x) + (Known(x) ? " " + Nearest(x, bedroom).ToString("0.00", CultureInfo.InvariantCulture) : ""))));
+        var kf = r10.Facts["keyframes"].Items.Where(x => x["kept"].Bool).ToList();
+        Check("each kept keyframe's frame age is kept as a fact, the first zero", kf.Count == 6 && kf[0]["frame_age_us"].Num == 0
+              && kf.Skip(1).All(x => Math.Abs(x["frame_age_us"].Num) < 100000), string.Join(",", kf.Select(x => x["frame_age_us"].Text)));
+        var s11 = fresh("scan.synthetic.s11");
+        s11.Add(0, Frame(bedroom, (-1.2, 0.0), 0, t0, mono, classes));
+        var reset = Frame(bedroom, (-1.2, 0.0), 30, t0.AddSeconds(1), mono + 1000000, classes); reset.TrackingEpoch = 1;
+        s11.Add(0, reset);
+        Check("a tracking reset mid-scan ends the scan with an error", s11.Error != null && s11.Finish().Error != null, s11.Error ?? "");
+        var s12 = fresh("scan.synthetic.s12");
+        s12.Add(0, Frame(bedroom, (-1.2, 0.0), 0, t0, mono, classes));
+        var other = Frame(bedroom, (-1.2, 0.0), 30, t0, mono + 1000000, classes); other.RawStamp = 123456789L;
+        s12.Add(0, other);
+        Check("a timestamp that changes kind mid-scan ends the scan", s12.Error != null && s12.Error.Contains("changed kind"), s12.Error ?? "");
+        var s13 = new ScanSession("scan.synthetic.s13", folder, Manifest, new string('0', 63) + "1", "synthetic");
+        s13.Add(0, Frame(bedroom, (-1.2, 0.0), 0, t0, mono, classes));
+        Check("no intrinsics read before the first keyframe ends the scan", s13.Error != null && s13.Error.Contains("intrinsics"), s13.Error ?? "");
+        Directory.Delete(pfDir, true);
 
         Console.WriteLine(pass + " passed, " + fail + " failed");
         return fail == 0 ? 0 : 1;
