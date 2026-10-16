@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "scan-config.v1.json",
+  "title": "Second Eyes automatic scan settings, format v1",
+  "description": "When the automatic scan takes a keyframe (A4; docs/scan.md). Engineering defaults, not tuned values; any change is a new config_id.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "record_type",
+    "config_id",
+    "description",
+    "step_deg",
+    "step_margin_deg",
+    "steady_s",
+    "steady_deg",
+    "steady_m",
+    "new_position_m",
+    "max_keyframes_per_position",
+    "max_positions"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "record_type": {
+      "const": "scan_config"
+    },
+    "config_id": {
+      "$ref": "#/$defs/id"
+    },
+    "description": {
+      "$ref": "#/$defs/text"
+    },
+    "step_deg": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 180
+    },
+    "step_margin_deg": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 90
+    },
+    "steady_s": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 10
+    },
+    "steady_deg": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 45
+    },
+    "steady_m": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 1
+    },
+    "new_position_m": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 10
+    },
+    "max_keyframes_per_position": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 72
+    },
+    "max_positions": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 20
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_.-]{0,127}(?![\\s\\S])",
+      "description": "Lower-case identifier: letters, digits, '_', '.', '-'; starts with a letter or digit."
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

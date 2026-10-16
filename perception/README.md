@@ -12,3 +12,5 @@ are a Unity-free C# library in `quest-app/Assets/SecondEyes/Perception/Frames/` 
 
 From A4 on, `localization/` holds the localization's default configuration; the core itself is in the app
 (`quest-app/Assets/SecondEyes/Perception/Localization/`), and `docs/localization.md` describes it.
+
+`scan/` holds the automatic scan's default settings (`docs/scan.md`).

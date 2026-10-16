@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "record_type": "scan_config",
+  "config_id": "scan.default.v1",
+  "description": "A4's first defaults, set by reasoning, not tuned: change them only as a new config_id, after a trial shows a need",
+  "step_deg": 30,
+  "step_margin_deg": 5,
+  "steady_s": 0.5,
+  "steady_deg": 3,
+  "steady_m": 0.05,
+  "new_position_m": 1.0,
+  "max_keyframes_per_position": 12,
+  "max_positions": 4
+}

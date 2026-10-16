@@ -24,3 +24,4 @@ File formats that every component follows, kept in one place so the headset app 
 | `grounding-result.v2.json` | a resolution run in format 2: format 1 with the perceived profile and `uncertain_association` (`docs/resolution.md`) | A4 |
 | `size-priors.v1.json` | the measured sizes a scan's localization uses (`docs/localization.md`) | A4 |
 | `localization-config.v1.json` | the localization's thresholds (`docs/localization.md`) | A4 |
+| `scan-config.v1.json` | the automatic scan's settings (`docs/scan.md`) | A4 |
