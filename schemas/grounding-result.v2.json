@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "grounding-result.v2.json",
   "title": "Resolution run v2 (A2.1e, D71)",
-  "description": "Format 2 of the resolution run record (A4): format 1 with the perceived evidence profile of scene v3 added wherever format 1 lists the profiles. It also adds the detail code uncertain_association (the association guard, docs/resolution.md). Format 1 stays the format of every non-perceived scene; a test keeps the two identical elsewhere (grounding/tests/test_resolution_v2.py).",
+  "description": "Format 2 of the resolution run record (A4): format 1 for perceived scenes only, with the evidence profile fixed to perceived wherever format 1 names one. It also adds the detail code uncertain_association (the association guard, docs/resolution.md). A query is checked against format 2 only when it says format 2 and perceived; every other query and record stays format 1, exactly as before. A test keeps the two formats identical elsewhere (grounding/tests/test_resolution_v2.py).",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -307,11 +307,7 @@
           "minimum": 0
         },
         "evidence_profile": {
-          "enum": [
-            "annotated",
-            "restricted",
-            "perceived"
-          ]
+          "const": "perceived"
         },
         "status": {
           "enum": [
@@ -552,11 +548,7 @@
                   "minimum": 0
                 },
                 "evidence_profile": {
-                  "enum": [
-                    "annotated",
-                    "restricted",
-                    "perceived"
-                  ]
+                  "const": "perceived"
                 },
                 "command_id": {
                   "$ref": "#/$defs/id"

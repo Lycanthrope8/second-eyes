@@ -49,11 +49,11 @@ def strip(s, result):
 
     def walk(n):
         if isinstance(n, dict):
-            for k, v in n.items():
-                if k == "enum" and v in (["annotated", "restricted"], ["annotated", "restricted", "perceived"]):
-                    n[k] = ["annotated", "restricted"]
-                else:
-                    walk(v)
+            if n.get("const") == "perceived":   # format 2 fixes the profile where format 1 lists the profiles
+                n.pop("const")
+                n["enum"] = ["annotated", "restricted"]
+            for v in n.values():
+                walk(v)
         elif isinstance(n, list):
             for v in n:
                 walk(v)
@@ -67,7 +67,7 @@ def main() -> int:
     print("Format 2 is format 1 except where documented")
     for name, result in (("grounding-query", False), ("grounding-result", True)):
         v1, v2 = load(REPO / "schemas" / f"{name}.v1.json"), load(REPO / "schemas" / f"{name}.v2.json")
-        check(f"{name}.v2.json equals v1 apart from its version, the perceived profile"
+        check(f"{name}.v2.json equals v1 apart from its version, the profile fixed to perceived"
               + (" and the uncertain_association code" if result else ""), strip(v1, result) == strip(v2, result))
 
     scene = load(FX / "contract" / "valid" / "scene.bedroom.perceived_v3.json")
@@ -87,6 +87,11 @@ def main() -> int:
     issues, _ = RV.check_query(dict(q2, schema_version=1))
     check("the same query labelled format 1 fails: format 1 doesn't take the perceived profile",
           [i["code"] for i in issues] == ["E_QUERY_SCHEMA"], str([i["code"] for i in issues]))
+    a17_q2 = dict(L.query(interp, a17, a17_command), schema_version=2)
+    issues, _ = RV.check_query(a17_q2)
+    check("a format-2 query on an annotated scene is read as format 1 and rejected at $.schema_version, as A2.7 expects",
+          [(i["code"], i["path"]) for i in issues] == [("E_QUERY_SCHEMA", "$.schema_version")],
+          str([(i["code"], i["path"]) for i in issues]))
     issues, _ = RV.check_query(dict(q2, schema_version=2.0))
     check("a non-integer 2 is read as format 1, as before", {i["code"] for i in issues} == {"E_QUERY_SCHEMA"},
           str([i["code"] for i in issues]))

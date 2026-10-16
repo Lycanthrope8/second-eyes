@@ -350,11 +350,13 @@ A perceived scene (scene v3, `scene-contract.md`) is resolved by the same resolv
 for any other scene.
 
 **Format 2 of the query and the result** (`schemas/grounding-query.v2.json`, `schemas/grounding-result.v2.json`) is
-format 1 with the `perceived` profile added wherever format 1 lists the profiles, and, in the result, the detail code
-`uncertain_association`. `language.query` (and its C# twin in `CheckerCore.cs`) gives a perceived scene a format-2
-query; `check_query` (and `ResolverValidation.QuerySchemaFile`) checks a query against format 2 only when its
-`schema_version` is the integer 2; and a valid format-2 query gets a format-2 run record, checked against format 2.
-Every other query and record is format 1, byte for byte as before, and the A2 evaluation tools keep reading format 1. On
+format 1 for perceived scenes only: the evidence profile is fixed to `perceived` wherever format 1 names one, and the
+result adds the detail code `uncertain_association`. `language.query` (and its C# twin in `CheckerCore.cs`) gives a
+perceived scene a format-2 query; `check_query` (and `ResolverValidation.QuerySchemaFile`) checks a query against
+format 2 only when its `schema_version` is the integer 2 **and** its profile is `perceived`; and a valid format-2 query
+gets a format-2 run record, checked against format 2. Every other query, a format-2 query on another profile included,
+is checked against format 1 exactly as before: A2.7's validation corpus holds one, a version-2 query on an IRef scene,
+rejected at `$.schema_version`. The A2 evaluation tools keep reading format 1. On
 the headset, the format-2 schemas come from the perception folder; A2.7's parser folder stays as accepted.
 
 **The association guard** (`grounding/resolution/association.py`; C# `AssociationGuard.cs`) runs after the resolver on

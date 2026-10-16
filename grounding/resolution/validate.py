@@ -196,7 +196,8 @@ def _check_graph(label, i, interp, out):
 def check_query(query):
     """Issues for the query, and its normalized form when there are none."""
     label = "query"
-    v2 = isinstance(query, dict) and type(query.get("schema_version")) is int and query["schema_version"] == 2   # A4
+    v2 = (isinstance(query, dict) and type(query.get("schema_version")) is int and query["schema_version"] == 2
+          and query.get("evidence_profile") == "perceived")   # A4: format 2 is for perceived scenes only
     out = _schema_issues(label, query, "grounding-query.v2.json" if v2 else "grounding-query.v1.json", "E_QUERY_SCHEMA")
     if out:
         return out, None

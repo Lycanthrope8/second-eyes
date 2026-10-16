@@ -150,6 +150,12 @@ static class Program
         }
         JNode relabelled = JParse.Parse(File.ReadAllText(Path.Combine(av, "query.farthest.json")).Replace("\"schema_version\": 2", "\"schema_version\": 1"));
         List<NormInterpretation> norm;
+        JNode annotated2 = JParse.Parse(File.ReadAllText(Path.Combine(av, "query.farthest.json")).Replace("\"perceived\"", "\"annotated\""));
+        var a2Issues = ResolverValidation.CheckQuery(annotated2, setup.Schemas(ResolverValidation.QuerySchemaFile(annotated2)), out norm);
+        Check("a format-2 query on an annotated scene is checked against format 1 and rejected at $.schema_version, as A2.7 expects",
+              ResolverValidation.QuerySchemaFile(annotated2) == "grounding-query.v1.json" && a2Issues.Count == 1
+              && a2Issues[0].Code == "E_QUERY_SCHEMA" && a2Issues[0].Path == "$.schema_version",
+              string.Join(", ", a2Issues.Select(i => i.Code + " " + i.Path)));
         Check("the same query labelled format 1 fails format 1's schema",
               ResolverValidation.CheckQuery(relabelled, setup.Schemas(ResolverValidation.QuerySchemaFile(relabelled)), out norm).Count > 0);
 

@@ -56,12 +56,15 @@ namespace SecondEyes.Grounding.Resolution
         }
 
         /// <summary>Every ID and label as a full-string match; the key is the nearest field name on the path.</summary>
-        /// <summary>The query's schema, as validate.py's check_query: format 2 only for an integer schema_version 2 (A4);
-        /// every other query is checked against format 1, as before.</summary>
+        /// <summary>The query's schema, as validate.py's check_query: format 2 only for an integer schema_version 2 with the
+        /// perceived profile (A4); every other query, a format-2 query on another profile included, is checked against
+        /// format 1, exactly as before.</summary>
         public static string QuerySchemaFile(JNode query)
         {
             JNode v = query != null && query.Kind == JKind.Object ? query["schema_version"] : JNode.Null;
-            return v.Kind == JKind.Number && v.IsInteger && v.Num == 2 ? "grounding-query.v2.json" : "grounding-query.v1.json";
+            JNode p = query != null && query.Kind == JKind.Object ? query["evidence_profile"] : JNode.Null;
+            return v.Kind == JKind.Number && v.IsInteger && v.Num == 2 && p.Kind == JKind.String && p.Text == "perceived"
+                ? "grounding-query.v2.json" : "grounding-query.v1.json";
         }
 
         public static void FullMatches(string label, JNode value, string path, string key, string code, List<Issue> out_)
