@@ -93,7 +93,7 @@ namespace SecondEyes.Perception.Capture
         }
 
         /// <summary>An SDK value in microseconds, rounded down (values are non-negative, by the schema).</summary>
-        private static long Microseconds(long value, string unit)
+        public static long Microseconds(long value, string unit)
         {
             switch (unit)
             {

@@ -34,6 +34,15 @@ Images of a room can be private: saving is off by default, and saved images stay
 Without them, a rerun on the PC repeats the localization from the recorded detections and poses only: it can't rerun the
 detector or check the original pixels.
 
+## Building one
+
+`quest-app/Assets/SecondEyes/Perception/Capture/CaptureBuilder.cs`, Unity-free, builds the record keyframe by keyframe, so
+the headset and the PC's checks build records the same way. It copies the detector block from the package's manifest,
+never restating it, and refuses a package whose boxes are anything but source pixels, not clipped. Each keyframe's
+`headset_mono_us` is derived from its SDK timestamp and the scan's one clock offset, so the clock rule below holds by
+construction. `tools/csharp-tests/Contract` rebuilds the valid fixture from its own values and gets it back, value for
+value, with the detector block from the real manifest.
+
 ## Rules
 
 The check runs in layers, each only if the one before it passed: the record type and version, the JSON Schema, finite

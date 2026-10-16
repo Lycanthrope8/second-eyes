@@ -1,7 +1,7 @@
 // The localization core's checks (A4 Delivery 1, stage 2; docs/localization.md) on synthetic scans with exact ground truth:
 // boxes placed in a scene, a camera at chosen positions and yaws, each box projected into every view as the detector would
-// report it (clipped at the image's edge), and the whole written as a capture record that must itself pass the capture
-// check. Every scene the core writes must pass the contract (scene v3) with its category map. Expectations come from the
+// report it (clipped at the image's edge), and the whole built by CaptureBuilder, as the headset builds it, into a capture
+// record that must itself pass the capture check. Every scene the core writes must pass the contract (scene v3) with its category map. Expectations come from the
 // geometry (docs/localization.md explains the tolerances), never from the code under test.
 // Run: dotnet run --project tools/csharp-tests/Localization -- grounding/tests/fixtures schemas
 using System;
@@ -45,10 +45,15 @@ static class Program
     static Box Table(double x, double y) { return new Box { Label = "dining table", Category = "table", Centre = new Vec3(x, y, 0.37), Size = new Vec3(1.2, 0.6, 0.74) }; }
     static Box Bed(double x, double y) { return new Box { Label = "bed", Category = "bed", Centre = new Vec3(x, y, 0.3), Size = new Vec3(1.4, 2.0, 0.6) }; }
 
-    /// <summary>A capture of the boxes from each position (scene x, y) at each yaw (degrees, positive to the right).</summary>
-    static JNode Scan(List<Box> boxes, (double x, double y)[] positions, double[] yaws, bool reverse = false, List<JNode> extra = null)
+    static JNode Manifest;   // the detector package's manifest, as the headset reads it
+
+    /// <summary>A capture of the boxes from each position (scene x, y) at each yaw (degrees, positive to the right), built
+    /// through CaptureBuilder exactly as the headset will build one.</summary>
+    static JNode Scan(List<Box> boxes, (double x, double y)[] positions, double[] yaws, bool reverse = false, List<CaptureDetection> extra = null)
     {
-        var frames = new List<JNode>();
+        var builder = new CaptureBuilder("scan.synthetic",
+            new CaptureCamera { CameraId = "quest_left", WidthPx = W, HeightPx = H, Fx = F, Fy = F, Cx = Cx, Cy = Cy, IntrinsicsSource = "synthetic", Distortion = "none" },
+            "synthetic", Manifest, new string('0', 63) + "1", new string('b', 64), "map.bedroom", "sizes.bedroom", "ns", 5000, 30);
         long mono = 1200000000;
         int index = 0;
         for (int p = 0; p < positions.Length; p++)
@@ -58,7 +63,7 @@ static class Program
                 var pu = new Vec3(positions[p].x, Height, positions[p].y);   // Unity: x right, y up, z forward
                 var qu = new Quat(0, Math.Sin(yaw / 2), 0, Math.Cos(yaw / 2));
                 RigidTransform toCamera = UnityBasis.CameraToScene("quest_left", 0, pu, qu).Inverse();
-                var dets = new List<JNode>();
+                var dets = new List<CaptureDetection>();
                 foreach (Box b in boxes)
                 {
                     double u0 = double.MaxValue, v0 = double.MaxValue, u1 = double.MinValue, v1 = double.MinValue;
@@ -75,28 +80,15 @@ static class Program
                     if (!front) continue;
                     double x1 = Math.Max(0, u0 + 0.5), y1 = Math.Max(0, v0 + 0.5), x2 = Math.Min(W, u1 + 0.5), y2 = Math.Min(H, v1 + 0.5);
                     if (x2 - x1 < 2 || y2 - y1 < 2) continue;   // not on the image
-                    dets.Add(O("label", S(b.Label), "score", R(0.9), "box_px", A(R(x1), R(y1), R(x2), R(y2))));
+                    dets.Add(new CaptureDetection { Label = b.Label, Score = 0.9, X1 = x1, Y1 = y1, X2 = x2, Y2 = y2 });
                 }
                 if (extra != null && index == 0) dets.AddRange(extra);
                 if (reverse) dets.Reverse();
-                frames.Add(O("index", I(index), "frame_id", S("kf-" + index.ToString("D4", CultureInfo.InvariantCulture)), "position_index", I(p),
-                             "step_index", I(s), "capture_time", O("sdk_value", I((mono - 5000) * 1000), "headset_mono_us", I(mono)),
-                             "tracking", O("epoch", I(0), "state", S("tracked")),
-                             "camera_pose", O("translation_m", A(R(pu.X), R(pu.Y), R(pu.Z)), "rotation_xyzw", A(R(qu.X), R(qu.Y), R(qu.Z), R(qu.W))),
-                             "detections", JNode.Arr(dets), "image", O("state", S("not_saved"))));
+                builder.Add(p, s, (mono - 5000) * 1000, 0, true, new[] { pu.X, pu.Y, pu.Z }, new[] { qu.X, qu.Y, qu.Z, qu.W }, dets);
                 mono += 1100000;
                 index++;
             }
-        return O("schema_version", I(1), "record_type", S("capture"), "capture_id", S("scan.synthetic"),
-                 "camera", O("camera_id", S("quest_left"), "width_px", I(W), "height_px", I(H),
-                             "intrinsics", O("fx", R(F), "fy", R(F), "cx", R(Cx), "cy", R(Cy), "source", S("synthetic")), "distortion", S("none")),
-                 "app", O("build", S("synthetic")),
-                 "detector", O("package_id", S("yolox_nano_coco.se1"), "package_sha256", S(new string('0', 63) + "1"), "input_px", I(416),
-                               "letterbox", S("top_left"), "score_threshold", R(0.3), "nms", S("class_agnostic_greedy"), "nms_iou_threshold", R(0.45),
-                               "boxes", S("source_pixels_unclipped")),
-                 "configuration", O("perception_folder_sha256", S(new string('b', 64)), "category_map_id", S("map.bedroom"), "size_priors_id", S("sizes.bedroom")),
-                 "clock", O("sdk_unit", S("ns"), "offset_us", I(5000)), "tracking_frame", S("quest_tracking"),
-                 "camera_pose_convention", S("unity_camera_to_quest_tracking"), "nominal_step_deg", R(30), "keyframes", JNode.Arr(frames));
+        return builder.Build();
     }
 
     static Vec3 Centre(JNode obj) { var v = obj["geometry"]["center_m"]["value"].Items; return new Vec3(v[0].Num, v[1].Num, v[2].Num); }
@@ -112,6 +104,7 @@ static class Program
         Func<string, Schema> schema = n => { if (!cache.ContainsKey(n)) cache[n] = new Schema(JParse.Parse(File.ReadAllText(Path.Combine(schemasDir, n)))); return cache[n]; };
         Func<string, JNode> load = p => JParse.Parse(File.ReadAllText(p));
         var contract = new Contract(schema);
+        Manifest = load(Path.Combine("quest-app", "Assets", "SecondEyes", "Models", "yolox-nano", "detector-package.json"));
         JNode map = load(Path.Combine(fixtures, "contract", "valid", "category-map.bedroom.json"));
         JNode priors = load(Path.Combine(fixtures, "localization", "size-priors.test.json"));
         JNode config = load(Path.Combine("perception", "localization", "localization.default.v1.json"));
@@ -186,8 +179,8 @@ static class Program
         Check("the scene is identical, text for text", PyJson.Canonical(o6.Scene) == PyJson.Canonical(o1.Scene));
 
         Console.WriteLine("7. Unmapped labels and low scores are left out and counted");
-        var noise = new List<JNode> { O("label", S("person"), "score", R(0.95), "box_px", A(R(100), R(100), R(300), R(700))),
-                                      O("label", S("chair"), "score", R(0.2), "box_px", A(R(900), R(300), R(1000), R(500))) };
+        var noise = new List<CaptureDetection> { new CaptureDetection { Label = "person", Score = 0.95, X1 = 100, Y1 = 100, X2 = 300, Y2 = 700 },
+                                                 new CaptureDetection { Label = "chair", Score = 0.2, X1 = 900, Y1 = 300, X2 = 1000, Y2 = 500 } };
         var o7 = run(Scan(room, twoPlaces, sweep, extra: noise), priors, "with a person and a weak chair");
         Check("the person is counted as unmapped and the weak chair as below min_score",
               o7.Trace["left_out"]["unmapped_label"].Num == 1 && o7.Trace["left_out"]["below_min_score"].Num == 1);
@@ -197,6 +190,34 @@ static class Program
         JNode fx = load(Path.Combine(fixtures, "capture", "valid", "capture.bedroom.json"));
         var o8 = run(fx, priors, "capture fixture");
         Check("it yields objects", o8.Scene["objects"].Items.Count > 0);
+
+        Console.WriteLine("9. The bedroom's two chairs, 88 and 115 cm tall, with both sizes in the priors");
+        JNode bedroomPriors = load(Path.Combine("perception", "bedroom", "size-priors.bedroom.v1.json"));
+        JNode bedroomMap = load(Path.Combine("perception", "bedroom", "category-map.bedroom.v1.json"));
+        var pe = schema("size-priors.v1.json").Errors(bedroomPriors);
+        Check("the bedroom's size priors pass their schema", pe.Count == 0, string.Join(", ", pe.Select(e => e.Keyword + " " + e.Path)));
+        var me = contract.Validate(new List<KeyValuePair<string, JNode>> { new KeyValuePair<string, JNode>("map", bedroomMap) });
+        Check("the bedroom's category map passes the contract", !me.Any(i => i.IsError), string.Join(", ", me.Select(i => i.Code + " " + i.Path)));
+        var chairs2 = new List<Box> { new Box { Label = "chair", Category = "chair", Centre = new Vec3(-0.6, 3.0, 0.44), Size = new Vec3(0.55, 0.45, 0.88) },
+                                      new Box { Label = "chair", Category = "chair", Centre = new Vec3(0.7, 3.2, 0.575), Size = new Vec3(0.55, 0.45, 1.15) } };
+        JNode realMap = map;
+        map = bedroomMap;
+        var o9 = run(Scan(chairs2, new[] { (-1.2, 0.0), (1.2, 0.2) }, new[] { -30.0, 0, 30 }), bedroomPriors, "two chairs from two positions");
+        var c9 = o9.Scene["objects"].Items;
+        Check("both chairs, each from both positions, within 0.15 m", c9.Count == 2 && c9.All(x => Status(x) == "multi_position" && Known(x) && Nearest(x, chairs2) <= 0.15),
+              string.Join("; ", c9.Select(x => Status(x) + (Known(x) ? " " + Nearest(x, chairs2).ToString("0.00", CultureInfo.InvariantCulture) : ""))));
+        Check("neither claims a size: the priors hold two chair sizes", c9.All(x => x["geometry"]["size_m"]["state"].Text == "unknown"
+              && x["geometry"]["size_m"]["reason"].Text == "no_permitted_prior"));
+        var o10 = run(Scan(chairs2, new[] { (0.0, 0.0) }, new[] { -30.0, 0, 30 }), bedroomPriors, "two chairs from one position");
+        var c10 = o10.Scene["objects"].Items;
+        foreach (JNode x in c10.Where(Known))
+        {
+            double dist = (Centre(x) - new Vec3(0, 0, Height)).Norm, err = Nearest(x, chairs2);
+            Check("from one position, each chair's centre comes from both sizes, within a quarter of its distance (" + err.ToString("0.00", CultureInfo.InvariantCulture) + " m at "
+                  + dist.ToString("0.0", CultureInfo.InvariantCulture) + " m)", Status(x) == "single_position" && err <= 0.25 * dist);
+        }
+        Check("two chairs placed from one position", c10.Count == 2 && c10.All(Known));
+        map = realMap;
 
         Console.WriteLine(pass + " passed, " + fail + " failed");
         return fail == 0 ? 0 : 1;

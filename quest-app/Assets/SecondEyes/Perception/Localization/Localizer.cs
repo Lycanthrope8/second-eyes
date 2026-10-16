@@ -40,7 +40,8 @@ namespace SecondEyes.Perception.Localization
     /// 2. an upright object with a size prior gets a distance interval: at each candidate distance along its ray, the
     ///    prior-sized box is projected through the actual camera pose (its height and tilt included), and the distance is
     ///    solved where the projected height meets the observed one, at six yaws since the object's yaw is unknown; the
-    ///    interval is tight for a chair-like box and wide for a long, low one (the size_prior and upright assumptions);
+    ///    interval is tight for a chair-like box and wide for a long, low one; a category with several sizes gets the union
+    ///    of their intervals, and no size of its own in the scene (the size_prior and upright assumptions);
     /// 3. at each standing position, rays of one category within same_position_angle_deg and with agreeing distances merge
     ///    into one sighting: turning in place adds no baseline;
     /// 4. position by position, sightings join tracks by minimum-cost assignment, a link valid only if the rays pass within
@@ -68,8 +69,12 @@ namespace SecondEyes.Perception.Localization
             var cfg = LocalizationConfig.From(config);
             var map = new Dictionary<string, KeyValuePair<string, string>>(StringComparer.Ordinal);
             foreach (JNode e in categoryMap["entries"].Items) map[e["source_label"].Text] = new KeyValuePair<string, string>(e["standard"].Text, e["model"].Text);
-            var priors = new Dictionary<string, JNode>(StringComparer.Ordinal);
-            foreach (JNode e in sizePriors["entries"].Items) priors[e["category"].Text] = e;
+            var priors = new Dictionary<string, List<JNode>>(StringComparer.Ordinal);   // a category may have several sizes
+            foreach (JNode e in sizePriors["entries"].Items)
+            {
+                if (!priors.ContainsKey(e["category"].Text)) priors[e["category"].Text] = new List<JNode>();
+                priors[e["category"].Text].Add(e);
+            }
             JNode cam = capture["camera"], intr = cam["intrinsics"];
             double width = cam["width_px"].Num, height = cam["height_px"].Num;
             var pin = new PinholeCamera((int)width, (int)height, intr["fx"].Num, intr["fy"].Num, intr["cx"].Num, intr["cy"].Num);
@@ -95,13 +100,19 @@ namespace SecondEyes.Perception.Localization
                     Vec3 rayCam = pin.Ray((x1 + x2) / 2.0 - 0.5, (y1 + y2) / 2.0 - 0.5);   // continuous source pixels to OpenCV's
                     var category = map[d["label"].Text];
                     double? lo = null, hi = null;
-                    JNode prior;
+                    List<JNode> sizes;
                     Vec3 dir = t.ApplyToDirection(rayCam).Normalized();
-                    if (priors.TryGetValue(category.Key, out prior) && prior["upright"].Bool)
-                    {
-                        List<JNode> sz = prior["size_m"].Items;
-                        Interval(t, pin, dir, new Vec3(sz[0].Num, sz[1].Num, sz[2].Num), y2 - y1, cfg.MaxRangeM, out lo, out hi);
-                    }
+                    if (priors.TryGetValue(category.Key, out sizes))
+                        foreach (JNode prior in sizes)   // several sizes: the union of their intervals
+                        {
+                            if (!prior["upright"].Bool) continue;
+                            List<JNode> sz = prior["size_m"].Items;
+                            double? l, h;
+                            Interval(t, pin, dir, new Vec3(sz[0].Num, sz[1].Num, sz[2].Num), y2 - y1, cfg.MaxRangeM, out l, out h);
+                            if (!l.HasValue) continue;
+                            lo = lo.HasValue ? Math.Min(lo.Value, l.Value) : l;
+                            hi = hi.HasValue ? Math.Max(hi.Value, h.Value) : h;
+                        }
                     obs.Add(new Obs { Keyframe = (int)k["index"].Num, Position = (int)k["position_index"].Num, X1 = x1, Y1 = y1, Label = d["label"].Text,
                                       Standard = category.Key, Model = category.Value, Origin = t.T, Dir = dir,
                                       Lo = lo, Hi = hi, Score = d["score"].Num, TimeUs = (long)k["capture_time"]["headset_mono_us"].Num });
@@ -184,8 +195,8 @@ namespace SecondEyes.Perception.Localization
             {
                 bool fromSize;
                 Vec3? c = Centre(t, out fromSize);
-                JNode prior;
-                bool hasPrior = priors.TryGetValue(t.Standard, out prior);
+                List<JNode> sizesFor;
+                bool oneSize = priors.TryGetValue(t.Standard, out sizesFor) && sizesFor.Count == 1;   // two sizes: neither is claimed
                 var members = t.Sightings.SelectMany(s => s.Members).ToList();
                 int positions = t.Sightings.Select(s => s.Position).Distinct().Count();
                 var dup = t.MayDuplicate.Select(x => ids[x]).OrderBy(x => x, StringComparer.Ordinal).ToList();
@@ -198,9 +209,9 @@ namespace SecondEyes.Perception.Localization
                     centre = Known(Vec(c.Value), "inferred", ScanSourceId, assume);
                 }
                 else centre = Unknown("not_estimated", ScanSourceId);
-                JNode size = hasPrior ? Known(JNode.Arr(prior["size_m"].Items.Select(x => Num(x.Num)).ToList()), "assumed", priorsId, new List<JNode> { JNode.Str(SizeAssumption) })
-                                      : Unknown("no_permitted_prior", priorsId);
-                usedSize |= hasPrior;
+                JNode size = oneSize ? Known(JNode.Arr(sizesFor[0]["size_m"].Items.Select(x => Num(x.Num)).ToList()), "assumed", priorsId, new List<JNode> { JNode.Str(SizeAssumption) })
+                                     : Unknown("no_permitted_prior", priorsId);
+                usedSize |= oneSize;
                 objects.Add(JNode.Obj()
                     .Add("object_id", JNode.Str(ids[t.Id]))
                     .Add("source_ref", JNode.Obj().Add("source_id", JNode.Str(ScanSourceId)).Add("source_object_id", JNode.Str("track_" + t.Id.ToString(CultureInfo.InvariantCulture))).Add("source_label", JNode.Str(t.Label)))

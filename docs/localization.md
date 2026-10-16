@@ -25,7 +25,8 @@ map against the contract), notes when the capture used a different map or priors
    At each candidate distance, the prior-sized box is projected through the actual camera pose, the camera's height and
    tilt included, and the distance is solved where the projected height meets the observed one. The object's yaw is
    unknown, so this is solved at six yaws; the interval is tight for a chair-like box and wide for a long, low one such
-   as a bed.
+   as a bed. A category may have several sizes (the bedroom's two chairs, 88 and 115 cm tall): its interval is the union
+   of theirs.
 3. **Sightings.** At each standing position, rays of one category within `same_position_angle_deg` of each other whose
    intervals agree merge into one sighting. Turning in place adds no baseline, so these rays can't triangulate.
 4. **Tracks across positions.** Position by position, sightings join tracks by minimum-cost assignment (the Hungarian
@@ -51,7 +52,7 @@ to 0.1 mm, so the PC and the headset write the same text.
 | centre, from two or more positions | inferred, from the scan, with no assumption |
 | centre, from one position | inferred, from the scan, under the `size_prior` and `upright` assumptions |
 | centre, from one position without a size prior | unknown (`not_estimated`) |
-| size | assumed, from the size priors (`size_prior`); unknown without a prior |
+| size | assumed, from the size priors (`size_prior`), when the category has exactly one size; unknown (`no_permitted_prior`) without a prior, or with several, since no single size applies |
 | rotation, semantic front, colours, geometry uncertainty | unknown (`not_estimated`) |
 | capture time | measured: the latest keyframe that saw it, on the headset's monotonic clock |
 | detector confidence | inferred: its best detection score |
@@ -87,6 +88,11 @@ geometry: a box's image centre drifts from its 3D centre, more for large boxes, 
 6. Listing the detections in reverse changes nothing, text for text.
 7. Unmapped labels and low scores are left out and counted, and the scene is unchanged.
 8. The capture fixture runs end to end.
+9. The bedroom's two chairs, 88 and 115 cm tall, with both sizes in the priors: from two positions both are placed
+   within 0.15 m and neither claims a size; from one position each centre comes from both sizes, within a quarter of
+   its distance. The bedroom's size priors and category map pass their schema and the contract.
+
+Every synthetic scan is built by `CaptureBuilder`, as the headset builds one.
 
 Every scene must pass the contract (scene v3) with its category map, and every synthetic scan must pass the capture
 check. Disabling the distance test makes case 2 fail, which shows the cases bite.
@@ -101,3 +107,5 @@ check. Disabling the distance test makes case 2 fail, which shows the cases bite
 - A pose error large enough to break every link makes a second object from the same thing, not marked a possible
   duplicate: with no valid link there is no near-tie to mark. A usability check would show it.
 - The third-view split is a safety net that none of the synthetic scans triggers.
+- An object of a category with several sizes, seen from one position, gets a wider distance interval: its size can't
+  say which of the sizes it has. Scanning from a second position places it without sizes.

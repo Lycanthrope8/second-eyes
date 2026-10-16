@@ -54,6 +54,28 @@ static class Program
 
     static string Codes(IEnumerable<Issue> issues) { return string.Join(", ", issues.Select(i => i.Code + " " + i.Path).Take(4)); }
 
+    /// <summary>Where two JSON values first differ, comparing numbers by value and objects by key; null when the same.</summary>
+    static string Same(JNode a, JNode b, string path)
+    {
+        if (a.Kind != b.Kind) return path + ": " + a.Kind + " against " + b.Kind;
+        switch (a.Kind)
+        {
+            case JKind.Number: return a.Num == b.Num ? null : path + ": " + a.Text + " against " + b.Text;
+            case JKind.String: return a.Text == b.Text ? null : path + ": \"" + a.Text + "\" against \"" + b.Text + "\"";
+            case JKind.Array:
+                if (a.Items.Count != b.Items.Count) return path + ": " + a.Items.Count + " items against " + b.Items.Count;
+                for (int i = 0; i < a.Items.Count; i++) { string d = Same(a.Items[i], b.Items[i], path + "[" + i + "]"); if (d != null) return d; }
+                return null;
+            case JKind.Object:
+                var ka = a.Fields.Select(f => f.Key).OrderBy(x => x, StringComparer.Ordinal).ToList();
+                var kb = b.Fields.Select(f => f.Key).OrderBy(x => x, StringComparer.Ordinal).ToList();
+                if (!ka.SequenceEqual(kb)) return path + ": keys " + string.Join(",", ka) + " against " + string.Join(",", kb);
+                foreach (string k in ka) { string d = Same(a[k], b[k], path + "." + k); if (d != null) return d; }
+                return null;
+            default: return a.Kind == JKind.Bool && a.Bool != b.Bool ? path + ": " + a.Bool + " against " + b.Bool : null;
+        }
+    }
+
     static int Main(string[] args)
     {
         if (args.Length != 2) { Console.Error.WriteLine("usage: Contract <grounding/tests/fixtures> <schemas>"); return 2; }
@@ -180,6 +202,36 @@ static class Program
         bool emptyRefused;
         try { SecondEyes.Grounding.Interactive.TypedCommand.Build(baseCommand, "  ", "-t"); emptyRefused = false; } catch (ArgumentException) { emptyRefused = true; }
         Check("empty text is refused", emptyRefused);
+
+        Console.WriteLine("The capture builder");
+        JNode manifest = load(Path.Combine("quest-app", "Assets", "SecondEyes", "Models", "yolox-nano", "detector-package.json"));
+        JNode fixtureCapture = load(Path.Combine(fixtures, "capture", "valid", "capture.bedroom.json"));
+        var fc = fixtureCapture["camera"]; var fi = fc["intrinsics"]; var fconf = fixtureCapture["configuration"]; var fclock = fixtureCapture["clock"];
+        var builder = new SecondEyes.Perception.Capture.CaptureBuilder(fixtureCapture["capture_id"].Text,
+            new SecondEyes.Perception.Capture.CaptureCamera { CameraId = fc["camera_id"].Text, WidthPx = (int)fc["width_px"].Num, HeightPx = (int)fc["height_px"].Num,
+                Fx = fi["fx"].Num, Fy = fi["fy"].Num, Cx = fi["cx"].Num, Cy = fi["cy"].Num, IntrinsicsSource = fi["source"].Text, Distortion = fc["distortion"].Text },
+            fixtureCapture["app"]["build"].Text, manifest, fixtureCapture["detector"]["package_sha256"].Text, fconf["perception_folder_sha256"].Text,
+            fconf["category_map_id"].Text, fconf["size_priors_id"].Text, fclock["sdk_unit"].Text, (long)fclock["offset_us"].Num, fixtureCapture["nominal_step_deg"].Num);
+        foreach (JNode k in fixtureCapture["keyframes"].Items)
+        {
+            JNode img = k["image"];
+            builder.Add((int)k["position_index"].Num, (int)k["step_index"].Num, long.Parse(k["capture_time"]["sdk_value"].Text), (long)k["tracking"]["epoch"].Num,
+                k["tracking"]["state"].Text == "tracked", k["camera_pose"]["translation_m"].Items.Select(x => x.Num).ToArray(),
+                k["camera_pose"]["rotation_xyzw"].Items.Select(x => x.Num).ToArray(),
+                k["detections"].Items.Select(d => new SecondEyes.Perception.Capture.CaptureDetection { Label = d["label"].Text, Score = d["score"].Num,
+                    X1 = d["box_px"].Items[0].Num, Y1 = d["box_px"].Items[1].Num, X2 = d["box_px"].Items[2].Num, Y2 = d["box_px"].Items[3].Num }).ToList(),
+                img["state"].Text == "saved" ? img["file"].Text : null, img["state"].Text == "saved" ? img["sha256"].Text : null);
+        }
+        JNode rebuilt = builder.Build();
+        string where = Same(rebuilt, fixtureCapture, "$");
+        Check("rebuilt from its own values, the capture fixture comes out the same, value for value (detector block from the real manifest)", where == null, where ?? "");
+        var rebuiltIssues = SecondEyes.Perception.Capture.CaptureCheck.Check("rebuilt", rebuilt, schema(SecondEyes.Perception.Capture.CaptureCheck.SchemaFile));
+        Check("and passes the capture check", rebuiltIssues.Count == 0, Codes(rebuiltIssues));
+        JNode clipped = JParse.Parse(File.ReadAllText(Path.Combine("quest-app", "Assets", "SecondEyes", "Models", "yolox-nano", "detector-package.json")).Replace("not clipped", "clipped"));
+        bool refused = false;
+        try { new SecondEyes.Perception.Capture.CaptureBuilder("x", new SecondEyes.Perception.Capture.CaptureCamera(), "b", clipped, "", "", "", "", "ns", 0, 30); }
+        catch (ArgumentException) { refused = true; }
+        Check("a detector whose boxes are clipped is refused, not mislabelled", refused);
 
         Console.WriteLine(pass + " passed, " + fail + " failed, " + known + " known difference(s) reported");
         return fail == 0 ? 0 : 1;

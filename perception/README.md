@@ -14,3 +14,6 @@ From A4 on, `localization/` holds the localization's default configuration; the 
 (`quest-app/Assets/SecondEyes/Perception/Localization/`), and `docs/localization.md` describes it.
 
 `scan/` holds the automatic scan's default settings (`docs/scan.md`).
+
+`bedroom/` holds the category map and the size priors of the project lead's bedroom, for A4's usability check: the
+sizes are the project lead's measurements (16 October 2026); the dining table is left out, as it is in another room.
