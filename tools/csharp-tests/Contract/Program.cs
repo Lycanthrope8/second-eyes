@@ -153,6 +153,28 @@ static class Program
         Check("the same query labelled format 1 fails format 1's schema",
               ResolverValidation.CheckQuery(relabelled, setup.Schemas(ResolverValidation.QuerySchemaFile(relabelled)), out norm).Count > 0);
 
+        Console.WriteLine("A typed command as a command record (item 1)");
+        JNode a17Scene = load(Path.Combine(fixtures, "contract", "valid", "scene.a17.annotated.json"));
+        JNode a17Map = load(Path.Combine(fixtures, "contract", "valid", "category-map.fx.json"));
+        string baseCommand = File.ReadAllText(Path.Combine(fixtures, "contract", "valid", "command.a17.c002.json"));
+        string typed = SecondEyes.Grounding.Interactive.TypedCommand.Build(baseCommand, "the box closest to the table", "-t20261016-120000-001");
+        JNode built = JParse.Parse(typed), baseNode = JParse.Parse(baseCommand);
+        Check("the typed text and its own ID replace the dataset command's", built["text"].Text == "the box closest to the table"
+              && built["command_id"].Text == baseNode["command_id"].Text + "-t20261016-120000-001");
+        Check("everything else is the dataset command's (scene, revision, pose, sources)",
+              built["scene_id"].Text == baseNode["scene_id"].Text && built["scene_revision"].Text == baseNode["scene_revision"].Text
+              && SecondEyes.Grounding.Parsing.PyJson.Canonical(built["user_pose"]) == SecondEyes.Grounding.Parsing.PyJson.Canonical(baseNode["user_pose"]));
+        var typedIssues = contract.Validate(new List<KeyValuePair<string, JNode>> {
+            new KeyValuePair<string, JNode>("scene", a17Scene), new KeyValuePair<string, JNode>("map", a17Map),
+            new KeyValuePair<string, JNode>("typed", built) });
+        Check("the built record passes the contract with its scene and map", typedIssues.Count == 0, Codes(typedIssues));
+        bool rawParses;
+        try { JParse.Parse("hello"); rawParses = true; } catch (Exception) { rawParses = false; }
+        Check("raw text, as the trial sent it, is not a record the session can read", !rawParses);
+        bool emptyRefused;
+        try { SecondEyes.Grounding.Interactive.TypedCommand.Build(baseCommand, "  ", "-t"); emptyRefused = false; } catch (ArgumentException) { emptyRefused = true; }
+        Check("empty text is refused", emptyRefused);
+
         Console.WriteLine(pass + " passed, " + fail + " failed, " + known + " known difference(s) reported");
         return fail == 0 ? 0 : 1;
     }

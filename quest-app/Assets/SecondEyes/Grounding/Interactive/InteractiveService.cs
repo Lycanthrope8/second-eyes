@@ -214,10 +214,24 @@ namespace SecondEyes.Grounding.Interactive
                                  Source = "typed", SceneEpoch = b.Epoch, Session = sessionStamp };
             t.Times.Intake = "typed";
             t.Times.Detected = pressed;
+            // The session reads CommandText as a command record (item 1): the scene's first dataset command carries the text,
+            // as the PC's inbox-send --text does; a scene without one is refused, as on the PC.
+            List<Preset> presets;
+            string record = Presets.TryGetValue(b.SnapshotId, out presets) && presets.Count > 0
+                ? TypedCommand.Build(presets[0].CommandText, commandText,
+                                     "-t" + sessionStamp + "-" + typedCount.ToString("D3", CultureInfo.InvariantCulture))
+                : null;
             t.Request = new InteractiveRequest { RequestId = t.RequestId, Source = "typed", SnapshotId = b.SnapshotId,
-                                                 SnapshotSha256 = b.SnapshotSha256, SceneText = b.SceneText, CommandText = commandText };
+                                                 SnapshotSha256 = b.SnapshotSha256, SceneText = b.SceneText, CommandText = record ?? "" };
             core.Claim(t.RequestId);
             t.Times.Validated = Now;
+            if (record == null)
+            {
+                t.Times.Outcome = Now;
+                Publish(t, SessionCore.Answer(t.RequestId, t.Source, "refused", "no_dataset_command",
+                                              "this scene has no dataset command to carry typed text"));
+                return t.RequestId;
+            }
             if (!core.Admit(t))
             {
                 t.Times.Outcome = Now;
