@@ -127,6 +127,100 @@ namespace SecondEyes.Perception
             }
         }
 
+        /// <summary>
+        /// A4 (stage 3): the capture timestamp as the camera component holds it (its raw value, or null when it has none),
+        /// with the camera's pose, read as TryGetCapture reads them, so a scan's capture record can state the number and
+        /// its unit.
+        /// </summary>
+        public bool TryGetCaptureRaw(out object stamp, out Pose pose)
+        {
+            stamp = null;
+            pose = default;
+            if (!IsDelivering) return false;
+            try
+            {
+                if (timestamp != null) stamp = timestamp.GetValue(cameraAccess);
+                if (cameraPose == null) return false;
+                pose = (Pose)cameraPose.Invoke(cameraAccess, null);
+                return true;
+            }
+            catch (System.Exception)
+            {
+                return false;
+            }
+        }
+
+        /// <summary>A4: which camera this is ("left" or "right"), as the component names it, or "unknown".</summary>
+        public string CameraName
+        {
+            get
+            {
+                object v = Member(cameraAccess, "CameraPosition") ?? Member(cameraAccess, "Eye") ?? Member(cameraAccess, "CameraEye");
+                return v == null ? "unknown" : v.ToString().ToLowerInvariant();
+            }
+        }
+
+        /// <summary>
+        /// A4: the camera's intrinsics as the component reports them, read by reflection since MRUK's names differ between
+        /// versions: the focal length and principal point in the sensor's pixels, the sensor's resolution, and what was read
+        /// from where. False when no intrinsics are found; the scan then stops, rather than guess them.
+        /// </summary>
+        public bool TryGetIntrinsics(out double fx, out double fy, out double cx, out double cy, out int sensorW, out int sensorH, out string read)
+        {
+            fx = fy = cx = cy = 0; sensorW = sensorH = 0; read = "none";
+            if (cameraAccess == null) return false;
+            try
+            {
+                object intr = Member(cameraAccess, "Intrinsics") ?? Member(cameraAccess, "CameraIntrinsics");
+                string from = "Intrinsics";
+                if (intr == null)
+                {
+                    foreach (string name in new[] { "GetCameraIntrinsics", "GetIntrinsics" })
+                    {
+                        MethodInfo m = cameraAccess.GetType().GetMethod(name, BindingFlags.Public | BindingFlags.Instance, null, System.Type.EmptyTypes, null);
+                        if (m != null) { intr = m.Invoke(cameraAccess, null); from = name + "()"; break; }
+                    }
+                }
+                if (intr == null) return false;
+                object focal = Member(intr, "FocalLength"), principal = Member(intr, "PrincipalPoint");
+                object res = Member(intr, "SensorResolution") ?? Member(intr, "Resolution");
+                if (!(focal is Vector2) || !(principal is Vector2)) return false;
+                Vector2 f = (Vector2)focal, p = (Vector2)principal;
+                fx = f.x; fy = f.y; cx = p.x; cy = p.y;
+                if (res is Vector2Int) { var r = (Vector2Int)res; sensorW = r.x; sensorH = r.y; }
+                else if (res is Vector2) { var r = (Vector2)res; sensorW = Mathf.RoundToInt(r.x); sensorH = Mathf.RoundToInt(r.y); }
+                read = from + " (" + intr.GetType().Name + "): FocalLength, PrincipalPoint" + (res != null ? ", " + (Member(intr, "SensorResolution") != null ? "SensorResolution" : "Resolution") : ", no resolution");
+                return sensorW > 0 && sensorH > 0;
+            }
+            catch (System.Exception e)
+            {
+                read = "failed: " + e.GetType().Name;
+                return false;
+            }
+        }
+
+        /// <summary>A4: the camera component's public properties and methods, names and types, for the scan's facts.</summary>
+        public string DescribeApi()
+        {
+            if (cameraAccess == null) return "no camera component";
+            var sb = new System.Text.StringBuilder(cameraAccess.GetType().FullName).Append(":");
+            foreach (PropertyInfo p in cameraAccess.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
+                sb.Append(' ').Append(p.Name).Append(':').Append(p.PropertyType.Name);
+            foreach (MethodInfo m in cameraAccess.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
+                if (!m.IsSpecialName) sb.Append(' ').Append(m.Name).Append("()");
+            return sb.ToString();
+        }
+
+        private static object Member(object o, string name)
+        {
+            if (o == null) return null;
+            System.Type t = o.GetType();
+            PropertyInfo p = t.GetProperty(name, BindingFlags.Public | BindingFlags.Instance);
+            if (p != null && p.GetIndexParameters().Length == 0) return p.GetValue(o);
+            FieldInfo f = t.GetField(name, BindingFlags.Public | BindingFlags.Instance);
+            return f != null ? f.GetValue(o) : null;
+        }
+
         private void Update()
         {
             bool granted = OVRPermissionsRequester.IsPermissionGranted(OVRPermissionsRequester.Permission.PassthroughCameraAccess);

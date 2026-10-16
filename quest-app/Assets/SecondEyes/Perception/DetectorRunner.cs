@@ -10,6 +10,8 @@ using Unity.InferenceEngine;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 
+using SecondEyes.Perception.Scan;
+
 namespace SecondEyes.Perception
 {
     /// <summary>
@@ -24,7 +26,7 @@ namespace SecondEyes.Perception
     /// </summary>
     public class DetectorRunner : MonoBehaviour
     {
-        public enum Mode { Scan, Sequential, Diagnostic, Profile, Burst, Continuous }
+        public enum Mode { Scan, Sequential, Diagnostic, Profile, Burst, Continuous, External }   // External: A4's scan asks for each keyframe
 
         [Header("Detector package (D84)")]
         [SerializeField] private ModelAsset model;
@@ -168,7 +170,8 @@ namespace SecondEyes.Perception
 
         private string OffLine() => "off | " + (useGpu ? "GPU" : "CPU") + " | " + ModeName(mode) + " | " + ChoiceName;
         private static string ModeName(Mode m) => m == Mode.Scan ? "scan" : m == Mode.Sequential ? "sequential"
-            : m == Mode.Diagnostic ? "diagnostic" : m == Mode.Profile ? "profile" : m == Mode.Burst ? "burst" : "continuous";
+            : m == Mode.Diagnostic ? "diagnostic" : m == Mode.Profile ? "profile" : m == Mode.Burst ? "burst"
+            : m == Mode.External ? "external" : "continuous";
         private static string StepsName(int s) => s <= 0 ? "whole network per frame" : s + " steps/frame";
 
         public void Toggle(string source) => SetOn(!wanted, source);
@@ -208,6 +211,83 @@ namespace SecondEyes.Perception
         }
 
         /// <summary>Cycles scan, burst and continuous; only while the detector is off.</summary>
+        /// <summary>A4 (stage 3): sets the mode, only while the detector is off, as CycleMode does.</summary>
+        public bool SetMode(Mode m, string source)
+        {
+            if (!Idle()) return false;
+            mode = m;
+            LogSetting(source);
+            return true;
+        }
+
+        public Mode CurrentMode => mode;
+        /// <summary>A4: on, in the mode that takes keyframes on request, with the detector loaded and camera frames coming.</summary>
+        public bool ReadyForScan => wanted && mode == Mode.External && detector != null && CameraTexture() != null;
+        public PassthroughFrameSource FrameSource => frameSource;
+        public string ManifestText => packageManifest != null ? packageManifest.text : null;
+        public byte[] ManifestBytes => packageManifest != null ? packageManifest.bytes : null;
+
+        /// <summary>
+        /// A4 (stage 3): one keyframe for the automatic scan, outside this runner's own modes: the camera's current frame,
+        /// copied with its timestamp and pose, detected, logged as every keyframe is, and handed to done. False when an
+        /// inference is running, the runner is off, or no frame or detector is ready.
+        /// </summary>
+        public bool RunScanKeyframe(bool snapshot, Action<ScanFrame> done)
+        {
+            var texture = CameraTexture();
+            if (!wanted || inFlight || texture == null || detector == null) return false;
+            inFlight = true;
+            keyframes++;
+            if (snapshot) snapshotRequested = true;
+            keyHandle = StartCoroutine(Guarded(ScanKeyframe(texture, keyframes, done), keyStack));
+            return true;
+        }
+
+        private IEnumerator ScanKeyframe(Texture texture, int index, Action<ScanFrame> done)
+        {
+            var frame = new ScanFrame();
+            try
+            {
+                var info = new KeyInfo { Keyframe = index, RequestedUtc = UtcUs };
+                object raw = null;
+                if (frameSource != null)
+                {
+                    info.HasPose = frameSource.TryGetCapture(out info.Stamp, out info.Pose);
+                    Pose same;
+                    frameSource.TryGetCaptureRaw(out raw, out same);
+                }
+                frame.CopyMonoUs = EventLog.NowMonoUs();
+                info.StartedUtc = UtcUs;
+                string snapshot = null;
+                if (snapshotRequested)
+                {
+                    snapshotRequested = false;
+                    snapshots++;
+                    snapshot = EventLog.SessionId + "_" + snapshots.ToString("D3");
+                }
+                yield return detector.DetectTexture(texture, flipCamera, snapshot == null ? null : SnapshotPath(snapshot),
+                                                    !asyncCameraReadback, keyResult);
+                LogResult(keyResult, "scan", null, snapshot, info);
+                frame.Completed = keyResult.Completed;
+                frame.Error = keyResult.Error;
+                frame.Snapshot = snapshot;
+                frame.RawStamp = raw;
+                if (info.HasPose)
+                {
+                    frame.TranslationM = new double[] { info.Pose.position.x, info.Pose.position.y, info.Pose.position.z };
+                    frame.RotationXyzw = new double[] { info.Pose.rotation.x, info.Pose.rotation.y, info.Pose.rotation.z, info.Pose.rotation.w };
+                }
+                foreach (var d in keyResult.Detections)
+                    frame.Detections.Add(new RawDetection { ClassId = d.ClassId, Score = d.Score, X1 = d.X1, Y1 = d.Y1, X2 = d.X2, Y2 = d.Y2 });
+            }
+            finally
+            {
+                inFlight = false;
+                keyHandle = null;
+            }
+            if (done != null) done(frame);
+        }
+
         public void CycleMode(int step, string source)
         {
             if (!Idle()) return;
@@ -613,6 +693,11 @@ namespace SecondEyes.Perception
                     StatusLine = "sequential cycles done; Y to stop";
                     yield return null;
                 }
+            }
+            else if (mode == Mode.External)   // A4 (stage 3): loaded and idle; the scan asks for each keyframe
+            {
+                Stage("camera", "on: keyframes on request (A4 scan), " + ChoiceName);
+                while (wanted) yield return null;
             }
             else
             {

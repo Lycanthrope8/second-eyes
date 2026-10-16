@@ -219,6 +219,9 @@ namespace SecondEyes.Logging
             batch.Clear();
         }
 
+        /// <summary>A4 (stage 3): now, on the clock every event's mono_us uses, so a scan's capture times sit on it.</summary>
+        public static long NowMonoUs() { return MonoMicros(); }
+
         private static long MonoMicros()
         {
             long ticks = Stopwatch.GetTimestamp();
