@@ -29,10 +29,11 @@ namespace SecondEyes.Grounding
 
         private void BuildSessionRow()
         {
-            sessionButton = RowButton("Session", 20f, 140f, out sessionLabel, ToggleSession, SessionRowY, mainPage);
-            sceneButton = RowButton("Scene", 173f, 140f, out sceneLabel, NextScene, SessionRowY, mainPage);
-            sendPresetButton = RowButton("SendPreset", 326f, 140f, out sendPresetLabel, SendPreset, SessionRowY, mainPage);
-            cancelButton = RowButton("CancelRequests", 479f, 141f, out cancelLabel, CancelRequests, SessionRowY, mainPage);
+            sessionButton = RowButton("Session", 20f, 112f, out sessionLabel, ToggleSession, SessionRowY, mainPage);
+            sceneButton = RowButton("Scene", 142f, 112f, out sceneLabel, NextScene, SessionRowY, mainPage);
+            sendPresetButton = RowButton("SendPreset", 264f, 112f, out sendPresetLabel, SendPreset, SessionRowY, mainPage);
+            BuildScanButton(386f, 112f);   // A4 (stage 3): ChatPanel.Scan.cs
+            cancelButton = RowButton("CancelRequests", 508f, 112f, out cancelLabel, CancelRequests, SessionRowY, mainPage);
             sceneLabel.text = "Scene";
             sendPresetLabel.text = "Preset";
             cancelLabel.text = "Cancel";
@@ -154,11 +155,17 @@ namespace SecondEyes.Grounding
             InteractiveService.Scene s = interactiveSession.SetScene(sceneIndex);
             sendPresetLabel.text = "Preset";
             ShowScene(null, null);
-            SetStatus("Scene: " + s.Objects + " objects (" + Short(s.SnapshotId) + "); " + interactiveSession.Presets[s.SnapshotId].Count + " presets");
+            SetStatus("Scene: " + s.Objects + " objects (" + Short(s.SnapshotId) + "); " + (interactiveSession.Presets.ContainsKey(s.SnapshotId)
+                      ? interactiveSession.Presets[s.SnapshotId].Count + " presets" : "a scanned room: type a command"));
         }
 
         private void SendPreset()
         {
+            if (interactiveSession != null && interactiveSession.Current != null && !interactiveSession.Presets.ContainsKey(interactiveSession.Current.SnapshotId))
+            {
+                SetStatus("A scanned room has no presets: type a command about its objects");   // A4 (stage 3)
+                return;
+            }
             if (interactiveSession == null || interactiveSession.Current == null) return;
             List<InteractiveService.Preset> list = interactiveSession.Presets[interactiveSession.Current.SnapshotId];
             if (list.Count == 0)
@@ -226,11 +233,18 @@ namespace SecondEyes.Grounding
             bool present = t != null && o != null && Presentation.Decide(svc.SessionStamp, svc.Current.Epoch, t) == Presentability.Present;
             var sb = new StringBuilder();
             sb.Append("Scene: ").Append(s.Objects).Append(" objects (").Append(Short(s.SnapshotId)).Append(") rev ").Append(s.SceneRevision).Append('\n');
-            foreach (string line in Presentation.SceneLines(s.Record, svc.Asset, o, present, id => Category(s.Record, id)))
+            IEnumerable<string> lines = Perceived(s.Record) ? ScanLines(s.Record, o, present)   // A4: a scanned room (ChatPanel.Scan.cs)
+                : Presentation.SceneLines(s.Record, svc.Asset, o, present, id => Category(s.Record, id));
+            foreach (string line in lines)
                 sb.Append(line).Append('\n');   // always the current scene's own mapping (D104)
             if (present)
+            {
                 sb.Append("Last: ").Append(t.RequestId).Append(", ").Append(o.Status).Append(o.Reason != null ? " (" + o.Reason + ")" : "")
                   .Append(", ").Append(Seconds(t.Times.AppObserved));
+                string words = CommandWords(t);   // A4: the whole command, and how the parser read it
+                if (words != null) sb.Append("\nYou: ").Append(words);
+                if (!string.IsNullOrEmpty(o.DecodedText)) sb.Append("\nRead as: ").Append(o.DecodedText);
+            }
             resultText.text = sb.ToString();
         }
     }

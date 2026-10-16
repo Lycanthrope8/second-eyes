@@ -272,6 +272,7 @@ namespace SecondEyes.Grounding
 
         private void LateUpdate()
         {
+            UpdateScan();   // A4 (stage 3): the scan's button, hint and finished room (ChatPanel.Scan.cs)
             if (repeat && running == null && nextRepeatAt >= 0f && Time.unscaledTime >= nextRepeatAt)
             {
                 nextRepeatAt = -1f;

@@ -57,6 +57,8 @@ namespace SecondEyes.Perception.Scan
         public int Keyframes { get; private set; }
         public bool Full => Position + 1 >= s.MaxPositions && Step + 1 >= s.MaxKeyframesPerPosition;
         public string Hint { get; private set; } = "hold still";
+        /// <summary>After Update asked for a keyframe: the position it will have once taken; -1 when none is due.</summary>
+        public int PendingPosition => pending ? (pendingNewPosition ? Position + 1 : Position) : -1;
 
         /// <summary>One head sample; true when a keyframe should be taken now.</summary>
         public bool Update(double t, Vec3 head, double yawDeg, bool tracked, bool busy)

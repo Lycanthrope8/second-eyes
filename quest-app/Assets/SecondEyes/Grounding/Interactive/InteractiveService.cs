@@ -179,6 +179,26 @@ namespace SecondEyes.Grounding.Interactive
             return s;
         }
 
+        /// <summary>A4 (stage 3): a scanned room joins the session's scenes and becomes the current one (a new epoch). Its
+        /// snapshot ID is its capture's; it has no presets, so a typed command carries its own record (TypedCommand.ForScan).</summary>
+        public int AddScan(string captureId, string sceneText, JNode record)
+        {
+            var s = new Scene { SnapshotId = captureId, SceneId = record["scene_id"].Text, SceneRevision = record["scene_revision"].Text,
+                                Sha256 = ReplayHash.Sha256Hex(Encoding.UTF8.GetBytes(sceneText)), Text = sceneText,
+                                Objects = record["objects"].Items.Count, Record = record };
+            Scenes.Add(s);
+            SetScene(Scenes.Count - 1);
+            Event("interactive.scan_scene", new JsonWriter().BeginObj().Key("snapshot_id").S(captureId).Key("objects").I(s.Objects)
+                .Key("sha256").S(s.Sha256).End().ToString());
+            return Scenes.Count - 1;
+        }
+
+        private bool Perceived(string snapshotId)
+        {
+            Scene s = Scenes.Find(x => x.SnapshotId == snapshotId);
+            return s != null && s.Record != null && s.Record["evidence_profile"].Text == "perceived";
+        }
+
         public string SubmitPreset(Preset p)
         {
             double pressed = Now;   // timing for presets starts at the button event (D99(3))
@@ -216,8 +236,14 @@ namespace SecondEyes.Grounding.Interactive
             t.Times.Detected = pressed;
             // The session reads CommandText as a command record (item 1): the scene's first dataset command carries the text,
             // as the PC's inbox-send --text does; a scene without one is refused, as on the PC.
+            // A4 (stage 3): a scanned room has no dataset command, so the typed command gets its own record (format 2, the
+            // person's input); it is grounded through the parser folder, so without one it is refused.
             List<Preset> presets;
-            string record = Presets.TryGetValue(b.SnapshotId, out presets) && presets.Count > 0
+            bool scanned = Perceived(b.SnapshotId);
+            string record = scanned
+                ? (parser == null ? null : TypedCommand.ForScan(JParse.Parse(b.SceneText), commandText,
+                       b.SceneId + ".t-" + sessionStamp + "-" + typedCount.ToString("D3", CultureInfo.InvariantCulture)))
+                : Presets.TryGetValue(b.SnapshotId, out presets) && presets.Count > 0
                 ? TypedCommand.Build(presets[0].CommandText, commandText,
                                      "-t" + sessionStamp + "-" + typedCount.ToString("D3", CultureInfo.InvariantCulture))
                 : null;
@@ -228,8 +254,10 @@ namespace SecondEyes.Grounding.Interactive
             if (record == null)
             {
                 t.Times.Outcome = Now;
-                Publish(t, SessionCore.Answer(t.RequestId, t.Source, "refused", "no_dataset_command",
-                                              "this scene has no dataset command to carry typed text"));
+                Publish(t, scanned ? SessionCore.Answer(t.RequestId, t.Source, "refused", "no_parser_folder",
+                                                        "a scanned room is grounded through the parser folder; push it and start again")
+                                   : SessionCore.Answer(t.RequestId, t.Source, "refused", "no_dataset_command",
+                                                        "this scene has no dataset command to carry typed text"));
                 return t.RequestId;
             }
             if (!core.Admit(t))

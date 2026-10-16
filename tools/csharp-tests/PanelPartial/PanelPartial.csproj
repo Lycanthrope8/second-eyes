@@ -27,5 +27,10 @@
     <Compile Include="$(MSBuildThisFileDirectory)../../../quest-app/Assets/SecondEyes/Grounding/Parsing/*.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)../../../quest-app/Assets/SecondEyes/Grounding/Parsing/Glue/ParserCheckRunner.cs" />
       <Compile Include="$(MSBuildThisFileDirectory)../../../quest-app/Assets/SecondEyes/Perception/PerceptionFolder.cs" />
+      <Compile Include="$(MSBuildThisFileDirectory)../../../quest-app/Assets/SecondEyes/Grounding/ChatPanel.Scan.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)../../../quest-app/Assets/SecondEyes/Perception/Scan/*.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)../../../quest-app/Assets/SecondEyes/Perception/Capture/*.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)../../../quest-app/Assets/SecondEyes/Perception/Localization/*.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)../../../quest-app/Assets/SecondEyes/Perception/Frames/*.cs" />
   </ItemGroup>
 </Project>
