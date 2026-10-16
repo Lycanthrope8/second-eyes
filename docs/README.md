@@ -34,3 +34,5 @@ How things work now. Edited in place when something changes; log the change and 
 - `plan/revision-3.1-supplement.md`: the Revision 3.1 supplement's text, verbatim (D63); unlike the rest of `docs/`, never edited in place (`conventions.md`, rule 11)
 - `localization.md`: how a scan becomes a perceived scene (A4): the steps, the evidence each field carries, the thresholds, the checks and the known limits, and the PC rerun
 - `scan.md`: the automatic scan (A4): when the headset takes a keyframe on its own, its settings and checks
+- `perception-folder.md`: the perception folder (A4): what the headset's scan and scanned rooms need, built, verified and pushed from the PC, loaded and checked on the headset
+- `a4-usability.md`: the A4 usability check (D122): the room, the scan, the commands and what counts

@@ -43,3 +43,14 @@ buttons (X, Y, A, B, grip, thumbstick, triggers) aren't on the panel and keep th
 
 The panel's files are type-checked outside Unity: `dotnet build tools/csharp-tests/PanelPartial`
 (`tools/csharp-tests/README.md`).
+
+## The scan (A4, stage 3)
+
+The session row has five buttons: **Start/End session**, **Scene**, **Preset**, **Scan** and **Cancel**. **Scan** starts
+the automatic scan (`scan.md`) and becomes **Finish** while it runs; the status line shows the scan's live hint (hold
+still, turn about 30 degrees, move to a new spot) with the spot and keyframe counts. A finished scan's room becomes the
+session's current scene: the result box lists its objects, each with how it was placed, and **Scene** cycles back to
+the dataset scenes. A scanned room has no presets, so **Preset** says to type a command instead.
+
+Under each answer the result box now shows **You:** with the whole command as typed or sent, and, on the parser path,
+**Read as:** with what the parser read (target, relation and anchor), so a refusal can be told from a misreading.

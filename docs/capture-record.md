@@ -67,7 +67,9 @@ The fixtures are in `grounding/tests/fixtures/capture/`, with a README listing e
 
 ## Not settled yet
 
-- The SDK's actual timestamp unit and offset, and whether the pose the SDK gives belongs to the image's own capture
-  time, are checked on the Quest when capture is built (A4 Delivery 1, stage 3), not assumed.
+- The headset turns the camera's timestamp into a number and unit as it finds it (`Perception/Scan/ScanSession.cs`,
+  `SdkStamp`): a `DateTime` becomes its 100 ns ticks, a whole number is read as nanoseconds, seconds become microseconds.
+  The offset to the log's clock is set at the first keyframe kept, taking that frame's age as zero; every later frame's
+  age against it is kept in the scan's `facts.json`, and the stage 3 trial checks both (`scan.md`).
 - Lens distortion: the record states what its source says. The localization doesn't correct distortion, so `unknown`
   is localized as if it were none (`localization.md`, Known limits).

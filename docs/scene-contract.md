@@ -294,3 +294,13 @@ two don't compute identically.
 - One record per `.json` file.
 - A label with an internal CR, U+2028 or U+2029 passes here, because Python's `.` matches them. It would fail in a
   validator using ECMAScript regular expressions, whose `.` doesn't (O24).
+
+## Command records, format 2 (A4)
+
+A command typed on the headset about a scanned room has no dataset command to carry it, so it has its own record:
+`schemas/command-context.v2.json`, format 1 with one more source kind, `user_input`, the person's input on the panel.
+A record is checked against format 2 only when it says format 2 **and** has a `user_input` source; any other record
+labelled format 2 is unsupported (`E_RECORD_TYPE`), exactly as before format 2 existed. In format 2 a user pose that is
+`not_in_source` may rest on a `user_input` source. `TypedCommand.ForScan` builds one; the fixtures
+`valid/command.bedroom.typed_v2.json`, `invalid/E_RECORD_TYPE__command_v2_without_typed_source.json` and
+`invalid/E_SCHEMA_ENUM__command_v1_user_input_source.json` check the rule in both languages.

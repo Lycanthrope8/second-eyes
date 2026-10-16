@@ -25,3 +25,4 @@ File formats that every component follows, kept in one place so the headset app 
 | `size-priors.v1.json` | the measured sizes a scan's localization uses (`docs/localization.md`) | A4 |
 | `localization-config.v1.json` | the localization's thresholds (`docs/localization.md`) | A4 |
 | `scan-config.v1.json` | the automatic scan's settings (`docs/scan.md`) | A4 |
+| `command-context.v2.json` | a command record in format 2: format 1 with a `user_input` source, for a command typed about a scanned room (`docs/scene-contract.md`) | A4 |
