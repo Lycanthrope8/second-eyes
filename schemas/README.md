@@ -18,3 +18,9 @@ File formats that every component follows, kept in one place so the headset app 
 | `iref-pilot-scoring.v1.json` | the A2.3b scoring policy, rules records, score and comparison rows, summaries and manifests; checked by the scoring package, not the contract (`docs/iref-vla-pilot-scoring.md`) | A2.3b |
 | `relation-config.v1.json` | the relation library's thresholds, bands and category lists (`docs/relations.md`) | A2.1b |
 | `direction-config.v1.json` | the directional relations' band and cutoffs (`docs/directions.md`) | A2.1c |
+| `scene.v3.json` | one scene record in format v3: a perceived scene from a scan (`docs/scene-contract.md`) | A4 |
+| `capture.v1.json` | one scan on the headset: camera, detector, clock and keyframes (`docs/capture-record.md`) | A4 |
+| `grounding-query.v2.json` | a grounding query in format 2: format 1 with the perceived profile (`docs/resolution.md`) | A4 |
+| `grounding-result.v2.json` | a resolution run in format 2: format 1 with the perceived profile and `uncertain_association` (`docs/resolution.md`) | A4 |
+| `size-priors.v1.json` | the measured sizes a scan's localization uses (`docs/localization.md`) | A4 |
+| `localization-config.v1.json` | the localization's thresholds (`docs/localization.md`) | A4 |

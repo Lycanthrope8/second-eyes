@@ -15,5 +15,6 @@
     <Compile Include="$(MSBuildThisFileDirectory)../../../quest-app/Assets/SecondEyes/Grounding/Prompting/GoldenCore.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)../../../quest-app/Assets/SecondEyes/Perception/Frames/*.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)../../../quest-app/Assets/SecondEyes/Perception/Capture/*.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)../../../quest-app/Assets/SecondEyes/Perception/Localization/*.cs" />
   </ItemGroup>
 </Project>

@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "size-priors.v1.json",
+  "title": "Second Eyes size priors, format v1",
+  "description": "The measured sizes of the objects a scan may find (A4; docs/localization.md): per category, the box's size along its own axes (width, depth, height, in metres) and whether it stands upright, which lets the localization range it from its image height. A perceived scene cites the table as a prior_table source and its sizes as assumed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "record_type",
+    "priors_id",
+    "description",
+    "release",
+    "entries"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "record_type": {
+      "const": "size_priors"
+    },
+    "priors_id": {
+      "$ref": "#/$defs/id"
+    },
+    "description": {
+      "$ref": "#/$defs/text"
+    },
+    "release": {
+      "$ref": "#/$defs/text"
+    },
+    "entries": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/entry"
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_.-]{0,127}(?![\\s\\S])",
+      "description": "Lower-case identifier: letters, digits, '_', '.', '-'; starts with a letter or digit."
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1
+    },
+    "label": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^\\S(.*\\S)?(?![\\s\\S])",
+      "description": "A non-empty label without leading or trailing whitespace."
+    },
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "category",
+        "size_m",
+        "upright",
+        "source"
+      ],
+      "properties": {
+        "category": {
+          "$ref": "#/$defs/label"
+        },
+        "size_m": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          }
+        },
+        "upright": {
+          "type": "boolean"
+        },
+        "source": {
+          "$ref": "#/$defs/text"
+        }
+      }
+    }
+  }
+}

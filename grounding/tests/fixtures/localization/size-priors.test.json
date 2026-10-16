@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "record_type": "size_priors",
+  "priors_id": "sizes.bedroom",
+  "description": "Illustrative sizes for the localization tests and the bedroom fixture: test values, not measurements",
+  "release": "fixture-v3",
+  "entries": [
+    {"category": "bed", "size_m": [1.4, 2.0, 0.6], "upright": true, "source": "illustrative test value"},
+    {"category": "bottle", "size_m": [0.07, 0.07, 0.25], "upright": true, "source": "illustrative test value"},
+    {"category": "chair", "size_m": [0.45, 0.5, 0.9], "upright": true, "source": "illustrative test value"},
+    {"category": "table", "size_m": [1.2, 0.6, 0.74], "upright": true, "source": "illustrative test value"}
+  ]
+}

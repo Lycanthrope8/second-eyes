@@ -60,5 +60,5 @@ The fixtures are in `grounding/tests/fixtures/capture/`, with a README listing e
 
 - The SDK's actual timestamp unit and offset, and whether the pose the SDK gives belongs to the image's own capture
   time, are checked on the Quest when capture is built (A4 Delivery 1, stage 3), not assumed.
-- Lens distortion: the record states what its source says. How the localization treats `unknown` is decided with the
-  localization core (A4 Delivery 1, stage 2).
+- Lens distortion: the record states what its source says. The localization doesn't correct distortion, so `unknown`
+  is localized as if it were none (`localization.md`, Known limits).

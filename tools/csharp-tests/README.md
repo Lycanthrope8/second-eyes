@@ -12,6 +12,7 @@ Seven .NET 8 projects compile the app's own C# files at Unity's language level (
 | `UnityApi` (A2.7) | the port, the frame library and the capture check compiled as a .NET Standard 2.1 library, Unity's API profile: an API Unity lacks fails the build | `dotnet build tools/csharp-tests/UnityApi` |
 | `Contract` (A4) | the scene contract (formats v1 to v3) and the capture record in C#, on the shared fixtures in `grounding/tests/fixtures/`: every valid file passes, every invalid file fails with exactly the code in its name; then the C# resolver on the perceived bedroom with format-2 queries, and the association guard, against `fixtures/association/expected.json`; a difference that predates A4 is reported by name, not hidden | `dotnet run --project tools/csharp-tests/Contract -- grounding/tests/fixtures schemas` |
 | `Frames` (A4) | the frame library's checks (`docs/frames.md`): quaternions, the Unity basis change, camera poses, transforms and the pinhole camera, every expectation worked out by hand (40 checks) | `dotnet run --project tools/csharp-tests/Frames` |
+| `Localization` (A4) | the localization core (`docs/localization.md`) on synthetic scans with exact ground truth: placement, ghost crossings of identical chairs, turning in place, boxes cut by the image's edge, order independence, left-out detections and the capture fixture; every scene must pass the contract | `dotnet run --project tools/csharp-tests/Localization -- grounding/tests/fixtures schemas` |
 
 **The behaviour checks cover:**
 
@@ -45,3 +46,6 @@ Each mode prints how many values it compared and how many differ; every one must
 
 **What still needs Unity:** `ChatPanel.cs` itself (its UI types are not stubbed), the real Unity and Android
 compilation, and everything on the headset.
+
+The PC's rerun of the localization, `tools/localize`, is a tool rather than a check; it builds the same core
+(`docs/localization.md`). Like these projects, it restores with every package source cleared (`nuget.config`).

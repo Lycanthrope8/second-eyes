@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "localization-config.v1.json",
+  "title": "Second Eyes localization configuration, format v1",
+  "description": "The localization's thresholds (A4; docs/localization.md). Engineering defaults, not tuned values; any change is a new config_id.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "record_type",
+    "config_id",
+    "description",
+    "min_score",
+    "edge_margin_px",
+    "same_position_angle_deg",
+    "range_ratio_tolerance",
+    "gap_max_m",
+    "min_parallax_deg",
+    "ambiguity_ratio",
+    "max_range_m"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "record_type": {
+      "const": "localization_config"
+    },
+    "config_id": {
+      "$ref": "#/$defs/id"
+    },
+    "description": {
+      "$ref": "#/$defs/text"
+    },
+    "min_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "edge_margin_px": {
+      "type": "number",
+      "minimum": 0
+    },
+    "same_position_angle_deg": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 45
+    },
+    "range_ratio_tolerance": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 1
+    },
+    "gap_max_m": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 2
+    },
+    "min_parallax_deg": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 45
+    },
+    "ambiguity_ratio": {
+      "type": "number",
+      "exclusiveMinimum": 1,
+      "maximum": 10
+    },
+    "max_range_m": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 50
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_.-]{0,127}(?![\\s\\S])",
+      "description": "Lower-case identifier: letters, digits, '_', '.', '-'; starts with a letter or digit."
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

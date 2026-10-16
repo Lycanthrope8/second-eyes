@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "record_type": "localization_config",
+  "config_id": "localization.default.v1",
+  "description": "A4's first defaults, set by reasoning, not tuned: change them only as a new config_id, after the usability check shows a need",
+  "min_score": 0.3,
+  "edge_margin_px": 4,
+  "same_position_angle_deg": 6,
+  "range_ratio_tolerance": 0.15,
+  "gap_max_m": 0.25,
+  "min_parallax_deg": 4,
+  "ambiguity_ratio": 1.5,
+  "max_range_m": 8
+}
