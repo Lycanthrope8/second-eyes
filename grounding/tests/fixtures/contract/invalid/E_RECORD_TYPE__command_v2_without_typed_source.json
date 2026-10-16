@@ -1,0 +1,42 @@
+{
+  "schema_version": 2,
+  "record_type": "command_context",
+  "command_id": "fx.bedroom.t002",
+  "text": "the chair closest to the table",
+  "scene_id": "fixture.bedroom",
+  "scene_revision": 0,
+  "sources": [
+    {
+      "source_id": "panel",
+      "kind": "fixture",
+      "description": "Typed on the headset's panel (A4); a test value",
+      "release": "fixture-v3"
+    }
+  ],
+  "assumptions": [],
+  "user_pose": {
+    "pose_kind": "none",
+    "frame_id": "scene",
+    "scene_revision": 0,
+    "position_m": {
+      "state": "unknown",
+      "reason": "not_in_source",
+      "source": "panel"
+    },
+    "rotation_xyzw": {
+      "state": "unknown",
+      "reason": "not_in_source",
+      "source": "panel"
+    },
+    "heading_xy": {
+      "state": "unknown",
+      "reason": "not_in_source",
+      "source": "panel"
+    },
+    "snapshot_time": {
+      "state": "unknown",
+      "reason": "not_in_source",
+      "source": "panel"
+    }
+  }
+}

@@ -85,6 +85,8 @@ OBJECT_SOURCE_KINDS = {"dataset", "fixture"}
 KNOWN_SOURCE_KINDS_V3 = dict(KNOWN_SOURCE_KINDS, inferred=KNOWN_SOURCE_KINDS["inferred"] | {"sensor_capture"},
                              measured={"sensor_capture"})
 OBJECT_SOURCE_KINDS_V3 = {"sensor_capture"}
+# A command typed on the headset (command format 2, A4): its user pose is not in its source, the person's input.
+UNKNOWN_SOURCE_KINDS_TYPED = dict(UNKNOWN_SOURCE_KINDS, not_in_source=UNKNOWN_SOURCE_KINDS["not_in_source"] | {"user_input"})
 # The perceived profile (scene v3): per object value, the (evidence kind, source kind) pairs a known value may have and
 # the reasons an unknown value may give. Nothing is annotated, so nothing is an oracle's; a size is a prior or unknown;
 # orientation and front are never estimated.
@@ -149,6 +151,8 @@ class _Record:
         self.file, self.record, self.issues = file, record, []
         v3 = record.get("record_type") == "scene" and record.get("schema_version") == 3
         self.known_kinds = KNOWN_SOURCE_KINDS_V3 if v3 else KNOWN_SOURCE_KINDS
+        typed = record.get("record_type") == "command_context" and record.get("schema_version") == 2
+        self.unknown_kinds = UNKNOWN_SOURCE_KINDS_TYPED if typed else UNKNOWN_SOURCE_KINDS
         for path, x in _numbers(record, "$"):
             if not _finite(x):
                 self.add(path, "E_NONFINITE", "number is too large for a double")
@@ -196,7 +200,7 @@ class _Record:
                        else f"{ev} evidence can't come from a {kind} source")
                 self.add(f"{path}.evidence", "E_EVIDENCE_SOURCE", why)
         else:
-            allowed = UNKNOWN_SOURCE_KINDS[w["reason"]]
+            allowed = self.unknown_kinds[w["reason"]]
             if allowed is not None and kind not in allowed:
                 self.add(f"{path}.source", "E_EVIDENCE_SOURCE",
                          f"reason {w['reason']} can't come from a {kind} source")

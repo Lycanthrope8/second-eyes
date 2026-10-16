@@ -76,3 +76,5 @@ Test data for `grounding/tests/test_contract.py` (A2.1a, D66). Not training data
 | `E_ASSOCIATION__duplicate_without_partner.json` | `valid/scene.bedroom.perceived_v3.json` | obj_002 is a possible duplicate that names no partner (so obj_003 isn't listed back either) |  |
 | `E_PROFILE_PERCEIVED__unknown_size_not_estimated.json` | `valid/scene.bedroom.perceived_v3.json` | obj_001's size is unknown as not_estimated; a perceived size is a prior or no_permitted_prior |  |
 | `E_PROFILE_PERCEIVED__capture_time_inferred.json` | `valid/scene.bedroom.perceived_v3.json` | obj_001's capture time is inferred; a capture time is measured |  |
+| `E_RECORD_TYPE__command_v2_without_typed_source.json` | a command labelled format 2 without a `user_input` source: format 2 is only for commands typed on the headset, so it is unsupported, as before |
+| `E_SCHEMA_ENUM__command_v1_user_input_source.json` | a format-1 command with a `user_input` source, which only format 2 has |

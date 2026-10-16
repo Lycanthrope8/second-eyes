@@ -30,6 +30,7 @@ SCHEMAS = {
     ("scene", 2): "scene.v2.json",
     ("scene", 3): "scene.v3.json",
     ("command_context", 1): "command-context.v1.json",
+    ("command_context", 2): "command-context.v2.json",
     ("category_map", 1): "category-map.v1.json",
 }
 KEYWORD_CODES = {
@@ -105,13 +106,21 @@ def _json_path(parts) -> str:
     return "$" + "".join(f"[{p}]" if isinstance(p, int) else f".{p}" for p in parts)
 
 
+def _typed(record: dict) -> bool:
+    """Format 2 of the command record exists only for a command typed on the headset (A4): one with a user_input source.
+    Any other record labelled format 2 stays unsupported, exactly as before format 2 existed."""
+    sources = record.get("sources")
+    return isinstance(sources, list) and any(isinstance(s, dict) and s.get("kind") == "user_input" for s in sources)
+
+
 def check_record(name: str, record) -> list:
     """Record type, schema and semantic rules for one parsed record."""
     if not isinstance(record, dict):
         return [Issue(name, "$", "E_RECORD_TYPE", "the file's value is not a JSON object")]
     record_type, version = record.get("record_type"), record.get("schema_version")
     # Check the types before the lookup: a list or object can't be part of the key (bool is not an int here).
-    if not isinstance(record_type, str) or type(version) is not int or (record_type, version) not in SCHEMAS:
+    if (not isinstance(record_type, str) or type(version) is not int or (record_type, version) not in SCHEMAS
+            or ((record_type, version) == ("command_context", 2) and not _typed(record))):
         return [Issue(name, "$", "E_RECORD_TYPE", f"record_type {record_type!r} with schema_version {version!r} "
                                                   f"is not a supported format")]
     schema_file = SCHEMAS[(record_type, version)]

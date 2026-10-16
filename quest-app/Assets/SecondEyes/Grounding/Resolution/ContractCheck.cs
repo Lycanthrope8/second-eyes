@@ -23,7 +23,7 @@ namespace SecondEyes.Grounding.Resolution
         public static readonly Dictionary<string, string> Files = new Dictionary<string, string>
         {
             { "scene|1", "scene.v1.json" }, { "scene|2", "scene.v2.json" }, { "scene|3", "scene.v3.json" },
-            { "command_context|1", "command-context.v1.json" }, { "category_map|1", "category-map.v1.json" }
+            { "command_context|1", "command-context.v1.json" }, { "command_context|2", "command-context.v2.json" }, { "category_map|1", "category-map.v1.json" }
         };
 
         private static readonly Dictionary<string, string> KeywordCodes = new Dictionary<string, string>
@@ -62,6 +62,28 @@ namespace SecondEyes.Grounding.Resolution
             { "measured", new HashSet<string> { "sensor_capture" } }
         };
         private static readonly HashSet<string> ObjectSourceKindsV3 = new HashSet<string> { "sensor_capture" };
+
+        /// <summary>Format 2 of the command record exists only for a command typed on the headset (A4): one with a user_input
+        /// source. Any other record labelled format 2 stays unsupported, exactly as before format 2 existed.</summary>
+        public static bool Typed(JNode record)
+        {
+            JNode sources = Get(record, "sources");
+            if (sources.Kind != JKind.Array) return false;
+            foreach (JNode s in sources.Items)
+                if (s.Kind == JKind.Object && Get(s, "kind").Kind == JKind.String && Get(s, "kind").Text == "user_input") return true;
+            return false;
+        }
+
+        // A command typed on the headset (command format 2): its user pose is not in its source, the person's input.
+        private static readonly Dictionary<string, HashSet<string>> UnknownSourceKindsTyped = Typed(UnknownSourceKinds);
+
+        private static Dictionary<string, HashSet<string>> Typed(Dictionary<string, HashSet<string>> kinds)
+        {
+            var d = new Dictionary<string, HashSet<string>>();
+            foreach (var kv in kinds) d[kv.Key] = kv.Value == null ? null : new HashSet<string>(kv.Value);   // null: any source kind
+            d["not_in_source"].Add("user_input");
+            return d;
+        }
         // The perceived profile, as checks.py's PERCEIVED_FIELDS: per value, the "evidence kind|source kind" pairs a known
         // value may have, and the reasons an unknown value may give.
         private static readonly Dictionary<string, KeyValuePair<HashSet<string>, HashSet<string>>> PerceivedFields =
@@ -123,6 +145,7 @@ namespace SecondEyes.Grounding.Resolution
             string file = null;
             if (rt.Kind == JKind.String && ver.Kind == JKind.Number && ver.IsInteger)
                 Files.TryGetValue(rt.Text + "|" + ver.Text, out file);
+            if (file == "command-context.v2.json" && !Typed(record)) file = null;   // A4: format 2 is for a command typed on the headset
             if (file == null)
             {
                 issues.Add(I(name, "$", "E_RECORD_TYPE", "not a supported record_type and schema_version"));
@@ -184,6 +207,7 @@ namespace SecondEyes.Grounding.Resolution
             public readonly Dictionary<string, string> Sources = new Dictionary<string, string>();
             public readonly HashSet<string> Assumptions = new HashSet<string>();
             private readonly Dictionary<string, HashSet<string>> knownKinds;
+            private readonly Dictionary<string, HashSet<string>> unknownKinds;
 
             public Rec(string file, JNode record)
             {
@@ -192,6 +216,8 @@ namespace SecondEyes.Grounding.Resolution
                 JNode rt = Get(record, "record_type"), ver = Get(record, "schema_version");
                 bool v3 = rt.Kind == JKind.String && rt.Text == "scene" && ver.Kind == JKind.Number && ver.Num == 3;
                 knownKinds = v3 ? KnownSourceKindsV3 : KnownSourceKinds;
+                bool typed = rt.Kind == JKind.String && rt.Text == "command_context" && ver.Kind == JKind.Number && ver.Num == 2;
+                unknownKinds = typed ? UnknownSourceKindsTyped : UnknownSourceKinds;
                 Numbers(record, "$");
                 var sources = Get(record, "sources");
                 if (sources.Kind == JKind.Array)
@@ -259,7 +285,7 @@ namespace SecondEyes.Grounding.Resolution
                 }
                 else
                 {
-                    var allowed = UnknownSourceKinds[w["reason"].Text];
+                    var allowed = unknownKinds[w["reason"].Text];
                     if (allowed != null && !allowed.Contains(kind)) Add(path + ".source", "E_EVIDENCE_SOURCE", "reason " + w["reason"].Text + " can't come from a " + kind + " source");
                 }
             }

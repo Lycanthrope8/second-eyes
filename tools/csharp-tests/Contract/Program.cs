@@ -203,6 +203,16 @@ static class Program
         try { SecondEyes.Grounding.Interactive.TypedCommand.Build(baseCommand, "  ", "-t"); emptyRefused = false; } catch (ArgumentException) { emptyRefused = true; }
         Check("empty text is refused", emptyRefused);
 
+        Console.WriteLine("A command typed about a scanned room (stage 3)");
+        JNode bedScene = load(Path.Combine(fixtures, "contract", "valid", "scene.bedroom.perceived_v3.json"));
+        JNode bedMap = load(Path.Combine(fixtures, "contract", "valid", "category-map.bedroom.json"));
+        JNode scanCommand = JParse.Parse(SecondEyes.Grounding.Interactive.TypedCommand.ForScan(bedScene, "the chair closest to the table", "fixture.bedroom.t-001"));
+        var scanIssues = contract.Validate(new List<KeyValuePair<string, JNode>> {
+            new KeyValuePair<string, JNode>("scene", bedScene), new KeyValuePair<string, JNode>("map", bedMap),
+            new KeyValuePair<string, JNode>("typed", scanCommand) });
+        Check("ForScan builds a format-2 command with a user_input source that passes the contract with its scene",
+              scanCommand["schema_version"].Num == 2 && scanCommand["sources"].Items[0]["kind"].Text == "user_input" && scanIssues.Count == 0, Codes(scanIssues));
+
         Console.WriteLine("The capture builder");
         JNode manifest = load(Path.Combine("quest-app", "Assets", "SecondEyes", "Models", "yolox-nano", "detector-package.json"));
         JNode fixtureCapture = load(Path.Combine(fixtures, "capture", "valid", "capture.bedroom.json"));
