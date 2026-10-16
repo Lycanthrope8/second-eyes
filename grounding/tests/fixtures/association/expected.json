@@ -1,0 +1,11 @@
+{
+  "description": "Hand-worked outcomes for the bedroom fixture (scene.bedroom.perceived_v3.json): chair centres obj_001 (0.8, 2.1, 0.45), obj_002 (2.3, 1.2, 0.45) and obj_003 (2.5, 1.0, 0.45), the last two possible duplicates of each other; the table obj_004 at (1.6, 2.6, 0.37). Centre distances to the table: obj_001 0.94 m, obj_002 1.57 m, obj_003 1.84 m. 'resolver' is the accepted resolver's answer; 'guarded' is the answer after the association guard.",
+  "cases": [
+    {"query": "query.closest.json", "resolver": {"status": "resolved", "target_id": "obj_001"},
+     "guarded": {"status": "resolved", "target_id": "obj_001", "reason_code": "unique_target_consensus", "target_ids": ["obj_001"], "uncertain_association": false}},
+    {"query": "query.farthest.json", "resolver": {"status": "resolved", "target_id": "obj_003"},
+     "guarded": {"status": "ambiguous", "target_id": null, "reason_code": "nonunique_target_or_interpretation", "target_ids": ["obj_002", "obj_003"], "uncertain_association": true}},
+    {"query": "query.second_closest.json", "resolver": {"status": "resolved", "target_id": "obj_002"},
+     "guarded": {"status": "ambiguous", "target_id": null, "reason_code": "nonunique_target_or_interpretation", "target_ids": ["obj_002", "obj_003"], "uncertain_association": true}}
+  ]
+}

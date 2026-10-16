@@ -90,7 +90,7 @@ namespace SecondEyes.Grounding.Resolution
             foreach (var w in Work) record.Work[w] = 0;
             List<NormInterpretation> normalized;
             var configIssues = ResolverValidation.CheckConfig(resolverConfig, setup.Schemas("resolver-config.v1.json"));
-            var queryIssues = ResolverValidation.CheckQuery(query, setup.Schemas("grounding-query.v1.json"), out normalized);
+            var queryIssues = ResolverValidation.CheckQuery(query, setup.Schemas(ResolverValidation.QuerySchemaFile(query)), out normalized);
             var recordIssues = ResolverValidation.CheckRecords(scene, command, maps, setup.Contract, record.Warnings);
             var issues = new List<Issue>();
             issues.AddRange(configIssues); issues.AddRange(queryIssues); issues.AddRange(recordIssues);

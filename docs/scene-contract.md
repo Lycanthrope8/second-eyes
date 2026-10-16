@@ -183,7 +183,8 @@ versions: they name a scene by ID, revision, profile and frame, not by its schem
   its size) or `possible_duplicate`, which names the objects it may be the same as, and each of those must list it
   back. Uncertain objects are kept apart, never merged. A disagreement is `E_ASSOCIATION`.
 
-The object fields the relation library and resolver read are v2's, so their logic is unchanged. On the headset,
+The object fields the relation library and resolver read are v2's, so their logic is unchanged; queries and results for a
+perceived scene use format 2, and an association guard runs after the resolver (`resolution.md`). On the headset,
 `ContractCheck.cs` checks v3 with the same rules and codes; `tools/csharp-tests/Contract` runs it on the shared
 fixtures. The capture a scene is built from has its own record and check (`capture-record.md`).
 

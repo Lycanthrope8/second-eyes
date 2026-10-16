@@ -116,6 +116,43 @@ static class Program
         Check("a missing record is refused as E_RECORD_TYPE",
               CaptureCheck.Check("none", null, captureSchema).Select(i => i.Code).SequenceEqual(new[] { "E_RECORD_TYPE" }));
 
+        Console.WriteLine("Format-2 queries and the association guard: the C# resolver on the perceived bedroom");
+        Func<string, JNode> load = p => JParse.Parse(File.ReadAllText(p));
+        string grounding = Path.GetFullPath(Path.Combine(fixtures, "..", ".."));
+        var setup = ResolverSetup.Load(schema, load(Path.Combine(grounding, "relations", "relations.v1.json")),
+                                       load(Path.Combine(grounding, "relations", "directions.v1.json")));
+        string av = Path.Combine(fixtures, "association");
+        JNode bScene = load(Path.Combine(fixtures, "contract", "valid", "scene.bedroom.perceived_v3.json"));
+        JNode bMap = load(Path.Combine(fixtures, "contract", "valid", "category-map.bedroom.json"));
+        JNode bCommand = load(Path.Combine(av, "command.bedroom.json"));
+        JNode bConfig = load(Path.Combine(fixtures, "resolution", "resolver-config.fixture.json"));
+        foreach (JNode c in load(Path.Combine(av, "expected.json"))["cases"].Items)
+        {
+            string qf = c["query"].Text, nm = qf.Substring(6, qf.Length - 11);
+            JNode query = load(Path.Combine(av, qf));
+            Check(nm + ": a format-2 query is checked against grounding-query.v2.json", ResolverValidation.QuerySchemaFile(query) == "grounding-query.v2.json");
+            RunRecord run = Resolver.Resolve(bScene, bCommand, query, bConfig, new List<JNode> { bMap }, setup);
+            JNode want = c["resolver"];
+            bool resolverOk = run.ProcessingStatus == "completed" && run.Result != null && run.Result.Status == want["status"].Text
+                              && run.Result.TargetId == want["target_id"].Text;
+            Check(nm + ": the C# resolver answers " + want["status"].Text + " " + want["target_id"].Text, resolverOk,
+                  run.ProcessingStatus + " " + (run.Result == null ? "-" : run.Result.Status + " " + run.Result.TargetId) + " " + Codes(run.Issues));
+            if (run.Result == null) continue;
+            RunRecord g = AssociationGuard.Guard(bScene, query, run);
+            JNode gw = c["guarded"];
+            var wantIds = gw["target_ids"].Items.Select(x => x.Text).ToList();
+            string wantTarget = gw["target_id"].Kind == JKind.Null ? null : gw["target_id"].Text;
+            bool guardOk = g.Result.Status == gw["status"].Text && g.Result.TargetId == wantTarget && g.Result.ReasonCode == gw["reason_code"].Text
+                           && g.Result.TargetIds.SequenceEqual(wantIds) && g.Result.ReasonCodes.Contains("uncertain_association") == gw["uncertain_association"].Bool;
+            Check(nm + ": after the C# guard, " + gw["status"].Text + " [" + string.Join(", ", wantIds) + "]", guardOk,
+                  g.Result.Status + " " + g.Result.TargetId + " [" + string.Join(", ", g.Result.TargetIds) + "] " + string.Join(" ", g.Result.ReasonCodes));
+            Check(nm + ": the guard leaves the resolver's own record unchanged", run.Result.Status == want["status"].Text);
+        }
+        JNode relabelled = JParse.Parse(File.ReadAllText(Path.Combine(av, "query.farthest.json")).Replace("\"schema_version\": 2", "\"schema_version\": 1"));
+        List<NormInterpretation> norm;
+        Check("the same query labelled format 1 fails format 1's schema",
+              ResolverValidation.CheckQuery(relabelled, setup.Schemas(ResolverValidation.QuerySchemaFile(relabelled)), out norm).Count > 0);
+
         Console.WriteLine(pass + " passed, " + fail + " failed, " + known + " known difference(s) reported");
         return fail == 0 ? 0 : 1;
     }

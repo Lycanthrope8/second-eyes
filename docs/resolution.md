@@ -343,3 +343,47 @@ the resolver existed. `notes/phases/A2.1e_resolution.md` records their hashes an
 - Early anchor termination can return insufficient_information where a global proof could establish no_match.
 - Centre-distance ranking and the libraries' conditional geometry are unchanged, and their limits carry over.
 - The shared result envelope does not require the direct-scoring design to use query parsing.
+
+## Perceived scenes (A4): format 2 and the association guard
+
+A perceived scene (scene v3, `scene-contract.md`) is resolved by the same resolver, with two additions; nothing changes
+for any other scene.
+
+**Format 2 of the query and the result** (`schemas/grounding-query.v2.json`, `schemas/grounding-result.v2.json`) is
+format 1 with the `perceived` profile added wherever format 1 lists the profiles, and, in the result, the detail code
+`uncertain_association`. `language.query` (and its C# twin in `CheckerCore.cs`) gives a perceived scene a format-2
+query; `check_query` (and `ResolverValidation.QuerySchemaFile`) checks a query against format 2 only when its
+`schema_version` is the integer 2; and a valid format-2 query gets a format-2 run record, checked against format 2.
+Every other query and record is format 1, byte for byte as before, and the A2 evaluation tools keep reading format 1. On
+the headset, the format-2 schemas come from the perception folder; A2.7's parser folder stays as accepted.
+
+**The association guard** (`grounding/resolution/association.py`; C# `AssociationGuard.cs`) runs after the resolver on
+a perceived scene. The localization keeps uncertain observations apart and marks them `possible_duplicate`; the
+resolver doesn't read that mark, so a ranking could quietly pick one of a possible pair. The guard turns a resolved
+answer that rests on a possible duplicate into the existing ambiguity outcome: status `ambiguous`, reason
+`nonunique_target_or_interpretation`, detail code `uncertain_association`, and the pair (or group) as the target
+candidates. An answer rests on one when:
+
+- its target is one; or
+- the query ranks with k of 2 or more and any object eligible for that ranking is one, since whether two observations
+  are one object changes the count. The result doesn't record the ranking's order (only the optional trace does), so
+  every eligible object counts: a safe superset of the objects ranked ahead of the target.
+
+A repeated anchor needs no rule: the resolver already tries every object the anchor could be, and answers only when all
+of them give the same target. Every other outcome, and every non-perceived scene, passes through unchanged.
+
+**What resolves against a perceived scene.** A scan estimates centres, not orientations, and takes sizes from the size
+priors. On the bedroom fixture:
+
+| Command | Outcome |
+|---|---|
+| a target closest to / farthest from an anchor (ranks 1 to 3) | resolved from the centres, marked conditional where a centre rests on the size prior |
+| near, below, on | `insufficient_information` (`missing_rotation`): they need oriented boxes |
+| any relation with an object whose centre is unknown | `insufficient_information` (`missing_centre`) |
+
+So the positive examples for A4 are closest/farthest commands between objects whose centres are known. Near is not
+redefined as a centre distance, and no identity rotation is inserted to make a command pass.
+
+Checked by `grounding/tests/test_resolution_v2.py` and the association section of `tools/csharp-tests/Contract`, both on
+the shared fixtures in `grounding/tests/fixtures/association/`: the resolver end to end on the perceived bedroom, then
+the guard, against hand-worked answers.

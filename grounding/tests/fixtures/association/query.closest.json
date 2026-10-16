@@ -1,0 +1,37 @@
+{
+  "schema_version": 2,
+  "record_type": "grounding_query",
+  "query_id": "fx.bedroom.c001.q",
+  "scene_id": "fixture.bedroom",
+  "scene_revision": 0,
+  "evidence_profile": "perceived",
+  "command_id": "fx.bedroom.c001",
+  "interpretations": [
+    {
+      "interpretation_id": "main",
+      "kind": "query",
+      "action": "INSPECT",
+      "root": "target",
+      "nodes": [
+        {
+          "node_id": "target",
+          "category": "chair",
+          "colours_all": [],
+          "constraints": [],
+          "rank": {
+            "relation": "closest",
+            "anchor": "anchor_a",
+            "k": 1
+          }
+        },
+        {
+          "node_id": "anchor_a",
+          "category": "table",
+          "colours_all": [],
+          "constraints": [],
+          "rank": null
+        }
+      ]
+    }
+  ]
+}

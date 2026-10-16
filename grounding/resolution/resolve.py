@@ -408,8 +408,9 @@ class _Evaluation:
 
 # ---------------------------------------------------------------------------------------------------- the record
 def _record(status, result, issues, budget, context, identities, warnings, work, counts, timings, trace=(),
-            truncated=False, trace_bytes=0):
-    return {"schema_version": 1, "record_type": "resolution_run", "processing_status": status, "result": result,
+            truncated=False, trace_bytes=0, version=1):
+    """version 2 only for a format-2 query (a perceived scene, A4); format 1 otherwise, as before."""
+    return {"schema_version": version, "record_type": "resolution_run", "processing_status": status, "result": result,
             "issues": list(issues), "budget": budget,
             "diagnostics": {"evaluator_version": EVALUATOR_VERSION, "context": context, "identities": identities,
                             "warnings": list(warnings), "work": dict(work), "outcome_counts": dict(counts),
@@ -419,7 +420,8 @@ def _record(status, result, issues, budget, context, identities, warnings, work,
 
 def _check_output(record, scene_ids, limits, tracing):
     """Structure and the invariants the schema can't express. A failure here is a resolver bug, so it raises."""
-    errors = list(V._validator("grounding-result.v1.json").iter_errors(record))
+    errors = list(V._validator("grounding-result.v2.json" if record["schema_version"] == 2
+                               else "grounding-result.v1.json").iter_errors(record))
     if errors:
         raise RuntimeError(f"the resolver built an invalid resolution_run at {list(errors[0].absolute_path)}: "
                            f"{errors[0].message[:200]}")
@@ -457,11 +459,11 @@ def _finish(record, scene_ids=frozenset(), limits=None, tracing=False):
     return record
 
 
-def invalid_input_record(issues, warnings=(), context=None, validation_s=0.0):
+def invalid_input_record(issues, warnings=(), context=None, validation_s=0.0, version=1):
     """The technical record for inputs that fail validation, including the CLI's parse and file errors."""
     record = _record("invalid_input", None, issues, None, context, None, warnings, dict.fromkeys(WORK, 0),
                      dict.fromkeys(STATUSES, 0), {"validation": V.finite_seconds(validation_s), "evaluation": 0.0,
-                                                  "result_validation": 0.0})
+                                                  "result_validation": 0.0}, version=version)
     return _finish(record)
 
 
@@ -481,6 +483,7 @@ def resolve(scene_record, command_record, query_record, *, resolver_config, rela
                                                                  resolver_config))
     maps = [copy.deepcopy(m) for m in category_maps]
     query_issues, normalized = V.check_query(query)
+    version = 2 if not query_issues and query["schema_version"] == 2 else 1   # a format-2 query gets a format-2 record
     record_issues, warnings = V.check_records(scene, command, maps)
     issues = V.check_config(config) + query_issues + record_issues
     context = None if query_issues else {k: query[k] for k in ("query_id", "scene_id", "scene_revision",
@@ -491,7 +494,7 @@ def resolve(scene_record, command_record, query_record, *, resolver_config, rela
     if not issues:
         issues, configs = V.load_configs(relation_config_path, direction_config_path)
     if issues:
-        return invalid_input_record(issues, warnings, context, time.perf_counter() - started)
+        return invalid_input_record(issues, warnings, context, time.perf_counter() - started, version=version)
     identities = {"scene_sha256": V.canonical_sha256(scene), "command_sha256": V.canonical_sha256(command),
                   "query_sha256": V.canonical_sha256(query), "resolver_config_sha256": V.canonical_sha256(config),
                   "relation_config_identity": configs["relation_config"].identity,
@@ -514,5 +517,5 @@ def resolve(scene_record, command_record, query_record, *, resolver_config, rela
                      warnings, run.work, run.counts,
                      {"validation": V.finite_seconds(validated - started),
                       "evaluation": V.finite_seconds(evaluated - validated), "result_validation": 0.0},
-                     run.trace, run.truncated, run.trace_bytes)
+                     run.trace, run.truncated, run.trace_bytes, version=version)
     return _finish(record, {o["object_id"] for o in scene["objects"]}, config["limits"], trace)

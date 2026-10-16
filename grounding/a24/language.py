@@ -194,8 +194,9 @@ def interpretation(parsed) -> dict:
 
 
 def query(interp, scene, command, suffix=".q") -> dict:
-    """The full grounding_query: identity fields from the derived scene and command (deterministic code)."""
-    return {"schema_version": 1, "record_type": "grounding_query", "query_id": command["command_id"] + suffix,
+    """The full grounding_query: identity fields from the derived scene and command (deterministic code). A perceived
+    scene (scene v3, A4) gets a format-2 query, the first format that takes its profile; every other scene, format 1."""
+    return {"schema_version": 2 if scene["evidence_profile"] == "perceived" else 1, "record_type": "grounding_query", "query_id": command["command_id"] + suffix,
             "scene_id": scene["scene_id"], "scene_revision": scene["scene_revision"],
             "evidence_profile": scene["evidence_profile"], "command_id": command["command_id"], "interpretations": [interp]}
 

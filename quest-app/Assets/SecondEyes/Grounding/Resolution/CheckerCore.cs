@@ -62,7 +62,8 @@ namespace SecondEyes.Grounding.Resolution
         /// <summary>language.query: the full grounding_query, its identity fields from the scene and command.</summary>
         public static JNode Query(JNode interp, JNode scene, JNode command, string suffix)
         {
-            return JNode.Obj().Add("schema_version", Int(1)).Add("record_type", JNode.Str("grounding_query"))
+            // A perceived scene (scene v3, A4) gets a format-2 query, the first format that takes its profile.
+            return JNode.Obj().Add("schema_version", Int(scene["evidence_profile"].Text == "perceived" ? 2 : 1)).Add("record_type", JNode.Str("grounding_query"))
                 .Add("query_id", JNode.Str(command["command_id"].Text + suffix)).Add("scene_id", scene["scene_id"])
                 .Add("scene_revision", scene["scene_revision"]).Add("evidence_profile", scene["evidence_profile"])
                 .Add("command_id", command["command_id"]).Add("interpretations", JNode.Arr(new List<JNode> { interp }));
@@ -74,7 +75,7 @@ namespace SecondEyes.Grounding.Resolution
             var q = Query(interp, scene, command, QuerySuffix);
             o.Query = q;
             List<NormInterpretation> norm;
-            o.QueryIssues = ResolverValidation.CheckQuery(q, setup.Schemas("grounding-query.v1.json"), out norm);
+            o.QueryIssues = ResolverValidation.CheckQuery(q, setup.Schemas(ResolverValidation.QuerySchemaFile(q)), out norm);
             if (o.QueryIssues.Count > 0) { o.Outcome = "invalid_label_query"; return o; }
             o.Run = Resolver.Resolve(scene, command, q, Config(cmap), new List<JNode> { cmap }, setup);
             bool done = o.Run.ProcessingStatus == "completed";
