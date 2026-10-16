@@ -1,7 +1,9 @@
 // The PC rerun of the localization (A4 Delivery 1, stage 2; docs/localization.md): the same Unity-free core the Quest runs,
 // from a capture record, a category map, size priors and a configuration. It checks every input, writes scene.json (a
 // perceived scene, scene v3) and trace.json, checks the scene against the contract, and prints the objects.
-// Run: dotnet run --project tools/localize -- <capture> <category-map> <size-priors> <config> <out-dir> [schemas]
+// Run: dotnet run --project tools/localize -- <capture> <category-map> <size-priors> <config> <out-dir> [schemas] [--compare <scene>]
+// With --compare, the rerun's scene is compared with another (the headset's, from a pulled scan): the same objects,
+// categories, placements and possible duplicates, and centres within 1 mm; any difference is listed and the exit is 1.
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -22,8 +24,50 @@ static class Program
         return 1;
     }
 
-    static int Main(string[] args)
+    /// <summary>How another scene (the headset's) differs from this rerun's: objects, categories, placements, possible
+    /// duplicates, and centres more than 1 mm apart.</summary>
+    static List<string> Differences(JNode mine, JNode theirs)
     {
+        var d = new List<string>();
+        foreach (string k in new[] { "scene_id", "category_map", "evidence_profile" })
+            if (mine[k].Text != theirs[k].Text) d.Add(k + ": " + theirs[k].Text + " there, " + mine[k].Text + " here");
+        var a = mine["objects"].Items.ToDictionary(x => x["object_id"].Text);
+        var b = theirs["objects"].Items.ToDictionary(x => x["object_id"].Text);
+        foreach (string id in b.Keys.Except(a.Keys).OrderBy(x => x, StringComparer.Ordinal)) d.Add(id + ": only there");
+        foreach (string id in a.Keys.Except(b.Keys).OrderBy(x => x, StringComparer.Ordinal)) d.Add(id + ": only here");
+        foreach (string id in a.Keys.Intersect(b.Keys).OrderBy(x => x, StringComparer.Ordinal))
+        {
+            JNode x = a[id], y = b[id];
+            Func<JNode, string> cat = n => n["category"]["value"]["standard"].Text;
+            Func<JNode, string> status = n => n["observation"]["association"]["status"].Text;
+            Func<JNode, string> dup = n => string.Join(",", n["observation"]["association"]["may_duplicate"].Items.Select(z => z.Text));
+            if (cat(x) != cat(y)) d.Add(id + ": " + cat(y) + " there, " + cat(x) + " here");
+            if (status(x) != status(y)) d.Add(id + ": " + status(y) + " there, " + status(x) + " here");
+            if (dup(x) != dup(y)) d.Add(id + ": possible duplicates [" + dup(y) + "] there, [" + dup(x) + "] here");
+            JNode cx = x["geometry"]["center_m"], cy = y["geometry"]["center_m"];
+            if (cx["state"].Text != cy["state"].Text) d.Add(id + ": centre " + cy["state"].Text + " there, " + cx["state"].Text + " here");
+            else if (cx["state"].Text == "known")
+            {
+                double s = 0;
+                for (int i = 0; i < 3; i++) { double e = cx["value"].Items[i].Num - cy["value"].Items[i].Num; s += e * e; }
+                if (Math.Sqrt(s) > 0.001) d.Add(id + ": centres " + Math.Sqrt(s).ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture) + " m apart");
+            }
+        }
+        return d;
+    }
+
+    static int Main(string[] argv)
+    {
+        var list = new List<string>(argv);
+        string compare = null;
+        int at = list.IndexOf("--compare");
+        if (at >= 0)
+        {
+            if (at + 1 >= list.Count) { Console.Error.WriteLine("--compare needs a scene file"); return 2; }
+            compare = list[at + 1];
+            list.RemoveRange(at, 2);
+        }
+        string[] args = list.ToArray();
         if (args.Length < 5) { Console.Error.WriteLine("usage: localize <capture> <category-map> <size-priors> <config> <out-dir> [schemas]"); return 2; }
         string schemasDir = args.Length > 5 ? args[5] : "schemas";
         var cache = new Dictionary<string, Schema>();
@@ -68,6 +112,16 @@ static class Program
                 obs["views"]["keyframes"].Text, obs["views"]["positions"].Text));
         }
         Console.WriteLine("scene.json and trace.json written to " + args[4] + "; the scene passes the contract (scene v3)");
-        return 0;
+        if (compare == null) return 0;
+        var diff = Differences(o.Scene, load(compare));
+        if (diff.Count == 0)
+        {
+            Console.WriteLine("compared with " + compare + ": the same " + o.Scene["objects"].Items.Count
+                              + " objects, categories, placements and possible duplicates; centres within 1 mm");
+            return 0;
+        }
+        Console.WriteLine("DIFFERS from " + compare + ":");
+        foreach (string line in diff.Take(20)) Console.WriteLine("  " + line);
+        return 1;
     }
 }
