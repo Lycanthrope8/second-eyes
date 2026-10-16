@@ -116,6 +116,7 @@ class Checker:
         self.PREDICT = importlib.import_module("grounding.evaluation.iref_vla.predict")
         self.RESOLVE = importlib.import_module("grounding.resolution.resolve")
         self.RV = importlib.import_module("grounding.resolution.validate")
+        self.GUARD = importlib.import_module("grounding.resolution.association")   # A4
         self.proto = importlib.import_module("grounding.evaluation.iref_vla.protocol").load_protocol()
         self._configs = {}
 
@@ -140,6 +141,7 @@ class Checker:
                     "issues": [f"{p['code']}: {p['path']}" for p in found[:3]]}
         res = self.RESOLVE.resolve(scene, command, q, resolver_config=self.config(cmap), relation_config_path=REL,
                                    direction_config_path=DIRS, category_maps=[cmap], trace=False)
+        res = self.GUARD.guard(scene, q, res)   # A4: unchanged for every scene but a perceived one
         done = res["processing_status"] == "completed"
         outcome = res["result"]["status"] if done else res["processing_status"]
         r = res["result"] or {}

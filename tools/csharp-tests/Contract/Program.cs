@@ -78,7 +78,7 @@ static class Program
 
     static int Main(string[] args)
     {
-        if (args.Length != 2) { Console.Error.WriteLine("usage: Contract <grounding/tests/fixtures> <schemas>"); return 2; }
+        if (args.Length < 2 || args.Length > 3) { Console.Error.WriteLine("usage: Contract <grounding/tests/fixtures> <schemas> [<built perception folder>]"); return 2; }
         string fixtures = args[0], schemasDir = args[1];
         var cache = new Dictionary<string, Schema>();
         Func<string, Schema> schema = name =>
@@ -242,6 +242,29 @@ static class Program
         try { new SecondEyes.Perception.Capture.CaptureBuilder("x", new SecondEyes.Perception.Capture.CaptureCamera(), "b", clipped, "", "", "", "", "ns", 0, 30); }
         catch (ArgumentException) { refused = true; }
         Check("a detector whose boxes are clipped is refused, not mislabelled", refused);
+
+        if (args.Length > 2)
+        {
+            Console.WriteLine("The perception folder, as the PC built it");
+            string pfDir = args[2];
+            var pf = SecondEyes.Perception.PerceptionFolder.Load(pfDir);
+            Check("it loads: every file matches the manifest, and the configurations, size priors and map pass their checks", pf.ManifestSha256.Length == 64);
+            Check("it names the bedroom's map and size priors, and holds scene v3 and the format-2 schemas",
+                  pf.CategoryMapId == "map.bedroom.v1" && pf.SizePriorsId == "sizes.bedroom.v1" && pf.Maps.ContainsKey("map.bedroom.v1")
+                  && pf.SchemaText("scene.v3.json") != null && pf.SchemaText("grounding-query.v2.json") != null && pf.SchemaText("command-context.v2.json") != null);
+            string copy = Path.Combine(Path.GetTempPath(), "pf-tampered-" + Guid.NewGuid().ToString("N"));
+            foreach (string file in Directory.GetFiles(pfDir, "*", SearchOption.AllDirectories))
+            {
+                string to = Path.Combine(copy, Path.GetRelativePath(pfDir, file));
+                Directory.CreateDirectory(Path.GetDirectoryName(to));
+                File.Copy(file, to);
+            }
+            File.AppendAllText(Path.Combine(copy, "configs", "scan.default.v1.json"), " ");
+            bool caught = false;
+            try { SecondEyes.Perception.PerceptionFolder.Load(copy); } catch (InvalidDataException) { caught = true; }
+            Check("a copy with one changed file is refused", caught);
+            Directory.Delete(copy, true);
+        }
 
         Console.WriteLine(pass + " passed, " + fail + " failed, " + known + " known difference(s) reported");
         return fail == 0 ? 0 : 1;

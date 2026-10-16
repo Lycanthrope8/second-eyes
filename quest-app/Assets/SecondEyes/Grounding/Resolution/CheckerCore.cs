@@ -78,6 +78,7 @@ namespace SecondEyes.Grounding.Resolution
             o.QueryIssues = ResolverValidation.CheckQuery(q, setup.Schemas(ResolverValidation.QuerySchemaFile(q)), out norm);
             if (o.QueryIssues.Count > 0) { o.Outcome = "invalid_label_query"; return o; }
             o.Run = Resolver.Resolve(scene, command, q, Config(cmap), new List<JNode> { cmap }, setup);
+            o.Run = AssociationGuard.Guard(scene, q, o.Run);   // A4: unchanged for every scene but a perceived one
             bool done = o.Run.ProcessingStatus == "completed";
             o.Outcome = done ? o.Run.Result.Status : o.Run.ProcessingStatus;
             if (o.Run.Result != null)

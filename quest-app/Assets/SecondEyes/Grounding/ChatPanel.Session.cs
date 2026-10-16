@@ -18,6 +18,9 @@ namespace SecondEyes.Grounding
     // arrow, and the last outcome.
     public partial class ChatPanel
     {
+        private Perception.PerceptionFolder perceptionFolder;   // A4 (stage 3)
+        private static string PerceptionDir => Path.Combine(Application.persistentDataPath, "perception");
+
         private Button sessionButton, sceneButton, sendPresetButton, cancelButton;
         private Text sessionLabel, sceneLabel, sendPresetLabel, cancelLabel;
         private InteractiveService interactiveSession;
@@ -57,11 +60,22 @@ namespace SecondEyes.Grounding
             }
             string path = Path.Combine(Application.persistentDataPath, ggufFile);
             Parsing.ParserFolder parserFolder = null;   // A2.7 (D115): with a pushed parser folder, the session grounds through the parser
+            perceptionFolder = null;   // A4 (stage 3): with a pushed perception folder, scanned rooms join the session
+            if (Perception.PerceptionFolder.Present(PerceptionDir))
+            {
+                try { perceptionFolder = Perception.PerceptionFolder.Load(PerceptionDir); }
+                catch (Exception e)
+                {
+                    SetStatus("The perception folder failed its check (" + e.Message + "); no session started. Push it again.");
+                    return;
+                }
+            }
             if (Parsing.ParserCheckRunner.FolderPresent)
             {
                 try
                 {
-                    parserFolder = Parsing.ParserFolder.Load(Parsing.ParserCheckRunner.FolderDir);
+                    parserFolder = perceptionFolder == null ? Parsing.ParserFolder.Load(Parsing.ParserCheckRunner.FolderDir)
+                        : Parsing.ParserFolder.Load(Parsing.ParserCheckRunner.FolderDir, perceptionFolder.SchemaText, perceptionFolder.Maps);
                     path = Path.Combine(Application.persistentDataPath, parserFolder.GgufFile);
                 }
                 catch (Exception e)

@@ -29,7 +29,12 @@ namespace SecondEyes.Grounding.Parsing
 
         private static readonly UTF8Encoding Utf8 = new UTF8Encoding(false, true);
 
-        public static ParserFolder Load(string dir)
+        public static ParserFolder Load(string dir) { return Load(dir, null, null); }
+
+        /// <summary>A4 (stage 3): with a perception folder, the schemas and category maps the parser folder doesn't hold come
+        /// from it, so a scanned room's scene v3, its format-2 queries and commands, and the bedroom's map are found. The
+        /// parser folder's own files always come first; without a perception folder nothing changes.</summary>
+        public static ParserFolder Load(string dir, Func<string, string> extraSchemaText, IDictionary<string, string> extraMaps)
         {
             byte[] mb = File.ReadAllBytes(Path.Combine(dir, "manifest.json"));
             var f = new ParserFolder { Dir = dir, ManifestSha256 = ReplayHash.Sha256Hex(mb), Manifest = JParse.Parse(Utf8.GetString(mb)) };
@@ -48,7 +53,13 @@ namespace SecondEyes.Grounding.Parsing
             Func<string, Schema> schema = name =>
             {
                 Schema s;
-                if (!cache.TryGetValue(name, out s)) cache[name] = s = new Schema(JParse.Parse(texts["assets/schemas/" + name]));
+                if (!cache.TryGetValue(name, out s))
+                {
+                    string text;
+                    if (!texts.TryGetValue("assets/schemas/" + name, out text) && extraSchemaText != null) text = extraSchemaText(name);
+                    if (text == null) throw new KeyNotFoundException("no schema " + name + " in the parser folder" + (extraSchemaText != null ? " or the perception folder" : ""));
+                    cache[name] = s = new Schema(JParse.Parse(text));
+                }
                 return s;
             };
             var setup = ResolverSetup.Load(schema, JParse.Parse(texts["assets/relations.v1.json"]), JParse.Parse(texts["assets/directions.v1.json"]));
@@ -72,6 +83,9 @@ namespace SecondEyes.Grounding.Parsing
                     JNode m = JParse.Parse(kv.Value);
                     f.Maps[m["map_id"].Text] = kv.Value;
                 }
+            if (extraMaps != null)
+                foreach (var kv in extraMaps)
+                    if (!f.Maps.ContainsKey(kv.Key)) f.Maps[kv.Key] = kv.Value;
             foreach (var p in JParse.Parse(texts["startup-check.json"])["prompts"].Items)
             {
                 var ids = new int[p["ids"].Items.Count];

@@ -26,5 +26,6 @@
     <Compile Include="$(MSBuildThisFileDirectory)../../../quest-app/Assets/SecondEyes/Grounding/Resolution/*.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)../../../quest-app/Assets/SecondEyes/Grounding/Parsing/*.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)../../../quest-app/Assets/SecondEyes/Grounding/Parsing/Glue/ParserCheckRunner.cs" />
+      <Compile Include="$(MSBuildThisFileDirectory)../../../quest-app/Assets/SecondEyes/Perception/PerceptionFolder.cs" />
   </ItemGroup>
 </Project>
