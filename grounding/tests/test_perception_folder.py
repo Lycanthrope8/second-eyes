@@ -49,8 +49,9 @@ def main() -> int:
         check("the manifest is a perception folder's", m["record_type"] == "a4_perception_folder" and m["format_version"] == 1)
         check("it lists every file, nine schemas and four role files", len(m["files"]) == 13
               and sum(k.startswith("schemas/") for k in m["files"]) == 9, str(len(m["files"])))
-        same = all((folder / dest).read_bytes() == src.read_bytes() for dest, src in PD.files(REPO).items())
-        check("every file is the repository's, byte for byte", same)
+        same = all((folder / dest).read_bytes() == src.read_bytes().replace(b"\r\n", b"\n") for dest, src in PD.files(REPO).items())
+        check("every file is the repository's, with Git's line endings", same)
+        check("the scan configuration is scan.default.v2", m["scan_config"] == "configs/scan.default.v2.json")
         check("each listed size and SHA-256 is the file's", all(f["bytes"] == (folder / n).stat().st_size
               and f["sha256"] == hashlib.sha256((folder / n).read_bytes()).hexdigest() for n, f in m["files"].items()))
         check("the four roles name listed files", all(m[k] in m["files"] for k in ("scan_config", "localization_config", "size_priors", "category_map")))
@@ -59,9 +60,16 @@ def main() -> int:
         PD.build(out=tmp / "b")
         check("a second build is byte-identical", all((tmp / "a" / n).read_bytes() == (tmp / "b" / n).read_bytes()
                                                      for n in list(m["files"]) + ["manifest.json"]))
+        crlf = tmp / "crlf"
+        for dest, src in PD.files(REPO).items():
+            rel = src.relative_to(REPO)
+            (crlf / rel).parent.mkdir(parents=True, exist_ok=True)
+            (crlf / rel).write_bytes(src.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))
+        r2 = PD.build(out=tmp / "from-crlf", repo=crlf)
+        check("a checkout with CRLF line endings builds the very same folder (same manifest SHA-256)", r2["manifest_sha256"] == r["manifest_sha256"])
         print("What verify finds")
         c = tmp / "c"; shutil.copytree(folder, c)
-        (c / "configs" / "scan.default.v1.json").write_text("{}", encoding="utf-8")
+        (c / "configs" / "scan.default.v2.json").write_text("{}", encoding="utf-8")
         check("a changed file", any("differs" in x for x in PD.verify(c)))
         d = tmp / "d"; shutil.copytree(folder, d)
         (d / "maps" / "category-map.bedroom.v1.json").unlink()

@@ -7,7 +7,8 @@ travel as their own folder, verified on the headset like the parser folder: file
 SHA-256 identifies the folder in every capture record (docs/scan.md).
 
 `build` checks every file first (the schemas are JSON Schemas; the configurations and the size priors pass their schemas;
-the category map passes the contract), then copies each one byte for byte into a new folder and writes manifest.json last.
+the category map passes the contract), then copies each one into a new folder with Git's line endings (LF), so a checkout
+with CRLF line endings builds the very same folder, and writes manifest.json last.
 `push` verifies a built folder, removes the headset's old manifest so the app never loads a half-pushed folder, pushes
 every file with its size checked on the headset, and the manifest last; a receipt with every file's SHA-256 is written
 beside the folder. Neither installs, launches or reruns the app.
@@ -36,7 +37,7 @@ REMOTE = APP_DIR + "/perception"
 SCHEMAS = ("capture.v1.json", "category-map.v1.json", "command-context.v2.json", "grounding-query.v2.json",
            "grounding-result.v2.json", "localization-config.v1.json", "scan-config.v1.json", "scene.v3.json",
            "size-priors.v1.json")
-ROLES = {"scan_config": ("configs/scan.default.v1.json", "perception/scan/scan.default.v1.json", "scan-config.v1.json"),
+ROLES = {"scan_config": ("configs/scan.default.v2.json", "perception/scan/scan.default.v2.json", "scan-config.v1.json"),
          "localization_config": ("configs/localization.default.v1.json", "perception/localization/localization.default.v1.json",
                                  "localization-config.v1.json"),
          "size_priors": ("priors/size-priors.bedroom.v1.json", "perception/bedroom/size-priors.bedroom.v1.json", "size-priors.v1.json"),
@@ -89,7 +90,7 @@ def build(*, out, repo=REPO) -> dict:
         _fail(f"{tmp} is left from an earlier build; remove it first", "perception")
     listed = {}
     for dest, src in sorted(files(repo).items()):
-        b = src.read_bytes()
+        b = src.read_bytes().replace(b"\r\n", b"\n")   # the same folder from any checkout
         (tmp / dest).parent.mkdir(parents=True, exist_ok=True)
         (tmp / dest).write_bytes(b)
         listed[dest] = {"bytes": len(b), "sha256": hashlib.sha256(b).hexdigest()}

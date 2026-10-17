@@ -8,7 +8,8 @@ from it. Format: `schemas/capture.v1.json`. It is written on the headset and che
 ## What it holds
 
 - **The camera:** its ID, image size in pixels, intrinsics (`fx, fy, cx, cy` in OpenCV's pixel convention, `frames.md`)
-  with where they came from, and whether the images carry lens distortion (`none`, as stated by that source, or
+  with where they came from (on the headset: fitted from the camera's own viewport rays, or the reported intrinsics
+  carried to the texture by the centre-crop model; `scan.md`), and whether the images carry lens distortion (`none`, as stated by that source, or
   `unknown`).
 - **The app's build.**
 - **The detector**, as its manifest (`detector-package.json`) states it: package ID and SHA-256, input size, top-left

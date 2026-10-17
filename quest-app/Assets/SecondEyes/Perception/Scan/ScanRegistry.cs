@@ -10,6 +10,8 @@ namespace SecondEyes.Perception.Scan
         string Phase { get; }
         /// <summary>The live hint and counts, for the panel's status line.</summary>
         string StatusLine { get; }
+        /// <summary>The guidance the head-locked overlay shows while a scan runs (ScanGuide); empty otherwise.</summary>
+        string HudText { get; }
         /// <summary>The newest scan's capture ID, its folder's name under files/scans.</summary>
         string LastCaptureId { get; }
         bool TryStart(PerceptionFolder folder, out string why);

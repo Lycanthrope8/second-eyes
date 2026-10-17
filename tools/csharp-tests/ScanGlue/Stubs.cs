@@ -37,6 +37,12 @@ namespace UnityEngine
     [System.AttributeUsage(System.AttributeTargets.Method)]
     public sealed class RuntimeInitializeOnLoadMethodAttribute : System.Attribute { public RuntimeInitializeOnLoadMethodAttribute(RuntimeInitializeLoadType t) { } }
     public static class SubsystemManager { public static void GetSubsystems<T>(List<T> subsystems) { } }
+    public sealed class WaitForSeconds { public WaitForSeconds(float seconds) { } }
+}
+public static class OVRInput
+{
+    public enum Controller { LTouch, RTouch }
+    public static void SetControllerVibration(float frequency, float amplitude, Controller controllerMask) { }
 }
 namespace UnityEngine.XR
 {
@@ -75,6 +81,7 @@ namespace SecondEyes.Perception
         public bool TryGetIntrinsics(out double fx, out double fy, out double cx, out double cy, out int sensorW, out int sensorH, out string read)
         { fx = fy = cx = cy = 0; sensorW = sensorH = 0; read = ""; return false; }
         public string DescribeApi() { return ""; }
+        public System.Collections.Generic.List<double[]> SampleViewportRays() { return null; }
     }
     public class DetectorRunner : MonoBehaviour
     {

@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "record_type": "scan_config",
+  "config_id": "scan.default.v2",
+  "description": "A4's second scan settings: as v1, but a new spot counts from 1.5 m (the guidance asks for 2 to 3 m), after the first bedroom scan's spots were only about 1 m apart",
+  "step_deg": 30,
+  "step_margin_deg": 5,
+  "steady_s": 0.5,
+  "steady_deg": 3,
+  "steady_m": 0.05,
+  "new_position_m": 1.5,
+  "max_keyframes_per_position": 12,
+  "max_positions": 4
+}

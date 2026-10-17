@@ -39,7 +39,7 @@ static class Program
         Has("Logging/EventLog.cs", "EventLog", "SessionId", "Write", "Error", "NowMonoUs");
         Has("Perception/DetectorRunner.cs", "DetectorRunner", "Mode", "IsOn", "IsBusy", "SetOn", "SetMode", "CurrentMode", "ReadyForScan",
             "FrameSource", "ManifestText", "ManifestBytes", "RunScanKeyframe");
-        Has("Perception/PassthroughFrameSource.cs", "PassthroughFrameSource", "CurrentTexture", "CameraName", "TryGetIntrinsics", "DescribeApi");
+        Has("Perception/PassthroughFrameSource.cs", "PassthroughFrameSource", "CurrentTexture", "CameraName", "TryGetIntrinsics", "DescribeApi", "SampleViewportRays");
         Console.WriteLine(pass + " passed, " + fail + " failed");
         return fail == 0 ? 0 : 1;
     }

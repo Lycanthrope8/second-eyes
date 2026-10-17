@@ -25,7 +25,10 @@ panel a hint: hold still, turn about 30 degrees, move to a new spot, or the scan
 
 ## The settings
 
-The defaults are A4's first values, set by reasoning, not tuned; a change is a new `config_id`.
+The defaults are A4's first values, set by reasoning, not tuned; a change is a new `config_id`. The perception folder
+carries `scan.default.v2`, which differs from v1 in one setting: a new spot counts from 1.5 m (`new_position_m`), after
+the first bedroom scan's two spots were only about 1 m apart; the guidance asks for 2 to 3 m. The checks below are
+worked out on v1.
 
 | Setting | Default | What it does |
 |---|---|---|
@@ -64,7 +67,11 @@ The scan's logic is `Perception/Scan/ScanSession.cs`, free of Unity and checked 
 stubs. Pressing **Scan** (`quest-panel.md`) with a session and a perception folder (`perception-folder.md`):
 
 1. switches the detector into its on-request mode (`External`), waits until the camera and detector are ready, and
-   reads the camera's intrinsics, scaled from the sensor's pixels to the texture's;
+   measures the camera's model in the texture's pixels: it asks the camera component for its own rays at a 3x3 grid of
+   viewport points (`ViewportPointToRay`), turns each into the camera's axes through the pose at the same moment, and
+   fits a pinhole to them (`CameraFit`). The fit is used when it agrees with its rays to within 2 pixels; otherwise the
+   reported intrinsics are carried from the sensor's pixels to the texture's by the centre-crop model of Meta's sample
+   code. `facts.json` keeps the reported, cropped and fitted models and which was used;
 2. each frame, feeds the head's pose and tracking state to the rule; when it asks, starts one inference, which copies
    the camera's frame with its own timestamp and pose;
 3. keeps each result through the capture builder, numbering positions and steps over the keyframes kept, and leaving
@@ -77,6 +84,12 @@ stubs. Pressing **Scan** (`quest-panel.md`) with a session and a perception fold
 A keyframe's image (the model's 416-pixel input) is saved only when the file `files/scans/save-images` exists on the
 headset: images of a room can be private, so saving is off unless chosen.
 
+**Guidance in view.** While a scan runs, the head-locked overlay (A1's text with the frame rate) adds the scan's
+guidance below it (`ScanGuide`), refreshed about ten times a second: a hint in words (hold still, turn about 30 degrees
+and hold still, walk 2 to 3 m to another side of the room), the spot and keyframe counts, a bar of the 30-degree
+directions already taken at this spot, and how to finish (the right thumbstick brings the panel; press Finish). Each
+keyframe gives a short buzz on the right controller.
+
 ## On the PC
 
     python -m grounding.quest.scan_device pull --out <folder> [--capture <capture ID>]
@@ -86,6 +99,17 @@ headset: images of a room can be private, so saving is off unless chosen.
 `pull` copies a scan (the newest unless named) and its keyframe images; `view` writes `view.html`, each keyframe's
 image with its boxes drawn as the model saw them; the rerun with `--compare` must find the same objects, categories,
 placements and possible duplicates as the headset, with centres within 1 mm.
+
+## What the first bedroom scan showed (16 October 2026)
+
+The scan worked end to end: the capture passed its check, the scene the contract, and the PC rerun matched the
+headset's scene within 1 mm. The camera's timestamps are `DateTime` (100 ns ticks); every kept frame's age stayed
+within 16 ms of the first; the headset reports its tracking state; the camera rig sits at the origin, so the tracking
+frame is the scene's. The camera reports intrinsics for a 1280x1280 sensor while its texture is 1280x960; the first
+build scaled them by 0.75 vertically, which is wrong if the texture is a centre crop (`notes/failures.md`), hence the
+measurement above. Every object was placed from its size: keyframes came 50 to 90 degrees apart, as the hint was on
+the panel, and the two spots were about 1 m apart, so no object was seen from both with a usable angle. The guidance in
+view and `scan.default.v2` answer that.
 
 ## What the first scans must show
 

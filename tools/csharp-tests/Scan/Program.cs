@@ -59,6 +59,9 @@ static class Program
         JNode cfg = JParse.Parse(File.ReadAllText(Path.Combine("perception", "scan", "scan.default.v1.json")));
         var errors = new Schema(JParse.Parse(File.ReadAllText(Path.Combine(schemas, "scan-config.v1.json")))).Errors(cfg);
         Check("the default settings pass their schema", errors.Count == 0, string.Join(", ", errors.Select(e => e.Keyword + " " + e.Path)));
+        JNode cfg2 = JParse.Parse(File.ReadAllText(Path.Combine("perception", "scan", "scan.default.v2.json")));
+        var errors2 = new Schema(JParse.Parse(File.ReadAllText(Path.Combine(schemas, "scan-config.v1.json")))).Errors(cfg2);
+        Check("the second settings pass it too, a new spot counting from 1.5 m", errors2.Count == 0 && ScanSettings.From(cfg2).NewPositionM == 1.5);
         ScanSettings S = ScanSettings.From(cfg);
         Func<int, int, ScanSettings> limited = (perPosition, positions) =>
         {
@@ -122,6 +125,53 @@ static class Program
         var two = new Sim(limited(12, 2)).Hold(1).Walk(1.2, 0, 2).Hold(1).Walk(1.2, 0, 2).Hold(1);
         Check("two positions at most", two.Taken.Count == 2 && two.Taken.Max(x => x.pos) == 1);
         Check("then the hint says the scan is complete", two.Rule.Hint.StartsWith("the scan is complete"), two.Rule.Hint);
+
+        Console.WriteLine("13. The camera's model, fitted from its own viewport rays");
+        Func<bool, double, List<double[]>> rays = (bottomLeft, noisePx) =>
+        {
+            var list = new List<double[]>();
+            int k = 0;
+            foreach (double u in new[] { 0.1, 0.5, 0.9 })
+                foreach (double v in new[] { 0.1, 0.5, 0.9 })
+                {
+                    double px = u * 1280 + noisePx * Math.Sin(++k * 1.7), py = (bottomLeft ? 1 - v : v) * 960 + noisePx * Math.Cos(k * 2.3);
+                    double x = (px - 643.0) / 870.0, y = -(py - 478.0) / 870.0, n = Math.Sqrt(x * x + y * y + 1);
+                    list.Add(new[] { u, v, x / n, y / n, 1 / n });
+                }
+            return list;
+        };
+        CameraFit.Result b = CameraFit.Fit(rays(true, 0), 1280, 960);
+        Check("a pinhole with Unity's bottom-left viewport origin is recovered exactly", b != null && b.Origin == "bottom-left" && Math.Abs(b.Fx - 870) < 1e-6
+              && Math.Abs(b.Fy - 870) < 1e-6 && Math.Abs(b.Cx - 643) < 1e-6 && Math.Abs(b.Cy - 478) < 1e-6 && b.RmsPx < 1e-6,
+              b == null ? "none" : b.Origin + " " + b.Fx + " " + b.Fy + " " + b.Cx + " " + b.Cy);
+        CameraFit.Result tl = CameraFit.Fit(rays(false, 0), 1280, 960);
+        Check("with a top-left origin, the fit finds that origin", tl != null && tl.Origin == "top-left" && Math.Abs(tl.Fy - 870) < 1e-6 && Math.Abs(tl.Cy - 478) < 1e-6);
+        CameraFit.Result noisy = CameraFit.Fit(rays(true, 0.5), 1280, 960);
+        Check("with half a pixel of noise it stays within 1 percent, the residual under a pixel", noisy != null && Math.Abs(noisy.Fx / 870 - 1) < 0.01
+              && Math.Abs(noisy.Fy / 870 - 1) < 0.01 && noisy.RmsPx < 1, noisy == null ? "none" : noisy.RmsPx.ToString("0.000"));
+        Check("too few samples give no fit", CameraFit.Fit(rays(true, 0).GetRange(0, 2), 1280, 960) == null);
+        double tfx, tfy, tcx, tcy;
+        CameraFit.Crop(869.5435, 869.5435, 643.2365, 638.2825, 1280, 1280, 1280, 960, out tfx, out tfy, out tcx, out tcy);
+        Check("the crop model: the square sensor to 1280x960 keeps the focal length and moves cy up 160 rows",
+              Math.Abs(tfx - 869.5435) < 1e-9 && Math.Abs(tfy - 869.5435) < 1e-9 && Math.Abs(tcx - 643.2365) < 1e-9 && Math.Abs(tcy - 478.2825) < 1e-9);
+        CameraFit.Crop(869.5435, 869.5435, 643.2365, 638.2825, 1280, 1280, 640, 480, out tfx, out tfy, out tcx, out tcy);
+        Check("and to 640x480 halves it and crops 80 rows", Math.Abs(tfx - 434.77175) < 1e-9 && Math.Abs(tcy - (638.2825 / 2 - 80)) < 1e-9);
+
+        Console.WriteLine("14. The scan's guidance in view");
+        var g = new Sim(S);
+        string first = ScanGuide.Text(g.Rule, 0, 0);
+        Check("before any keyframe: face part of the room and hold still, no direction done", first.StartsWith("SCAN: face part of the room and hold still")
+              && first.Contains("[............]") && first.Contains("spot 1 of up to 4, 0 keyframes"), first.Split('\n')[0]);
+        g.Hold(1).Turn(30, 0.8).Hold(1).Turn(30, 0.8).Hold(1).Turn(30, 0.8).Hold(0.2);
+        Check("three keyframes 30 degrees apart fill three slots in order", ScanGuide.Directions(g.Rule) == "[###.........]", ScanGuide.Directions(g.Rule));
+        Check("between them the hint says to turn about 30 degrees and hold still", ScanGuide.Hint(g.Rule) == "turn about 30 degrees and hold still"
+              || ScanGuide.Hint(g.Rule) == "hold still", ScanGuide.Hint(g.Rule));
+        g.Hold(1);   // finish holding at 90 degrees, so that direction is taken too
+        for (int k = 4; k < 12; k++) g.Turn(30, 0.8).Hold(1);
+        Check("after a full circle every slot is done", ScanGuide.Directions(g.Rule) == "[############]", ScanGuide.Directions(g.Rule));
+        g.Hold(0.6);
+        Check("and the hint says to walk 2 to 3 m to another side of the room", ScanGuide.Hint(g.Rule).StartsWith("walk 2 to 3 m"), ScanGuide.Hint(g.Rule));
+        Check("the guidance ends with how to finish", ScanGuide.Text(g.Rule, 12, 0).EndsWith("Done? Right thumbstick brings the panel: press Finish"));
 
         Console.WriteLine(pass + " passed, " + fail + " failed");
         return fail == 0 ? 0 : 1;

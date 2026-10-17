@@ -57,6 +57,10 @@ namespace SecondEyes.Perception.Scan
         public int Keyframes { get; private set; }
         public bool Full => Position + 1 >= s.MaxPositions && Step + 1 >= s.MaxKeyframesPerPosition;
         public string Hint { get; private set; } = "hold still";
+        /// <summary>The yaws of the keyframes taken at the current position, in degrees, in the order taken.</summary>
+        public IReadOnlyList<double> SpotYaws => yaws;
+        public double StepDeg => s.StepDeg;
+        public int MaxPositions => s.MaxPositions;
         /// <summary>After Update asked for a keyframe: the position it will have once taken; -1 when none is due.</summary>
         public int PendingPosition => pending ? (pendingNewPosition ? Position + 1 : Position) : -1;
 

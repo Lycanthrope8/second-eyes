@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using SecondEyes.Perception;
+using SecondEyes.Perception.Scan;
 using UnityEngine;
 using UnityEngine.XR;
 
@@ -65,13 +66,20 @@ namespace SecondEyes.App
             float elapsed = now - windowStart;
             if (elapsed < updateIntervalS)
             {
+                string scan = ScanText();   // A4 (stage 3): a scan's guidance changes faster than once a second
+                if (scan.Length > 0 && now - scanShownAt >= 0.1f)
+                {
+                    scanShownAt = now;
+                    label.text = baseText + scan;
+                }
                 return;
             }
 
             float fps = frames / elapsed;
             frames = 0;
             windowStart = now;
-            label.text = $"Second Eyes {Application.version}\n{fps:0.0} fps | {RefreshRateText()}" + HandsText() + DetectorText();
+            baseText = $"Second Eyes {Application.version}\n{fps:0.0} fps | {RefreshRateText()}" + HandsText() + DetectorText();
+            label.text = baseText + ScanText();
 
             if (!sized)
             {
@@ -86,6 +94,16 @@ namespace SecondEyes.App
                 return "";
             }
             return $"\nhands L {(HandState.LeftTracked ? "yes" : "no")} | R {(HandState.RightTracked ? "yes" : "no")}";
+        }
+
+        private string baseText = "";
+        private float scanShownAt;
+
+        /// <summary>A4 (stage 3): the scan's guidance (ScanGuide), below the rest, while a scan runs.</summary>
+        private static string ScanText()
+        {
+            IRoomScanner s = ScanRegistry.Scanner;
+            return s == null || string.IsNullOrEmpty(s.HudText) ? "" : "\n\n" + s.HudText;
         }
 
         private static string DetectorText()

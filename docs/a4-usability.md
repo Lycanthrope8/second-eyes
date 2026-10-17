@@ -12,12 +12,13 @@ The dining table is in another room and is left out of the category map.
 
 ## The scan
 
-1. Start a session, then press **Scan**.
-2. Stand at the first spot and look around slowly. Turn about 30 degrees, then hold still until the status says
-   `keyframe` or moves on. A full circle gives up to 12 keyframes.
-3. Walk about a metre and a half to a second spot and do the same; a third spot helps where objects hide each other.
-4. Press **Finish**. The result box lists what was found, each with how it was placed: from two or more spots, from its
-   size, position unknown, or maybe the same as another.
+1. Start a session, then press **Scan**. The guidance appears in view, below the frame rate.
+2. At the first spot, face part of the room and hold still until the controller buzzes. Then turn about 30 degrees and
+   hold still again, watching the bar of directions fill. A full circle gives up to 12 keyframes.
+3. Walk 2 to 3 m to another side of the room and do the same. Objects seen from two spots that far apart are placed
+   from both views, without their sizes; a third spot helps where objects hide each other.
+4. Bring the panel with the right thumbstick and press **Finish**. The result box lists what was found, each with how
+   it was placed: from two or more spots, from its size, position unknown, or maybe the same as another.
 
 ## The commands
 

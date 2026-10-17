@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Reflection;
 using System.Text;
 using Meta.XR;
@@ -196,6 +197,45 @@ namespace SecondEyes.Perception
             {
                 read = "failed: " + e.GetType().Name;
                 return false;
+            }
+        }
+
+        /// <summary>
+        /// A4: the camera's own rays for a 3x3 grid of viewport points (0.1, 0.5 and 0.9 on each axis), each direction in
+        /// the camera's axes through its pose at the same moment: rows of u, v, x, y, z. They let the scan fit the camera's
+        /// model in the texture's pixels instead of assuming one (CameraFit). Null when the component has no
+        /// ViewportPointToRay taking a Vector2 or Vector3, or no pose.
+        /// </summary>
+        public List<double[]> SampleViewportRays()
+        {
+            if (cameraAccess == null || cameraPose == null) return null;
+            MethodInfo m = null;
+            foreach (MethodInfo c in cameraAccess.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance))
+            {
+                if (c.Name != "ViewportPointToRay" || c.ReturnType != typeof(Ray)) continue;
+                ParameterInfo[] ps = c.GetParameters();
+                if (ps.Length == 1 && (ps[0].ParameterType == typeof(Vector2) || ps[0].ParameterType == typeof(Vector3))) { m = c; break; }
+            }
+            if (m == null) return null;
+            try
+            {
+                Pose pose = (Pose)cameraPose.Invoke(cameraAccess, null);
+                Quaternion toCamera = Quaternion.Inverse(pose.rotation);
+                bool two = m.GetParameters()[0].ParameterType == typeof(Vector2);
+                var rows = new List<double[]>();
+                foreach (float u in new[] { 0.1f, 0.5f, 0.9f })
+                    foreach (float v in new[] { 0.1f, 0.5f, 0.9f })
+                    {
+                        object arg = two ? (object)new Vector2(u, v) : new Vector3(u, v, 0f);
+                        Ray r = (Ray)m.Invoke(cameraAccess, new[] { arg });
+                        Vector3 d = toCamera * r.direction;
+                        rows.Add(new double[] { u, v, d.x, d.y, d.z });
+                    }
+                return rows;
+            }
+            catch (System.Exception)
+            {
+                return null;
             }
         }
 

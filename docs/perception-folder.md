@@ -9,7 +9,7 @@ doesn't hold. They travel as their own folder, verified on the headset as the pa
 | `schemas/capture.v1.json`, `scene.v3.json` | `schemas/` | the scan's record and its scene |
 | `schemas/grounding-query.v2.json`, `grounding-result.v2.json`, `command-context.v2.json` | `schemas/` | a scanned room's queries, results and typed commands |
 | `schemas/size-priors.v1.json`, `localization-config.v1.json`, `scan-config.v1.json`, `category-map.v1.json` | `schemas/` | checking the files below |
-| `configs/scan.default.v1.json` | `perception/scan/` | when the scan takes a keyframe (`scan.md`) |
+| `configs/scan.default.v2.json` | `perception/scan/` | when the scan takes a keyframe (`scan.md`) |
 | `configs/localization.default.v1.json` | `perception/localization/` | the localization's thresholds (`localization.md`) |
 | `maps/category-map.bedroom.v1.json` | `perception/bedroom/` | the bedroom's category map |
 | `priors/size-priors.bedroom.v1.json` | `perception/bedroom/` | the bedroom's measured sizes |
@@ -24,7 +24,8 @@ room or configuration is a different folder, not a code change.
     python -m grounding.quest.perception_device push --folder <built folder>
 
 `build` checks every file first (the schemas are JSON Schemas; the configurations and size priors pass their schemas;
-the map passes the contract), copies each byte for byte, and writes the manifest last. `push` verifies the folder,
+the map passes the contract), copies each with Git's line endings (LF), so a Windows checkout with CRLF line endings
+builds the very same folder and manifest SHA-256 as any other, and writes the manifest last. `push` verifies the folder,
 removes the headset's old manifest so the app never loads a half-pushed folder, pushes each file with its size checked
 on the headset into `files/perception/`, the manifest last, and writes a receipt beside the folder.
 `grounding/tests/test_perception_folder.py` checks the build and the verification.

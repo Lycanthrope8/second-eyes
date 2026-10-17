@@ -31,6 +31,8 @@ namespace SecondEyes.Perception.Scan
 
         public string Phase { get; private set; } = "idle";
         public string StatusLine { get; private set; } = "";
+        public string HudText => Phase == "scanning" && session != null ? ScanGuide.Text(session.Rule, session.Kept, session.Failed)
+                               : Phase == "preparing" ? "SCAN: starting the camera and detector..." : Phase == "finishing" ? "SCAN: finishing..." : "";
         public string LastCaptureId { get; private set; }
         public static string ScansDir => Path.Combine(Application.persistentDataPath, "scans");
 
@@ -135,18 +137,31 @@ namespace SecondEyes.Perception.Scan
                 yield break;
             }
             int tw = texture.width, th = texture.height;
-            double sx = (double)tw / sw, sy = (double)th / sh;
+            // The camera's model in the texture's pixels: fitted from the camera's own viewport rays when that fits a pinhole
+            // to within 2 pixels, otherwise the reported intrinsics carried over by the centre-crop model (Meta's sample code).
+            double kfx, kfy, kcx, kcy;
+            CameraFit.Crop(fx, fy, cx, cy, sw, sh, tw, th, out kfx, out kfy, out kcx, out kcy);
+            List<double[]> samples = fs.SampleViewportRays();
+            CameraFit.Result fit = CameraFit.Fit(samples, tw, th);
+            bool useFit = fit != null && fit.RmsPx < 2.0;
             var cam = new CaptureCamera
             {
-                CameraId = ("quest_" + fs.CameraName).ToLowerInvariant(), WidthPx = tw, HeightPx = th,
-                Fx = fx * sx, Fy = fy * sy, Cx = cx * sx, Cy = cy * sy, Distortion = "unknown",
-                IntrinsicsSource = "the camera component's " + read + (sw == tw && sh == th ? ""
-                    : "; scaled from the sensor's " + sw + "x" + sh + " pixels to the texture's " + tw + "x" + th)
+                CameraId = ("quest_" + fs.CameraName).ToLowerInvariant(), WidthPx = tw, HeightPx = th, Distortion = "unknown",
+                Fx = useFit ? fit.Fx : kfx, Fy = useFit ? fit.Fy : kfy, Cx = useFit ? fit.Cx : kcx, Cy = useFit ? fit.Cy : kcy,
+                IntrinsicsSource = useFit
+                    ? "fitted from the camera's ViewportPointToRay at " + fit.Samples + " viewport points (viewport origin " + fit.Origin + ", RMS "
+                      + fit.RmsPx.ToString("0.00", CultureInfo.InvariantCulture) + " px)"
+                    : "the camera component's " + read + ", carried from the sensor's " + sw + "x" + sh + " pixels to the texture's " + tw + "x" + th
+                      + " by the centre-crop model" + (fit == null ? " (no viewport rays to fit)" : " (the fit's RMS was " + fit.RmsPx.ToString("0.00", CultureInfo.InvariantCulture) + " px)")
             };
             Transform rig = Camera.main != null ? Camera.main.transform.parent : null;
             JNode facts = JNode.Obj().Add("api", JNode.Str(api)).Add("intrinsics_read", JNode.Str(read))
                 .Add("sensor_px", Pair(sw, sh)).Add("texture_px", Pair(tw, th))
-                .Add("sensor_intrinsics", Four(fx, fy, cx, cy)).Add("texture_intrinsics", Four(cam.Fx, cam.Fy, cam.Cx, cam.Cy))
+                .Add("sensor_intrinsics", Four(fx, fy, cx, cy)).Add("crop_intrinsics", Four(kfx, kfy, kcx, kcy))
+                .Add("fitted_intrinsics", fit == null ? JNode.Null : Four(fit.Fx, fit.Fy, fit.Cx, fit.Cy))
+                .Add("fit", fit == null ? JNode.Null : JNode.Obj().Add("rms_px", Num(fit.RmsPx)).Add("origin", JNode.Str(fit.Origin))
+                    .Add("samples", Localization.Localizer.Int(fit.Samples)))
+                .Add("intrinsics_used", JNode.Str(useFit ? "fitted" : "crop")).Add("texture_intrinsics", Four(cam.Fx, cam.Fy, cam.Cx, cam.Cy))
                 .Add("camera_name", JNode.Str(fs.CameraName)).Add("tracking_state_reported", Bool(TrackingReported()))
                 .Add("rig_position", rig == null ? JNode.Null : Three(rig.position.x, rig.position.y, rig.position.z))
                 .Add("rig_rotation_xyzw", rig == null ? JNode.Null : Four(rig.rotation.x, rig.rotation.y, rig.rotation.z, rig.rotation.w))
@@ -179,6 +194,7 @@ namespace SecondEyes.Perception.Scan
                 if (runner.RunScanKeyframe(saveImages, frame => OnFrame(frame, rulePosition, epochAtStart, tracked)))
                 {
                     session.Started();
+                    StartCoroutine(Buzz());   // a short pulse on the right controller: this view is taken
                     pending = true;
                     pendingSince = Time.realtimeSinceStartupAsDouble;
                 }
@@ -204,6 +220,13 @@ namespace SecondEyes.Perception.Scan
                            + ",\"kept_total\":" + session.Kept.ToString(CultureInfo.InvariantCulture)
                            + ",\"detections\":" + f.Detections.Count.ToString(CultureInfo.InvariantCulture)
                            + ",\"snapshot\":" + (f.Snapshot == null ? "null" : Json(f.Snapshot)) + "}");
+        }
+
+        private static IEnumerator Buzz()
+        {
+            OVRInput.SetControllerVibration(1f, 0.5f, OVRInput.Controller.RTouch);
+            yield return new WaitForSeconds(0.08f);
+            OVRInput.SetControllerVibration(0f, 0f, OVRInput.Controller.RTouch);
         }
 
         private IEnumerator Complete()

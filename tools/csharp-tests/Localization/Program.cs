@@ -109,7 +109,7 @@ static class Program
         foreach (string n in new[] { "capture.v1.json", "category-map.v1.json", "command-context.v2.json", "grounding-query.v2.json", "grounding-result.v2.json",
                                      "localization-config.v1.json", "scan-config.v1.json", "scene.v3.json", "size-priors.v1.json" })
             files["schemas/" + n] = Path.Combine("schemas", n);
-        files["configs/scan.default.v1.json"] = Path.Combine("perception", "scan", "scan.default.v1.json");
+        files["configs/scan.default.v2.json"] = Path.Combine("perception", "scan", "scan.default.v2.json");
         files["configs/localization.default.v1.json"] = Path.Combine("perception", "localization", "localization.default.v1.json");
         files["maps/category-map.bedroom.v1.json"] = Path.Combine("perception", "bedroom", "category-map.bedroom.v1.json");
         files["priors/size-priors.bedroom.v1.json"] = Path.Combine("perception", "bedroom", "size-priors.bedroom.v1.json");
@@ -124,7 +124,7 @@ static class Program
                 listed.Add(kv.Key, JNode.Obj().Add("bytes", Localizer.Int(b.Length)).Add("sha256", JNode.Str(string.Concat(h.ComputeHash(b).Select(x => x.ToString("x2"))))));
             }
         JNode m = JNode.Obj().Add("format_version", Localizer.Int(1)).Add("record_type", JNode.Str("a4_perception_folder")).Add("files", listed)
-            .Add("scan_config", JNode.Str("configs/scan.default.v1.json")).Add("localization_config", JNode.Str("configs/localization.default.v1.json"))
+            .Add("scan_config", JNode.Str("configs/scan.default.v2.json")).Add("localization_config", JNode.Str("configs/localization.default.v1.json"))
             .Add("size_priors", JNode.Str("priors/size-priors.bedroom.v1.json")).Add("category_map", JNode.Str("maps/category-map.bedroom.v1.json"));
         File.WriteAllText(Path.Combine(dir, "manifest.json"), SecondEyes.Grounding.Parsing.PyJson.Canonical(m));
         return PerceptionFolder.Load(dir);
