@@ -1,6 +1,6 @@
 """A4 Delivery 1, stage 3: a scan's files from the headset, and a page to look at its keyframes, over adb.
 
-`pull` copies one scan's folder, files/scans/<capture ID>/ (the newest when none is named), into a new local folder:
+`pull` copies one scan's folder, files/scans/<capture ID>/ (when none is named, the one the headset changed last), into a new local folder:
 facts.json, capture.json, scene.json and trace.json, as many as the scan wrote, and each saved keyframe image its facts
 name (files/snapshots/<name>.png). It never writes over an existing folder; pull.json records what came.
 `view` writes view.html beside a pulled scan: each kept keyframe's image, the model's own input, with that keyframe's
@@ -31,19 +31,17 @@ REMOTE_SNAPSHOTS = APP_DIR + "/snapshots"
 FILES = ("facts.json", "capture.json", "scene.json", "trace.json")
 
 
-def _order(name: str):
-    """scan.<session>.<n>: newest session last, then the highest n."""
-    parts = name.split(".")
-    n = int(parts[-1]) if parts[-1].isdigit() else -1
-    return (".".join(parts[1:-1]), n)
-
-
 def newest(adb) -> str | None:
-    code, out, _ = adb.shell("ls", REMOTE_SCANS)
+    """The scan folder the headset changed last (`ls -t`, newest first). A capture ID's middle part is a session code,
+    not a time, so the names can't say which scan is newest; a folder still being written (.partial) is skipped."""
+    code, out, _ = adb.shell("ls", "-t", REMOTE_SCANS)
     if code != 0:
         return None
-    names = [x.strip() for x in out.splitlines() if x.strip().startswith("scan.")]
-    return max(names, key=_order) if names else None
+    for x in out.splitlines():
+        x = x.strip()
+        if x.startswith("scan.") and not x.endswith(".partial"):
+            return x
+    return None
 
 
 def pull(*, out, capture=None, adb=None, progress=print) -> dict:

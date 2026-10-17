@@ -109,7 +109,8 @@ headset's room layout (Space Setup) could leave out objects beyond the room's wa
     python -m grounding.quest.scan_device view --scan <pulled scan folder>
     dotnet run --project tools/localize -- <capture.json> <map> <priors> <config> <out> schemas --compare <scene.json>
 
-`pull` copies a scan (the newest unless named) and its keyframe images; `view` writes `view.html`, each keyframe's
+`pull` copies a scan (unless named, the one the headset changed last: a capture ID's middle part is a session code,
+not a time, so names can't say which is newest) and its keyframe images; `view` writes `view.html`, each keyframe's
 image with its boxes drawn as the model saw them; the rerun with `--compare` must find the same objects, categories,
 placements and possible duplicates as the headset, with centres within 1 mm.
 

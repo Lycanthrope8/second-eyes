@@ -41,8 +41,15 @@ class FakeDevice:
             return 0, "1 file pulled\n", ""
         if args[:2] == ("shell", "ls"):
             path = args[-1]
-            kids = sorted({k[len(path) + 1:].split("/")[0] for k in self.files if k.startswith(path + "/")})
-            return (0, "".join(k + "\n" for k in kids), "") if kids else (1, "", "No such file or directory")
+            kids = {}   # each entry's newest file; the order files were added stands for time, later being newer
+            for i, k in enumerate(self.files):
+                if k.startswith(path + "/"):
+                    kid = k[len(path) + 1:].split("/")[0]
+                    kids[kid] = max(kids.get(kid, -1), i)
+            if not kids:
+                return 1, "", "No such file or directory"
+            names = sorted(kids, key=lambda n: -kids[n]) if "-t" in args else sorted(kids)
+            return 0, "".join(n + "\n" for n in names), ""
         return 1, "", "unsupported in the fake"
 
     def shell(self, *args):
@@ -74,7 +81,11 @@ def main() -> int:
         tmp = Path(tmp)
         dev = FakeDevice(remote)
         print("Which scan")
-        check("the newest is the highest number in the newest session (10 after 2, not before)", SD.newest(dev) == "scan.s1.10")
+        check("the newest is the scan the headset changed last", SD.newest(dev) == "scan.s1.10")
+        older_named_last = FakeDevice({f"{SD.REMOTE_SCANS}/scan.f42b9440.3/facts.json": b"{}", f"{SD.REMOTE_SCANS}/scan.43eb5624.1/facts.json": b"{}",
+                                       f"{SD.REMOTE_SCANS}/scan.43eb5624.2.partial/facts.json": b"{}"})
+        check("by the headset's file times, not the names: today's scan.43eb5624.1 after yesterday's scan.f42b9440.3, a .partial skipped",
+              SD.newest(older_named_last) == "scan.43eb5624.1", str(SD.newest(older_named_last)))
         print("Pulling")
         r = SD.pull(out=tmp, capture="scan.s1.2", adb=dev, progress=lambda _: None)
         d = tmp / "scan.s1.2"
