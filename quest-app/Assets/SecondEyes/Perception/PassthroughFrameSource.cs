@@ -208,15 +208,37 @@ namespace SecondEyes.Perception
         /// </summary>
         public List<double[]> SampleViewportRays()
         {
-            if (cameraAccess == null || cameraPose == null) return null;
+            if (cameraAccess == null || cameraPose == null) { ViewportRayNote = "no camera component or pose"; return null; }
+            // The first parameter is the viewport point; any other must be the camera's pose (given the one read here, so
+            // ray and pose belong together) or optional (given its default).
             MethodInfo m = null;
+            object[] proto = null;
+            int poseAt = -1;
+            var seen = new List<string>();
             foreach (MethodInfo c in cameraAccess.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance))
             {
-                if (c.Name != "ViewportPointToRay" || c.ReturnType != typeof(Ray)) continue;
+                if (c.Name != "ViewportPointToRay") continue;
+                seen.Add(c.ReturnType.Name + " ViewportPointToRay(" + Params(c) + ")");
                 ParameterInfo[] ps = c.GetParameters();
-                if (ps.Length == 1 && (ps[0].ParameterType == typeof(Vector2) || ps[0].ParameterType == typeof(Vector3))) { m = c; break; }
+                if (c.ReturnType != typeof(Ray) || ps.Length == 0 || (ps[0].ParameterType != typeof(Vector2) && ps[0].ParameterType != typeof(Vector3))) continue;
+                var args = new object[ps.Length];
+                int at = -1;
+                bool usable = true;
+                for (int i = 1; i < ps.Length && usable; i++)
+                {
+                    System.Type pt = ps[i].ParameterType;
+                    if (pt == typeof(Pose) || pt == typeof(Pose?)) at = i;
+                    else if (ps[i].IsOptional) args[i] = ps[i].DefaultValue == System.DBNull.Value ? System.Type.Missing : ps[i].DefaultValue;
+                    else usable = false;
+                }
+                if (usable) { m = c; proto = args; poseAt = at; break; }
             }
-            if (m == null) return null;
+            if (m == null)
+            {
+                ViewportRayNote = seen.Count == 0 ? "the camera component has no ViewportPointToRay" : "no usable form among: " + string.Join("; ", seen);
+                return null;
+            }
+            string form = "Ray ViewportPointToRay(" + Params(m) + ")";
             try
             {
                 Pose pose = (Pose)cameraPose.Invoke(cameraAccess, null);
@@ -226,15 +248,19 @@ namespace SecondEyes.Perception
                 foreach (float u in new[] { 0.1f, 0.5f, 0.9f })
                     foreach (float v in new[] { 0.1f, 0.5f, 0.9f })
                     {
-                        object arg = two ? (object)new Vector2(u, v) : new Vector3(u, v, 0f);
-                        Ray r = (Ray)m.Invoke(cameraAccess, new[] { arg });
+                        var args = (object[])proto.Clone();
+                        args[0] = two ? (object)new Vector2(u, v) : new Vector3(u, v, 0f);
+                        if (poseAt > 0) args[poseAt] = pose;
+                        Ray r = (Ray)m.Invoke(cameraAccess, args);
                         Vector3 d = toCamera * r.direction;
                         rows.Add(new double[] { u, v, d.x, d.y, d.z });
                     }
+                ViewportRayNote = form + ": " + rows.Count + " rays" + (poseAt > 0 ? ", given the pose read with them" : "");
                 return rows;
             }
-            catch (System.Exception)
+            catch (System.Exception e)
             {
+                ViewportRayNote = form + " threw " + (e.InnerException ?? e).GetType().Name + ": " + (e.InnerException ?? e).Message;
                 return null;
             }
         }
@@ -247,9 +273,25 @@ namespace SecondEyes.Perception
             foreach (PropertyInfo p in cameraAccess.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
                 sb.Append(' ').Append(p.Name).Append(':').Append(p.PropertyType.Name);
             foreach (MethodInfo m in cameraAccess.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
-                if (!m.IsSpecialName) sb.Append(' ').Append(m.Name).Append("()");
+                if (!m.IsSpecialName) sb.Append(' ').Append(m.Name).Append('(').Append(Params(m)).Append(')');
             return sb.ToString();
         }
+
+        /// <summary>A method's parameter types, each optional one with its default: "Vector2, Nullable`1=null".</summary>
+        private static string Params(MethodInfo m)
+        {
+            var parts = new List<string>();
+            foreach (ParameterInfo p in m.GetParameters())
+            {
+                string t = p.ParameterType.Name;
+                if (System.Nullable.GetUnderlyingType(p.ParameterType) != null) t += "<" + System.Nullable.GetUnderlyingType(p.ParameterType).Name + ">";
+                parts.Add(p.IsOptional ? t + "=" + (p.DefaultValue == null ? "null" : p.DefaultValue.ToString()) : t);
+            }
+            return string.Join(", ", parts);
+        }
+
+        /// <summary>A4: which ViewportPointToRay the last SampleViewportRays used, and how it went, for the scan's facts.</summary>
+        public string ViewportRayNote { get; private set; } = "";
 
         private static object Member(object o, string name)
         {

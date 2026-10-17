@@ -90,6 +90,21 @@ def main() -> int:
         check("it shows each kept keyframe's image", page.count("<img ") == 2 and "snapshots/s1_001.png" in page)
         check("each box is scaled into the model's input by the letterbox ratio", f'x="{x1:.1f}"' in page, f"{x1:.1f}")
         check("it names the timestamp kind and each frame's age", "DateTime" in page and "frame age 12 ms" in page)
+        check("without the trace's fates, the boxes keep one style", "<rect class=" not in page and "<rect " in page)
+        print("The view page with each detection's fate")
+        (d / "trace.json").write_text(json.dumps({"record_type": "localization_trace", "detections": [
+            {"keyframe": 0, "detection": 0, "label": "chair", "score": 0.87, "fate": "object", "object_id": "obj_001", "sighting": 0, "joined_by_ray": False},
+            {"keyframe": 0, "detection": 1, "label": "dining table", "score": 0.79, "fate": "cut_by_the_edge"},
+            {"keyframe": 1, "detection": 0, "label": "dining table", "score": 0.79, "fate": "object", "object_id": "obj_003", "sighting": 1, "joined_by_ray": True}]}),
+            encoding="utf-8")
+        (d / "scene.json").write_text(json.dumps({"objects": [
+            {"object_id": "obj_001", "observation": {"association": {"status": "possible_duplicate", "may_duplicate": ["obj_002"]}}},
+            {"object_id": "obj_003", "observation": {"association": {"status": "multi_position", "may_duplicate": []}}}]}), encoding="utf-8")
+        page = SD.view(scan=d).read_text(encoding="utf-8")
+        check("a box that went into an object is green, with its object's ID", '<rect class="obj"' in page and "dining table 0.79 \u2192 obj_003 (joined by its ray)" in page)
+        check("a box left out is grey and dashed, with the reason", '<rect class="out"' in page and "dining table 0.79: cut by the picture&#x27;s edge" in page)
+        check("a box whose object may be another is amber, naming the other", '<rect class="dup"' in page and "chair 0.87 \u2192 obj_001, maybe the same as obj_002" in page)
+        check("the page counts every detection's fate", "3 detections: 2 in objects (1 joined by their ray), 1 left out: 0 not a category in this room&#x27;s map, 0 score below the minimum, 1 cut by the picture&#x27;s edge." in page)
     print(f"{len(PASSED)} passed, {len(FAILED)} failed")
     return 1 if FAILED else 0
 

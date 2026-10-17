@@ -11,6 +11,10 @@ namespace SecondEyes.Perception.Scan
         public string ConfigId;
         public double StepDeg, StepMarginDeg, SteadyS, SteadyDeg, SteadyM, NewPositionM;
         public int MaxKeyframesPerPosition, MaxPositions;
+        /// <summary>Optional (from scan.default.v3): a view looking down by at least this many degrees belongs to the look-down
+        /// row, which has its own directions, so looking down at a desk after a level view in the same direction counts; 0
+        /// keeps one row.</summary>
+        public double DownPitchDeg;
 
         public static ScanSettings From(JNode n)
         {
@@ -19,7 +23,7 @@ namespace SecondEyes.Perception.Scan
                 ConfigId = n["config_id"].Text, StepDeg = n["step_deg"].Num, StepMarginDeg = n["step_margin_deg"].Num,
                 SteadyS = n["steady_s"].Num, SteadyDeg = n["steady_deg"].Num, SteadyM = n["steady_m"].Num,
                 NewPositionM = n["new_position_m"].Num, MaxKeyframesPerPosition = (int)n["max_keyframes_per_position"].Num,
-                MaxPositions = (int)n["max_positions"].Num
+                MaxPositions = (int)n["max_positions"].Num, DownPitchDeg = n.Has("down_pitch_deg") ? n["down_pitch_deg"].Num : 0
             };
         }
     }
@@ -36,15 +40,21 @@ namespace SecondEyes.Perception.Scan
     ///   taken there, so turning back adds nothing;
     /// - at a new spot, when the head has moved new_position_m or more across the floor from the spot's first keyframe;
     ///   that keyframe starts the next position.
+    /// With down_pitch_deg set (scan.default.v3), each spot has two rows of directions: level, and looking down by at least
+    /// that much. A direction is new when it is new in its own row, and only the level row decides when a spot is done.
+    /// The head's pitch must hold still too.
     /// The caller takes the keyframe, then calls Taken(); a keyframe that couldn't be taken leaves the rule as it was.
     /// </summary>
     public sealed class KeyframeRule
     {
-        private struct Sample { public double T, Yaw; public Vec3 P; }
+        private struct Sample { public double T, Yaw, Pitch; public Vec3 P; }
 
         private readonly ScanSettings s;
         private readonly LinkedList<Sample> window = new LinkedList<Sample>();
-        private readonly List<double> yaws = new List<double>();   // the keyframes' yaws at the current position
+        private readonly List<double> yaws = new List<double>();   // the keyframes' yaws at the current position (the level row)
+        private readonly List<double> downYaws = new List<double>();   // and in the look-down row
+        private double spotFirstYaw;
+        private bool pendingDown;
         private Vec3 origin;
         private bool pending, pendingNewPosition;
         private double pendingYaw;
@@ -55,17 +65,25 @@ namespace SecondEyes.Perception.Scan
         public int Position { get; private set; } = -1;
         public int Step { get; private set; } = -1;
         public int Keyframes { get; private set; }
-        public bool Full => Position + 1 >= s.MaxPositions && Step + 1 >= s.MaxKeyframesPerPosition;
+        public bool Full => Position + 1 >= s.MaxPositions && yaws.Count >= s.MaxKeyframesPerPosition
+                            && (!HasRows || downYaws.Count >= s.MaxKeyframesPerPosition);
         public string Hint { get; private set; } = "hold still";
         /// <summary>The yaws of the keyframes taken at the current position, in degrees, in the order taken.</summary>
         public IReadOnlyList<double> SpotYaws => yaws;
+        public IReadOnlyList<double> SpotDownYaws => downYaws;
+        /// <summary>The yaw of the first keyframe at the current spot, in either row: where both rows' directions count from.</summary>
+        public double SpotFirstYaw => spotFirstYaw;
+        public bool HasRows => s.DownPitchDeg > 0;
         public double StepDeg => s.StepDeg;
         public int MaxPositions => s.MaxPositions;
         /// <summary>After Update asked for a keyframe: the position it will have once taken; -1 when none is due.</summary>
         public int PendingPosition => pending ? (pendingNewPosition ? Position + 1 : Position) : -1;
 
         /// <summary>One head sample; true when a keyframe should be taken now.</summary>
-        public bool Update(double t, Vec3 head, double yawDeg, bool tracked, bool busy)
+        public bool Update(double t, Vec3 head, double yawDeg, bool tracked, bool busy) { return Update(t, head, yawDeg, 0, tracked, busy); }
+
+        /// <summary>One head sample with its pitch (degrees, negative looking down); true when a keyframe should be taken now.</summary>
+        public bool Update(double t, Vec3 head, double yawDeg, double pitchDeg, bool tracked, bool busy)
         {
             pending = false;
             if (!tracked)
@@ -74,21 +92,23 @@ namespace SecondEyes.Perception.Scan
                 Hint = "tracking lost: look around until it returns";
                 return false;
             }
-            window.AddLast(new Sample { T = t, Yaw = yawDeg, P = head });
+            window.AddLast(new Sample { T = t, Yaw = yawDeg, Pitch = pitchDeg, P = head });
             while (window.Count > 2 && t - window.First.Next.Value.T >= s.SteadyS) window.RemoveFirst();
-            if (!Steady(t, head, yawDeg)) { Hint = "hold still"; return false; }
+            if (!Steady(t, head, yawDeg, pitchDeg)) { Hint = "hold still"; return false; }
+            bool down = HasRows && pitchDeg <= -s.DownPitchDeg;
+            List<double> row = down ? downYaws : yaws;
 
             bool newPosition;
             if (Position < 0) newPosition = true;
             else if (Across(head, origin) >= s.NewPositionM) newPosition = Position + 1 < s.MaxPositions;
             else newPosition = false;
-            bool newDirection = !newPosition && Position >= 0 && Step + 1 < s.MaxKeyframesPerPosition
-                                && Nearest(yawDeg) >= s.StepDeg - s.StepMarginDeg;
+            bool newDirection = !newPosition && Position >= 0 && row.Count < s.MaxKeyframesPerPosition
+                                && Nearest(row, yawDeg) >= s.StepDeg - s.StepMarginDeg;
             if (!newPosition && !newDirection)
             {
-                Hint = Position + 1 >= s.MaxPositions && (Step + 1 >= s.MaxKeyframesPerPosition || Across(head, origin) >= s.NewPositionM)
+                Hint = Position + 1 >= s.MaxPositions && (yaws.Count >= s.MaxKeyframesPerPosition || Across(head, origin) >= s.NewPositionM)
                     ? "the scan is complete: press Finish"
-                    : Step + 1 >= s.MaxKeyframesPerPosition ? "move about " + s.NewPositionM.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + " m to a new spot and hold still"
+                    : yaws.Count >= s.MaxKeyframesPerPosition ? "move about " + s.NewPositionM.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + " m to a new spot and hold still"
                     : "turn about " + s.StepDeg.ToString("0", System.Globalization.CultureInfo.InvariantCulture) + "° and hold still, or move to a new spot";
                 return false;
             }
@@ -96,6 +116,7 @@ namespace SecondEyes.Perception.Scan
             pending = true;
             pendingNewPosition = newPosition;
             pendingYaw = yawDeg;
+            pendingDown = down;
             pendingAt = head;
             Hint = "keyframe";
             return true;
@@ -111,30 +132,33 @@ namespace SecondEyes.Perception.Scan
                 Step = 0;
                 origin = pendingAt;
                 yaws.Clear();
+                downYaws.Clear();
+                spotFirstYaw = pendingYaw;
             }
             else Step++;
-            yaws.Add(pendingYaw);
+            (pendingDown ? downYaws : yaws).Add(pendingYaw);
             Keyframes++;
             pending = false;
         }
 
-        private bool Steady(double t, Vec3 head, double yaw)
+        private bool Steady(double t, Vec3 head, double yaw, double pitch)
         {
             if (t - window.First.Value.T < s.SteadyS) return false;
-            double low = 0, high = 0;   // the yaws relative to the newest, so the range is measured across the +-180 seam
+            double low = 0, high = 0, pLow = 0, pHigh = 0;   // the yaws relative to the newest, so the range is measured across the +-180 seam
             foreach (Sample x in window)
             {
                 double d = Wrap(x.Yaw - yaw);
                 low = Math.Min(low, d); high = Math.Max(high, d);
+                pLow = Math.Min(pLow, x.Pitch - pitch); pHigh = Math.Max(pHigh, x.Pitch - pitch);
                 if ((x.P - head).Norm > s.SteadyM) return false;
             }
-            return high - low <= s.SteadyDeg;
+            return high - low <= s.SteadyDeg && pHigh - pLow <= s.SteadyDeg;
         }
 
-        private double Nearest(double yaw)
+        private static double Nearest(List<double> row, double yaw)
         {
             double best = double.MaxValue;
-            foreach (double y in yaws) best = Math.Min(best, Math.Abs(Wrap(yaw - y)));
+            foreach (double y in row) best = Math.Min(best, Math.Abs(Wrap(yaw - y)));
             return best;
         }
 

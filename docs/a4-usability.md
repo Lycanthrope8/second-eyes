@@ -8,13 +8,15 @@ numbers are claimed from it (Gate C and the formal evaluation come at the end of
 
 The bedroom, with the objects measured in `perception/bedroom/size-priors.bedroom.v1.json`: two chairs (88 and 115 cm
 tall), a TV, a laptop, a keyboard, a mouse, a bottle, and the bed (no size: it is placed only when seen from two spots).
+The closet's mirrored doors are covered while scanning: reflections would be placed as objects behind them.
 The dining table is in another room and is left out of the category map.
 
 ## The scan
 
-1. Start a session, then press **Scan**. The guidance appears in view, below the frame rate.
+1. Cover the mirrors. Start a session, then press **Scan**. The guidance appears in view, below the frame rate.
 2. At the first spot, face part of the room and hold still until the controller buzzes. Then turn about 30 degrees and
-   hold still again, watching the bar of directions fill. A full circle gives up to 12 keyframes.
+   hold still again, watching the level row fill. At a desk or table, also look down at it and hold still: that fills
+   the down row, and brings what stands on it into the picture. Skip directions facing a wall right beside you.
 3. Walk 2 to 3 m to another side of the room and do the same. Objects seen from two spots that far apart are placed
    from both views, without their sizes; a third spot helps where objects hide each other.
 4. Bring the panel with the right thumbstick and press **Finish**. The result box lists what was found, each with how

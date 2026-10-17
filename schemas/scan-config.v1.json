@@ -71,6 +71,12 @@
       "type": "integer",
       "minimum": 1,
       "maximum": 20
+    },
+    "down_pitch_deg": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 80,
+      "description": "Optional (added in A4 Delivery 1, before its delivery): a view looking down by at least this many degrees belongs to the look-down row, which has its own directions; without it, one row"
     }
   },
   "$defs": {

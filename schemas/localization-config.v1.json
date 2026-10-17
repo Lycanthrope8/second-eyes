@@ -70,6 +70,18 @@
       "type": "number",
       "exclusiveMinimum": 0,
       "maximum": 50
+    },
+    "ray_attach_margin_m": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 2,
+      "description": "Optional (added in A4 Delivery 1, before its delivery): turns on step 7, joining a sighting from one place to a placed object of its category along its viewing ray; the reach is half the category's largest prior dimension plus this margin"
+    },
+    "ray_attach_default_reach_m": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 5,
+      "description": "Optional: step 7's reach for a category with no size prior"
     }
   },
   "$defs": {

@@ -37,8 +37,8 @@ REMOTE = APP_DIR + "/perception"
 SCHEMAS = ("capture.v1.json", "category-map.v1.json", "command-context.v2.json", "grounding-query.v2.json",
            "grounding-result.v2.json", "localization-config.v1.json", "scan-config.v1.json", "scene.v3.json",
            "size-priors.v1.json")
-ROLES = {"scan_config": ("configs/scan.default.v2.json", "perception/scan/scan.default.v2.json", "scan-config.v1.json"),
-         "localization_config": ("configs/localization.default.v1.json", "perception/localization/localization.default.v1.json",
+ROLES = {"scan_config": ("configs/scan.default.v3.json", "perception/scan/scan.default.v3.json", "scan-config.v1.json"),
+         "localization_config": ("configs/localization.default.v2.json", "perception/localization/localization.default.v2.json",
                                  "localization-config.v1.json"),
          "size_priors": ("priors/size-priors.bedroom.v1.json", "perception/bedroom/size-priors.bedroom.v1.json", "size-priors.v1.json"),
          "category_map": ("maps/category-map.bedroom.v1.json", "perception/bedroom/category-map.bedroom.v1.json", None)}

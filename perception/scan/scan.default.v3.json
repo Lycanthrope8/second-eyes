@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "record_type": "scan_config",
+  "config_id": "scan.default.v3",
+  "description": "A4's third scan settings: as v2, plus a look-down row (views at least 20 degrees down have their own directions), after the second bedroom scan lost every desk object at the bottom of the picture",
+  "step_deg": 30,
+  "step_margin_deg": 5,
+  "steady_s": 0.5,
+  "steady_deg": 3,
+  "steady_m": 0.05,
+  "new_position_m": 1.5,
+  "max_keyframes_per_position": 12,
+  "max_positions": 4,
+  "down_pitch_deg": 20
+}

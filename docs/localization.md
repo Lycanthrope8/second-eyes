@@ -39,10 +39,23 @@ map against the contract), notes when the capture used a different map or priors
 6. **Centres.** A track seen from two or more positions gets the least-squares point nearest its rays; a ray farther
    than `gap_max_m` from it is split off as its own object, marked a possible duplicate (the third-view check). A track
    seen from one position gets the middle of its distance interval, or no centre without a size prior.
+7. **Joining along the ray** (with `ray_attach_margin_m` set: `localization.default.v2`). A track seen from one position
+   joins the track of its category seen from two or more whose centre its rays pass within reach of, in front of the
+   camera. The reach is half the largest dimension among the category's size priors plus `ray_attach_margin_m`, or
+   `ray_attach_default_reach_m` for a category without a prior (the bedroom's bed). A view of a large object from one
+   place often misses a two-place link only because the view is partial, and its ray still points at the object.
+   Joined views count in the object's views but add no geometry: its centre stays the one fitted from two or more
+   places. When the track's own distance from a size prior doesn't fit the distance along its ray (something smaller
+   called by the same name), or two placed tracks are within `ambiguity_ratio` of each other, nothing is joined and
+   they are marked possible duplicates; a track already marked one is left as it is.
 
 There is no prior on how many objects of a kind exist. Detections are taken in the order of their boxes, so the output
 and the object IDs depend only on what was seen, not on the order the detector listed it. Numbers are written rounded
 to 0.1 mm, so the PC and the headset write the same text.
+
+The trace (not a contract record) lists every detection's fate in capture order: left out and why (`unmapped_label`,
+`below_min_score`, `cut_by_the_edge`), or the object it went to, its sighting, and whether it was joined by its ray. It
+also records each step 7 decision with the distances it rested on. The scan view (`scan.md`) colours each box by it.
 
 ## What the scene says
 
@@ -73,6 +86,8 @@ usability check shows a need.
 | `min_parallax_deg` | 4 | the smallest angle between two rays that triangulates |
 | `ambiguity_ratio` | 1.5 | a rival within this factor of a link's cost makes it uncertain |
 | `max_range_m` | 8 | nothing farther is placed |
+| `ray_attach_margin_m` | none (v2: 0.25) | optional: turns on step 7; added to half the category's largest prior dimension |
+| `ray_attach_default_reach_m` | none (v2: 1.25) | optional: step 7's reach for a category without a size prior |
 
 ## Checks
 
@@ -109,3 +124,8 @@ check. Disabling the distance test makes case 2 fail, which shows the cases bite
 - The third-view split is a safety net that none of the synthetic scans triggers.
 - An object of a category with several sizes, seen from one position, gets a wider distance interval: its size can't
   say which of the sizes it has. Scanning from a second position places it without sizes.
+- A reflection in a mirror is geometrically consistent, so it is placed as an object behind the mirror. Scans cover
+  mirrors; the headset's room layout could later leave out objects beyond the walls.
+- Step 7 joins a view only to an object placed from two spots. Two objects of a kind seen from one spot each, with no
+  object placed from two, stay apart; an object seen from one spot whose ray passes near another of its kind but whose
+  size says it is farther is marked a possible duplicate rather than joined, which may leave a real object marked.

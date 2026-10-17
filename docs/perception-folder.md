@@ -9,8 +9,8 @@ doesn't hold. They travel as their own folder, verified on the headset as the pa
 | `schemas/capture.v1.json`, `scene.v3.json` | `schemas/` | the scan's record and its scene |
 | `schemas/grounding-query.v2.json`, `grounding-result.v2.json`, `command-context.v2.json` | `schemas/` | a scanned room's queries, results and typed commands |
 | `schemas/size-priors.v1.json`, `localization-config.v1.json`, `scan-config.v1.json`, `category-map.v1.json` | `schemas/` | checking the files below |
-| `configs/scan.default.v2.json` | `perception/scan/` | when the scan takes a keyframe (`scan.md`) |
-| `configs/localization.default.v1.json` | `perception/localization/` | the localization's thresholds (`localization.md`) |
+| `configs/scan.default.v3.json` | `perception/scan/` | when the scan takes a keyframe (`scan.md`) |
+| `configs/localization.default.v2.json` | `perception/localization/` | the localization's thresholds (`localization.md`) |
 | `maps/category-map.bedroom.v1.json` | `perception/bedroom/` | the bedroom's category map |
 | `priors/size-priors.bedroom.v1.json` | `perception/bedroom/` | the bedroom's measured sizes |
 

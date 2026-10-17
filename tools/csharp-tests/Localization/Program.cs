@@ -54,6 +54,11 @@ static class Program
     /// through CaptureBuilder exactly as the headset will build one.</summary>
     static JNode Scan(List<Box> boxes, (double x, double y)[] positions, double[] yaws, bool reverse = false, List<CaptureDetection> extra = null)
     {
+        return ScanEach(p => boxes, positions, yaws, reverse, extra);
+    }
+    /// <summary>A synthetic scan where each spot sees its own boxes (what another spot sees, hides or mistakes).</summary>
+    static JNode ScanEach(Func<int, List<Box>> boxesAt, (double x, double y)[] positions, double[] yaws, bool reverse = false, List<CaptureDetection> extra = null)
+    {
         var builder = new CaptureBuilder("scan.synthetic",
             new CaptureCamera { CameraId = "quest_left", WidthPx = W, HeightPx = H, Fx = F, Fy = F, Cx = Cx, Cy = Cy, IntrinsicsSource = "synthetic", Distortion = "none" },
             "synthetic", Manifest, new string('0', 63) + "1", new string('b', 64), "map.bedroom", "sizes.bedroom", "ns", 5000, 30);
@@ -67,7 +72,7 @@ static class Program
                 var qu = new Quat(0, Math.Sin(yaw / 2), 0, Math.Cos(yaw / 2));
                 RigidTransform toCamera = UnityBasis.CameraToScene("quest_left", 0, pu, qu).Inverse();
                 var dets = new List<CaptureDetection>();
-                foreach (Box b in boxes)
+                foreach (Box b in boxesAt(p))
                 {
                     double u0 = double.MaxValue, v0 = double.MaxValue, u1 = double.MinValue, v1 = double.MinValue;
                     bool front = true;
@@ -109,8 +114,8 @@ static class Program
         foreach (string n in new[] { "capture.v1.json", "category-map.v1.json", "command-context.v2.json", "grounding-query.v2.json", "grounding-result.v2.json",
                                      "localization-config.v1.json", "scan-config.v1.json", "scene.v3.json", "size-priors.v1.json" })
             files["schemas/" + n] = Path.Combine("schemas", n);
-        files["configs/scan.default.v2.json"] = Path.Combine("perception", "scan", "scan.default.v2.json");
-        files["configs/localization.default.v1.json"] = Path.Combine("perception", "localization", "localization.default.v1.json");
+        files["configs/scan.default.v3.json"] = Path.Combine("perception", "scan", "scan.default.v3.json");
+        files["configs/localization.default.v2.json"] = Path.Combine("perception", "localization", "localization.default.v2.json");
         files["maps/category-map.bedroom.v1.json"] = Path.Combine("perception", "bedroom", "category-map.bedroom.v1.json");
         files["priors/size-priors.bedroom.v1.json"] = Path.Combine("perception", "bedroom", "size-priors.bedroom.v1.json");
         var listed = JNode.Obj();
@@ -124,7 +129,7 @@ static class Program
                 listed.Add(kv.Key, JNode.Obj().Add("bytes", Localizer.Int(b.Length)).Add("sha256", JNode.Str(string.Concat(h.ComputeHash(b).Select(x => x.ToString("x2"))))));
             }
         JNode m = JNode.Obj().Add("format_version", Localizer.Int(1)).Add("record_type", JNode.Str("a4_perception_folder")).Add("files", listed)
-            .Add("scan_config", JNode.Str("configs/scan.default.v2.json")).Add("localization_config", JNode.Str("configs/localization.default.v1.json"))
+            .Add("scan_config", JNode.Str("configs/scan.default.v3.json")).Add("localization_config", JNode.Str("configs/localization.default.v2.json"))
             .Add("size_priors", JNode.Str("priors/size-priors.bedroom.v1.json")).Add("category_map", JNode.Str("maps/category-map.bedroom.v1.json"));
         File.WriteAllText(Path.Combine(dir, "manifest.json"), SecondEyes.Grounding.Parsing.PyJson.Canonical(m));
         return PerceptionFolder.Load(dir);
@@ -338,6 +343,56 @@ static class Program
         s13.Add(0, Frame(bedroom, (-1.2, 0.0), 0, t0, mono, classes));
         Check("no intrinsics read before the first keyframe ends the scan", s13.Error != null && s13.Error.Contains("intrinsics"), s13.Error ?? "");
         Directory.Delete(pfDir, true);
+
+        Console.WriteLine("11. Sightings from one place joined along their viewing rays (localization.default.v2)");
+        JNode config2 = load(Path.Combine("perception", "localization", "localization.default.v2.json"));
+        Check("the second settings pass their schema", !schema("localization-config.v1.json").Errors(config2).Any());
+        var bed11 = Bed(-1.6, 4.4); var chair11 = Chair(-0.4, 3.0);
+        var partBed = new Box { Label = "bed", Category = "bed", Centre = bed11.Centre + new Vec3(0, 0, 0.55), Size = bed11.Size };   // a partial view: its box sits higher
+        var smaller = new Box { Label = "chair", Category = "chair", Centre = chair11.Centre, Size = 0.5 * chair11.Size };   // something smaller, called a chair
+        var otherChair = Chair(-3.0, 4.8);   // a second chair, which only the third spot sees (far enough to be whole in view)
+        var spots11 = new[] { (-0.6, 0.0), (0.9, 0.3), (-3.4, 1.4) };
+        JNode cap11 = ScanEach(p => p < 2 ? new List<Box> { bed11, chair11 } : new List<Box> { partBed, smaller, otherChair }, spots11, sweep);
+        var v1run = run(cap11, priors, "ray step, v1");
+        LocalizationOutput v2run = Localizer.Run(cap11, map, priors, config2);
+        var si11 = contract.Validate(new List<KeyValuePair<string, JNode>> { new KeyValuePair<string, JNode>("scene", v2run.Scene), new KeyValuePair<string, JNode>("map", map) });
+        Check("with v2 the scene passes the contract (scene v3)", !si11.Any(i => i.IsError), string.Join(", ", si11.Where(i => i.IsError).Select(i => i.Code + " " + i.Path).Take(3)));
+        Func<LocalizationOutput, string, List<JNode>> of = (o, c) => o.Scene["objects"].Items.Where(x => Cat(x) == c).ToList();
+        Check("with v1 the partial view of the bed stays a second bed", of(v1run, "bed").Count == 2, of(v1run, "bed").Count + " beds");
+        var beds2 = of(v2run, "bed");
+        Check("with v2 it joins the bed placed from two spots: one bed, seen from three", beds2.Count == 1 && beds2[0]["observation"]["views"]["positions"].Num == 3
+              && Status(beds2[0]) == "multi_position", beds2.Count + " beds");
+        var bed1 = of(v1run, "bed").First(x => Status(x) == "multi_position");
+        Check("and its centre is still the one fitted from two spots", beds2.Count == 1 && (Centre(beds2[0]) - Centre(bed1)).Norm < 1e-9);
+        var chairs11 = of(v2run, "chair");
+        var near2 = chairs11.Where(x => (Centre(x) - chair11.Centre).Norm < 0.3).ToList();
+        var dupOf = near2.Count == 1 ? near2[0]["observation"]["association"]["may_duplicate"].Items.Select(x => x.Text).ToList() : new List<string>();
+        var smallObj = chairs11.FirstOrDefault(x => dupOf.Contains(x["object_id"].Text));
+        Check("the smaller thing called a chair, whose size puts it twice as far, is marked a possible duplicate of the chair",
+              near2.Count == 1 && Status(near2[0]) == "possible_duplicate" && smallObj != null && Status(smallObj) == "possible_duplicate",
+              string.Join(" ", chairs11.Select(x => x["object_id"].Text + ":" + Status(x))));
+        var otherObj = chairs11.Where(x => Known(x) && (Centre(x) - otherChair.Centre).Norm < 0.6).ToList();
+        Check("the second chair, far off the placed chair's ray, stays its own object, with no mark",
+              otherObj.Count == 1 && Status(otherObj[0]) == "single_position", string.Join(" ", chairs11.Select(x => Status(x))));
+        var steps = v2run.Trace["ray_attachments"].Items;
+        Check("the trace records the ray step's two decisions", steps.Count(e => e["decision"].Text == "joined") == 1
+              && steps.Count(e => e["decision"].Text == "possible duplicates: its distance disagrees") == 1, string.Join("; ", steps.Select(e => e["decision"].Text)));
+        var dets11 = v2run.Trace["detections"].Items;
+        int inCapture = cap11["keyframes"].Items.Sum(k => k["detections"].Items.Count);
+        var objectIds = new HashSet<string>(v2run.Scene["objects"].Items.Select(x => x["object_id"].Text));
+        Check("the trace gives every detection one fate, and each kept one an object in the scene", dets11.Count == inCapture
+              && dets11.All(d => d["fate"].Text != "object" || objectIds.Contains(d["object_id"].Text)), dets11.Count + " of " + inCapture);
+        Check("the partial bed's detections are marked joined by their ray", dets11.Where(d => d["label"].Text == "bed" && d.Has("joined_by_ray") && d["joined_by_ray"].Bool).Any()
+              && dets11.Where(d => d["label"].Text == "bed" && d.Has("joined_by_ray") && d["joined_by_ray"].Bool).All(d => (int)d["keyframe"].Num >= 2 * sweep.Length));
+        var fateRun = run(Scan(room, twoPlaces, sweep, extra: new List<CaptureDetection> {
+            new CaptureDetection { Label = "person", Score = 0.9, X1 = 100, Y1 = 100, X2 = 200, Y2 = 300 },
+            new CaptureDetection { Label = "chair", Score = 0.2, X1 = 300, Y1 = 100, X2 = 400, Y2 = 300 },
+            new CaptureDetection { Label = "chair", Score = 0.9, X1 = 0, Y1 = 100, X2 = 120, Y2 = 300 } }), priors, "fates");
+        var lo7 = fateRun.Trace["left_out"]; var d7 = fateRun.Trace["detections"].Items;
+        Check("with v1 too, the fates add up to the counts left out", d7.Count(d => d["fate"].Text == "unmapped_label") == lo7["unmapped_label"].Num
+              && d7.Count(d => d["fate"].Text == "below_min_score") == lo7["below_min_score"].Num && d7.Count(d => d["fate"].Text == "cut_by_the_edge") == lo7["cut_by_the_edge"].Num
+              && lo7["unmapped_label"].Num >= 1 && lo7["below_min_score"].Num >= 1 && lo7["cut_by_the_edge"].Num >= 1,
+              lo7["unmapped_label"].Num + "/" + lo7["below_min_score"].Num + "/" + lo7["cut_by_the_edge"].Num);
 
         Console.WriteLine(pass + " passed, " + fail + " failed");
         return fail == 0 ? 0 : 1;

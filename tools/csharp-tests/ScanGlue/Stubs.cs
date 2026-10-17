@@ -82,6 +82,7 @@ namespace SecondEyes.Perception
         { fx = fy = cx = cy = 0; sensorW = sensorH = 0; read = ""; return false; }
         public string DescribeApi() { return ""; }
         public System.Collections.Generic.List<double[]> SampleViewportRays() { return null; }
+        public string ViewportRayNote { get; private set; } = "";
     }
     public class DetectorRunner : MonoBehaviour
     {

@@ -92,9 +92,11 @@ namespace SecondEyes.Perception.Scan
             Rule = new KeyframeRule(ScanSettings.From(folder.ScanConfig));
         }
 
-        public bool Update(double t, Vec3 head, double yawDeg, bool tracked, bool busy)
+        public bool Update(double t, Vec3 head, double yawDeg, bool tracked, bool busy) { return Update(t, head, yawDeg, 0, tracked, busy); }
+
+        public bool Update(double t, Vec3 head, double yawDeg, double pitchDeg, bool tracked, bool busy)
         {
-            return Error == null && Rule.Update(t, head, yawDeg, tracked, busy);
+            return Error == null && Rule.Update(t, head, yawDeg, pitchDeg, tracked, busy);
         }
 
         /// <summary>The keyframe the scanner just started; returns the rule's position for it.</summary>

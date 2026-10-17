@@ -82,6 +82,40 @@ def pull(*, out, capture=None, adb=None, progress=print) -> dict:
     return receipt
 
 
+REASONS = {"unmapped_label": "not a category in this room's map", "below_min_score": "score below the minimum",
+           "cut_by_the_edge": "cut by the picture's edge"}
+
+
+def _fates(scan: Path):
+    """(keyframe, detection) to (style, words after the label), from the trace's per-detection fates (localization from
+    A4 Delivery 1's third scan on) and the scene's possible duplicates; None for a scan without them."""
+    tf, sf = scan / "trace.json", scan / "scene.json"
+    if not tf.is_file():
+        return None
+    try:
+        trace = json.loads(tf.read_text(encoding="utf-8"))
+    except ValueError:
+        return None
+    if not isinstance(trace, dict) or "detections" not in trace:
+        return None
+    may = {}
+    try:
+        for o in json.loads(sf.read_text(encoding="utf-8")).get("objects", []):
+            may[o["object_id"]] = o["observation"]["association"].get("may_duplicate", [])
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        pass
+    out = {}
+    for d in trace["detections"]:
+        if d.get("fate") == "object":
+            dup = may.get(d["object_id"], [])
+            words = (f" \u2192 {d['object_id']}" + (" (joined by its ray)" if d.get("joined_by_ray") else "")
+                     + (f", maybe the same as {', '.join(dup)}" if dup else ""))
+            out[(d["keyframe"], d["detection"])] = ("dup" if dup else "obj", words)
+        else:
+            out[(d["keyframe"], d["detection"])] = ("out", ": " + REASONS.get(d.get("fate"), str(d.get("fate"))))
+    return out
+
+
 def view(*, scan) -> Path:
     scan = Path(scan)
     facts = json.loads((scan / "facts.json").read_text(encoding="utf-8"))
@@ -96,6 +130,16 @@ def view(*, scan) -> Path:
         ratio = min(size / cam["height_px"], size / cam["width_px"])
         frames = {k["index"]: k for k in capture["keyframes"]}
         kept = [k for k in facts.get("keyframes", []) if k.get("kept")]
+        fates = _fates(scan)
+        if fates is not None:
+            styles = [s for s, _ in fates.values()]
+            gone = [w for s, w in fates.values() if s == "out"]
+            parts.append("<p class=\"legend\"><span class=\"obj\">Green</span>: went into an object (its ID after the arrow). "
+                         "<span class=\"dup\">Amber</span>: its object may be the same as another. "
+                         "<span class=\"out\">Grey, dashed</span>: left out, with the reason.</p>"
+                         f"<p>{len(fates)} detections: {styles.count('obj') + styles.count('dup')} in objects "
+                         f"({sum(1 for _, w in fates.values() if 'joined by its ray' in w)} joined by their ray), {len(gone)} left out: "
+                         + html.escape(", ".join(f"{gone.count(': ' + r)} {r}" for r in REASONS.values())) + ".</p>")
         if not any(k.get("snapshot") for k in kept):
             parts.append("<p>No keyframe images were saved: files/scans/save-images was absent on the headset.</p>")
         for k in kept:
@@ -103,11 +147,13 @@ def view(*, scan) -> Path:
             if f is None or not k.get("snapshot"):
                 continue
             boxes = []
-            for d in f["detections"]:
+            for j, d in enumerate(f["detections"]):
                 x1, y1, x2, y2 = (v * ratio for v in d["box_px"])
-                label = html.escape(f"{d['label']} {d['score']:.2f}")
-                boxes.append(f'<rect x="{x1:.1f}" y="{y1:.1f}" width="{max(x2 - x1, 0):.1f}" height="{max(y2 - y1, 0):.1f}"/>'
-                             f'<text x="{x1 + 2:.1f}" y="{max(y1 - 3, 10):.1f}">{label}</text>')
+                style, words = fates.get((f["index"], j), ("", "")) if fates is not None else ("", "")
+                cls = f' class="{style}"' if style else ""
+                label = html.escape(f"{d['label']} {d['score']:.2f}{words}")
+                boxes.append(f'<rect{cls} x="{x1:.1f}" y="{y1:.1f}" width="{max(x2 - x1, 0):.1f}" height="{max(y2 - y1, 0):.1f}"/>'
+                             f'<text{cls} x="{x1 + 2:.1f}" y="{max(y1 - 3, 10):.1f}">{label}</text>')
             parts.append(f'<figure><div class="frame"><img src="snapshots/{html.escape(k["snapshot"])}.png" width="{size}" height="{size}">'
                          f'<svg width="{size}" height="{size}">{"".join(boxes)}</svg></div>'
                          f'<figcaption>{html.escape(f["frame_id"])}: spot {f["position_index"] + 1}, step {f["step_index"]}; '
@@ -116,7 +162,11 @@ def view(*, scan) -> Path:
             "body{font-family:system-ui,sans-serif;margin:24px;background:#f6f6f6;color:#222}"
             "figure{display:inline-block;margin:0 16px 16px 0}.frame{position:relative}"
             "svg{position:absolute;left:0;top:0}rect{fill:none;stroke:#e4002b;stroke-width:2}"
-            "text{fill:#e4002b;font-size:12px;font-weight:600}</style>" + "".join(parts))
+            "text{fill:#e4002b;font-size:12px;font-weight:600}"
+            "rect.obj{stroke:#1a7f37}text.obj{fill:#1a7f37}rect.dup{stroke:#b35c00}text.dup{fill:#b35c00}"
+            "rect.out{stroke:#6e7781;stroke-dasharray:5 4}text.out{fill:#57606a;font-weight:400}"
+            ".legend .obj{color:#1a7f37;font-weight:600}.legend .dup{color:#b35c00;font-weight:600}.legend .out{color:#57606a;font-weight:600}"
+            "</style>" + "".join(parts))
     out = scan / "view.html"
     out.write_text(page, encoding="utf-8")
     return out

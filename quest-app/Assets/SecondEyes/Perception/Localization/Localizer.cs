@@ -12,6 +12,8 @@ namespace SecondEyes.Perception.Localization
     {
         public string ConfigId;
         public double MinScore, EdgeMarginPx, SamePositionAngleDeg, RangeRatioTolerance, GapMaxM, MinParallaxDeg, AmbiguityRatio, MaxRangeM;
+        /// <summary>Optional (from localization.default.v2): with ray_attach_margin_m set, step 7 joins sightings along their viewing rays.</summary>
+        public double? RayAttachMarginM, RayAttachDefaultReachM;
 
         public static LocalizationConfig From(JNode n)
         {
@@ -20,7 +22,9 @@ namespace SecondEyes.Perception.Localization
                 ConfigId = n["config_id"].Text, MinScore = n["min_score"].Num, EdgeMarginPx = n["edge_margin_px"].Num,
                 SamePositionAngleDeg = n["same_position_angle_deg"].Num, RangeRatioTolerance = n["range_ratio_tolerance"].Num,
                 GapMaxM = n["gap_max_m"].Num, MinParallaxDeg = n["min_parallax_deg"].Num, AmbiguityRatio = n["ambiguity_ratio"].Num,
-                MaxRangeM = n["max_range_m"].Num
+                MaxRangeM = n["max_range_m"].Num,
+                RayAttachMarginM = n.Has("ray_attach_margin_m") ? n["ray_attach_margin_m"].Num : (double?)null,
+                RayAttachDefaultReachM = n.Has("ray_attach_default_reach_m") ? n["ray_attach_default_reach_m"].Num : (double?)null
             };
         }
     }
@@ -52,7 +56,16 @@ namespace SecondEyes.Perception.Localization
     ///    duplicates of each other, as is any near-tie left unmade;
     /// 6. a track seen from two or more positions gets the least-squares point nearest its rays, and a ray farther than
     ///    gap_max_m from it is split off and marked a possible duplicate (the third-view check); a track seen from one
-    ///    position gets its centre at the middle of its distance interval, or none without a size prior.
+    ///    position gets its centre at the middle of its distance interval, or none without a size prior;
+    /// 7. with ray_attach_margin_m set (localization.default.v2), a track seen from one position joins the track of its
+    ///    category seen from two or more whose centre its rays pass within reach of, in front of the camera: reach is half
+    ///    the largest dimension among the category's size priors plus ray_attach_margin_m, or ray_attach_default_reach_m
+    ///    for a category without a prior. A view of a large object from one place often misses a two-place link only
+    ///    because the view is partial; its ray still points at the object. Joined sightings add views, not geometry: the
+    ///    centre stays the one fitted from two or more places. When the track's own distance (from a size prior) doesn't
+    ///    fit the distance along its ray, or two such tracks are within ambiguity_ratio of each other, nothing is joined and
+    ///    they are marked possible duplicates; a track already marked one is left as it is.
+    /// The trace records every detection's fate (left out and why, or the object it went to) and every step 7 decision.
     /// There is no prior on how many objects of a kind exist. Detections are taken in the order of their boxes, so output
     /// order and object IDs depend only on what was seen, not on the order the detector listed it.
     /// </summary>
@@ -60,9 +73,9 @@ namespace SecondEyes.Perception.Localization
     {
         public const string ScanSourceId = "scan", SizeAssumption = "size_prior", UprightAssumption = "upright";
 
-        private sealed class Obs { public int Keyframe, Position; public double X1, Y1; public string Label, Standard, Model; public Vec3 Origin, Dir; public double? Lo, Hi; public double Score; public long TimeUs; }
+        private sealed class Obs { public int Keyframe, Detection, Position; public double X1, Y1; public string Label, Standard, Model; public Vec3 Origin, Dir; public double? Lo, Hi; public double Score; public long TimeUs; }
         private sealed class Sighting { public int Id, Position; public string Label, Standard, Model; public Vec3 Origin, Dir; public double? Lo, Hi; public readonly List<Obs> Members = new List<Obs>(); }
-        private sealed class Track { public int Id; public string Label, Standard, Model; public readonly List<Sighting> Sightings = new List<Sighting>(); public Vec3? Centre; public readonly SortedSet<int> MayDuplicate = new SortedSet<int>(); }
+        private sealed class Track { public int Id; public string Label, Standard, Model; public readonly List<Sighting> Sightings = new List<Sighting>(); public readonly List<Sighting> Attached = new List<Sighting>(); public Vec3? Centre; public readonly SortedSet<int> MayDuplicate = new SortedSet<int>(); }
 
         public static LocalizationOutput Run(JNode capture, JNode categoryMap, JNode sizePriors, JNode config)
         {
@@ -81,6 +94,7 @@ namespace SecondEyes.Perception.Localization
             List<JNode> frames = capture["keyframes"].Items;
             long epoch = (long)frames[0]["tracking"]["epoch"].Num;
             int unmapped = 0, lowScore = 0, edgeCut = 0;
+            var fates = new List<KeyValuePair<JNode, Obs>>();   // every detection in capture order, with its Obs when kept
 
             // 1-2. detections to rays, with distances where a size prior allows
             var obs = new List<Obs>();
@@ -92,11 +106,11 @@ namespace SecondEyes.Perception.Localization
                 for (int j = 0; j < dets.Count; j++)
                 {
                     JNode d = dets[j];
-                    if (!map.ContainsKey(d["label"].Text)) { unmapped++; continue; }
-                    if (d["score"].Num < cfg.MinScore) { lowScore++; continue; }
+                    if (!map.ContainsKey(d["label"].Text)) { unmapped++; fates.Add(new KeyValuePair<JNode, Obs>(Fate(k, j, d, "unmapped_label"), null)); continue; }
+                    if (d["score"].Num < cfg.MinScore) { lowScore++; fates.Add(new KeyValuePair<JNode, Obs>(Fate(k, j, d, "below_min_score"), null)); continue; }
                     List<JNode> box = d["box_px"].Items;
                     double x1 = box[0].Num, y1 = box[1].Num, x2 = box[2].Num, y2 = box[3].Num, m = cfg.EdgeMarginPx;
-                    if (x1 <= m || y1 <= m || x2 >= width - m || y2 >= height - m) { edgeCut++; continue; }
+                    if (x1 <= m || y1 <= m || x2 >= width - m || y2 >= height - m) { edgeCut++; fates.Add(new KeyValuePair<JNode, Obs>(Fate(k, j, d, "cut_by_the_edge"), null)); continue; }
                     Vec3 rayCam = pin.Ray((x1 + x2) / 2.0 - 0.5, (y1 + y2) / 2.0 - 0.5);   // continuous source pixels to OpenCV's
                     var category = map[d["label"].Text];
                     double? lo = null, hi = null;
@@ -113,9 +127,11 @@ namespace SecondEyes.Perception.Localization
                             lo = lo.HasValue ? Math.Min(lo.Value, l.Value) : l;
                             hi = hi.HasValue ? Math.Max(hi.Value, h.Value) : h;
                         }
-                    obs.Add(new Obs { Keyframe = (int)k["index"].Num, Position = (int)k["position_index"].Num, X1 = x1, Y1 = y1, Label = d["label"].Text,
+                    var kept = new Obs { Keyframe = (int)k["index"].Num, Detection = j, Position = (int)k["position_index"].Num, X1 = x1, Y1 = y1, Label = d["label"].Text,
                                       Standard = category.Key, Model = category.Value, Origin = t.T, Dir = dir,
-                                      Lo = lo, Hi = hi, Score = d["score"].Num, TimeUs = (long)k["capture_time"]["headset_mono_us"].Num });
+                                      Lo = lo, Hi = hi, Score = d["score"].Num, TimeUs = (long)k["capture_time"]["headset_mono_us"].Num };
+                    obs.Add(kept);
+                    fates.Add(new KeyValuePair<JNode, Obs>(Fate(k, j, d, null), kept));
                 }
             }
 
@@ -182,6 +198,55 @@ namespace SecondEyes.Perception.Localization
                 foreach (Track t in tracks.ToList()) Refit(t, tracks, cfg);
             }
 
+            // 7. sightings from one place joined along their viewing rays
+            var attachments = new List<JNode>();
+            if (cfg.RayAttachMarginM.HasValue)
+            {
+                var placed = tracks.Where(t => t.Centre.HasValue && t.Sightings.Select(s => s.Position).Distinct().Count() >= 2).ToList();
+                foreach (Track one in tracks.Where(t => t.Sightings.Select(s => s.Position).Distinct().Count() == 1).ToList())
+                {
+                    double reach = Reach(one.Standard, priors, cfg);
+                    var near = new List<KeyValuePair<Track, double[]>>();   // the track, then how far its centre is off the rays and along them
+                    foreach (Track m in placed.Where(x => x.Standard == one.Standard))
+                    {
+                        double off = 0, along = double.MaxValue;
+                        bool front = true;
+                        foreach (Sighting s in one.Sightings)
+                        {
+                            Vec3 v = m.Centre.Value - s.Origin;
+                            double a = v.Dot(s.Dir);
+                            if (a <= 0) { front = false; break; }
+                            off = Math.Max(off, (v - a * s.Dir).Norm);
+                            along = Math.Min(along, a);
+                        }
+                        if (front && off <= reach) near.Add(new KeyValuePair<Track, double[]>(m, new[] { off, along }));
+                    }
+                    if (near.Count == 0) continue;
+                    near = near.OrderBy(x => x.Value[0]).ThenBy(x => x.Key.Id).ToList();
+                    Track best = near[0].Key;
+                    double bar = Math.Max(near[0].Value[0], 0.05) * cfg.AmbiguityRatio;
+                    JNode entry = JNode.Obj().Add("track", Int(one.Id)).Add("sightings", JNode.Arr(one.Sightings.Select(s => Int(s.Id)).ToList()))
+                        .Add("nearest_track", Int(best.Id)).Add("off_ray_m", Num(near[0].Value[0])).Add("along_ray_m", Num(near[0].Value[1])).Add("reach_m", Num(reach));
+                    if (one.MayDuplicate.Count > 0) entry.Add("decision", JNode.Str("already a possible duplicate: left as it is"));
+                    else if (near.Count > 1 && near[1].Value[0] <= bar)
+                    {
+                        foreach (var x in near.Where(x => x.Value[0] <= bar)) Pair(one, x.Key);
+                        entry.Add("decision", JNode.Str("possible duplicates: more than one within reach"));
+                    }
+                    else if (!one.Sightings.All(s => Fits(s.Lo, s.Hi, near[0].Value[1], cfg.RangeRatioTolerance)))
+                    {
+                        Pair(one, best);
+                        entry.Add("decision", JNode.Str("possible duplicates: its distance disagrees"));
+                    }
+                    else
+                    {
+                        best.Attached.AddRange(one.Sightings);
+                        tracks.Remove(one);
+                        entry.Add("decision", JNode.Str("joined"));
+                    }
+                    attachments.Add(entry);
+                }
+            }
             // the scene
             var ordered = tracks.OrderBy(t => t.Standard, StringComparer.Ordinal).ThenBy(t => Centre(t, out _).HasValue ? 0 : 1)
                                 .ThenBy(t => Key(t, 0)).ThenBy(t => Key(t, 1)).ThenBy(t => Key(t, 2))
@@ -197,8 +262,8 @@ namespace SecondEyes.Perception.Localization
                 Vec3? c = Centre(t, out fromSize);
                 List<JNode> sizesFor;
                 bool oneSize = priors.TryGetValue(t.Standard, out sizesFor) && sizesFor.Count == 1;   // two sizes: neither is claimed
-                var members = t.Sightings.SelectMany(s => s.Members).ToList();
-                int positions = t.Sightings.Select(s => s.Position).Distinct().Count();
+                var members = t.Sightings.Concat(t.Attached).SelectMany(s => s.Members).ToList();
+                int positions = t.Sightings.Concat(t.Attached).Select(s => s.Position).Distinct().Count();
                 var dup = t.MayDuplicate.Select(x => ids[x]).OrderBy(x => x, StringComparer.Ordinal).ToList();
                 string status = dup.Count > 0 ? "possible_duplicate" : positions >= 2 ? "multi_position" : "single_position";
                 JNode centre;
@@ -255,8 +320,26 @@ namespace SecondEyes.Perception.Localization
                     .Add("keyframes", JNode.Arr(s.Members.Select(o => Int(o.Keyframe)).ToList()))
                     .Add("distance_m", s.Lo.HasValue ? JNode.Arr(new List<JNode> { Num(s.Lo.Value), Num(s.Hi.Value) }) : JNode.Null)).ToList()))
                 .Add("links", JNode.Arr(links))
+                .Add("ray_attachments", JNode.Arr(attachments))
                 .Add("objects", JNode.Arr(ordered.Select(t => JNode.Obj().Add("object_id", JNode.Str(ids[t.Id])).Add("track", Int(t.Id))
-                    .Add("sightings", JNode.Arr(t.Sightings.Select(s => Int(s.Id)).ToList()))).ToList()));
+                    .Add("sightings", JNode.Arr(t.Sightings.Select(s => Int(s.Id)).ToList()))
+                    .Add("joined_by_ray", JNode.Arr(t.Attached.Select(s => Int(s.Id)).ToList()))).ToList()));
+            var home = new Dictionary<Obs, KeyValuePair<Track, Sighting>>();
+            foreach (Track t in ordered)
+                foreach (Sighting s in t.Sightings.Concat(t.Attached))
+                    foreach (Obs o in s.Members) home[o] = new KeyValuePair<Track, Sighting>(t, s);
+            var detections = new List<JNode>();
+            foreach (var f in fates)
+            {
+                if (f.Value != null)
+                {
+                    var h = home[f.Value];
+                    f.Key.Add("fate", JNode.Str("object")).Add("object_id", JNode.Str(ids[h.Key.Id])).Add("sighting", Int(h.Value.Id))
+                         .Add("joined_by_ray", new JNode { Kind = JKind.Bool, Bool = h.Key.Attached.Contains(h.Value) });
+                }
+                detections.Add(f.Key);
+            }
+            trace.Add("detections", JNode.Arr(detections));
             return new LocalizationOutput { Scene = scene, Trace = trace };
         }
 
@@ -384,6 +467,24 @@ namespace SecondEyes.Perception.Localization
             return new Vec3(new Mat3(b.X, a01, a02, b.Y, a11, a12, b.Z, a12, a22).Determinant() / det,
                             new Mat3(a00, b.X, a02, a01, b.Y, a12, a02, b.Z, a22).Determinant() / det,
                             new Mat3(a00, a01, b.X, a01, a11, b.Y, a02, a12, b.Z).Determinant() / det);
+        }
+
+        /// <summary>How far off a sighting's ray a placed object of its category may lie and still be what it saw (step 7).</summary>
+        private static double Reach(string category, Dictionary<string, List<JNode>> priors, LocalizationConfig cfg)
+        {
+            List<JNode> sizes;
+            if (priors.TryGetValue(category, out sizes) && sizes.Count > 0)
+                return sizes.Max(p => p["size_m"].Items.Max(x => x.Num)) / 2 + cfg.RayAttachMarginM.Value;
+            return cfg.RayAttachDefaultReachM ?? 0;
+        }
+
+        /// <summary>A detection as the trace lists it: where it was, what it was, and (when left out) why.</summary>
+        private static JNode Fate(JNode keyframe, int detection, JNode d, string leftOut)
+        {
+            JNode n = JNode.Obj().Add("keyframe", Int((long)keyframe["index"].Num)).Add("detection", Int(detection))
+                           .Add("label", JNode.Str(d["label"].Text)).Add("score", Num(d["score"].Num));
+            if (leftOut != null) n.Add("fate", JNode.Str(leftOut));
+            return n;
         }
 
         private static Vec3? Centre(Track t, out bool fromSize)

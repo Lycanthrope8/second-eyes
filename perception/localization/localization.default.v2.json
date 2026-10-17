@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "record_type": "localization_config",
+  "config_id": "localization.default.v2",
+  "description": "A4's second localization settings: as v1, plus step 7, which joins a sighting from one place to a placed object of its category along its viewing ray (reach: half the category's largest prior dimension plus 0.25 m, or 1.25 m without a prior), after the second bedroom scan left the bed as three objects",
+  "min_score": 0.3,
+  "edge_margin_px": 4,
+  "same_position_angle_deg": 6,
+  "range_ratio_tolerance": 0.15,
+  "gap_max_m": 0.25,
+  "min_parallax_deg": 4,
+  "ambiguity_ratio": 1.5,
+  "max_range_m": 8,
+  "ray_attach_margin_m": 0.25,
+  "ray_attach_default_reach_m": 1.25
+}

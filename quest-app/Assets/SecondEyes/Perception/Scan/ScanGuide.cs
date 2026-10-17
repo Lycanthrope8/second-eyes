@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text;
 
 namespace SecondEyes.Perception.Scan
@@ -18,7 +19,13 @@ namespace SecondEyes.Perception.Scan
             int spot = Math.Max(rule.Position, 0) + 1;
             sb.Append("spot ").Append(spot).Append(" of up to ").Append(rule.MaxPositions).Append(", ").Append(kept)
               .Append(kept == 1 ? " keyframe" : " keyframes").Append(failed > 0 ? " (" + failed + " left out)" : "").Append('\n');
-            sb.Append(Directions(rule)).Append("  directions done here\n");
+            if (rule.HasRows)
+            {
+                sb.Append("level ").Append(Directions(rule)).Append('\n');
+                sb.Append("down  ").Append(Directions(rule, true)).Append('\n');
+                sb.Append("Look down at desks and tables too; skip walls right beside you\n");
+            }
+            else sb.Append(Directions(rule)).Append("  directions done here\n");
             sb.Append("Done? Right thumbstick brings the panel: press Finish");
             return sb.ToString();
         }
@@ -39,15 +46,17 @@ namespace SecondEyes.Perception.Scan
             return h;
         }
 
-        /// <summary>One slot per step around the spot: # where a keyframe was taken, . where none yet.</summary>
-        public static string Directions(KeyframeRule rule)
+        /// <summary>One slot per step around the spot, counted from the spot's first keyframe: # where a keyframe was taken
+        /// (in the look-down row, when down), . where none yet.</summary>
+        public static string Directions(KeyframeRule rule, bool down = false)
         {
             int n = Slots(rule);
             var done = new bool[n];
-            if (rule.SpotYaws.Count > 0)
+            IReadOnlyList<double> row = down ? rule.SpotDownYaws : rule.SpotYaws;
+            if (row.Count > 0)
             {
-                double first = rule.SpotYaws[0];
-                foreach (double y in rule.SpotYaws)
+                double first = rule.SpotFirstYaw;
+                foreach (double y in row)
                 {
                     int k = (int)Math.Round(KeyframeRule.Wrap(y - first) / rule.StepDeg);
                     done[((k % n) + n) % n] = true;

@@ -259,7 +259,7 @@ static class Program
                 Directory.CreateDirectory(Path.GetDirectoryName(to));
                 File.Copy(file, to);
             }
-            File.AppendAllText(Path.Combine(copy, "configs", "scan.default.v2.json"), " ");
+            File.AppendAllText(Path.Combine(copy, "configs", "scan.default.v3.json"), " ");
             bool caught = false;
             try { SecondEyes.Perception.PerceptionFolder.Load(copy); } catch (InvalidDataException) { caught = true; }
             Check("a copy with one changed file is refused", caught);

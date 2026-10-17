@@ -25,7 +25,7 @@ static class Program
         const double Dt = 1.0 / 72;
         readonly KeyframeRule rule;
         int frame;
-        public double T, Yaw, Tremor, BusyFor, BusyUntil = -1;
+        public double T, Yaw, Pitch, Nod, Tremor, BusyFor, BusyUntil = -1;
         public bool Tracked = true;
         public Vec3 P = new Vec3(0, 1.6, 0);
         public readonly List<(double t, int pos, int step, double yaw)> Taken = new List<(double, int, int, double)>();
@@ -34,15 +34,16 @@ static class Program
         public Sim Hold(double sec) { return Run(sec, 0, 0, 0); }
         public Sim Turn(double deg, double sec) { return Run(sec, deg, 0, 0); }
         public Sim Walk(double dx, double dz, double sec) { return Run(sec, 0, dx, dz); }
-        Sim Run(double sec, double deg, double dx, double dz)   // the exact totals, split evenly over the frames
+        public Sim Tilt(double deg, double sec) { return Run(sec, 0, 0, 0, deg); }
+        Sim Run(double sec, double deg, double dx, double dz, double dpitch = 0)   // the exact totals, split evenly over the frames
         {
             int n = Math.Max(1, (int)Math.Round(sec / Dt));
             for (int i = 0; i < n; i++)
             {
-                T += Dt; Yaw += deg / n; frame++;
+                T += Dt; Yaw += deg / n; Pitch += dpitch / n; frame++;
                 P = new Vec3(P.X + dx / n, P.Y, P.Z + dz / n);
                 double seen = KeyframeRule.Wrap(Yaw + Tremor * Math.Sin(frame * 0.7));
-                if (rule.Update(T, P, seen, Tracked, T < BusyUntil))
+                if (rule.Update(T, P, seen, Pitch + Nod * Math.Sin(frame * 0.9), Tracked, T < BusyUntil))
                 {
                     rule.Taken();
                     Taken.Add((T, rule.Position, rule.Step, KeyframeRule.Wrap(Yaw)));
@@ -172,6 +173,37 @@ static class Program
         g.Hold(0.6);
         Check("and the hint says to walk 2 to 3 m to another side of the room", ScanGuide.Hint(g.Rule).StartsWith("walk 2 to 3 m"), ScanGuide.Hint(g.Rule));
         Check("the guidance ends with how to finish", ScanGuide.Text(g.Rule, 12, 0).EndsWith("Done? Right thumbstick brings the panel: press Finish"));
+
+        Console.WriteLine("15. The look-down row (scan.default.v3)");
+        JNode cfg3 = JParse.Parse(File.ReadAllText(Path.Combine("perception", "scan", "scan.default.v3.json")));
+        var errors3 = new Schema(JParse.Parse(File.ReadAllText(Path.Combine(schemas, "scan-config.v1.json")))).Errors(cfg3);
+        ScanSettings S3 = ScanSettings.From(cfg3);
+        Check("the third settings pass the schema, with a look-down row from 20 degrees", errors3.Count == 0 && S3.DownPitchDeg == 20 && S3.NewPositionM == 1.5);
+        var d3 = new Sim(S3);
+        d3.Hold(1).Tilt(-30, 0.5).Hold(1);
+        Check("looking down at a desk after a level view in the same direction takes a keyframe in the down row",
+              d3.Taken.Count == 2 && d3.Rule.SpotYaws.Count == 1 && d3.Rule.SpotDownYaws.Count == 1, d3.Taken.Count + " taken");
+        var d2 = new Sim(ScanSettings.From(cfg2));
+        d2.Hold(1).Tilt(-30, 0.5).Hold(1);
+        Check("with the v2 settings the same look takes none: one row, and that direction is done", d2.Taken.Count == 1, d2.Taken.Count + " taken");
+        d3.Turn(30, 0.6).Hold(1).Turn(30, 0.6).Hold(1);
+        Check("turning while looking down fills the down row, not the level row", d3.Rule.SpotDownYaws.Count == 3 && d3.Rule.SpotYaws.Count == 1);
+        Check("and the level row still asks for its directions", ScanGuide.Hint(d3.Rule).StartsWith("turn about 30 degrees") || ScanGuide.Hint(d3.Rule) == "hold still",
+              ScanGuide.Hint(d3.Rule));
+        string rows = ScanGuide.Text(d3.Rule, d3.Taken.Count, 0);
+        Check("the guidance shows both rows, counted from the spot's first keyframe", rows.Contains("level [#...........]") && rows.Contains("down  [###.........]"),
+              rows.Replace("\n", " | "));
+        Check("and says to look down at desks and tables, and to skip walls right beside you", rows.Contains("Look down at desks and tables too; skip walls right beside you"));
+        var nod = new Sim(S3) { Nod = 4 };
+        nod.Hold(2);
+        Check("nodding by 8 degrees while trying to hold still takes no keyframe", nod.Taken.Count == 0);
+        var lvl = new Sim(S3);
+        lvl.Hold(1);
+        for (int k = 1; k < 12; k++) lvl.Turn(30, 0.8).Hold(1);
+        lvl.Hold(0.6);
+        Check("only the level row decides when a spot is done", lvl.Rule.SpotYaws.Count == 12 && ScanGuide.Hint(lvl.Rule).StartsWith("walk 2 to 3 m"), ScanGuide.Hint(lvl.Rule));
+        lvl.Tilt(-30, 0.5).Hold(1);
+        Check("after which looking down still takes keyframes there", lvl.Rule.SpotDownYaws.Count == 1);
 
         Console.WriteLine(pass + " passed, " + fail + " failed");
         return fail == 0 ? 0 : 1;

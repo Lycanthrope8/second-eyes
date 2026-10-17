@@ -161,6 +161,7 @@ namespace SecondEyes.Perception.Scan
                 .Add("fitted_intrinsics", fit == null ? JNode.Null : Four(fit.Fx, fit.Fy, fit.Cx, fit.Cy))
                 .Add("fit", fit == null ? JNode.Null : JNode.Obj().Add("rms_px", Num(fit.RmsPx)).Add("origin", JNode.Str(fit.Origin))
                     .Add("samples", Localization.Localizer.Int(fit.Samples)))
+                .Add("viewport_rays", JNode.Str(fs.ViewportRayNote ?? ""))
                 .Add("intrinsics_used", JNode.Str(useFit ? "fitted" : "crop")).Add("texture_intrinsics", Four(cam.Fx, cam.Fy, cam.Cx, cam.Cy))
                 .Add("camera_name", JNode.Str(fs.CameraName)).Add("tracking_state_reported", Bool(TrackingReported()))
                 .Add("rig_position", rig == null ? JNode.Null : Three(rig.position.x, rig.position.y, rig.position.z))
@@ -186,8 +187,9 @@ namespace SecondEyes.Perception.Scan
             if (c == null) { StatusLine = "Scan: no head camera"; return; }
             Vector3 p = c.transform.position, fwd = c.transform.forward;
             double yaw = Math.Atan2(fwd.x, fwd.z) * 180.0 / Math.PI;
+            double pitch = Math.Asin(Math.Max(-1.0, Math.Min(1.0, (double)fwd.y))) * 180.0 / Math.PI;   // negative looking down
             bool tracked = HeadTracked();
-            if (session.Update(Time.realtimeSinceStartupAsDouble, new Vec3(p.x, p.y, p.z), yaw, tracked, pending || runner.IsBusy))
+            if (session.Update(Time.realtimeSinceStartupAsDouble, new Vec3(p.x, p.y, p.z), yaw, pitch, tracked, pending || runner.IsBusy))
             {
                 int rulePosition = session.Rule.PendingPosition;   // known before the inference starts, so its result can't race it
                 long epochAtStart = epoch;

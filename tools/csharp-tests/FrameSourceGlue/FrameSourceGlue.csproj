@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Compiles the real PassthroughFrameSource (Unity glue, otherwise compiled only by Unity) against stubs of exactly
+       the Unity, Unity UI, Meta and logging members it uses, with their real signatures (A4 Delivery 1, stage 3). -->
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable><ImplicitUsings>disable</ImplicitUsings><EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>CS0649</NoWarn><!-- serialized fields: Unity assigns them --></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="Stubs.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)../../../quest-app/Assets/SecondEyes/Perception/IFrameSource.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)../../../quest-app/Assets/SecondEyes/Perception/PassthroughFrameSource.cs" />
+  </ItemGroup>
+</Project>

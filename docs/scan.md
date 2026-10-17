@@ -9,7 +9,7 @@ copied with its own timestamp and pose, and one keyframe of the capture record (
 ## The rule
 
 Fed the head's pose once per rendered frame (position in `quest_tracking`, y up; yaw in degrees, 0 facing +z,
-positive turning right), the rule asks for a keyframe:
+positive turning right; pitch in degrees, negative looking down), the rule asks for a keyframe:
 
 - only while tracking holds, no inference is running, and the head has held still for `steady_s`: over that time
   its yaw varied by at most `steady_deg` (largest minus smallest) and its position stayed within `steady_m` of where
@@ -20,15 +20,19 @@ positive turning right), the rule asks for a keyframe:
 - at a new spot, when the head has moved `new_position_m` or more across the floor from the spot's first keyframe;
   that keyframe starts the next position.
 
-A keyframe that couldn't be taken (the camera not delivering, say) leaves the rule as it was. The rule also gives the
+With `down_pitch_deg` set (`scan.default.v3`), each spot has two rows of directions: level, and looking down by at
+least that much. A direction is new when it is new in its own row, so looking down at a desk after a level view in the
+same direction takes a keyframe; only the level row decides when a spot is done, and the head's pitch must hold still
+too. A keyframe that couldn't be taken (the camera not delivering, say) leaves the rule as it was. The rule also gives the
 panel a hint: hold still, turn about 30 degrees, move to a new spot, or the scan is complete.
 
 ## The settings
 
-The defaults are A4's first values, set by reasoning, not tuned; a change is a new `config_id`. The perception folder
-carries `scan.default.v2`, which differs from v1 in one setting: a new spot counts from 1.5 m (`new_position_m`), after
-the first bedroom scan's two spots were only about 1 m apart; the guidance asks for 2 to 3 m. The checks below are
-worked out on v1.
+The defaults are A4's first values, set by reasoning, not tuned; a change is a new `config_id`. `scan.default.v2`
+differs from v1 in one setting: a new spot counts from 1.5 m (`new_position_m`), after the first bedroom scan's two
+spots were only about 1 m apart; the guidance asks for 2 to 3 m. The perception folder carries `scan.default.v3`: v2
+plus a look-down row from 20 degrees (`down_pitch_deg`), after the second bedroom scan lost every desk object at the
+bottom of the picture. The checks are worked out on v1, with v2 and v3 checked for what they change.
 
 | Setting | Default | What it does |
 |---|---|---|
@@ -40,6 +44,7 @@ worked out on v1.
 | `new_position_m` | 1.0 | how far across the floor makes a new spot |
 | `max_keyframes_per_position` | 12 | keyframes at one spot at most (a full circle) |
 | `max_positions` | 4 | spots in one scan at most |
+| `down_pitch_deg` | none (v3: 20) | optional: how far down a view must look to join the look-down row; without it, one row |
 
 ## Checks
 
@@ -71,7 +76,9 @@ stubs. Pressing **Scan** (`quest-panel.md`) with a session and a perception fold
    viewport points (`ViewportPointToRay`), turns each into the camera's axes through the pose at the same moment, and
    fits a pinhole to them (`CameraFit`). The fit is used when it agrees with its rays to within 2 pixels; otherwise the
    reported intrinsics are carried from the sensor's pixels to the texture's by the centre-crop model of Meta's sample
-   code. `facts.json` keeps the reported, cropped and fitted models and which was used;
+   code. `facts.json` keeps the reported, cropped and fitted models, which was used, and the form of
+   `ViewportPointToRay` it called, or every form it found and why none could be used (`viewport_rays`). A form whose
+   other parameters are the camera's pose (given the pose read with the rays) or optional is used;
 2. each frame, feeds the head's pose and tracking state to the rule; when it asks, starts one inference, which copies
    the camera's frame with its own timestamp and pose;
 3. keeps each result through the capture builder, numbering positions and steps over the keyframes kept, and leaving
@@ -88,7 +95,13 @@ headset: images of a room can be private, so saving is off unless chosen.
 guidance below it (`ScanGuide`), refreshed about ten times a second: a hint in words (hold still, turn about 30 degrees
 and hold still, walk 2 to 3 m to another side of the room), the spot and keyframe counts, a bar of the 30-degree
 directions already taken at this spot, and how to finish (the right thumbstick brings the panel; press Finish). Each
-keyframe gives a short buzz on the right controller.
+keyframe gives a short buzz on the right controller. With the look-down row, the bar has two rows, `level [...]` and
+`down  [...]`, counted from the spot's first keyframe, and a line says to look down at desks and tables too and to skip
+walls right beside you (15 of the second bedroom scan's 35 keyframes saw only a wall).
+
+**Mirrors.** A mirror shows the room again, and a reflection is geometrically consistent: the localization places it
+as an object behind the mirror (the second bedroom scan's two extra chairs). Cover mirrors while scanning. Later, the
+headset's room layout (Space Setup) could leave out objects beyond the room's walls.
 
 ## On the PC
 
@@ -110,6 +123,25 @@ build scaled them by 0.75 vertically, which is wrong if the texture is a centre 
 measurement above. Every object was placed from its size: keyframes came 50 to 90 degrees apart, as the hint was on
 the panel, and the two spots were about 1 m apart, so no object was seen from both with a usable angle. The guidance in
 view and `scan.default.v2` answer that.
+
+## What the second bedroom scan showed (17 October 2026)
+
+With the guidance in view, the scan came from 4 spots 2.1 to 3.6 m apart, and kept all 35 keyframes. Three objects
+were placed from two spots, their rays meeting within 1 to 16 cm; the PC rerun matched the headset's scene within 1 mm.
+The geometry confirms the centre-crop camera model: it puts the bed, a mattress on the floor, at 0.05 m and the monitor
+at 1.13 m, where the first build's scaled model would put the bed below the floor. The viewport-ray fit didn't run: the
+camera's `ViewportPointToRay` wasn't the one-parameter form the code accepted (`notes/failures.md`).
+
+Of 40 detections, 24 were left out: 10 with labels the map doesn't use (people, a couch that was the bed, cups, an
+oven that was the black desk), 6 below 0.3, and 8 cut by the picture's edge. These included all five desk detections
+from the first spot (the laptop, its keyboard, the monitor read as a laptop): the camera sees 29 degrees below its
+centre, the scan looked 6 to 13 degrees down, and the rule ignored pitch, so looking down never took a keyframe. The
+scene had 9 objects for 4 real ones: three beds (two unplaced, seen from one spot each), two chairs that were
+reflections in the closet mirror, and the laptop's screen read as a TV, placed 6 m away by the TV's size.
+
+The answers: the look-down row (`scan.default.v3`), the ray step (`localization.md`, `localization.default.v2`, which
+on this scan joins the two extra beds to the bed and marks the TV and the laptop screen as possible duplicates),
+covered mirrors, each detection's fate in the trace and the scan view, and the measurement's method form in the facts.
 
 ## What the first scans must show
 
