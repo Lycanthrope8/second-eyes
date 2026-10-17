@@ -20,6 +20,8 @@ namespace SecondEyes.Perception
     {
         public string Dir, ManifestSha256, CategoryMapId, SizePriorsId;
         public JNode Manifest, ScanConfig, LocalizationConfig, SizePriors, CategoryMap;
+        /// <summary>The automatic scan's settings (auto-scan-config.v1.json); null in a folder built before it existed.</summary>
+        public JNode AutoScanConfig;
         public readonly Dictionary<string, string> Maps = new Dictionary<string, string>(StringComparer.Ordinal);
         private readonly Dictionary<string, string> texts = new Dictionary<string, string>(StringComparer.Ordinal);
         private readonly Dictionary<string, Schema> schemas = new Dictionary<string, Schema>(StringComparer.Ordinal);
@@ -73,6 +75,11 @@ namespace SecondEyes.Perception
             Expect(f, f.ScanConfig, "scan-config.v1.json", "scan_config");
             Expect(f, f.LocalizationConfig, "localization-config.v1.json", "localization_config");
             Expect(f, f.SizePriors, "size-priors.v1.json", "size_priors");
+            if (f.Manifest.Has("autoscan_config"))
+            {
+                f.AutoScanConfig = role("autoscan_config");
+                Expect(f, f.AutoScanConfig, "auto-scan-config.v1.json", "autoscan_config");
+            }
             var issues = new Contract(f.Schema).Validate(new List<KeyValuePair<string, JNode>> { new KeyValuePair<string, JNode>("category_map", f.CategoryMap) });
             foreach (Issue i in issues)
                 if (i.IsError) throw new InvalidDataException("the category map fails the contract: " + i.Code + " " + i.Path);

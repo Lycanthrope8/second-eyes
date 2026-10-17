@@ -79,6 +79,7 @@ namespace SecondEyes.Grounding
                 SetStatus("Type a command first: press the prompt to open the keyboard.");
                 return;
             }
+            BeforeCommand();   // A4: the newest scan snapshot first, then the scan waits for the outcome
             string id = interactiveSession.SubmitTyped(command);
             SetStatus("Sent " + id + ": \"" + command + "\" (" + interactiveSession.Waiting + " waiting)");
             typed = "";

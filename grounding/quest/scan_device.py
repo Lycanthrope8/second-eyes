@@ -28,7 +28,7 @@ from .runtime_identity import Adb  # noqa: E402
 
 REMOTE_SCANS = APP_DIR + "/scans"
 REMOTE_SNAPSHOTS = APP_DIR + "/snapshots"
-FILES = ("facts.json", "capture.json", "scene.json", "trace.json")
+FILES = ("facts.json", "capture.json", "scene.json", "trace.json", "frames.jsonl")
 
 
 def newest(adb) -> str | None:
@@ -66,6 +66,8 @@ def pull(*, out, capture=None, adb=None, progress=print) -> dict:
         _fail(f"{cid} has no facts.json on the headset: not a finished scan", "scan")
     facts = json.loads((tmp / "facts.json").read_text(encoding="utf-8"))
     snaps = [k["snapshot"] for k in facts.get("keyframes", []) if k.get("snapshot")]
+    if (tmp / "frames.jsonl").is_file():   # the automatic scan names its images in its frame lines
+        snaps = [f["snapshot"] for f in _frames(tmp)[1] if f.get("snapshot")]
     missing = []
     if snaps:
         (tmp / "snapshots").mkdir()
@@ -81,7 +83,15 @@ def pull(*, out, capture=None, adb=None, progress=print) -> dict:
 
 
 REASONS = {"unmapped_label": "not a category in this room's map", "below_min_score": "score below the minimum",
-           "cut_by_the_edge": "cut by the picture's edge"}
+           "cut_by_the_edge": "cut by the picture's edge", "no_depth_hit": "no depth on it", "too_far": "too far for depth",
+           "below_floor": "below the floor", "untracked": "taken without tracking", "tracking_reset": "from an earlier tracking origin",
+           "tentative": "seen once so far"}
+
+
+def _frames(scan: Path):
+    """The automatic scan's frames.jsonl: its header and its frame lines."""
+    lines = [json.loads(x) for x in (scan / "frames.jsonl").read_text(encoding="utf-8").splitlines() if x.strip()]
+    return (lines[0], lines[1:]) if lines else ({}, [])
 
 
 def _fates(scan: Path):
@@ -114,10 +124,42 @@ def _fates(scan: Path):
     return out
 
 
+def _legend(fates, always=("unmapped_label", "below_min_score", "cut_by_the_edge")) -> str:
+    """The colours' meaning and the detections' counts: the reasons in always, and any other that occurs."""
+    styles = [s for s, _ in fates.values()]
+    gone = [w for s, w in fates.values() if s == "out"]
+    shown = [REASONS[k] for k in REASONS if k in always or gone.count(": " + REASONS[k])]
+    return ("<p class=\"legend\"><span class=\"obj\">Green</span>: went into an object (its ID after the arrow). "
+            "<span class=\"dup\">Amber</span>: its object may be the same as another. "
+            "<span class=\"out\">Grey, dashed</span>: left out, with the reason.</p>"
+            f"<p>{len(fates)} detections: {styles.count('obj') + styles.count('dup')} in objects "
+            f"({sum(1 for _, w in fates.values() if 'joined by its ray' in w)} joined by their ray), {len(gone)} left out: "
+            + html.escape(", ".join(f"{gone.count(': ' + r)} {r}" for r in shown)) + ".</p>")
+
+
+def _boxes(detections, ratio, fates, frame) -> str:
+    boxes = []
+    for j, d in enumerate(detections):
+        x1, y1, x2, y2 = (v * ratio for v in d["box_px"])
+        style, words = fates.get((frame, j), ("", "")) if fates is not None else ("", "")
+        cls = f' class="{style}"' if style else ""
+        label = html.escape(f"{d['label']} {d['score']:.2f}{words}")
+        boxes.append(f'<rect{cls} x="{x1:.1f}" y="{y1:.1f}" width="{max(x2 - x1, 0):.1f}" height="{max(y2 - y1, 0):.1f}"/>'
+                     f'<text{cls} x="{x1 + 2:.1f}" y="{max(y1 - 3, 10):.1f}">{label}</text>')
+    return "".join(boxes)
+
+
+def _figure(snapshot, size, boxes, caption) -> str:
+    return (f'<figure><div class="frame"><img src="snapshots/{html.escape(snapshot)}.png" width="{size}" height="{size}">'
+            f'<svg width="{size}" height="{size}">{boxes}</svg></div><figcaption>{html.escape(caption)}</figcaption></figure>')
+
+
 def view(*, scan) -> Path:
     scan = Path(scan)
     facts = json.loads((scan / "facts.json").read_text(encoding="utf-8"))
     capture = json.loads((scan / "capture.json").read_text(encoding="utf-8")) if (scan / "capture.json").is_file() else None
+    if capture is None and (scan / "frames.jsonl").is_file():
+        return _write_page(scan, _auto_parts(scan, facts))
     parts = [f"<h1>Scan {html.escape(facts.get('capture_id', ''))}</h1>",
              f"<p>Timestamps: {html.escape(str(facts.get('stamp_kind')))} ({html.escape(str(facts.get('sdk_unit')))}); "
              f"{facts.get('kept', 0)} keyframes kept, {facts.get('failed', 0)} left out.</p>"]
@@ -130,32 +172,41 @@ def view(*, scan) -> Path:
         kept = [k for k in facts.get("keyframes", []) if k.get("kept")]
         fates = _fates(scan)
         if fates is not None:
-            styles = [s for s, _ in fates.values()]
-            gone = [w for s, w in fates.values() if s == "out"]
-            parts.append("<p class=\"legend\"><span class=\"obj\">Green</span>: went into an object (its ID after the arrow). "
-                         "<span class=\"dup\">Amber</span>: its object may be the same as another. "
-                         "<span class=\"out\">Grey, dashed</span>: left out, with the reason.</p>"
-                         f"<p>{len(fates)} detections: {styles.count('obj') + styles.count('dup')} in objects "
-                         f"({sum(1 for _, w in fates.values() if 'joined by its ray' in w)} joined by their ray), {len(gone)} left out: "
-                         + html.escape(", ".join(f"{gone.count(': ' + r)} {r}" for r in REASONS.values())) + ".</p>")
+            parts.append(_legend(fates))
         if not any(k.get("snapshot") for k in kept):
             parts.append("<p>No keyframe images were saved: files/scans/save-images was absent on the headset.</p>")
         for k in kept:
             f = frames.get(k["index"])
             if f is None or not k.get("snapshot"):
                 continue
-            boxes = []
-            for j, d in enumerate(f["detections"]):
-                x1, y1, x2, y2 = (v * ratio for v in d["box_px"])
-                style, words = fates.get((f["index"], j), ("", "")) if fates is not None else ("", "")
-                cls = f' class="{style}"' if style else ""
-                label = html.escape(f"{d['label']} {d['score']:.2f}{words}")
-                boxes.append(f'<rect{cls} x="{x1:.1f}" y="{y1:.1f}" width="{max(x2 - x1, 0):.1f}" height="{max(y2 - y1, 0):.1f}"/>'
-                             f'<text{cls} x="{x1 + 2:.1f}" y="{max(y1 - 3, 10):.1f}">{label}</text>')
-            parts.append(f'<figure><div class="frame"><img src="snapshots/{html.escape(k["snapshot"])}.png" width="{size}" height="{size}">'
-                         f'<svg width="{size}" height="{size}">{"".join(boxes)}</svg></div>'
-                         f'<figcaption>{html.escape(f["frame_id"])}: spot {f["position_index"] + 1}, step {f["step_index"]}; '
-                         f'{len(f["detections"])} detections; frame age {k.get("frame_age_us", 0) / 1000:.0f} ms</figcaption></figure>')
+            parts.append(_figure(k["snapshot"], size, _boxes(f["detections"], ratio, fates, f["index"]),
+                                 f'{f["frame_id"]}: spot {f["position_index"] + 1}, step {f["step_index"]}; '
+                                 f'{len(f["detections"])} detections; frame age {k.get("frame_age_us", 0) / 1000:.0f} ms'))
+    return _write_page(scan, parts)
+
+
+def _auto_parts(scan, facts) -> list:
+    """The automatic scan's page: its frames from frames.jsonl, each box coloured by its fate in trace.json."""
+    header, frames = _frames(scan)
+    size = header.get("detector_input_px", 416)
+    width, height = header.get("texture_px", [1280, 960])
+    ratio = min(size / height, size / width)
+    fates = _fates(scan)
+    parts = [f"<h1>Automatic scan {html.escape(facts.get('capture_id', ''))}</h1>",
+             f"<p>{len(frames)} frames, {sum(1 for f in frames if f.get('detections'))} with detections; "
+             f"{facts.get('objects', 0)} objects in the scene, {facts.get('tentative', 0)} seen once (scene revision {facts.get('scene_revision', 0)}).</p>"]
+    if fates is not None:
+        parts.append(_legend(fates, always=()))
+    shown = [f for f in frames if f.get("snapshot")]
+    if not shown:
+        parts.append("<p>No frame images were saved: files/scans/save-images was absent on the headset.</p>")
+    for f in shown:
+        parts.append(_figure(f["snapshot"], size, _boxes(f["detections"], ratio, fates, f["frame"]),
+                             f'frame {f["frame"]}: {len(f["detections"])} detections'))
+    return parts
+
+
+def _write_page(scan, parts) -> Path:
     page = ("<!doctype html><meta charset=\"utf-8\"><title>Scan view</title><style>"
             "body{font-family:system-ui,sans-serif;margin:24px;background:#f6f6f6;color:#222}"
             "figure{display:inline-block;margin:0 16px 16px 0}.frame{position:relative}"

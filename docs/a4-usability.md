@@ -9,18 +9,18 @@ numbers are claimed from it (Gate C and the formal evaluation come at the end of
 The bedroom, with the objects measured in `perception/bedroom/size-priors.bedroom.v1.json`: two chairs (88 and 115 cm
 tall), a TV, a laptop, a keyboard, a mouse, a bottle, and the bed (no size: it is placed only when seen from two spots).
 The closet's mirrored doors are covered while scanning: reflections would be placed as objects behind them.
-The dining table is in another room and is left out of the category map.
+The dining table is in another room and is left out of the category map. The map v2 (`category-map.bedroom.v2.json`) keeps
+the detector's couch as a couch.
 
 ## The scan
 
-1. Cover the mirrors. Start a session, then press **Scan**. The guidance appears in view, below the frame rate.
-2. At the first spot, face part of the room and hold still until the controller buzzes. Then turn about 30 degrees and
-   hold still again, watching the level row fill. At a desk or table, also look down at it and hold still: that fills
-   the down row, and brings what stands on it into the picture. Skip directions facing a wall right beside you.
-3. Walk 2 to 3 m to another side of the room and do the same. Objects seen from two spots that far apart are placed
-   from both views, without their sizes; a third spot helps where objects hide each other.
-4. Bring the panel with the right thumbstick and press **Finish**. The result box lists what was found, each with how
-   it was placed: from two or more spots, from its size, position unknown, or maybe the same as another.
+The automatic scan (`auto-scan.md`) runs by itself from the moment the app starts.
+
+1. Cover the mirrors (the scan doesn't use the room's walls yet). Start the app: the floating text shows the scan
+   starting, then the objects found so far.
+2. Look around the room at a normal pace, including down at desks and tables. Walking around helps: an object seen
+   from several places is placed more surely. Labels appear over the objects as they are found.
+3. Start a session. The scan's objects join it; the panel's Scan button reads Pause or Resume.
 
 ## The commands
 

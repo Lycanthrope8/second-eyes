@@ -4,6 +4,7 @@
 // starts using it.
 namespace UnityEngine
 {
+    public static class Time { public static double realtimeSinceStartupAsDouble { get { return 0; } } }
     public class Object { }
     public class Component : Object
     {

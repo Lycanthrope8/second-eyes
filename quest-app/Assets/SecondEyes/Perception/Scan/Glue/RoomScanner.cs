@@ -47,7 +47,8 @@ namespace SecondEyes.Perception.Scan
         private int scans;
         private readonly List<XRInputSubsystem> subsystems = new List<XRInputSubsystem>();
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        // Not installed any more: on the headset the automatic scan (Perception/AutoScan/Glue/AutoScanner.cs) replaced this
+        // stand-in for the drone's hover points; it stays for the drone's camera-only scan (docs/auto-scan.md).
         private static void Install()
         {
             var go = new GameObject("A4 room scanner");

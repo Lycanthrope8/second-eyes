@@ -19,6 +19,8 @@ namespace SecondEyes.Grounding
         private Button scanButton;
         private Text scanLabel;
         private string scanShown;
+        private object scanBoundTo;   // the session the scan's first snapshot was bound to
+        private const double CommandHoldS = 60;   // the scan waits at most this long for a command's outcome
 
         private void BuildScanButton(float x, float width)
         {
@@ -29,10 +31,16 @@ namespace SecondEyes.Grounding
         private void ToggleScan()
         {
             IRoomScanner sc = ScanRegistry.Scanner;
-            if (interactiveSession == null) { SetStatus("Start a session first: a scanned room joins the session"); return; }
             if (sc == null) { SetStatus("This build has no scanner"); return; }
-            if (sc.Phase == "scanning") { sc.Finish(); return; }
+            if (sc.Phase == "scanning") { sc.Finish(); return; }   // the automatic scan: pause
+            if (sc.Phase == "paused" || sc.Phase == "failed")
+            {
+                string w;
+                if (!sc.TryStart(perceptionFolder, out w)) SetStatus("The scan can't go on: " + w);
+                return;
+            }
             if (sc.Phase != "idle") return;
+            if (interactiveSession == null) { SetStatus("Start a session first: a scanned room joins the session"); return; }
             if (perceptionFolder == null)
             {
                 SetStatus("No perception folder: push it from the PC, then start the session again");
@@ -46,26 +54,49 @@ namespace SecondEyes.Grounding
         private void UpdateScan()
         {
             IRoomScanner sc = ScanRegistry.Scanner;
-            if (scanButton != null) scanButton.interactable = interactiveSession != null && sc != null && (sc.Phase == "idle" || sc.Phase == "scanning");
-            if (scanLabel != null) scanLabel.text = sc != null && sc.Phase == "scanning" ? "Finish" : sc == null || sc.Phase == "idle" ? "Scan" : "...";
+            if (scanButton != null) scanButton.interactable = sc != null && (sc.Phase == "idle" || sc.Phase == "scanning" || sc.Phase == "paused" || sc.Phase == "failed");
+            if (scanLabel != null) scanLabel.text = sc == null || sc.Phase == "idle" || sc.Phase == "failed" ? "Scan" : sc.Phase == "scanning" ? "Pause"
+                                                  : sc.Phase == "paused" ? "Resume" : "...";
             if (sc == null) return;
             if (sc.Phase != "idle" && sc.StatusLine != scanShown)
             {
                 scanShown = sc.StatusLine;
                 SetStatus(scanShown);
             }
+            // A snapshot joins the session only with a session, and not while a command is being processed.
+            if (interactiveSession == null || UnityEngine.Time.realtimeSinceStartupAsDouble < ScanRegistry.HoldUntil) return;
             ScanResult r = sc.TakeResult();
             if (r != null) BindScan(r, sc.LastCaptureId);
         }
 
+        /// <summary>A4 (the automatic scan): before a command is sent, the newest snapshot joins the session, so the
+        /// command sees everything found so far; then the scan holds until the command's outcome is shown.</summary>
+        private void BeforeCommand()
+        {
+            IRoomScanner sc = ScanRegistry.Scanner;
+            if (sc != null && interactiveSession != null)
+            {
+                ScanResult r = sc.TakeResult();
+                if (r != null) BindScan(r, sc.LastCaptureId);
+            }
+            ScanRegistry.HoldUntil = UnityEngine.Time.realtimeSinceStartupAsDouble + CommandHoldS;
+        }
+
+        /// <summary>The command's outcome is shown: the scan may go on.</summary>
+        private static void AfterCommand() { ScanRegistry.HoldUntil = 0; }
+
         private void BindScan(ScanResult r, string captureId)
         {
             scanShown = null;
-            if (!r.Ok) { SetStatus("The scan didn't make a room: " + Why(r) + " (files/scans/" + captureId + ")"); return; }
-            if (interactiveSession == null) { SetStatus("The scan finished after the session ended; its files are in files/scans/" + captureId); return; }
+            string folderName = r.Scene != null && r.Scene.Has("scene_id") ? r.Scene["scene_id"].Text : captureId;
+            if (!r.Ok) { SetStatus("The scan didn't make a room: " + Why(r) + " (files/scans/" + folderName + ")"); return; }
+            if (interactiveSession == null) { SetStatus("The scan finished after the session ended; its files are in files/scans/" + folderName); return; }
+            bool first = !ReferenceEquals(scanBoundTo, interactiveSession);
             sceneIndex = interactiveSession.AddScan(captureId, PyJson.Canonical(r.Scene), r.Scene);
+            scanBoundTo = interactiveSession;
+            if (!first) return;   // later snapshots replace it quietly, so a shown outcome stays on screen
             ShowScene(null, null);
-            SetStatus("Scanned room: " + r.Scene["objects"].Items.Count + " objects. Type a command about them, such as the chair closest to the bed");
+            SetStatus("Scanned room: " + r.Scene["objects"].Items.Count + " objects so far. Type a command about them, such as the chair closest to the bed");
         }
 
         private static string Why(ScanResult r)
@@ -84,9 +115,11 @@ namespace SecondEyes.Grounding
             foreach (JNode obj in scene["objects"].Items)
             {
                 string id = obj["object_id"].Text;
-                JNode c = obj["geometry"]["center_m"], a = obj["observation"]["association"];
+                JNode c = obj["geometry"]["center_m"], a = obj["observation"]["association"], v = obj["observation"]["views"];
+                bool depth = c["state"].Text == "known" && c["evidence"]["assumptions"].Items.Any(x => x.Text == "depth_surface");
                 string how = a["status"].Text == "possible_duplicate" ? "maybe the same as " + string.Join(", ", a["may_duplicate"].Items.Select(x => x.Text))
                            : c["state"].Text != "known" ? "position unknown"
+                           : depth ? "placed by depth, seen " + v["keyframes"].Text + " times" + (v["positions"].Num >= 2 ? " from " + v["positions"].Text + " places" : "")
                            : a["status"].Text == "multi_position" ? "placed from " + obj["observation"]["views"]["positions"].Text + " spots"
                            : "placed from its size";
                 bool target = present && o != null && o.TargetObjectId == id;

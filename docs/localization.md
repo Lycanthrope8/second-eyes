@@ -1,5 +1,8 @@
 # The localization (A4)
 
+On the headset, the automatic scan (`auto-scan.md`) now places objects by depth instead; this method, from bearings,
+sizes and several spots, stays for the drone's camera-only scan.
+
 How a scan becomes a perceived scene: the C# core in `quest-app/Assets/SecondEyes/Perception/Localization/`, Unity-free,
 so the same code runs on the Quest and in the PC's rerun. Its inputs are a checked capture record (`capture-record.md`),
 the category map, the size priors (`schemas/size-priors.v1.json`) and a configuration

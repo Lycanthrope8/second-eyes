@@ -1,5 +1,6 @@
-// Type-check stubs for Perception/Scan/Glue/RoomScanner.cs (A4 Delivery 1, stage 3): the Unity, XR, logging, detector and
-// camera members it calls, with the shapes they have in Unity 6 and in this app. They only make the scanner compile here;
+// Type-check stubs for Perception/Scan/Glue/RoomScanner.cs and Perception/AutoScan/Glue/AutoScanner.cs (A4): the Unity, XR,
+// Meta XR SDK 207.0.0 (signatures copied from its source), logging, detector and camera members they call, with the
+// shapes they have in Unity 6 and in this app. They only make the scanner compile here;
 // Unity compiles it against the real ones.
 #pragma warning disable 0067, 0649
 namespace UnityEngine
@@ -11,7 +12,12 @@ namespace UnityEngine
         public static T FindFirstObjectByType<T>() where T : Object { return null; }
         public static void DontDestroyOnLoad(Object target) { }
     }
-    public class Component : Object { public Transform transform { get { return null; } } }
+    public class Component : Object
+    {
+        public Transform transform { get { return null; } }
+        public GameObject gameObject { get { return null; } }
+        public T GetComponent<T>() { return default(T); }
+    }
     public class Behaviour : Component { }
     public class Coroutine { }
     public class MonoBehaviour : Behaviour { public Coroutine StartCoroutine(IEnumerator routine) { return null; } }
@@ -21,15 +27,51 @@ namespace UnityEngine
         public Quaternion rotation { get; set; }
         public Vector3 forward { get { return default(Vector3); } }
         public Transform parent { get { return null; } }
+        public Vector3 localScale { get; set; }
     }
     public sealed class GameObject : Object
     {
         public GameObject(string name) { }
         public T AddComponent<T>() where T : Component { return null; }
+        public T GetComponent<T>() { return default(T); }
+        public Transform transform { get { return null; } }
+        public bool activeSelf { get { return false; } }
+        public void SetActive(bool value) { }
     }
     public sealed class Camera : Behaviour { public static Camera main { get { return null; } } }
-    public struct Vector3 { public float x, y, z; }
-    public struct Quaternion { public float x, y, z, w; }
+    public struct Vector3
+    {
+        public float x, y, z;
+        public Vector3(float x, float y, float z) { this.x = x; this.y = y; this.z = z; }
+        public static Vector3 one { get { return new Vector3(1, 1, 1); } }
+        public static Vector3 operator -(Vector3 a, Vector3 b) { return new Vector3(a.x - b.x, a.y - b.y, a.z - b.z); }
+        public static Vector3 operator *(Vector3 a, float d) { return new Vector3(a.x * d, a.y * d, a.z * d); }
+    }
+    public struct Quaternion
+    {
+        public float x, y, z, w;
+        public Quaternion(float x, float y, float z, float w) { this.x = x; this.y = y; this.z = z; this.w = w; }
+        public static Vector3 operator *(Quaternion rotation, Vector3 point) { return point; }
+        public static Quaternion LookRotation(Vector3 forward) { return default(Quaternion); }
+    }
+    public struct Ray { public Ray(Vector3 origin, Vector3 direction) { } }
+    public struct Bounds { public Vector3 size { get { return default(Vector3); } } }
+    public struct Color { public static Color white { get { return default(Color); } } }
+    public enum TextAnchor { UpperLeft, UpperCenter, UpperRight, MiddleLeft, MiddleCenter, MiddleRight, LowerLeft, LowerCenter, LowerRight }
+    public class Material : Object { }
+    public class Font : Object { public Material material { get { return null; } } }
+    public class Renderer : Component { public Bounds bounds { get { return default(Bounds); } } public Material sharedMaterial { get; set; } }
+    public class MeshRenderer : Renderer { }
+    public sealed class TextMesh : Component
+    {
+        public string text { get; set; }
+        public Font font { get; set; }
+        public int fontSize { get; set; }
+        public float characterSize { get; set; }
+        public TextAnchor anchor { get; set; }
+        public Color color { get; set; }
+    }
+    public static class Resources { public static T GetBuiltinResource<T>(string path) where T : Object { return null; } }
     public class Texture : Object { public int width { get { return 0; } } public int height { get { return 0; } } }
     public static class Time { public static double realtimeSinceStartupAsDouble { get { return 0; } } }
     public static class Application { public static string persistentDataPath { get { return ""; } } public static string version { get { return ""; } } }
@@ -38,6 +80,37 @@ namespace UnityEngine
     public sealed class RuntimeInitializeOnLoadMethodAttribute : System.Attribute { public RuntimeInitializeOnLoadMethodAttribute(RuntimeInitializeLoadType t) { } }
     public static class SubsystemManager { public static void GetSubsystems<T>(List<T> subsystems) { } }
     public sealed class WaitForSeconds { public WaitForSeconds(float seconds) { } }
+}
+namespace Meta.XR
+{
+    public class EnvironmentRaycastManager : UnityEngine.MonoBehaviour
+    {
+        public static bool IsSupported { get { return false; } }
+        public bool Raycast(UnityEngine.Ray ray, out EnvironmentRaycastHit hit, float maxDistance = 100f) { hit = default(EnvironmentRaycastHit); return false; }
+    }
+    public struct EnvironmentRaycastHit
+    {
+        public EnvironmentRaycastHitStatus status;
+        public UnityEngine.Vector3 point;
+        public UnityEngine.Vector3 normal;
+        public float normalConfidence;
+    }
+    public enum EnvironmentRaycastHitStatus { Hit, HitPointOccluded, NotReady, HitPointOutsideOfCameraFrustum, RayOccluded, NoHit, NotSupported }
+}
+namespace Meta.XR.EnvironmentDepth
+{
+    public class EnvironmentDepthManager : UnityEngine.MonoBehaviour
+    {
+        public OcclusionShadersMode OcclusionShadersMode { get; set; }
+        public bool RemoveHands { get; set; }
+    }
+    public enum OcclusionShadersMode { None, HardOcclusion, SoftOcclusion }
+}
+public static class OVRPermissionsRequester
+{
+    public enum Permission { FaceTracking, BodyTracking, EyeTracking, Scene, RecordAudio, PassthroughCameraAccess }
+    public static bool IsPermissionGranted(Permission permission) { return false; }
+    public static void Request(System.Collections.Generic.IEnumerable<Permission> permissions) { }
 }
 public static class OVRInput
 {

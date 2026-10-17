@@ -111,12 +111,13 @@ static class Program
     static PerceptionFolder BuildFolder(string dir)
     {
         var files = new SortedDictionary<string, string>(StringComparer.Ordinal);
-        foreach (string n in new[] { "capture.v1.json", "category-map.v1.json", "command-context.v2.json", "grounding-query.v2.json", "grounding-result.v2.json",
+        foreach (string n in new[] { "auto-scan-config.v1.json", "capture.v1.json", "category-map.v1.json", "command-context.v2.json", "grounding-query.v2.json", "grounding-result.v2.json",
                                      "localization-config.v1.json", "scan-config.v1.json", "scene.v3.json", "size-priors.v1.json" })
             files["schemas/" + n] = Path.Combine("schemas", n);
         files["configs/scan.default.v3.json"] = Path.Combine("perception", "scan", "scan.default.v3.json");
         files["configs/localization.default.v2.json"] = Path.Combine("perception", "localization", "localization.default.v2.json");
-        files["maps/category-map.bedroom.v1.json"] = Path.Combine("perception", "bedroom", "category-map.bedroom.v1.json");
+        files["maps/category-map.bedroom.v2.json"] = Path.Combine("perception", "bedroom", "category-map.bedroom.v2.json");
+        files["configs/autoscan.default.v1.json"] = Path.Combine("perception", "autoscan", "autoscan.default.v1.json");
         files["priors/size-priors.bedroom.v1.json"] = Path.Combine("perception", "bedroom", "size-priors.bedroom.v1.json");
         var listed = JNode.Obj();
         using (var h = SHA256.Create())
@@ -130,7 +131,8 @@ static class Program
             }
         JNode m = JNode.Obj().Add("format_version", Localizer.Int(1)).Add("record_type", JNode.Str("a4_perception_folder")).Add("files", listed)
             .Add("scan_config", JNode.Str("configs/scan.default.v3.json")).Add("localization_config", JNode.Str("configs/localization.default.v2.json"))
-            .Add("size_priors", JNode.Str("priors/size-priors.bedroom.v1.json")).Add("category_map", JNode.Str("maps/category-map.bedroom.v1.json"));
+            .Add("size_priors", JNode.Str("priors/size-priors.bedroom.v1.json")).Add("category_map", JNode.Str("maps/category-map.bedroom.v2.json"))
+            .Add("autoscan_config", JNode.Str("configs/autoscan.default.v1.json"));
         File.WriteAllText(Path.Combine(dir, "manifest.json"), SecondEyes.Grounding.Parsing.PyJson.Canonical(m));
         return PerceptionFolder.Load(dir);
     }
@@ -295,7 +297,9 @@ static class Program
         Check("a negative number or a string is refused", !SdkStamp.TryConvert(-5L, out sv, out su, out sk) && !SdkStamp.TryConvert("now", out sv, out su, out sk));
         string pfDir = Path.Combine(Path.GetTempPath(), "pf-" + Guid.NewGuid().ToString("N"));
         PerceptionFolder folder = BuildFolder(pfDir);
-        Check("a perception folder built from the repository loads", folder.CategoryMapId == "map.bedroom.v1" && folder.SizePriorsId == "sizes.bedroom.v1");
+        Check("a perception folder built from the repository loads, with map v2 and the automatic scan's settings",
+              folder.CategoryMapId == "map.bedroom.v2" && folder.SizePriorsId == "sizes.bedroom.v1"
+              && folder.AutoScanConfig != null && folder.AutoScanConfig["config_id"].Text == "autoscan.default.v1", folder.CategoryMapId);
         var classes = Manifest["classes"].Items;
         var bedroom = new List<Box> {
             new Box { Label = "chair", Category = "chair", Centre = new Vec3(-0.6, 3.0, 0.44), Size = new Vec3(0.55, 0.45, 0.88) },

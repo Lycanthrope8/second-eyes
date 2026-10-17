@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "record_type": "category_map",
+  "map_id": "map.bedroom.v2",
+  "description": "Category map of the bedroom for A4's usability check: the detector's COCO labels for the room's objects, onto parser v1's words; the dining table is left out, as it is in another room; v2 adds the detector's couch, kept as a couch (for the automatic scan)",
+  "release": "a4-bedroom-v1",
+  "model_vocabulary": [
+    "bed",
+    "bottle",
+    "chair",
+    "couch",
+    "keyboard",
+    "laptop",
+    "mouse",
+    "television"
+  ],
+  "entries": [
+    {
+      "source_label": "chair",
+      "standard": "chair",
+      "model": "chair"
+    },
+    {
+      "source_label": "bed",
+      "standard": "bed",
+      "model": "bed"
+    },
+    {
+      "source_label": "bottle",
+      "standard": "bottle",
+      "model": "bottle"
+    },
+    {
+      "source_label": "laptop",
+      "standard": "laptop",
+      "model": "laptop"
+    },
+    {
+      "source_label": "tv",
+      "standard": "television",
+      "model": "television"
+    },
+    {
+      "source_label": "keyboard",
+      "standard": "keyboard",
+      "model": "keyboard"
+    },
+    {
+      "source_label": "mouse",
+      "standard": "mouse",
+      "model": "mouse"
+    },
+    {
+      "source_label": "couch",
+      "standard": "couch",
+      "model": "couch"
+    }
+  ]
+}

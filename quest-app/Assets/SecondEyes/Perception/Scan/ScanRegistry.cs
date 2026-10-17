@@ -6,7 +6,8 @@ namespace SecondEyes.Perception.Scan
     /// </summary>
     public interface IRoomScanner
     {
-        /// <summary>"idle", "preparing", "scanning" or "finishing".</summary>
+        /// <summary>"idle", "preparing", "scanning" or "finishing" (the stand-in scan); the automatic scan
+        /// (Perception/AutoScan/Glue/AutoScanner.cs) also has "paused" and "failed".</summary>
         string Phase { get; }
         /// <summary>The live hint and counts, for the panel's status line.</summary>
         string StatusLine { get; }
@@ -23,5 +24,9 @@ namespace SecondEyes.Perception.Scan
     public static class ScanRegistry
     {
         public static IRoomScanner Scanner;
+
+        /// <summary>The automatic scan doesn't run its detector before this time (Time.realtimeSinceStartupAsDouble):
+        /// the panel sets it while a command is being processed, so the parser has the headset's processors to itself.</summary>
+        public static double HoldUntil;
     }
 }

@@ -189,6 +189,7 @@ namespace SecondEyes.Grounding
 
         private void ShowOutcome(Ticket t, InteractiveOutcome o)
         {
+            AfterCommand();
             InteractiveService s = interactiveSession;
             Presentability p = s == null || s.Current == null ? Presentability.OtherSession
                              : Presentation.Decide(s.SessionStamp, s.Current.Epoch, t);

@@ -510,19 +510,19 @@ namespace SecondEyes.Perception.Localization
         private static Vec3 V(JNode a) { return new Vec3(a.Items[0].Num, a.Items[1].Num, a.Items[2].Num); }
         private static Quat Q(JNode a) { return new Quat(a.Items[0].Num, a.Items[1].Num, a.Items[2].Num, a.Items[3].Num); }
 
-        private static JNode Known(JNode value, string kind, string source, List<JNode> assumptions)
+        internal static JNode Known(JNode value, string kind, string source, List<JNode> assumptions)
         {
             return JNode.Obj().Add("state", JNode.Str("known")).Add("value", value)
                 .Add("evidence", JNode.Obj().Add("kind", JNode.Str(kind)).Add("source", JNode.Str(source)).Add("assumptions", JNode.Arr(assumptions)));
         }
 
-        private static JNode Unknown(string reason, string source)
+        internal static JNode Unknown(string reason, string source)
         {
             return JNode.Obj().Add("state", JNode.Str("unknown")).Add("reason", JNode.Str(reason)).Add("source", JNode.Str(source));
         }
 
-        private static JNode Vec(Vec3 v) { return JNode.Arr(new List<JNode> { Num(v.X), Num(v.Y), Num(v.Z) }); }
-        private static JNode Row(params long[] xs) { return JNode.Arr(xs.Select(Int).ToList()); }
+        internal static JNode Vec(Vec3 v) { return JNode.Arr(new List<JNode> { Num(v.X), Num(v.Y), Num(v.Z) }); }
+        internal static JNode Row(params long[] xs) { return JNode.Arr(xs.Select(Int).ToList()); }
 
         /// <summary>A number rounded to 0.1 mm (and 1e-4 in general), so the PC and the headset write the same text.</summary>
         public static JNode Num(double v)

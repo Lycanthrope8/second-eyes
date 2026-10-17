@@ -1,4 +1,8 @@
-# The automatic scan (A4)
+# The stand-in scan (A4)
+
+**No longer installed on the headset.** On 17 October 2026 the automatic scan (`auto-scan.md`) replaced it: the
+detector names objects and Meta's depth places them, with no spots. This scan stays for the drone's camera-only scan
+of the part of the room the headset can't see, since the drone has no depth sensor.
 
 How the headset decides, on its own, when to take a keyframe during a scan (decision A of stage 3: automatic, so no
 step can be forgotten or doubled). The rule is `quest-app/Assets/SecondEyes/Perception/Scan/KeyframeRule.cs`,

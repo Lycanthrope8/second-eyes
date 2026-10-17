@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "auto-scan-config.v1.json",
+  "title": "The headset's automatic scan: settings (A4)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "record_type",
+    "config_id",
+    "description",
+    "interval_s",
+    "min_score",
+    "sample_spread",
+    "max_range_m",
+    "floor_y_m",
+    "floor_margin_m",
+    "min_reach_m",
+    "reach_factor",
+    "min_frames",
+    "viewpoint_m",
+    "max_points_per_object",
+    "publish_interval_s",
+    "save_images_max"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "record_type": {
+      "const": "auto_scan_config"
+    },
+    "config_id": {
+      "$ref": "#/$defs/id"
+    },
+    "description": {
+      "$ref": "#/$defs/text"
+    },
+    "interval_s": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 10,
+      "description": "Seconds between detector runs while scanning"
+    },
+    "min_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Detections below this score are left out"
+    },
+    "sample_spread": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 0.5,
+      "description": "Depth is sampled at the box's centre and at four points this fraction of the box's width and height from it"
+    },
+    "max_range_m": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 20,
+      "description": "Depth hits farther than this are left out"
+    },
+    "floor_y_m": {
+      "type": "number",
+      "description": "The floor's height in quest_tracking (the Quest's floor-level origin puts it at 0)"
+    },
+    "floor_margin_m": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 2,
+      "description": "A point more than this below the floor is impossible and left out"
+    },
+    "min_reach_m": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 3,
+      "description": "The smallest distance within which a sighting joins an object of its category"
+    },
+    "reach_factor": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 2,
+      "description": "The reach grows to this fraction of the object's measured size"
+    },
+    "min_frames": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 20,
+      "description": "Frames an object must be seen in before it is in the scene"
+    },
+    "viewpoint_m": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 5,
+      "description": "Camera positions closer than this count as one viewpoint"
+    },
+    "max_points_per_object": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "description": "The most recent depth points an object keeps for its median"
+    },
+    "publish_interval_s": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 120,
+      "description": "At most this often, a changed scene is published to the session"
+    },
+    "save_images_max": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2000,
+      "description": "At most this many frames are saved as images, when files/scans/save-images exists"
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_.-]{0,127}(?![\\s\\S])",
+      "description": "Lower-case identifier: letters, digits, '_', '.', '-'; starts with a letter or digit."
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}
