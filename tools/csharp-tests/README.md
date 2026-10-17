@@ -14,7 +14,7 @@ Seven .NET 8 projects compile the app's own C# files at Unity's language level (
 | `Frames` (A4) | the frame library's checks (`docs/frames.md`): quaternions, the Unity basis change, camera poses, transforms and the pinhole camera, every expectation worked out by hand (40 checks) | `dotnet run --project tools/csharp-tests/Frames` |
 | `Localization` (A4) | the localization core (`docs/localization.md`) on synthetic scans with exact ground truth: placement, ghost crossings of identical chairs, turning in place, boxes cut by the image's edge, order independence, left-out detections, the capture fixture, the bedroom's two chairs of different heights, and the scan session with synthetic frames; every scene must pass the contract | `dotnet run --project tools/csharp-tests/Localization -- grounding/tests/fixtures schemas` |
 | `Scan` (A4) | the automatic scan rule (`docs/scan.md`) on simulated head movements: turns, holds, walks, tremor, a busy detector, lost tracking, the +-180 degree seam and the limits | `dotnet run --project tools/csharp-tests/Scan -- schemas` |
-| `ScanGlue` (A4) | the scanner component (`Perception/Scan/Glue/RoomScanner.cs`), compiled against stubs of the Unity, XR, logging, detector and camera members it calls, with the real Unity-free code it uses: building it is the check | `dotnet build tools/csharp-tests/ScanGlue` |
+| `ScanGlue` (A4) | the scanner component (`Perception/Scan/Glue/RoomScanner.cs`), compiled against stubs of the Unity, XR, logging, detector and camera members it calls, with the real Unity-free code it uses; it then confirms that every member of this app it stubs is declared public in the real class | `dotnet build tools/csharp-tests/ScanGlue` |
 
 **The behaviour checks cover:**
 

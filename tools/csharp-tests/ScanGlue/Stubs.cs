@@ -60,8 +60,8 @@ namespace SecondEyes.Logging
         public static void Write(string ev, string dataJson) { }
         public static void Error(string where, string message) { }
         public static long NowMonoUs() { return 0; }
-        public static void AppendString(System.Text.StringBuilder sb, string value) { }
     }
+    public static class Json { public static void AppendString(System.Text.StringBuilder sb, string value) { } }
 }
 namespace SecondEyes.Perception
 {

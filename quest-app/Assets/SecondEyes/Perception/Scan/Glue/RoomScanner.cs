@@ -283,12 +283,7 @@ namespace SecondEyes.Perception.Scan
             File.WriteAllText(Path.Combine(dir, name), PyJson.Canonical(node) + "\n", new UTF8Encoding(false));
         }
 
-        private static string Json(string s)
-        {
-            var sb = new StringBuilder();
-            EventLog.AppendString(sb, s ?? "");
-            return sb.ToString();
-        }
+        private static string Json(string s) { return PyJson.Canonical(JNode.Str(s ?? "")); }   // a JSON string, as records are written
 
         private static string Sha256Hex(byte[] b)
         {
