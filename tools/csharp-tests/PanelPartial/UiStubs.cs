@@ -18,6 +18,7 @@ namespace UnityEngine
     {
         public Vector3 position { get; set; }
         public Vector3 localScale { get; set; }
+        public Vector3 forward { get { return default(Vector3); } }
         public void SetParent(Transform parent, bool worldPositionStays) { }
     }
     public sealed class RectTransform : Transform
@@ -35,13 +36,18 @@ namespace UnityEngine
         public T GetComponent<T>() { return default(T); }
         public T AddComponent<T>() where T : Component { return null; }
         public void SetActive(bool value) { }
+        public bool activeSelf { get { return false; } }
     }
+    public sealed class Camera : Behaviour { public static Camera main { get { return null; } } }
     public struct Vector2 { public Vector2(float x, float y) { } }
     public struct Vector3
     {
         public Vector3(float x, float y, float z) { }
         public static Vector3 one { get { return default(Vector3); } }
         public static Vector3 operator *(Vector3 a, float d) { return a; }
+        public static Vector3 operator -(Vector3 a, Vector3 b) { return a; }
+        public float magnitude { get { return 0; } }
+        public static float Angle(Vector3 from, Vector3 to) { return 0; }
     }
     public struct Color
     {

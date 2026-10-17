@@ -85,13 +85,13 @@ def pull(*, out, capture=None, adb=None, progress=print) -> dict:
 REASONS = {"unmapped_label": "not a category in this room's map", "below_min_score": "score below the minimum",
            "cut_by_the_edge": "cut by the picture's edge", "no_depth_hit": "no depth on it", "too_far": "too far for depth",
            "below_floor": "below the floor", "untracked": "taken without tracking", "tracking_reset": "from an earlier tracking origin",
-           "tentative": "seen once so far"}
+           "outside_room": "outside the room", "tentative": "seen once so far"}
 
 
 def _frames(scan: Path):
     """The automatic scan's frames.jsonl: its header and its frame lines."""
     lines = [json.loads(x) for x in (scan / "frames.jsonl").read_text(encoding="utf-8").splitlines() if x.strip()]
-    return (lines[0], lines[1:]) if lines else ({}, [])
+    return (lines[0], [x for x in lines[1:] if x.get("record_type") == "auto_scan_frame"]) if lines else ({}, [])
 
 
 def _fates(scan: Path):

@@ -6,7 +6,9 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading.Tasks;
 using Meta.XR;
+using Meta.XR.MRUtilityKit;
 using Meta.XR.EnvironmentDepth;
 using SecondEyes.Grounding.Parsing;
 using SecondEyes.Grounding.Prompting;
@@ -42,7 +44,7 @@ namespace SecondEyes.Perception.AutoScan
         public string HudText => Phase == "scanning" && scan != null
             ? "SCAN: " + scan.Confirmed + (scan.Confirmed == 1 ? " object" : " objects") + " so far"
               + (scan.Tentative > 0 ? ", " + scan.Tentative + " seen once" : "") + "\nLook around the room; Pause on the panel stops it"
-            : Phase == "preparing" ? "SCAN: starting the camera, detector and depth..." : "";
+            : Phase == "preparing" ? "SCAN: " + (StatusLine.StartsWith("Scan: ", StringComparison.Ordinal) ? StatusLine.Substring(6) : StatusLine) : "";
         public string LastCaptureId { get; private set; }
         public static string ScansDir => Path.Combine(Application.persistentDataPath, "scans");
         private static string PerceptionDir => Path.Combine(Application.persistentDataPath, "perception");
@@ -52,6 +54,8 @@ namespace SecondEyes.Perception.AutoScan
         private AutoScanSettings settings;
         private AutoScan scan;
         private EnvironmentRaycastManager raycaster;
+        private MRUK mruk;
+        private RoomModel room = RoomModel.None("not loaded");
         private List<JNode> classes;
         private HashSet<string> mapped;
         private double fx, fy, cx, cy;
@@ -137,7 +141,7 @@ namespace SecondEyes.Perception.AutoScan
         private IEnumerator Begin()
         {
             Phase = "preparing";
-            StatusLine = "Scan: starting the camera, detector and depth...";
+            StatusLine = "Scan: starting...";
             if (!PerceptionFolder.Present(PerceptionDir)) { Fail("no perception folder on the headset: push it from the PC"); yield break; }
             try { folder = PerceptionFolder.Load(PerceptionDir); }
             catch (Exception e) { Fail("the perception folder didn't load: " + e.Message); yield break; }
@@ -145,7 +149,23 @@ namespace SecondEyes.Perception.AutoScan
             settings = AutoScanSettings.From(folder.AutoScanConfig);
             mapped = new HashSet<string>(folder.CategoryMap["entries"].Items.Select(e => e["source_label"].Text), StringComparer.Ordinal);
 
-            double until = Time.realtimeSinceStartupAsDouble + ReadyTimeoutS;
+            // Meta's depth and Meta's room both need the spatial data permission.
+            double until;
+            if (!OVRPermissionsRequester.IsPermissionGranted(OVRPermissionsRequester.Permission.Scene))
+            {
+                StatusLine = "Scan: allow spatial data when the headset asks";
+                OVRPermissionsRequester.Request(new[] { OVRPermissionsRequester.Permission.Scene });
+                until = Time.realtimeSinceStartupAsDouble + PermissionTimeoutS;
+                while (!OVRPermissionsRequester.IsPermissionGranted(OVRPermissionsRequester.Permission.Scene))
+                {
+                    if (Time.realtimeSinceStartupAsDouble > until) { Fail("the spatial data permission wasn't granted, so Meta's depth can't be used"); yield break; }
+                    yield return null;
+                }
+            }
+            yield return LoadRoom();   // Space Setup first, while nothing else runs: the app pauses during it
+
+            StatusLine = "Scan: starting the camera, detector and depth...";
+            until = Time.realtimeSinceStartupAsDouble + ReadyTimeoutS;
             while ((runner = FindFirstObjectByType<DetectorRunner>()) == null || runner.FrameSource == null)
             {
                 if (Time.realtimeSinceStartupAsDouble > until) { Fail("no detector or camera in this scene"); yield break; }
@@ -157,7 +177,12 @@ namespace SecondEyes.Perception.AutoScan
                 until = Time.realtimeSinceStartupAsDouble + ReadyTimeoutS;
                 while ((runner.IsOn || runner.IsBusy) && Time.realtimeSinceStartupAsDouble < until) yield return null;
             }
-            if (!runner.SetMode(DetectorRunner.Mode.External, "a4_autoscan")) { Fail("the detector couldn't switch to on-request mode"); yield break; }
+            until = Time.realtimeSinceStartupAsDouble + ReadyTimeoutS;
+            while (!runner.SetMode(DetectorRunner.Mode.External, "a4_autoscan"))   // refused while an inference runs: wait for it to end
+            {
+                if (Time.realtimeSinceStartupAsDouble > until) { Fail("the detector stayed busy for 30 s, so it couldn't switch to on-request mode"); yield break; }
+                yield return null;
+            }
             runner.SetOn(true, "a4_autoscan");
             until = Time.realtimeSinceStartupAsDouble + ReadyTimeoutS;
             while (!runner.ReadyForScan)
@@ -169,17 +194,6 @@ namespace SecondEyes.Perception.AutoScan
             classes = manifest["classes"].Items;
             string why;
             if (!MeasureCamera(out why)) { Fail(why); yield break; }
-
-            if (!OVRPermissionsRequester.IsPermissionGranted(OVRPermissionsRequester.Permission.Scene))
-            {
-                OVRPermissionsRequester.Request(new[] { OVRPermissionsRequester.Permission.Scene });
-                until = Time.realtimeSinceStartupAsDouble + PermissionTimeoutS;
-                while (!OVRPermissionsRequester.IsPermissionGranted(OVRPermissionsRequester.Permission.Scene))
-                {
-                    if (Time.realtimeSinceStartupAsDouble > until) { Fail("the spatial data permission wasn't granted, so Meta's depth can't be used"); yield break; }
-                    yield return null;
-                }
-            }
             if (!EnvironmentRaycastManager.IsSupported) { Fail("this headset doesn't support Meta's depth"); yield break; }
             if (raycaster == null)
             {
@@ -195,19 +209,110 @@ namespace SecondEyes.Perception.AutoScan
             scanId = ("scan." + (EventLog.SessionId ?? "nosession") + "." + starts.ToString(CultureInfo.InvariantCulture)).ToLowerInvariant();
             dir = Path.Combine(ScansDir, scanId);
             Directory.CreateDirectory(dir);
-            saveImages = File.Exists(Path.Combine(ScansDir, "save-images"));
+            saveImages = settings.SaveImagesMax > 0;
+            int deleted = DeleteOldImages();   // each session keeps only its own images
             scan = new AutoScan(scanId, settings, folder.CategoryMap, folder.SizePriors, manifest["package_id"].Text, Sha256Hex(runner.ManifestBytes),
                                 ("quest_" + runner.FrameSource.CameraName).ToLowerInvariant(), fx);
+            scan.SetRoom(room);
             if (frames != null) frames.Dispose();
             frames = new StreamWriter(Path.Combine(dir, "frames.jsonl"), false, new UTF8Encoding(false)) { AutoFlush = true };
             frames.WriteLine(PyJson.Canonical(scan.Header(folder.ManifestSha256, texW, texH, fy, cx, cy, (int)manifest["input"]["size"].Num)));
+            frames.WriteLine(PyJson.Canonical(scan.Room.ToJson()));   // the room exactly as the scan holds it, for the replay
             frameCount = 0; revision = 0; savedImages = 0; pending = false;
             nextRun = nextPublish = Time.realtimeSinceStartupAsDouble;
             Write("facts.json", Facts());
             EventLog.Write("autoscan.start", "{\"capture_id\":" + Json(scanId) + ",\"perception_folder\":" + Json(folder.ManifestSha256)
-                           + ",\"config\":" + Json(settings.ConfigId) + ",\"camera\":" + PyJson.Canonical(camera) + "}");
+                           + ",\"config\":" + Json(settings.ConfigId) + ",\"camera\":" + PyJson.Canonical(camera)
+                           + ",\"old_images_deleted\":" + deleted.ToString(CultureInfo.InvariantCulture) + "}");
+            EventLog.Write("autoscan.room", "{\"capture_id\":" + Json(scanId) + ",\"status\":" + Json(room.Status) + ",\"why\":" + Json(room.Why)
+                           + ",\"boxes\":" + room.Boxes.Count.ToString(CultureInfo.InvariantCulture) + "}");
             Phase = "scanning";
-            StatusLine = "Scanning: look around the room";
+            StatusLine = room.Loaded ? "Scanning: look around the room; Meta's room has " + room.Boxes.Count + " boxes"
+                                     : "Scanning by depth only (" + room.Why + "): look around the room";
+        }
+
+        /// <summary>Meta's room (docs/auto-scan.md): Space Setup when the settings ask for it, then the room MRUK loads.
+        /// MRUK is made inactive, given its settings (it reads them when it wakes) and its world lock turned off, so every
+        /// position stays in the tracking space the camera's poses and the depth's points are in. No room: the scan goes
+        /// on by depth alone, and says why.</summary>
+        private IEnumerator LoadRoom()
+        {
+            room = RoomModel.None("space_setup is never");
+            if (settings.SpaceSetup == "never") yield break;
+            if (settings.SpaceSetup == "every_start")
+            {
+                StatusLine = "Scan: Meta's Space Setup is open: look around until it has the walls and furniture, then finish";
+                OVRTask<bool> setup = OVRScene.RequestSpaceSetup();
+                while (!setup.IsCompleted) yield return null;
+                EventLog.Write("autoscan.space_setup", "{\"ok\":" + (setup.GetResult() ? "true" : "false") + "}");
+            }
+            if (mruk == null)
+            {
+                var go = new GameObject("A4 Meta room");
+                go.SetActive(false);
+                DontDestroyOnLoad(go);
+                mruk = go.AddComponent<MRUK>();
+                mruk.SceneSettings = new MRUK.MRUKSettings { DataSource = MRUK.SceneDataSource.Device, LoadSceneOnStartup = false };
+                mruk.EnableWorldLock = false;
+                go.SetActive(true);
+            }
+            StatusLine = "Scan: loading Meta's room...";
+            Task<MRUK.LoadDeviceResult> load = mruk.LoadSceneFromDevice(settings.SpaceSetup == "if_missing");
+            while (!load.IsCompleted) yield return null;
+            if (load.IsFaulted || load.IsCanceled)
+            {
+                room = RoomModel.None("loading Meta's room failed: " + (load.Exception != null ? load.Exception.GetBaseException().Message : "cancelled"));
+                yield break;
+            }
+            if (load.Result != MRUK.LoadDeviceResult.Success) { room = RoomModel.None("no room from Meta: " + load.Result); yield break; }
+            MRUKRoom r = mruk.GetCurrentRoom() ?? mruk.Rooms.FirstOrDefault();
+            room = r != null ? FromMeta(r) : RoomModel.None("Meta loaded no room");
+        }
+
+        /// <summary>A Meta room as the scan's room model, in quest_tracking: the floor's outline and heights, and every
+        /// anchor with a volume as a box, its centre, rotation and size as MRUK gives them.</summary>
+        private static RoomModel FromMeta(MRUKRoom r)
+        {
+            var m = new RoomModel { Status = "loaded" };
+            MRUKAnchor floor = r.FloorAnchor, ceiling = r.CeilingAnchor;
+            if (floor != null)
+            {
+                m.FloorY = floor.transform.position.y;
+                foreach (Vector2 p in floor.PlaneBoundary2D)
+                {
+                    Vector3 w = floor.transform.TransformPoint(new Vector3(p.x, p.y, 0));
+                    m.FloorXz.Add(new double[] { w.x, w.z });
+                }
+            }
+            m.CeilingY = ceiling != null ? ceiling.transform.position.y : m.FloorY + 3;
+            foreach (MRUKAnchor a in r.Anchors)
+            {
+                if (!a.VolumeBounds.HasValue) continue;
+                Bounds b = a.VolumeBounds.Value;
+                Vector3 c = a.GetAnchorCenter();
+                Quaternion q = a.transform.rotation;
+                string label = a.Label.ToString();
+                int comma = label.IndexOf(',');
+                m.Boxes.Add(new RoomBox { Id = a.Anchor.Uuid.ToString("N"), MetaLabel = (comma < 0 ? label : label.Substring(0, comma)).Trim(),
+                                          Centre = new Vec3(c.x, c.y, c.z), Size = new Vec3(b.size.x, b.size.y, b.size.z),
+                                          Rotation = new double[] { q.x, q.y, q.z, q.w } });
+            }
+            return m;
+        }
+
+        /// <summary>Deletes the frame images of earlier sessions (files/snapshots/*.png); returns how many.</summary>
+        private static int DeleteOldImages()
+        {
+            string images = Path.Combine(Application.persistentDataPath, "snapshots");
+            if (!Directory.Exists(images)) return 0;
+            int n = 0;
+            foreach (string f in Directory.GetFiles(images, "*.png"))
+            {
+                try { File.Delete(f); n++; }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
+            return n;
         }
 
         private bool MeasureCamera(out string why)
@@ -333,7 +438,8 @@ namespace SecondEyes.Perception.AutoScan
                 .Add("save_images", new JNode { Kind = JKind.Bool, Bool = saveImages }).Add("images_saved", Localizer.Int(savedImages))
                 .Add("frames", Localizer.Int(scan == null ? 0 : scan.Frames)).Add("sightings", Localizer.Int(scan == null ? 0 : scan.Sightings))
                 .Add("objects", Localizer.Int(scan == null ? 0 : scan.Confirmed)).Add("tentative", Localizer.Int(scan == null ? 0 : scan.Tentative))
-                .Add("scene_revision", Localizer.Int(revision));
+                .Add("scene_revision", Localizer.Int(revision))
+                .Add("room", JNode.Obj().Add("status", JNode.Str(room.Status)).Add("why", JNode.Str(room.Why)).Add("boxes", Localizer.Int(room.Boxes.Count)));
         }
 
         private void ShowLabels()

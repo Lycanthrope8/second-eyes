@@ -118,7 +118,9 @@ def main() -> int:
         check("the page counts every detection's fate", "3 detections: 2 in objects (1 joined by their ray), 1 left out: 0 not a category in this room&#x27;s map, 0 score below the minimum, 1 cut by the picture&#x27;s edge." in page)
         print("The automatic scan: pull and page")
         frames = [{"record_type": "auto_scan_header", "scan_id": "scan.a1.1", "detector_input_px": 416, "texture_px": [1280, 960]},
+                  {"record_type": "auto_scan_room", "status": "loaded", "why": "", "floor_y": 0, "ceiling_y": 2.6, "floor_xz": [], "boxes": []},
                   {"record_type": "auto_scan_frame", "frame": 1, "snapshot": "a1_001", "detections": [
+                      {"label": "bottle", "score": 0.6, "box_px": [700, 100, 720, 140], "samples": []},
                       {"label": "chair", "score": 0.8, "box_px": [100, 200, 300, 500], "samples": []},
                       {"label": "bottle", "score": 0.5, "box_px": [600, 300, 640, 380], "samples": []}]},
                   {"record_type": "auto_scan_frame", "frame": 2, "snapshot": None, "detections": []}]
@@ -126,20 +128,22 @@ def main() -> int:
                 f"{SD.REMOTE_SCANS}/scan.a1.1/frames.jsonl": "".join(json.dumps(x) + "\n" for x in frames).encode(),
                 f"{SD.REMOTE_SCANS}/scan.a1.1/scene.json": json.dumps({"objects": [{"object_id": "obj_001", "observation": {"association": {"status": "single_position", "may_duplicate": []}}}]}).encode(),
                 f"{SD.REMOTE_SCANS}/scan.a1.1/trace.json": json.dumps({"record_type": "auto_scan_trace", "detections": [
-                    {"keyframe": 1, "detection": 0, "label": "chair", "score": 0.8, "fate": "object", "object_id": "obj_001"},
-                    {"keyframe": 1, "detection": 1, "label": "bottle", "score": 0.5, "fate": "no_depth_hit"}]}).encode(),
+                    {"keyframe": 1, "detection": 0, "label": "bottle", "score": 0.6, "fate": "outside_room"},
+                    {"keyframe": 1, "detection": 1, "label": "chair", "score": 0.8, "fate": "object", "object_id": "obj_001"},
+                    {"keyframe": 1, "detection": 2, "label": "bottle", "score": 0.5, "fate": "no_depth_hit"}]}).encode(),
                 f"{SD.REMOTE_SNAPSHOTS}/a1_001.png": b"png3"}
         ra = SD.pull(out=tmp / "auto", adb=FakeDevice(auto), progress=lambda _: None)
         da = tmp / "auto" / "scan.a1.1"
         check("an automatic scan's files come, frames.jsonl among them, and no capture record", "frames.jsonl" in ra["files"] and "capture.json" not in ra["files"])
         check("and exactly the images its frames name", ra["snapshots"] == 1 and (da / "snapshots" / "a1_001.png").read_bytes() == b"png3")
         page = SD.view(scan=da).read_text(encoding="utf-8")
-        check("its page is the automatic scan's, one figure per saved image", "Automatic scan scan.a1.1" in page and page.count("<img ") == 1 and "frame 1: 2 detections" in page)
+        check("its page is the automatic scan's, one figure per saved image, the room's line skipped", "Automatic scan scan.a1.1" in page
+              and page.count("<img ") == 1 and "frame 1: 3 detections" in page and "2 frames, 1 with detections" in page)
         check("boxes are scaled by the detector's input size from the header", 'x="32.5"' in page)
         check("a box that went into an object is green, one with no depth grey with the reason",
               "chair 0.80 \u2192 obj_001" in page and '<rect class="out"' in page and "bottle 0.50: no depth on it" in page)
-        check("the counts list only the reasons that occurred", "2 detections: 1 in objects (0 joined by their ray), 1 left out: 1 no depth on it." in page
-              and "cut by the picture" not in page)
+        check("the counts list only the reasons that occurred, a reflection's as outside the room",
+              "3 detections: 1 in objects (0 joined by their ray), 2 left out: 1 no depth on it, 1 outside the room." in page and "cut by the picture" not in page)
     print(f"{len(PASSED)} passed, {len(FAILED)} failed")
     return 1 if FAILED else 0
 

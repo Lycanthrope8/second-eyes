@@ -42,7 +42,9 @@ static class Program
         foreach (string id in a.Keys.Intersect(b.Keys).OrderBy(x => x, StringComparer.Ordinal))
         {
             JNode x = a[id], y = b[id];
-            Func<JNode, string> cat = n => n["category"]["value"]["standard"].Text;
+            Func<JNode, string> cat = n => n["category"]["state"].Text == "known" ? n["category"]["value"]["standard"].Text : "unknown";
+            Func<JNode, string> src = n => n["source_ref"]["source_id"].Text + ":" + n["source_ref"]["source_object_id"].Text;
+            if (src(x) != src(y)) d.Add(id + ": from " + src(y) + " there, " + src(x) + " here");
             Func<JNode, string> status = n => n["observation"]["association"]["status"].Text;
             Func<JNode, string> dup = n => string.Join(",", n["observation"]["association"]["may_duplicate"].Items.Select(z => z.Text));
             if (cat(x) != cat(y)) d.Add(id + ": " + cat(y) + " there, " + cat(x) + " here");
@@ -74,7 +76,7 @@ static class Program
         JNode map = load(args[1]), priors = load(args[2]), config = load(args[3]);
         var pe = schema("size-priors.v1.json").Errors(priors);
         if (pe.Count > 0) return Stop("the size priors", pe.Select(e => e.Keyword + " " + e.Path));
-        var ce = schema("auto-scan-config.v1.json").Errors(config);
+        var ce = schema("auto-scan-config.v" + ((int)config["schema_version"].Num).ToString(System.Globalization.CultureInfo.InvariantCulture) + ".json").Errors(config);
         if (ce.Count > 0) return Stop("the automatic scan's settings", ce.Select(e => e.Keyword + " " + e.Path));
         var contract = new Contract(schema);
         var mapIssues = contract.Validate(new List<KeyValuePair<string, JNode>> { new KeyValuePair<string, JNode>(args[1], map) });
@@ -86,7 +88,8 @@ static class Program
         foreach (var pair in new[] { ("category map", header["category_map"].Text, map["map_id"].Text), ("size priors", header["size_priors"].Text, priors["priors_id"].Text),
                                      ("settings", header["config_id"].Text, config["config_id"].Text) })
             if (pair.Item2 != pair.Item3) Console.WriteLine("note: the scan used " + pair.Item1 + " " + pair.Item2 + "; this replay uses " + pair.Item3);
-        int frames = lines.Count - 1, revision = 1;
+        var body = lines.Skip(1).Select(l => JParse.Parse(l)).ToList();
+        int frames = body.Count(n => n["record_type"].Text == "auto_scan_frame"), revision = 1;
         if (compare != null)
         {
             JNode cs = load(compare);
@@ -95,7 +98,15 @@ static class Program
             if (File.Exists(tracePath)) frames = Math.Min(frames, (int)load(tracePath)["frames"].Num);
         }
         var scan = AutoScan.FromHeader(header, AutoScanSettings.From(config), map, priors);
-        foreach (string line in lines.Skip(1).Take(frames)) scan.Add(FrameRecord.FromJson(JParse.Parse(line)));
+        int done = 0;
+        foreach (JNode n in body)   // Meta's room applies to the frames after it; only frame lines count toward frames
+        {
+            if (n["record_type"].Text == RoomModel.RecordType) { scan.SetRoom(RoomModel.FromJson(n)); continue; }
+            if (n["record_type"].Text != "auto_scan_frame") continue;
+            if (done == frames) break;
+            scan.Add(FrameRecord.FromJson(n));
+            done++;
+        }
         LocalizationOutput o = scan.Snapshot(revision);
         Directory.CreateDirectory(args[4]);
         File.WriteAllText(Path.Combine(args[4], "scene.json"), PyJson.Canonical(o.Scene) + "\n", new UTF8Encoding(false));
@@ -106,12 +117,21 @@ static class Program
         Console.WriteLine("replayed " + frames + " frames (" + o.Trace["sightings"].Text + " sightings); left out: "
                           + string.Join(", ", o.Trace["left_out"].Fields.Select(kv => kv.Value.Text + " " + kv.Key.Replace('_', ' ')))
                           + "; " + o.Trace["tentative"].Text + " objects seen once");
+        JNode rm = o.Trace["room"];
+        Console.WriteLine(rm["status"].Text == "loaded"
+            ? "Meta's room: " + rm["boxes"].Items.Count + " boxes, " + rm["boxes"].Items.Count(b => b["named_by"].Text == "meta") + " named by Meta, "
+              + rm["boxes"].Items.Count(b => b["named_by"].Text == "detector") + " by the detector, " + rm["boxes"].Items.Count(b => b["named_by"].Text == "none") + " unnamed"
+            : "Meta's room: none (" + rm["why"].Text + ")");
         foreach (JNode obj in o.Scene["objects"].Items)
         {
             JNode c = obj["geometry"]["center_m"], obs = obj["observation"];
-            Console.WriteLine(string.Format("{0}  {1,-10} ({2})  by depth, seen {3} times from {4}", obj["object_id"].Text, obj["category"]["value"]["standard"].Text,
-                string.Join(", ", c["value"].Items.Select(x => x.Text)), obs["views"]["keyframes"].Text,
-                obs["views"]["positions"].Text + (obs["views"]["positions"].Num == 1 ? " place" : " places")));
+            bool box = obj["source_ref"]["source_id"].Text == AutoScan.RoomSourceId;
+            bool unseen = box && obs["capture_time"]["state"].Text != "known";
+            Console.WriteLine(string.Format(unseen ? "{0}  {1,-10} ({2})  {5}, not seen by the detector" : "{0}  {1,-10} ({2})  {5}, seen {3} from {4}", obj["object_id"].Text,
+                obj["category"]["state"].Text == "known" ? obj["category"]["value"]["standard"].Text : "?",
+                string.Join(", ", c["value"].Items.Select(x => x.Text)), obs["views"]["keyframes"].Text + (obs["views"]["keyframes"].Num == 1 ? " time" : " times"),
+                obs["views"]["positions"].Text + (obs["views"]["positions"].Num == 1 ? " place" : " places"),
+                box ? "Meta's box (" + obj["source_ref"]["source_label"].Text + ")" : "by depth"));
         }
         Console.WriteLine("scene.json and trace.json written to " + args[4] + "; the scene passes the contract (scene v3)");
         if (compare == null) return 0;

@@ -249,9 +249,9 @@ static class Program
             string pfDir = args[2];
             var pf = SecondEyes.Perception.PerceptionFolder.Load(pfDir);
             Check("it loads: every file matches the manifest, and the configurations, size priors and map pass their checks", pf.ManifestSha256.Length == 64);
-            Check("it names the bedroom's map v2 and size priors, holds the automatic scan's settings, scene v3 and the format-2 schemas",
-                  pf.CategoryMapId == "map.bedroom.v2" && pf.SizePriorsId == "sizes.bedroom.v1" && pf.Maps.ContainsKey("map.bedroom.v2")
-                  && pf.AutoScanConfig != null
+            Check("it names the bedroom's map v3 and size priors, holds the automatic scan's v2 settings, scene v3 and the format-2 schemas",
+                  pf.CategoryMapId == "map.bedroom.v3" && pf.SizePriorsId == "sizes.bedroom.v1" && pf.Maps.ContainsKey("map.bedroom.v3")
+                  && pf.AutoScanConfig != null && pf.AutoScanConfig["config_id"].Text == "autoscan.default.v2"
                   && pf.SchemaText("scene.v3.json") != null && pf.SchemaText("grounding-query.v2.json") != null && pf.SchemaText("command-context.v2.json") != null);
             string copy = Path.Combine(Path.GetTempPath(), "pf-tampered-" + Guid.NewGuid().ToString("N"));
             foreach (string file in Directory.GetFiles(pfDir, "*", SearchOption.AllDirectories))

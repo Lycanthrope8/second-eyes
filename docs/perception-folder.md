@@ -11,8 +11,8 @@ doesn't hold. They travel as their own folder, verified on the headset as the pa
 | `schemas/size-priors.v1.json`, `localization-config.v1.json`, `scan-config.v1.json`, `category-map.v1.json` | `schemas/` | checking the files below |
 | `configs/scan.default.v3.json` | `perception/scan/` | when the scan takes a keyframe (`scan.md`) |
 | `configs/localization.default.v2.json` | `perception/localization/` | the localization's thresholds (`localization.md`) |
-| `maps/category-map.bedroom.v2.json` | `perception/bedroom/` | the bedroom's category map (v2 keeps the detector's couch) |
-| `configs/autoscan.default.v1.json` | `perception/autoscan/` | the automatic scan's settings (`auto-scan.md`) |
+| `maps/category-map.bedroom.v3.json` | `perception/bedroom/` | the bedroom's category map: the detector's labels and Meta's (`meta:...`) |
+| `configs/autoscan.default.v2.json` | `perception/autoscan/` | the automatic scan's settings, Meta's room included (`auto-scan.md`) |
 | `priors/size-priors.bedroom.v1.json` | `perception/bedroom/` | the bedroom's measured sizes |
 
 The manifest names the four roles (`scan_config`, `localization_config`, `size_priors`, `category_map`), so a different

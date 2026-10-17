@@ -28,6 +28,7 @@ namespace UnityEngine
         public Vector3 forward { get { return default(Vector3); } }
         public Transform parent { get { return null; } }
         public Vector3 localScale { get; set; }
+        public Vector3 TransformPoint(Vector3 position) { return position; }
     }
     public sealed class GameObject : Object
     {
@@ -56,6 +57,7 @@ namespace UnityEngine
     }
     public struct Ray { public Ray(Vector3 origin, Vector3 direction) { } }
     public struct Bounds { public Vector3 size { get { return default(Vector3); } } }
+    public struct Vector2 { public float x, y; }
     public struct Color { public static Color white { get { return default(Color); } } }
     public enum TextAnchor { UpperLeft, UpperCenter, UpperRight, MiddleLeft, MiddleCenter, MiddleRight, LowerLeft, LowerCenter, LowerRight }
     public class Material : Object { }
@@ -97,6 +99,42 @@ namespace Meta.XR
     }
     public enum EnvironmentRaycastHitStatus { Hit, HitPointOccluded, NotReady, HitPointOutsideOfCameraFrustum, RayOccluded, NoHit, NotSupported }
 }
+namespace Meta.XR.MRUtilityKit
+{
+    using System.Collections.Generic;
+    using System.Threading.Tasks;
+    public class MRUK : UnityEngine.MonoBehaviour
+    {
+        public enum SceneDataSource { Device, Prefab, DeviceWithPrefabFallback }
+        public enum SceneModel { V1 }
+        public enum LoadDeviceResult { Success = 0, NoScenePermission = 1 }
+        public partial class MRUKSettings
+        {
+            public SceneDataSource DataSource = SceneDataSource.Device;
+            public bool LoadSceneOnStartup = true;
+        }
+        public MRUKSettings SceneSettings;
+        public bool EnableWorldLock = true;
+        public List<MRUKRoom> Rooms { get { return null; } }
+        public MRUKRoom GetCurrentRoom() { return null; }
+        public Task<LoadDeviceResult> LoadSceneFromDevice(bool requestSceneCaptureIfNoDataFound = true, bool removeMissingRooms = true, SceneModel sceneModel = SceneModel.V1) { return null; }
+    }
+    public class MRUKRoom : UnityEngine.MonoBehaviour
+    {
+        public List<MRUKAnchor> Anchors { get { return null; } }
+        public MRUKAnchor FloorAnchor { get { return null; } }
+        public MRUKAnchor CeilingAnchor { get { return null; } }
+    }
+    public class MRUKAnchor : UnityEngine.MonoBehaviour
+    {
+        [System.Flags] public enum SceneLabels { FLOOR = 1, CEILING = 2, WALL_FACE = 4, TABLE = 8, COUCH = 16, OTHER = 32, STORAGE = 64, BED = 128, SCREEN = 256 }
+        public SceneLabels Label { get; internal set; }
+        public UnityEngine.Bounds? VolumeBounds { get; internal set; }
+        public List<UnityEngine.Vector2> PlaneBoundary2D { get; internal set; }
+        public OVRAnchor Anchor { get; internal set; }
+        public UnityEngine.Vector3 GetAnchorCenter() { return default(UnityEngine.Vector3); }
+    }
+}
 namespace Meta.XR.EnvironmentDepth
 {
     public class EnvironmentDepthManager : UnityEngine.MonoBehaviour
@@ -106,6 +144,13 @@ namespace Meta.XR.EnvironmentDepth
     }
     public enum OcclusionShadersMode { None, HardOcclusion, SoftOcclusion }
 }
+public readonly struct OVRAnchor { public System.Guid Uuid { get { return default(System.Guid); } } }
+public readonly struct OVRTask<TResult>
+{
+    public bool IsCompleted { get { return true; } }
+    public TResult GetResult() { return default(TResult); }
+}
+public static class OVRScene { public static OVRTask<bool> RequestSpaceSetup() { return default(OVRTask<bool>); } }
 public static class OVRPermissionsRequester
 {
     public enum Permission { FaceTracking, BodyTracking, EyeTracking, Scene, RecordAudio, PassthroughCameraAccess }

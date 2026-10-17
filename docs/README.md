@@ -33,7 +33,7 @@ How things work now. Edited in place when something changes; log the change and 
 - `setup/quest-model.md`: how a language model gets into the Quest app
 - `plan/revision-3.1-supplement.md`: the Revision 3.1 supplement's text, verbatim (D63); unlike the rest of `docs/`, never edited in place (`conventions.md`, rule 11)
 - `localization.md`: how a scan becomes a perceived scene (A4): the steps, the evidence each field carries, the thresholds, the checks and the known limits, and the PC rerun
-- `auto-scan.md`: the automatic scan (A4): on entering the app, the detector names objects and Meta's depth places them; settings, files, the PC replay, checks and limits
+- `auto-scan.md`: the automatic scan (A4): on entering the app, Meta's Space Setup boxes every obstacle, the detector names the boxes and finds the small things, and Meta's depth places them; settings, files, the PC replay, checks and limits
 - `scan.md`: the stand-in scan (A4): keyframes from spots, no longer installed on the headset, kept for the drone's camera-only scan
 - `perception-folder.md`: the perception folder (A4): what the headset's scan and scanned rooms need, built, verified and pushed from the PC, loaded and checked on the headset
 - `a4-usability.md`: the A4 usability check (D122): the room, the scan, the commands and what counts

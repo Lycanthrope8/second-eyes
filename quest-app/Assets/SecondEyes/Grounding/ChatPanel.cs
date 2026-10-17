@@ -284,7 +284,7 @@ namespace SecondEyes.Grounding
             }
             if (OVRInput.GetDown(OVRInput.Button.PrimaryThumbstick, OVRInput.Controller.RTouch))
             {
-                Place();
+                ToggleOrPlace();   // A4: hides the panel when it is in view (ChatPanel.Layout.cs)
             }
         }
 

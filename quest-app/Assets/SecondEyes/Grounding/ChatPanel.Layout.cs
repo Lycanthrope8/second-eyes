@@ -20,6 +20,26 @@ namespace SecondEyes.Grounding
         private const float MainBottom = 440f, MainKeyboardBottom = 662f, MoreBottom = 736f;   // where the background ends
         private const float KeyWidth = 56f, KeyHeight = 48f, KeyGap = 6f, WideKey = 110f, SpaceKey = 300f;
         private static readonly string[] KeyRows = { "qwertyuiop", "asdfghjkl", "zxcvbnm" };
+        private const float InViewM = 3f, InViewDeg = 35f;   // the panel counts as in view this close, this near the gaze
+
+        /// <summary>A4: the right thumbstick hides the panel when it is in view, and otherwise brings it in front of you,
+        /// shown again if it was hidden.</summary>
+        private void ToggleOrPlace()
+        {
+            if (panel == null) return;
+            Camera head = Camera.main;
+            if (panel.gameObject.activeSelf && head != null)
+            {
+                Vector3 to = panel.position - head.transform.position;
+                if (to.magnitude < InViewM && Vector3.Angle(head.transform.forward, to) < InViewDeg)
+                {
+                    panel.gameObject.SetActive(false);
+                    return;
+                }
+            }
+            panel.gameObject.SetActive(true);
+            Place();
+        }
         private const string NoSessionHint = "No session yet. Press Start session, then press the prompt below, type a command and press Send.";
 
         private RectTransform background, mainPage, morePage, keyboard;

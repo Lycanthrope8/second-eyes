@@ -1,0 +1,29 @@
+{
+  "schema_version": 2,
+  "record_type": "auto_scan_config",
+  "config_id": "autoscan.default.v2",
+  "description": "A4's automatic scan with Meta's room: Space Setup at every start gives the walls and a box around every obstacle; the detector runs about twice a second, each detection is placed by Meta's depth at five points in its box, furniture seen inside a box names it (Meta's own name wins), and everything else joins objects by depth; first values, set by reasoning, not tuned",
+  "interval_s": 0.5,
+  "min_score": 0.3,
+  "sample_spread": 0.2,
+  "max_range_m": 6.0,
+  "floor_y_m": 0.0,
+  "floor_margin_m": 0.15,
+  "min_reach_m": 0.3,
+  "reach_factor": 0.5,
+  "min_frames": 3,
+  "viewpoint_m": 0.5,
+  "max_points_per_object": 64,
+  "publish_interval_s": 3.0,
+  "save_images_max": 120,
+  "space_setup": "every_start",
+  "box_margin_m": 0.1,
+  "room_margin_m": 0.25,
+  "min_box_votes": 2,
+  "box_categories": [
+    "bed",
+    "chair",
+    "couch",
+    "table"
+  ]
+}

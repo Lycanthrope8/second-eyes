@@ -8,19 +8,21 @@ numbers are claimed from it (Gate C and the formal evaluation come at the end of
 
 The bedroom, with the objects measured in `perception/bedroom/size-priors.bedroom.v1.json`: two chairs (88 and 115 cm
 tall), a TV, a laptop, a keyboard, a mouse, a bottle, and the bed (no size: it is placed only when seen from two spots).
-The closet's mirrored doors are covered while scanning: reflections would be placed as objects behind them.
-The dining table is in another room and is left out of the category map. The map v2 (`category-map.bedroom.v2.json`) keeps
-the detector's couch as a couch.
+The closet's mirrored doors can stay uncovered: their reflections land behind the wall, outside Meta's room, and are left
+out. The map v3 (`category-map.bedroom.v3.json`) keeps the detector's couch as a couch whose parser word is sofa, names the
+detector's dining table (the desks) a table, and maps Meta's Space Setup labels.
 
 ## The scan
 
 The automatic scan (`auto-scan.md`) runs by itself from the moment the app starts.
 
-1. Cover the mirrors (the scan doesn't use the room's walls yet). Start the app: the floating text shows the scan
-   starting, then the objects found so far.
-2. Look around the room at a normal pace, including down at desks and tables. Walking around helps: an object seen
-   from several places is placed more surely. Labels appear over the objects as they are found.
-3. Start a session. The scan's objects join it; the panel's Scan button reads Pause or Resume.
+1. Start the app. Meta's Space Setup opens: look around the room until it has the walls and has wrapped the furniture
+   in boxes, then finish. The app resumes.
+2. Look around the room at a normal pace, including down at desks and tables. Walking around helps: furniture names
+   its box sooner, and small things are placed more surely. A label floats over each object as it is found: over a box
+   once it has a name, "?" while it has none.
+3. Start a session. The scan's objects join it; the panel's Scan button reads Pause or Resume, and the right thumbstick
+   hides the panel when it is in view and brings it in front otherwise.
 
 ## The commands
 

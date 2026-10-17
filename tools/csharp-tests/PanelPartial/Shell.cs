@@ -14,6 +14,7 @@ namespace SecondEyes.Grounding
         private readonly List<PromptFile> choices = new List<PromptFile>();
         private readonly List<Button> presetButtons = new List<Button>();
         private RectTransform panel;
+        private bool Place() { return true; }   // the real one is in ChatPanel.cs, which only Unity compiles
         private Button sendButton, loadButton, repeatButton, stepsButton, backendButton, weightsButton, runtimeButton;
         private Button replayButton, goldenButton, interactiveButton, parserButton;
         private Text boxText, buttonLabel, loadLabel, repeatLabel, stepsLabel, backendLabel, weightsLabel, status, answer;

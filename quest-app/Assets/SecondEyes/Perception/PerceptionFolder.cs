@@ -20,7 +20,7 @@ namespace SecondEyes.Perception
     {
         public string Dir, ManifestSha256, CategoryMapId, SizePriorsId;
         public JNode Manifest, ScanConfig, LocalizationConfig, SizePriors, CategoryMap;
-        /// <summary>The automatic scan's settings (auto-scan-config.v1.json); null in a folder built before it existed.</summary>
+        /// <summary>The automatic scan's settings (auto-scan-config.v1.json or v2, by its schema_version); null in a folder built before it existed.</summary>
         public JNode AutoScanConfig;
         public readonly Dictionary<string, string> Maps = new Dictionary<string, string>(StringComparer.Ordinal);
         private readonly Dictionary<string, string> texts = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -78,7 +78,7 @@ namespace SecondEyes.Perception
             if (f.Manifest.Has("autoscan_config"))
             {
                 f.AutoScanConfig = role("autoscan_config");
-                Expect(f, f.AutoScanConfig, "auto-scan-config.v1.json", "autoscan_config");
+                Expect(f, f.AutoScanConfig, "auto-scan-config.v" + ((int)f.AutoScanConfig["schema_version"].Num).ToString(System.Globalization.CultureInfo.InvariantCulture) + ".json", "autoscan_config");
             }
             var issues = new Contract(f.Schema).Validate(new List<KeyValuePair<string, JNode>> { new KeyValuePair<string, JNode>("category_map", f.CategoryMap) });
             foreach (Issue i in issues)
