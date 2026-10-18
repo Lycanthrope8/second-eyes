@@ -133,10 +133,11 @@ namespace SecondEyes.Grounding
                 bool depth = c["state"].Text == "known" && c["evidence"]["assumptions"].Items.Any(x => x.Text == "depth_surface");
                 JNode size = obj["geometry"]["size_m"];
                 bool boxed = c["state"].Text == "known" && size["state"].Text == "known"
-                             && c["evidence"]["assumptions"].Items.Any(x => x.Text == "box_centre" || x.Text == "meta_volume");
+                             && c["evidence"]["assumptions"].Items.Any(x => x.Text == "box_centre" || x.Text == "meta_volume" || x.Text == "mesh_cluster");
                 string how = a["status"].Text == "possible_duplicate" ? "maybe the same as " + string.Join(", ", a["may_duplicate"].Items.Select(x => x.Text))
                            : c["state"].Text != "known" ? "position unknown"
-                           : boxed ? (c["evidence"]["assumptions"].Items.Any(x => x.Text == "meta_volume") ? "Meta's box " : "box ")
+                           : boxed ? (c["evidence"]["assumptions"].Items.Any(x => x.Text == "meta_volume") ? "Meta's box "
+                                      : c["evidence"]["assumptions"].Items.Any(x => x.Text == "mesh_cluster") ? "box from Meta's mesh " : "box ")
                                      + string.Join(" x ", size["value"].Items.Select(x => x.Num.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture))) + " m, seen "
                                      + v["keyframes"].Text + (v["keyframes"].Num == 1 ? " time" : " times")
                            : depth ? "placed by depth, seen " + v["keyframes"].Text + " times" + (v["positions"].Num >= 2 ? " from " + v["positions"].Text + " places" : "")

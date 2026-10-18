@@ -74,6 +74,11 @@ namespace UnityEngine
     public enum PrimitiveType { Sphere = 0, Capsule = 1, Cylinder = 2, Cube = 3, Plane = 4, Quad = 5 }
     public class Collider : Component { }
     public sealed class Shader : Object { }
+    public sealed class Mesh : Object
+    {
+        public Vector3[] vertices { get { return null; } }
+        public int vertexCount { get { return 0; } }
+    }
     public enum TextAnchor { UpperLeft, UpperCenter, UpperRight, MiddleLeft, MiddleCenter, MiddleRight, LowerLeft, LowerCenter, LowerRight }
     public class Material : Object
     {
@@ -147,6 +152,7 @@ namespace Meta.XR.MRUtilityKit
         public List<MRUKAnchor> Anchors { get { return null; } }
         public MRUKAnchor FloorAnchor { get { return null; } }
         public MRUKAnchor CeilingAnchor { get { return null; } }
+        public MRUKAnchor GlobalMeshAnchor { get { return null; } }
     }
     public class MRUKAnchor : UnityEngine.MonoBehaviour
     {
@@ -156,6 +162,7 @@ namespace Meta.XR.MRUtilityKit
         public List<UnityEngine.Vector2> PlaneBoundary2D { get; internal set; }
         public OVRAnchor Anchor { get; internal set; }
         public UnityEngine.Vector3 GetAnchorCenter() { return default(UnityEngine.Vector3); }
+        public UnityEngine.Mesh GlobalMesh { get { return null; } }
     }
 }
 namespace Meta.XR.EnvironmentDepth

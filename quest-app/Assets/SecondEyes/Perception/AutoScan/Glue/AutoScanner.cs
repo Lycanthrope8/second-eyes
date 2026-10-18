@@ -241,7 +241,8 @@ namespace SecondEyes.Perception.AutoScan
                            + ",\"config\":" + Json(settings.ConfigId) + ",\"camera\":" + PyJson.Canonical(camera)
                            + ",\"old_images_deleted\":" + deleted.ToString(CultureInfo.InvariantCulture) + "}");
             EventLog.Write("autoscan.room", "{\"capture_id\":" + Json(scanId) + ",\"status\":" + Json(room.Status) + ",\"why\":" + Json(room.Why)
-                           + ",\"boxes\":" + room.Boxes.Count.ToString(CultureInfo.InvariantCulture) + "}");
+                           + ",\"boxes\":" + room.Boxes.Count.ToString(CultureInfo.InvariantCulture) + ",\"mesh\":" + Json(room.MeshStatus)
+                           + ",\"mesh_points\":" + room.MeshPoints.Count.ToString(CultureInfo.InvariantCulture) + "}");
             Phase = "scanning";
             StatusLine = room.Loaded ? "Scanning: look around the room; Meta's room has " + room.Boxes.Count + " boxes"
                                      : "Scanning by depth only (" + room.Why + "): look around the room";
@@ -283,12 +284,12 @@ namespace SecondEyes.Perception.AutoScan
             }
             if (load.Result != MRUK.LoadDeviceResult.Success) { room = RoomModel.None("no room from Meta: " + load.Result); yield break; }
             MRUKRoom r = mruk.GetCurrentRoom() ?? mruk.Rooms.FirstOrDefault();
-            room = r != null ? FromMeta(r) : RoomModel.None("Meta loaded no room");
+            room = r != null ? FromMeta(r, settings.UseMesh ? settings.MeshVoxelM : 0) : RoomModel.None("Meta loaded no room");
         }
 
         /// <summary>A Meta room as the scan's room model, in quest_tracking: the floor's outline and heights, and every
         /// anchor with a volume as a box, its centre, rotation and size as MRUK gives them.</summary>
-        private static RoomModel FromMeta(MRUKRoom r)
+        private static RoomModel FromMeta(MRUKRoom r, double meshVoxel)
         {
             var m = new RoomModel { Status = "loaded" };
             MRUKAnchor floor = r.FloorAnchor, ceiling = r.CeilingAnchor;
@@ -313,6 +314,25 @@ namespace SecondEyes.Perception.AutoScan
                 m.Boxes.Add(new RoomBox { Id = a.Anchor.Uuid.ToString("N"), MetaLabel = (comma < 0 ? label : label.Substring(0, comma)).Trim(),
                                           Centre = new Vec3(c.x, c.y, c.z), Size = new Vec3(b.size.x, b.size.y, b.size.z),
                                           Rotation = new double[] { q.x, q.y, q.z, q.w } });
+            }
+            if (meshVoxel > 0)   // v5: Meta's room mesh, Space Setup's fused depth, in quest_tracking, thinned before it is logged
+            {
+                MRUKAnchor g = r.GlobalMeshAnchor;
+                Mesh mesh = g != null ? g.GlobalMesh : null;
+                if (g == null) m.MeshStatus = "no global mesh anchor (Space Setup made no mesh)";
+                else if (mesh == null || mesh.vertexCount == 0) m.MeshStatus = "the global mesh is empty";
+                else
+                {
+                    var pts = new List<Vec3>(mesh.vertexCount);
+                    foreach (Vector3 v in mesh.vertices)
+                    {
+                        Vector3 w = g.transform.TransformPoint(v);
+                        pts.Add(new Vec3(w.x, w.y, w.z));
+                    }
+                    Boxes.Thin(pts, meshVoxel, int.MaxValue);
+                    m.MeshPoints.AddRange(pts);
+                    m.MeshStatus = "loaded";
+                }
             }
             return m;
         }
@@ -457,7 +477,8 @@ namespace SecondEyes.Perception.AutoScan
                 .Add("frames", Localizer.Int(scan == null ? 0 : scan.Frames)).Add("sightings", Localizer.Int(scan == null ? 0 : scan.Sightings))
                 .Add("objects", Localizer.Int(scan == null ? 0 : scan.Confirmed)).Add("tentative", Localizer.Int(scan == null ? 0 : scan.Tentative))
                 .Add("scene_revision", Localizer.Int(revision))
-                .Add("room", JNode.Obj().Add("status", JNode.Str(room.Status)).Add("why", JNode.Str(room.Why)).Add("boxes", Localizer.Int(room.Boxes.Count)))
+                .Add("room", JNode.Obj().Add("status", JNode.Str(room.Status)).Add("why", JNode.Str(room.Why)).Add("boxes", Localizer.Int(room.Boxes.Count))
+                    .Add("mesh", JNode.Str(room.MeshStatus)).Add("mesh_points", Localizer.Int(room.MeshPoints.Count)))
                 .Add("boxes_drawn", new JNode { Kind = JKind.Bool, Bool = settings != null && settings.Boxes })
                 .Add("see_through_shader", new JNode { Kind = JKind.Bool, Bool = Resources.Load<Shader>("SecondEyesSeeThrough") != null });
         }

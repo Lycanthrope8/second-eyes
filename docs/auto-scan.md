@@ -16,10 +16,10 @@ scene (`notes/decisions.md`). The headset scans its side of the room; the drone 
 Code: the core is `quest-app/Assets/SecondEyes/Perception/AutoScan/AutoScan.cs`, `Boxes.cs` and `RoomModel.cs` (free of
 Unity: the same code runs on the headset and in the PC's replay); the Unity glue is `Perception/AutoScan/Glue/AutoScanner.cs`;
 the blocks' shader is `Assets/SecondEyes/Resources/SecondEyesSeeThrough.shader`. Settings:
-`schemas/auto-scan-config.v4.json`, defaults `perception/autoscan/autoscan.default.v4.json`, in the perception folder
+`schemas/auto-scan-config.v5.json`, defaults `perception/autoscan/autoscan.default.v5.json`, in the perception folder
 (`perception-folder.md`). The bedroom's map is `perception/bedroom/category-map.bedroom.v4.json`. Older settings files
 keep their behaviour, so older scans replay exactly: v1 has no Meta room, v2 has Meta's room but no fitted boxes, v3 has
-the boxes but neither support turns nor joining groups.
+the boxes but neither support turns nor joining groups, v4 has those but no boxes from Meta's mesh.
 
 ## What happens
 
@@ -32,7 +32,9 @@ the boxes but neither support turns nor joining groups.
 3. **Meta's room.** MRUK (Meta XR SDK 207) loads the room, made inactive, given its settings and its world lock turned off,
    so every position stays in the tracking space the camera's poses and the depth's points are measured in. Its boxes
    stand on their own z axis; the scan uses each upright: centre, turn about the vertical, width, depth and height.
-   No room: the scan goes on by depth alone, and the log and facts say why.
+   No room: the scan goes on by depth alone, and the log and facts say why. With `use_mesh` (v5), MRUK's global mesh,
+   Space Setup's fused depth of the whole room, is read too: its points in quest_tracking, thinned to one per
+   `mesh_voxel_m`, are logged with the room, so the replay uses the same geometry.
 4. The detector switches to its on-request mode (waiting up to 30 s while an inference runs), and the camera starts:
    after Space Setup it can take longer, so after 30 s the detector is restarted once, and the scan stops only at 60 s.
    The camera's model is measured from its own rays (`scan.md`), and Meta's depth starts.
@@ -49,7 +51,15 @@ the boxes but neither support turns nor joining groups.
    (`box_categories`: bed, chair, couch, table) or Meta named the box as its category (the monitor inside Meta's screen).
    It votes for that box: Meta's name wins; a box Meta calls OTHER takes the detector's leading category once it has
    `min_box_votes` sightings of it, else it stays unnamed, an obstacle still in the scene.
-8. **The scan's boxes.** Any other sighting joins the object whose box it lies inside (furniture joins furniture,
+8. **Boxes from Meta's mesh** (v5). When the room is set, the mesh is cut into obstacles: points within
+   `structure_margin_m` of the floor or the ceiling, within `wall_margin_m` of a wall, outside the room, or inside one of
+   Meta's boxes (already objects) are taken off; the rest is split into clusters of points within `mesh_link_m` of each
+   other, and each cluster of at least `cluster_min_points`, at least `cluster_min_size_m` some way and at most
+   `cluster_max_size_m` across becomes a box fitted to it: every side Space Setup saw, measured, not assumed. A sighting
+   whose point lies inside one, of any category, votes for it, since the cluster is the object; it takes the leading
+   category with `min_box_votes` sightings. A cluster nobody names stays in the scene as an obstacle of unknown
+   category, as Space Setup boxes every obstacle.
+9. **The scan's boxes.** Any other sighting joins the object whose box it lies inside (furniture joins furniture,
    whatever the label, and counts as inside when resting on it), else the nearest object of its category within reach,
    else it starts one. Its surface points join the object's, thinned to one per `point_voxel_m` (the voxel doubles past
    `box_points_max`), and the object's box is fitted again:
@@ -69,11 +79,11 @@ the boxes but neither support turns nor joining groups.
    - the object's category is its leading vote. Objects whose boxes contain each other's centres merge, when they may be
      one object: the same category, both furniture, or both in one of `join_groups` (v4: a bottle and a cup, the tumbler
      the detector calls both; a keyboard and a laptop, the laptop's own keyboard, which then joins the laptop).
-9. An object seen in at least `min_frames` frames is in the scene. At most every `publish_interval_s`, a changed scene is
+10. An object seen in at least `min_frames` frames is in the scene. At most every `publish_interval_s`, a changed scene is
    published: `scene.json`, `trace.json` and `facts.json` are rewritten, the panel binds it to the session, and every
    object is drawn: a see-through block (Meta's boxes blue, the scan's green, unnamed grey) with bright edges, its name
    over its top.
-10. Sending a typed command binds the newest snapshot first and, once a room is scanned, goes to the room: if a dataset
+11. Sending a typed command binds the newest snapshot first and, once a room is scanned, goes to the room: if a dataset
     scene is showing, the panel switches back to the room and says so (the Scene button and presets are for the dataset
     scenes). The scan holds until the outcome is shown. The room's list gives each object's name ("?" for an unnamed
     box) and its box. The panel's
@@ -89,7 +99,7 @@ allows this since 18 October 2026 (`scene-contract.md`). A box of Meta's carries
 named it (`meta:BED`, the detector's `chair`, or `meta:OTHER` unnamed); its views count the frames that voted for it, and
 one no frame saw counts Space Setup's capture once, because a scene's views can't be zero.
 
-## The settings (v4)
+## The settings (v5)
 
 | Setting | Default | What it does |
 |---|---|---|
@@ -107,6 +117,10 @@ one no frame saw counts Space Setup's capture once, because a scene's views can'
 | `save_images_max` | 120 | frames saved as images each session; the previous session's are deleted when a scan starts |
 | `align_to_support`, `rest_gap_m` (v4) | bottle, cup, keyboard, laptop, mouse; 0.08 | small things that take their support's turn; how near counts as resting |
 | `join_groups` (v4) | bottle and cup; keyboard and laptop | categories that may be one object |
+| `use_mesh`, `mesh_voxel_m` (v5) | true, 0.03 | boxes from Meta's room mesh; the mesh thinned to one point per voxel |
+| `structure_margin_m`, `wall_margin_m` (v5) | 0.05, 0.08 | mesh points this close to floor or ceiling or Meta's boxes, or to a wall, taken off |
+| `mesh_link_m`, `cluster_min_points` (v5) | 0.06, 20 | points this close are one cluster; the points a cluster needs |
+| `cluster_min_size_m`, `cluster_max_size_m` (v5) | 0.15, 3 | a cluster smaller every way is noise; wider, leftover structure |
 
 The defaults are first values, set by reasoning, not tuned; a change is a new `config_id`.
 
@@ -128,7 +142,7 @@ be the same: the same objects from the same sources, categories and placements, 
 
 ## Checks
 
-`tools/csharp-tests/AutoScan` (74 checks) covers the settings, sampling, every leave-out reason, joining and merging, the
+`tools/csharp-tests/AutoScan` (84 checks) covers the settings, sampling, every leave-out reason, joining and merging, the
 replay byte for byte and the contract; Meta's room (a point in a turned box, the room's outline, rotations into the
 scene's axes, Meta's name winning, OTHER boxes named or unnamed, a laptop on a desk, a reflection outside the room); and
 the 3D boxes: the grid, a turned box fitted within a degree with stray rays trimmed, an L of points fitted as the object and not
@@ -136,10 +150,17 @@ along its diagonal, completion away from the viewer, a
 stretched small thing shrunk, one of Meta's boxes standing on its z axis, a side view joining a chair's box (fitted at the chair's own turn), the monitor
 going into Meta's screen box, a pile on the mattress counting as the bed, boxes in a scene that passes the contract, and
 the replay; and v4: a keyboard whose outer samples hit the desk taking the desk's turn, a tumbler called a cup and a
-bottle staying one cup, a laptop absorbing its own keyboard while the real keyboard stays, and the replay. `tools/csharp-tests/ScanGlue` compiles the scanner against stubs of the Unity, app and Meta SDK 207 members it
+bottle staying one cup, a laptop absorbing its own keyboard while the real keyboard stays, and the replay; and v5, on a
+synthetic room mesh: the floor, walls, Meta's desk and a speck of noise taken off, a chair's box measured from the mesh
+at its own size and turn (not its prior's), a laptop on the desk its own mesh box, a bin nobody named kept as an
+obstacle, a mouse flattened into the desk keeping its live-depth box, the contract and the replay, the mesh included. `tools/csharp-tests/ScanGlue` compiles the scanner against stubs of the Unity, app and Meta SDK 207 members it
 calls, every Meta signature copied from the SDK's source.
 
 ## Known limits
+
+- How fine Meta's mesh is on the headset is unknown until the first scan with v5: small things (a mouse, a keyboard)
+  probably flatten into the desk in it and keep their live-depth boxes, and things touching each other in the mesh (a
+  chair against the bed) are one cluster, so one box. The mesh is Space Setup's: something moved after it isn't in it.
 
 - A box is fitted to what was seen: until an object is seen from more sides, its hidden side comes from its size prior,
   and a category without one (the bed, the tables, a cup) keeps the visible extent: the cup's box takes in some of the desk
