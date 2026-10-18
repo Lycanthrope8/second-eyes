@@ -28,7 +28,7 @@ namespace SecondEyes.Perception.AutoScan
         /// box_completion grows a box's hidden side to its size prior. A v1 or v2 file: no boxes.</summary>
         public bool Boxes;
         public int SampleGrid, BoxPointsMax = 800;
-        public double DepthWindowM = 0.5, PointVoxelM = 0.03, BoxTrim = 0.03, TopAllowanceM = 0;
+        public double DepthWindowM = 0.5, PointVoxelM = 0.03, BoxTrim = 0.03, TopAllowanceM = 0, BoxMaxOverPrior = 1.5;
         public bool BoxCompletion;
         public HashSet<string> FloorCategories = new HashSet<string>(StringComparer.Ordinal);
 
@@ -61,6 +61,7 @@ namespace SecondEyes.Perception.AutoScan
                 s.BoxTrim = n["box_trim"].Num;
                 s.TopAllowanceM = n["top_allowance_m"].Num;
                 s.BoxCompletion = n["box_completion"].Bool;
+                s.BoxMaxOverPrior = n["box_max_over_prior"].Num;
                 s.FloorCategories = new HashSet<string>(n["floor_categories"].Items.Select(x => x.Text), StringComparer.Ordinal);
             }
             return s;
@@ -530,7 +531,11 @@ namespace SecondEyes.Perception.AutoScan
             Box3 b = Boxes.Fit(o.Surface, s.BoxTrim, s.FloorCategories.Contains(o.Standard), room.Loaded ? room.FloorY : s.FloorYM);
             List<JNode> pri;
             if (s.BoxCompletion && sizes.TryGetValue(o.Standard, out pri))
-                b = Boxes.Complete(b, pri.Select(x => x["size_m"].Items.Select(v => v.Num).ToArray()).ToList(), o.Viewpoints.Select(ToUnity).ToList());
+            {
+                var local = o.Surface.Select(b.Local).ToList();
+                var median = new Vec3(Median(local.Select(v => v.X)), 0, Median(local.Select(v => v.Z)));
+                b = Boxes.Complete(b, pri.Select(x => x["size_m"].Items.Select(v => v.Num).ToArray()).ToList(), o.Viewpoints.Select(ToUnity).ToList(), s.BoxMaxOverPrior, median);
+            }
             o.Box = b;
             o.Centre = ToScene(b.Centre);
             o.Size = Math.Max(b.Size.X, b.Size.Z);

@@ -104,10 +104,12 @@ namespace SecondEyes.Perception.AutoScan
             return new Box3 { YawDeg = best, Size = new Vec3(su, top - bottom, sw), Centre = new Vec3(mid.X, (top + bottom) / 2, mid.Z) };
         }
 
-        /// <summary>The box grown to the size prior closest to it (priors as [width, depth, height]): each side shorter
-        /// than the prior's grows away from the mean of the viewpoints that saw it, since the hidden side is the far
-        /// one; the height grows upward from the bottom. Nothing shrinks.</summary>
-        public static Box3 Complete(Box3 b, IList<double[]> priors, IList<Vec3> viewpoints)
+        /// <summary>The box brought to the size prior closest to it (priors as [width, depth, height]): each side shorter
+        /// than the prior's grows away from the mean of the viewpoints that saw it, since the hidden side is the far one;
+        /// the height grows upward from the bottom. A side longer than maxOver times the prior's (a small thing's samples
+        /// landing on the desk around it) shrinks to the prior's, centred on the median of the points, given in the
+        /// box's own axes; a height so tall keeps its bottom.</summary>
+        public static Box3 Complete(Box3 b, IList<double[]> priors, IList<Vec3> viewpoints, double maxOver, Vec3 medianLocal)
         {
             if (priors == null || priors.Count == 0) return b;
             double big = Math.Max(b.Size.X, b.Size.Z), small = Math.Min(b.Size.X, b.Size.Z);
@@ -123,8 +125,10 @@ namespace SecondEyes.Perception.AutoScan
             double sx = b.Size.X, sy = b.Size.Y, sz = b.Size.Z, lx = 0, lz = 0, bottom = b.Centre.Y - b.Size.Y / 2;
             bool grew = false;
             if (sx < tx) { lx = -(toView.X >= 0 ? 1 : -1) * (tx - sx) / 2; sx = tx; grew = true; }
+            else if (sx > maxOver * tx) { lx = medianLocal.X; sx = tx; grew = true; }
             if (sz < tz) { lz = -(toView.Z >= 0 ? 1 : -1) * (tz - sz) / 2; sz = tz; grew = true; }
-            if (sy < p[2]) { sy = p[2]; grew = true; }
+            else if (sz > maxOver * tz) { lz = medianLocal.Z; sz = tz; grew = true; }
+            if (sy < p[2] || sy > maxOver * p[2]) { sy = p[2]; grew = true; }
             if (!grew) return b;
             Vec3 c = b.World(new Vec3(lx, 0, lz));
             return new Box3 { YawDeg = b.YawDeg, Size = new Vec3(sx, sy, sz), Centre = new Vec3(c.X, bottom + sy / 2, c.Z), Completed = true };

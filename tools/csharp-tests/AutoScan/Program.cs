@@ -56,6 +56,142 @@ static class Program
     static string Cat(JNode o) { return o["category"]["value"]["standard"].Text; }
     static Vec3 Centre(JNode o) { var v = o["geometry"]["center_m"]["value"].Items; return new Vec3(v[0].Num, v[1].Num, v[2].Num); }
 
+    /// <summary>An n by n grid of points on one face of a box (axis 0, 1 or 2 of its own axes; sign -1 or +1).</summary>
+    static List<Vec3> Face(Box3 b, int axis, int sign, int n)
+    {
+        var pts = new List<Vec3>();
+        double[] half = { b.Size.X / 2, b.Size.Y / 2, b.Size.Z / 2 };
+        for (int i = 0; i < n; i++)
+            for (int j = 0; j < n; j++)
+            {
+                double u = (i + 0.5) / n * 2 - 1, v = (j + 0.5) / n * 2 - 1;
+                double[] l = new double[3];
+                int a1 = (axis + 1) % 3, a2 = (axis + 2) % 3;
+                l[axis] = sign * half[axis]; l[a1] = u * half[a1]; l[a2] = v * half[a2];
+                pts.Add(b.World(new Vec3(l[0], l[1], l[2])));
+            }
+        return pts;
+    }
+
+    /// <summary>A detection whose v3 grid of depth samples hits the given points, one per sample, as on the headset.</summary>
+    static FrameDetection DetOn(string label, List<Vec3> pts)
+    {
+        var d = new FrameDetection { ClassId = 0, Label = label, Score = 0.8, X1 = 300, Y1 = 200, X2 = 700, Y2 = 800 };
+        var px = AutoScan.SamplePixels(300, 200, 700, 800, S3);
+        for (int i = 0; i < px.Count; i++)
+        {
+            Vec3? h = i < pts.Count ? pts[i] : (Vec3?)null;
+            d.Samples.Add(new DepthSample { U = px[i][0], V = px[i][1], Status = h.HasValue ? "hit" : "no_hit", Point = h });
+        }
+        return d;
+    }
+
+    static readonly AutoScanSettings S3 = AutoScanSettings.From(JParse.Parse(File.ReadAllText(Path.Combine("perception", "autoscan", "autoscan.default.v3.json"))));
+
+    /// <summary>9. The 3D boxes (v3).</summary>
+    static void BoxChecks(Func<string, Schema> schema, string sampleDir)
+    {
+        Console.WriteLine("9. The 3D boxes (v3)");
+        var s3 = AutoScanSettings.From(JParse.Parse(File.ReadAllText(Path.Combine("perception", "autoscan", "autoscan.default.v3.json"))));
+        var map4 = JParse.Parse(File.ReadAllText(Path.Combine("perception", "bedroom", "category-map.bedroom.v4.json")));
+        Check("the v3 settings: boxes, a 5 by 5 grid, completion, a side at most 1.5 priors, furniture standing on the floor",
+              s3.Boxes && s3.SampleGrid == 5 && s3.BoxCompletion && s3.BoxMaxOverPrior == 1.5 && s3.FloorCategories.SetEquals(new[] { "bed", "chair", "couch", "table" }));
+        var grid = AutoScan.SamplePixels(100, 200, 600, 700, s3);
+        Check("depth is sampled at the 25 cell centres of the detection's box", grid.Count == 25 && grid[0][0] == 150 && grid[0][1] == 250 && grid[24][0] == 550 && grid[24][1] == 650);
+
+        var truth = new Box3 { Centre = new Vec3(1.0, 0.45, 2.0), Size = new Vec3(0.6, 0.9, 0.45), YawDeg = 25 };
+        var pts = new List<Vec3>();
+        for (int ax = 0; ax < 3; ax++) foreach (int sg in new[] { -1, 1 }) pts.AddRange(Face(truth, ax, sg, 6));
+        for (int k = 0; k < 4; k++) pts.Add(new Vec3(3 + k * 0.1, 1.5, -1));   // stray rays far away
+        Box3 fit = Boxes.Fit(pts, 0.03, true, 0);
+        Check("a box turned 25 degrees is fitted from its surface points, stray rays trimmed: its turn within 1 degree, sides within 4 cm",
+              Math.Abs(fit.YawDeg - 25) <= 1 && Math.Abs(fit.Size.X - 0.6) < 0.04 && Math.Abs(fit.Size.Z - 0.45) < 0.04 && Math.Abs(fit.Size.Y - 0.9) < 0.02
+              && (fit.Centre - truth.Centre).Norm < 0.04, fit.YawDeg + " " + fit.Size.X.ToString("0.000") + " " + fit.Size.Y.ToString("0.000") + " " + fit.Size.Z.ToString("0.000"));
+
+        var front = Face(truth, 2, -1, 6);   // only the face toward -z seen, from a camera on that side
+        Vec3 viewer = truth.World(new Vec3(0, 0.5, -2.0));
+        Box3 thin = Boxes.Fit(front, 0.03, true, 0);
+        Box3 whole = Boxes.Complete(thin, new List<double[]> { new[] { 0.6, 0.45, 0.9 } }, new List<Vec3> { viewer }, 1.5, new Vec3(0, 0, 0));
+        Vec3 depthLocal = truth.Local(whole.Centre);
+        Check("a box seen from one side only is completed to the prior, its hidden half grown away from the viewer",
+              whole.Completed && Math.Abs(whole.Size.X - 0.6) < 0.04 && Math.Abs(whole.Size.Z - 0.45) < 0.04 && Math.Abs(depthLocal.Z) < 0.03,
+              whole.Size.Z.ToString("0.000") + " centre " + depthLocal.Z.ToString("0.000"));
+        Box3 stretched = new Box3 { Centre = new Vec3(0, 0.8, 0), Size = new Vec3(0.36, 0.04, 0.07), YawDeg = 0 };
+        Box3 mouse = Boxes.Complete(stretched, new List<double[]> { new[] { 0.07, 0.15, 0.04 } }, new List<Vec3> { new Vec3(0, 1.5, -1) }, 1.5, new Vec3(0.1, 0, 0));
+        Check("a small thing's side stretched by the desk around it shrinks to its measured size, centred on its points",
+              Math.Abs(mouse.Size.X - 0.15) < 1e-9 && Math.Abs(mouse.Centre.X - 0.1) < 1e-9, mouse.Size.X + " at " + mouse.Centre.X);
+
+        double[] up = { Math.Sin(-Math.PI / 4), 0, 0, Math.Cos(-Math.PI / 4) };
+        if (RoomModel.Rotate(up, new Vec3(0, 0, 1)).Y < 0) up = new[] { Math.Sin(Math.PI / 4), 0, 0, Math.Cos(Math.PI / 4) };
+        var standing = new RoomBox { Id = "anchor-bed", MetaLabel = "BED", Centre = new Vec3(-1, 0.125, 2), Size = new Vec3(2.0, 1.6, 0.25), Rotation = up };
+        Box3 bedUp = Boxes.Upright(standing);
+        Check("one of Meta's boxes standing on its own z axis, as Space Setup's do: upright, its height that axis, its label on its top",
+              Math.Abs(bedUp.Size.Y - 0.25) < 1e-9 && Math.Abs(Math.Max(bedUp.Size.X, bedUp.Size.Z) - 2.0) < 1e-9 && Math.Abs(bedUp.Top.Y - 0.25) < 1e-9,
+              bedUp.Size.X + " " + bedUp.Size.Y + " " + bedUp.Size.Z);
+
+        var room = new RoomModel { Status = "loaded", FloorY = 0, CeilingY = 2.6 };
+        foreach (var c in new[] { new[] { -3.0, -1.0 }, new[] { 3.0, -1.0 }, new[] { 3.0, 5.0 }, new[] { -3.0, 5.0 } }) room.FloorXz.Add(c);
+        room.Boxes.Add(standing);
+        var screen = new RoomBox { Id = "anchor-screen", MetaLabel = "SCREEN", Centre = new Vec3(1.5, 1.1, 3.5), Size = new Vec3(0.62, 0.1, 0.37), Rotation = up };
+        room.Boxes.Add(screen);
+        var a = new AutoScan("scan.box.1", s3, map4, Priors, "yolox_nano_coco.se1", new string('c', 64), "quest_left", Fx);
+        var lines = new List<string> { PyJson.Canonical(a.Header("f00d", 1280, 960, Fx, 643, 481, 416)), PyJson.Canonical(room.ToJson()) };
+        a.SetRoom(room);
+        var chair = new Box3 { Centre = new Vec3(0.5, 0.45, 1.5), Size = new Vec3(0.55, 0.9, 0.45), YawDeg = 10 };
+        Vec3 camFront = chair.World(new Vec3(0, 1.0, -2.0)), camSide = chair.World(new Vec3(2.0, 1.0, 0));
+        var frames = new List<FrameRecord>();
+        for (int n = 1; n <= 3; n++)
+            frames.Add(Frame(n, camFront + new Vec3(0.1 * n, 0, 0), DetOn("chair", Face(chair, 2, -1, 5)),
+                             DetOn("couch", Face(new Box3 { Centre = new Vec3(-1, 0.41, 2), Size = new Vec3(0.8, 0.02, 0.6) }, 1, 1, 5)),
+                             DetOn("tv", Face(new Box3 { Centre = screen.Centre, Size = new Vec3(0.6, 0.35, 0.01) }, 2, -1, 5))));
+        frames.Add(Frame(4, camSide, DetOn("chair", Face(chair, 0, 1, 5))));
+        foreach (var f in frames) { lines.Add(PyJson.Canonical(f.ToJson())); a.Add(f); }
+        var r = a.Snapshot(9);
+        var objs = r.Scene["objects"].Items;
+        string cats = string.Join(",", objs.Select(o => o["category"]["state"].Text == "known" ? Cat(o) : "?"));
+        Check("the scene: the bed and the monitor as Meta's boxes, and one chair, seen from the front and then the side", cats == "bed,chair,television", cats);
+        JNode chairObj = objs.Single(o => o["category"]["state"].Text == "known" && Cat(o) == "chair");
+        Check("the side view landed inside the chair's box and joined it: one chair seen in 4 frames from 2 places",
+              chairObj["observation"]["views"]["keyframes"].Num == 4 && chairObj["observation"]["views"]["positions"].Num == 2);
+        JNode rb = r.Trace["room"]["boxes"];
+        Check("the monitor's sightings went into Meta's screen box, which Meta named; no second television",
+              rb.Items.Single(b => b["id"].Text == "anchor-screen")["votes"]["television"].Num == 3 && objs.Count(o => o["category"]["state"].Text == "known" && Cat(o) == "television") == 1);
+        Check("a pile on the mattress, called a couch, 16 cm above the bed's box, counts as the bed; no couch",
+              rb.Items.Single(b => b["id"].Text == "anchor-bed")["votes"]["couch"].Num == 3 && !objs.Any(o => o["category"]["state"].Text == "known" && Cat(o) == "couch"));
+        JNode g = chairObj["geometry"];
+        Check("the chair's box is in the scene: its size, inferred from the scan, completed to the prior, and its turn about +z",
+              g["size_m"]["state"].Text == "known" && g["size_m"]["evidence"]["kind"].Text == "inferred" && g["rotation_xyzw"]["support"].Text == "yaw_only"
+              && g["center_m"]["evidence"]["assumptions"].Items.Single().Text == AutoScan.BoxAssumption
+              && r.Scene["assumptions"].Items.Any(x => x["assumption_id"].Text == AutoScan.BoxAssumption));
+        JNode bedObj = objs.Single(o => o["source_ref"]["source_object_id"].Text == "anchor-bed");
+        var bs = bedObj["geometry"]["size_m"]["value"].Items;
+        Check("Meta's bed carries its true size, height last (0.25 m), and its turn", Math.Abs(bs[2].Num - 0.25) < 1e-9 && bedObj["geometry"]["rotation_xyzw"]["state"].Text == "known");
+        var contract = new Contract(schema);
+        var issues = contract.Validate(new List<KeyValuePair<string, JNode>> { new KeyValuePair<string, JNode>("scene", r.Scene), new KeyValuePair<string, JNode>("map", map4) });
+        Check("the scene with its boxes passes the contract (scene v3, perceived) with the bedroom's map v4", !issues.Any(i => i.IsError),
+              string.Join(", ", issues.Where(i => i.IsError).Select(i => i.Code + " " + i.Path)));
+        var shown = a.ConfirmedBoxes();
+        Check("one box to draw per object: Meta's named by Meta, the chair by the scan", shown.Count == 3 && shown.Count(x => x.Kind == "meta") == 2 && shown.Count(x => x.Kind == "scan") == 1);
+
+        var b2 = AutoScan.FromHeader(JParse.Parse(lines[0]), s3, map4, Priors);
+        foreach (string line in lines.Skip(1))
+        {
+            JNode n = JParse.Parse(line);
+            if (n["record_type"].Text == RoomModel.RecordType) b2.SetRoom(RoomModel.FromJson(n)); else b2.Add(FrameRecord.FromJson(n));
+        }
+        var r2 = b2.Snapshot(9);
+        Check("replayed from its lines, the scan fits the same boxes: the same scene and trace byte for byte",
+              PyJson.Canonical(r2.Scene) == PyJson.Canonical(r.Scene) && PyJson.Canonical(r2.Trace) == PyJson.Canonical(r.Trace));
+        if (sampleDir != null)
+        {
+            Directory.CreateDirectory(sampleDir);
+            File.WriteAllLines(Path.Combine(sampleDir, "frames.jsonl"), lines);
+            File.WriteAllText(Path.Combine(sampleDir, "scene.json"), PyJson.Canonical(r.Scene) + "\n");
+            File.WriteAllText(Path.Combine(sampleDir, "trace.json"), PyJson.Canonical(r.Trace) + "\n");
+            Console.WriteLine("  (a sample scan with 3D boxes written to " + sampleDir + ")");
+        }
+    }
+
     static string bedObjLabel(List<JNode> objs) { return objs.Single(o => o["source_ref"]["source_object_id"].Text == "anchor-bed")["source_ref"]["source_label"].Text; }
 
     static RoomBox Box(string id, string label, Vec3 c, Vec3 size, double yawDeg = 0)
@@ -304,6 +440,7 @@ static class Program
         Check("that scene passes the contract too", !issues6.Any(i => i.IsError), string.Join(", ", issues6.Where(i => i.IsError).Select(i => i.Code + " " + i.Path).Take(3)));
 
         Room(schema, args.Length > 1 ? Path.Combine(args[1], "room") : null);
+        BoxChecks(schema, args.Length > 1 ? Path.Combine(args[1], "boxes") : null);
 
         Console.WriteLine("7. Tracking");
         var s8 = NewScan();

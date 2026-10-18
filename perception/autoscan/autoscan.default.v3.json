@@ -1,0 +1,43 @@
+{
+  "schema_version": 3,
+  "record_type": "auto_scan_config",
+  "config_id": "autoscan.default.v3",
+  "description": "A4's automatic scan with Meta's room and 3D boxes: Space Setup once per app launch gives the walls and a box around every obstacle; every object is a 3D box, Meta's as Space Setup made them, the detector's fitted to the points a 5 by 5 grid of depth samples hits on its surface and completed to its size prior; a sighting inside a box joins it; first values, set by reasoning, not tuned",
+  "interval_s": 0.5,
+  "min_score": 0.3,
+  "sample_spread": 0.2,
+  "max_range_m": 6.0,
+  "floor_y_m": 0.0,
+  "floor_margin_m": 0.15,
+  "min_reach_m": 0.3,
+  "reach_factor": 0.5,
+  "min_frames": 3,
+  "viewpoint_m": 0.5,
+  "max_points_per_object": 64,
+  "publish_interval_s": 3.0,
+  "save_images_max": 120,
+  "space_setup": "every_start",
+  "box_margin_m": 0.1,
+  "room_margin_m": 0.25,
+  "min_box_votes": 2,
+  "box_categories": [
+    "bed",
+    "chair",
+    "couch",
+    "table"
+  ],
+  "sample_grid": 5,
+  "depth_window_m": 0.5,
+  "point_voxel_m": 0.03,
+  "box_points_max": 800,
+  "box_trim": 0.03,
+  "top_allowance_m": 0.5,
+  "box_completion": true,
+  "floor_categories": [
+    "bed",
+    "chair",
+    "couch",
+    "table"
+  ],
+  "box_max_over_prior": 1.5
+}
