@@ -88,13 +88,14 @@ OBJECT_SOURCE_KINDS_V3 = {"sensor_capture"}
 # A command typed on the headset (command format 2, A4): its user pose is not in its source, the person's input.
 UNKNOWN_SOURCE_KINDS_TYPED = dict(UNKNOWN_SOURCE_KINDS, not_in_source=UNKNOWN_SOURCE_KINDS["not_in_source"] | {"user_input"})
 # The perceived profile (scene v3): per object value, the (evidence kind, source kind) pairs a known value may have and
-# the reasons an unknown value may give. Nothing is annotated, so nothing is an oracle's; a size is a prior or unknown;
-# orientation and front are never estimated.
+# the reasons an unknown value may give. Nothing is annotated, so nothing is an oracle's. A size is a prior, or inferred
+# from the sensor capture as an object's 3D box (A4, 18 October 2026), or unknown; so is a rotation, from the box's
+# turn; the front is never estimated.
 PERCEIVED_FIELDS = {
     "category": ({("inferred", "sensor_capture")}, {"not_estimated"}),
     "geometry.center_m": ({("inferred", "sensor_capture")}, {"not_estimated"}),
-    "geometry.size_m": ({("assumed", "prior_table")}, {"no_permitted_prior"}),
-    "geometry.rotation_xyzw": (set(), {"not_estimated"}),
+    "geometry.size_m": ({("assumed", "prior_table"), ("inferred", "sensor_capture")}, {"no_permitted_prior"}),
+    "geometry.rotation_xyzw": ({("inferred", "sensor_capture")}, {"not_estimated"}),
     "semantic_front": (set(), {"not_estimated"}),
     "attributes.colours": ({("inferred", "sensor_capture")}, {"not_estimated"}),
     "observation.capture_time": ({("measured", "sensor_capture")}, {"not_estimated"}),

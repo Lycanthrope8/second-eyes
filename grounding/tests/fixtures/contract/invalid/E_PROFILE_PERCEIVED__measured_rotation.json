@@ -123,7 +123,7 @@
           ],
           "support": "yaw_only",
           "evidence": {
-            "kind": "inferred",
+            "kind": "measured",
             "source": "scan.fx",
             "assumptions": []
           }

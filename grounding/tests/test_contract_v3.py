@@ -74,6 +74,13 @@ def main() -> int:
     s = C(base); s["objects"][0]["geometry"]["size_m"] = {"state": "unknown", "reason": "not_estimated", "source": "scan.fx"}
     check("an unknown size gives no_permitted_prior, not not_estimated",
           found(s) == [("E_PROFILE_PERCEIVED", "$.objects[0].geometry.size_m")], str(found(s)))
+    s = C(base)
+    s["objects"][0]["geometry"]["size_m"] = {"state": "known", "value": [0.55, 0.45, 0.88], "evidence": {"kind": "inferred", "source": "scan.fx", "assumptions": []}}
+    s["objects"][0]["geometry"]["rotation_xyzw"] = {"state": "known", "value": [0, 0, 0.3826834324, 0.9238795325], "support": "yaw_only",
+                                                    "evidence": {"kind": "inferred", "source": "scan.fx", "assumptions": []}}
+    check("a 3D box from the scan: its size and turn inferred from the sensor capture", found(s) == [], str(found(s)))
+    s = C(base); s["objects"][0]["geometry"]["size_m"]["evidence"] = {"kind": "measured", "source": "scan.fx", "assumptions": []}
+    check("a box's size is inferred from the scan, not measured", found(s) == [("E_PROFILE_PERCEIVED", "$.objects[0].geometry.size_m")], str(found(s)))
     s = C(base); s["objects"][0]["geometry"]["center_m"]["evidence"]["kind"] = "measured"
     check("a centre is inferred from the scan, not measured",
           found(s) == [("E_PROFILE_PERCEIVED", "$.objects[0].geometry.center_m")], str(found(s)))

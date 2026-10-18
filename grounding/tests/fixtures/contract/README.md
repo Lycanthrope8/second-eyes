@@ -62,7 +62,7 @@ Test data for `grounding/tests/test_contract.py` (A2.1a, D66). Not training data
 | `E_DUPLICATE_RECORD__same_scene.json` | `valid/scene.a17.annotated.json` | a second copy of scene.a17.annotated.json | `valid/scene.a17.annotated.json` |
 | `E_PROFILE_PERCEIVED__assumed_centre.json` | `valid/scene.bedroom.perceived_v3.json` | obj_001's centre is assumed from the size table; a perceived centre is inferred from the scan |  |
 | `E_PROFILE_PERCEIVED__single_position_without_assumption.json` | `valid/scene.bedroom.perceived_v3.json` | obj_002, placed from one position, names no assumption for its centre |  |
-| `E_PROFILE_PERCEIVED__estimated_rotation.json` | `valid/scene.bedroom.perceived_v3.json` | obj_001 has a known rotation; a perceived rotation is never estimated |  |
+| `E_PROFILE_PERCEIVED__measured_rotation.json` | `valid/scene.bedroom.perceived_v3.json` | obj_001's rotation is measured; a perceived rotation is only inferred from the scan, as its 3D box's turn |  |
 | `E_ASSOCIATION__duplicate_not_listed_back.json` | `valid/scene.bedroom.perceived_v3.json` | obj_003 no longer lists obj_002 back, though obj_002 lists it |  |
 | `E_ASSOCIATION__single_position_from_two_positions.json` | `valid/scene.bedroom.perceived_v3.json` | obj_005 is single_position but was seen from two positions |  |
 | `E_FRAME_SOURCE__v3_size_table_conversion.json` | `valid/scene.bedroom.perceived_v3.json` | the conversion names the size table, not the sensor capture |  |

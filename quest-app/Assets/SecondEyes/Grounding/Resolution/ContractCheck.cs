@@ -91,8 +91,8 @@ namespace SecondEyes.Grounding.Resolution
         {
             { "category", Allow(new[] { "inferred|sensor_capture" }, "not_estimated") },
             { "geometry.center_m", Allow(new[] { "inferred|sensor_capture" }, "not_estimated") },
-            { "geometry.size_m", Allow(new[] { "assumed|prior_table" }, "no_permitted_prior") },
-            { "geometry.rotation_xyzw", Allow(new string[0], "not_estimated") },
+            { "geometry.size_m", Allow(new[] { "assumed|prior_table", "inferred|sensor_capture" }, "no_permitted_prior") },   // A4: 3D boxes
+            { "geometry.rotation_xyzw", Allow(new[] { "inferred|sensor_capture" }, "not_estimated") },
             { "semantic_front", Allow(new string[0], "not_estimated") },
             { "attributes.colours", Allow(new[] { "inferred|sensor_capture" }, "not_estimated") },
             { "observation.capture_time", Allow(new[] { "measured|sensor_capture" }, "not_estimated") },
