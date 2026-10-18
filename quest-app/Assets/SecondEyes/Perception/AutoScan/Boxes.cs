@@ -64,38 +64,53 @@ namespace SecondEyes.Perception.AutoScan
             return sorted[Math.Max(0, Math.Min(sorted.Length - 1, i))];
         }
 
-        private static double Area(List<Vec3> pts, double yawDeg, double trim, out double uLo, out double uHi, out double wLo, out double wHi)
+        private const double CloseFloorM = 0.01;   // closeness counts a point at most this close to an edge
+
+        /// <summary>How closely the points hug the edges of the footprint at this turn (the closeness criterion of
+        /// L-shape fitting, as used for vehicles in laser scans): each point scores 1 over its distance to the nearest
+        /// edge, floored at 1 cm. The footprint's sides drop the trim fraction of points at either end.</summary>
+        private static double Closeness(List<Vec3> pts, double yawDeg, double trim, out double uLo, out double uHi, out double wLo, out double wHi)
         {
             double a = yawDeg * Math.PI / 180, c = Math.Cos(a), s = Math.Sin(a);
             var u = new double[pts.Count];
             var w = new double[pts.Count];
             for (int i = 0; i < pts.Count; i++) { u[i] = pts[i].X * c - pts[i].Z * s; w[i] = pts[i].X * s + pts[i].Z * c; }
-            Array.Sort(u);
-            Array.Sort(w);
-            uLo = At(u, trim); uHi = At(u, 1 - trim); wLo = At(w, trim); wHi = At(w, 1 - trim);
-            return Math.Max(uHi - uLo, 1e-6) * Math.Max(wHi - wLo, 1e-6);
+            var su = (double[])u.Clone();
+            var sw = (double[])w.Clone();
+            Array.Sort(su);
+            Array.Sort(sw);
+            uLo = At(su, trim); uHi = At(su, 1 - trim); wLo = At(sw, trim); wHi = At(sw, 1 - trim);
+            double score = 0;
+            for (int i = 0; i < pts.Count; i++)
+            {
+                double du = Math.Min(Math.Abs(u[i] - uLo), Math.Abs(uHi - u[i])), dw = Math.Min(Math.Abs(w[i] - wLo), Math.Abs(wHi - w[i]));
+                score += 1 / Math.Max(Math.Min(du, dw), CloseFloorM);
+            }
+            return score;
         }
 
-        /// <summary>The upright box around the points (quest_tracking): the turn in [0, 90) degrees that makes the
-        /// trimmed footprint smallest (10-degree steps, then 1-degree steps around the best; ties to the smaller turn);
-        /// each side drops the trim fraction of points at either end, so a stray ray doesn't stretch it. A box standing
-        /// on the floor reaches down to floorY. Every side is at least 2 cm.</summary>
+        /// <summary>The upright box around the points (quest_tracking): the turn in [0, 90) degrees at which the points
+        /// hug the footprint's edges most closely (10-degree steps, then 1-degree steps around the best; ties to the
+        /// smaller turn). Closeness, not the smallest area: a camera mostly sees an object's front and one side, an L of
+        /// points, whose smallest rectangle is ambiguous (aligned with the object or with the L's diagonal, the same
+        /// area). Each side drops the trim fraction of points at either end, so a stray ray doesn't stretch it. A box
+        /// standing on the floor reaches down to floorY. Every side is at least 2 cm.</summary>
         public static Box3 Fit(List<Vec3> pts, double trim, bool onFloor, double floorY)
         {
-            double best = 0, bestArea = double.MaxValue, uLo, uHi, wLo, wHi;
+            double best = 0, bestScore = double.MinValue, uLo, uHi, wLo, wHi;
             for (int d = 0; d < 90; d += 10)
             {
-                double area = Area(pts, d, trim, out uLo, out uHi, out wLo, out wHi);
-                if (area < bestArea - 1e-12) { bestArea = area; best = d; }
+                double score = Closeness(pts, d, trim, out uLo, out uHi, out wLo, out wHi);
+                if (score > bestScore * (1 + 1e-12) + 1e-12) { bestScore = score; best = d; }
             }
             double coarse = best;
             for (int d = -9; d <= 9; d++)
             {
                 double yaw = ((coarse + d) % 90 + 90) % 90;
-                double area = Area(pts, yaw, trim, out uLo, out uHi, out wLo, out wHi);
-                if (area < bestArea - 1e-12 || (Math.Abs(area - bestArea) <= 1e-12 && yaw < best)) { bestArea = area; best = yaw; }
+                double score = Closeness(pts, yaw, trim, out uLo, out uHi, out wLo, out wHi);
+                if (score > bestScore * (1 + 1e-12) + 1e-12 || (Math.Abs(score - bestScore) <= 1e-12 * Math.Max(1, bestScore) && yaw < best)) { bestScore = score; best = yaw; }
             }
-            Area(pts, best, trim, out uLo, out uHi, out wLo, out wHi);
+            Closeness(pts, best, trim, out uLo, out uHi, out wLo, out wHi);
             double[] ys = pts.Select(p => p.Y).OrderBy(y => y).ToArray();
             double top = At(ys, 1 - trim), bottom = onFloor ? floorY : At(ys, trim);
             if (top < bottom + 0.02) top = bottom + 0.02;

@@ -52,9 +52,11 @@ keep their behaviour, so older scans replay exactly: v1 has no Meta room, v2 has
    whatever the label, and counts as inside when resting on it), else the nearest object of its category within reach,
    else it starts one. Its surface points join the object's, thinned to one per `point_voxel_m` (the voxel doubles past
    `box_points_max`), and the object's box is fitted again:
-   - **the turn** in [0°, 90°) that makes the footprint smallest, in 10° steps and then 1° steps around the best, each
-     side trimmed of `box_trim` of the points at either end so a stray ray doesn't stretch it; the box reaches the floor
-     for `floor_categories`;
+   - **the turn** in [0°, 90°) at which the points hug the footprint's edges most closely (the closeness criterion of
+     L-shape fitting, used for vehicles in laser scans), in 10° steps and then 1° steps around the best: a camera mostly
+     sees an object's front and one side, an L of points, whose smallest rectangle is ambiguous (aligned with the
+     object or with the L's diagonal, the same area); each side is trimmed of `box_trim` of the points at either end so
+     a stray ray doesn't stretch it; the box reaches the floor for `floor_categories`;
    - **completion** (`box_completion`): a side shorter than the category's closest size prior grows to it, away from the
      viewpoints that saw the object, since the hidden side is the far one, as SpatialLM's boxes are whole; a side longer
      than `box_max_over_prior` priors (a small thing's samples landing on the desk around it) shrinks to the prior,
@@ -114,11 +116,12 @@ be the same: the same objects from the same sources, categories and placements, 
 
 ## Checks
 
-`tools/csharp-tests/AutoScan` (66 checks) covers the settings, sampling, every leave-out reason, joining and merging, the
+`tools/csharp-tests/AutoScan` (68 checks) covers the settings, sampling, every leave-out reason, joining and merging, the
 replay byte for byte and the contract; Meta's room (a point in a turned box, the room's outline, rotations into the
 scene's axes, Meta's name winning, OTHER boxes named or unnamed, a laptop on a desk, a reflection outside the room); and
-the 3D boxes: the grid, a turned box fitted within a degree with stray rays trimmed, completion away from the viewer, a
-stretched small thing shrunk, one of Meta's boxes standing on its z axis, a side view joining a chair's box, the monitor
+the 3D boxes: the grid, a turned box fitted within a degree with stray rays trimmed, an L of points fitted as the object and not
+along its diagonal, completion away from the viewer, a
+stretched small thing shrunk, one of Meta's boxes standing on its z axis, a side view joining a chair's box (fitted at the chair's own turn), the monitor
 going into Meta's screen box, a pile on the mattress counting as the bed, boxes in a scene that passes the contract, and
 the replay. `tools/csharp-tests/ScanGlue` compiles the scanner against stubs of the Unity, app and Meta SDK 207 members it
 calls, every Meta signature copied from the SDK's source.

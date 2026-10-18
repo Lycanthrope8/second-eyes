@@ -108,6 +108,11 @@ static class Program
               Math.Abs(fit.YawDeg - 25) <= 1 && Math.Abs(fit.Size.X - 0.6) < 0.04 && Math.Abs(fit.Size.Z - 0.45) < 0.04 && Math.Abs(fit.Size.Y - 0.9) < 0.02
               && (fit.Centre - truth.Centre).Norm < 0.04, fit.YawDeg + " " + fit.Size.X.ToString("0.000") + " " + fit.Size.Y.ToString("0.000") + " " + fit.Size.Z.ToString("0.000"));
 
+        var ell = Face(truth, 2, -1, 6).Concat(Face(truth, 0, 1, 6)).ToList();   // the front and one side: an L of points
+        Box3 ellFit = Boxes.Fit(ell, 0.03, true, 0);
+        Check("a box seen from its front and one side, an L of points, is fitted turned as it is, not along the L's diagonal, around what was seen",
+              Math.Abs(ellFit.YawDeg - 25) <= 1 && Math.Abs(ellFit.Size.X - 0.55) < 0.02 && Math.Abs(ellFit.Size.Z - 0.4125) < 0.02,   // cell centres stop short of the unseen corner
+              ellFit.YawDeg + " " + ellFit.Size.X.ToString("0.000") + " " + ellFit.Size.Z.ToString("0.000"));
         var front = Face(truth, 2, -1, 6);   // only the face toward -z seen, from a camera on that side
         Vec3 viewer = truth.World(new Vec3(0, 0.5, -2.0));
         Box3 thin = Boxes.Fit(front, 0.03, true, 0);
@@ -153,6 +158,12 @@ static class Program
         JNode chairObj = objs.Single(o => o["category"]["state"].Text == "known" && Cat(o) == "chair");
         Check("the side view landed inside the chair's box and joined it: one chair seen in 4 frames from 2 places",
               chairObj["observation"]["views"]["keyframes"].Num == 4 && chairObj["observation"]["views"]["positions"].Num == 2);
+        var cq = chairObj["geometry"]["rotation_xyzw"]["value"].Items;
+        double chairTurn = -2 * Math.Atan2(cq[2].Num, cq[3].Num) * 180 / Math.PI;   // the scene's turn about +z is the opposite of Unity's about +y
+        var cs = chairObj["geometry"]["size_m"]["value"].Items;
+        Check("its box is the chair's: turned 10 degrees, 0.55 by 0.45 m", Math.Abs(((chairTurn - 10) % 90 + 90) % 90) <= 1.5 || Math.Abs(((chairTurn - 10) % 90 + 90) % 90 - 90) <= 1.5
+              && Math.Abs(Math.Max(cs[0].Num, cs[1].Num) - 0.55) < 0.05 && Math.Abs(Math.Min(cs[0].Num, cs[1].Num) - 0.45) < 0.05,
+              chairTurn.ToString("0.0") + " " + cs[0].Text + " x " + cs[1].Text);
         JNode rb = r.Trace["room"]["boxes"];
         Check("the monitor's sightings went into Meta's screen box, which Meta named; no second television",
               rb.Items.Single(b => b["id"].Text == "anchor-screen")["votes"]["television"].Num == 3 && objs.Count(o => o["category"]["state"].Text == "known" && Cat(o) == "television") == 1);
