@@ -60,6 +60,10 @@ namespace SecondEyes.Perception.AutoScan
         /// <summary>The floor's outline, each corner (x, z) in quest_tracking.</summary>
         public readonly List<double[]> FloorXz = new List<double[]>();
         public double FloorY, CeilingY;
+        /// <summary>v5: Meta's room mesh (Space Setup's fused depth), its points in quest_tracking thinned to one per
+        /// voxel, to the millimetre; and how it loaded ("loaded", or why none).</summary>
+        public readonly List<Vec3> MeshPoints = new List<Vec3>();
+        public string MeshStatus = "none";
 
         public bool Loaded => Status == "loaded";
 
@@ -79,6 +83,10 @@ namespace SecondEyes.Perception.AutoScan
             if (!Loaded) return null;
             return Boxes.Where(b => b.Outside(p) <= margin).OrderBy(b => b.Volume).ThenBy(b => b.Id, StringComparer.Ordinal).FirstOrDefault();
         }
+
+        /// <summary>How far p lies from the nearest wall, along the floor: its distance to the outline's edges
+        /// (infinite with no outline).</summary>
+        public double WallDistance(Vec3 p) { return FloorXz.Count < 3 ? double.PositiveInfinity : EdgeDistance(p.X, p.Z); }
 
         private bool InOutline(double x, double z)
         {
@@ -121,6 +129,14 @@ namespace SecondEyes.Perception.AutoScan
 
         internal static Vec3 V(JNode n) { return new Vec3(n.Items[0].Num, n.Items[1].Num, n.Items[2].Num); }
 
+        /// <summary>A mesh point's coordinate, to the millimetre: compact, and what the scan then uses.</summary>
+        public static JNode Mm(double v)
+        {
+            double r = Math.Round(v, 3, MidpointRounding.AwayFromZero);
+            if (r == 0) r = 0;
+            return new JNode { Kind = JKind.Number, Num = r, Text = r.ToString("0.0##", CultureInfo.InvariantCulture), IsInteger = false };
+        }
+
         /// <summary>A unit quaternion's component, to 9 decimals: at the scene's 4 decimals a turned box's quaternion
         /// would be off unit length by more than the contract's tolerance, and its turn by thousandths of a degree.</summary>
         public static JNode Fine(double v)
@@ -135,7 +151,9 @@ namespace SecondEyes.Perception.AutoScan
             return JNode.Obj().Add("record_type", JNode.Str(RecordType)).Add("status", JNode.Str(Status)).Add("why", JNode.Str(Why))
                 .Add("floor_y", Localizer.Num(FloorY)).Add("ceiling_y", Localizer.Num(CeilingY))
                 .Add("floor_xz", JNode.Arr(FloorXz.Select(c => JNode.Arr(new List<JNode> { Localizer.Num(c[0]), Localizer.Num(c[1]) })).ToList()))
-                .Add("boxes", JNode.Arr(Boxes.Select(b => b.ToJson()).ToList()));
+                .Add("boxes", JNode.Arr(Boxes.Select(b => b.ToJson()).ToList()))
+                .Add("mesh_status", JNode.Str(MeshStatus))
+                .Add("mesh_points", JNode.Arr(MeshPoints.SelectMany(p => new[] { Mm(p.X), Mm(p.Y), Mm(p.Z) }).ToList()));
         }
 
         public static RoomModel FromJson(JNode n)
@@ -143,6 +161,12 @@ namespace SecondEyes.Perception.AutoScan
             var r = new RoomModel { Status = n["status"].Text, Why = n["why"].Text, FloorY = n["floor_y"].Num, CeilingY = n["ceiling_y"].Num };
             foreach (JNode c in n["floor_xz"].Items) r.FloorXz.Add(new[] { c.Items[0].Num, c.Items[1].Num });
             foreach (JNode b in n["boxes"].Items) r.Boxes.Add(RoomBox.FromJson(b));
+            if (n.Has("mesh_points"))   // room lines before v5 have no mesh
+            {
+                r.MeshStatus = n["mesh_status"].Text;
+                var xs = n["mesh_points"].Items;
+                for (int i = 0; i + 2 < xs.Count; i += 3) r.MeshPoints.Add(new Vec3(xs[i].Num, xs[i + 1].Num, xs[i + 2].Num));
+            }
             return r;
         }
 

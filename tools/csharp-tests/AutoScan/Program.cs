@@ -265,6 +265,99 @@ static class Program
         }
     }
 
+    /// <summary>Points on every face of a box, about step apart: a synthetic stand-in for Meta's room mesh.</summary>
+    static List<Vec3> Surface(Box3 b, double step)
+    {
+        var pts = new List<Vec3>();
+        int n = Math.Max(3, (int)Math.Ceiling(Math.Max(b.Size.X, Math.Max(b.Size.Y, b.Size.Z)) / step));
+        for (int ax = 0; ax < 3; ax++) foreach (int sg in new[] { -1, 1 }) pts.AddRange(Face(b, ax, sg, n));
+        return pts;
+    }
+
+    /// <summary>11. Boxes from Meta's room mesh (v5).</summary>
+    static void MeshChecks(Func<string, Schema> schema, string sampleDir)
+    {
+        Console.WriteLine("11. Boxes from Meta's room mesh (v5)");
+        var s5 = AutoScanSettings.From(JParse.Parse(File.ReadAllText(Path.Combine("perception", "autoscan", "autoscan.default.v5.json"))));
+        var map4 = JParse.Parse(File.ReadAllText(Path.Combine("perception", "bedroom", "category-map.bedroom.v4.json")));
+        Check("the v5 settings: boxes from Meta's mesh, thinned to 3 cm, clusters linked within 6 cm", s5.UseMesh && s5.MeshVoxelM == 0.03 && s5.MeshLinkM == 0.06 && s5.ClusterMinPoints == 20);
+        var room = new RoomModel { Status = "loaded", FloorY = 0, CeilingY = 2.6, MeshStatus = "loaded" };
+        foreach (var c in new[] { new[] { -3.0, -1.0 }, new[] { 3.0, -1.0 }, new[] { 3.0, 5.0 }, new[] { -3.0, 5.0 } }) room.FloorXz.Add(c);
+        var desk = Box("anchor-desk", "TABLE", new Vec3(1.0, 0.39, 1.0), new Vec3(1.4, 0.78, 0.7), 20);
+        room.Boxes.Add(desk);
+        for (double x = -3; x <= 3.001; x += 0.1)   // the floor and the four walls
+            for (double z = -1; z <= 5.001; z += 0.1) room.MeshPoints.Add(new Vec3(x, 0, z));
+        for (double y = 0.1; y <= 2.5; y += 0.1)
+        {
+            for (double x = -3; x <= 3.001; x += 0.1) { room.MeshPoints.Add(new Vec3(x, y, -1)); room.MeshPoints.Add(new Vec3(x, y, 5)); }
+            for (double z = -1; z <= 5.001; z += 0.1) { room.MeshPoints.Add(new Vec3(-3, y, z)); room.MeshPoints.Add(new Vec3(3, y, z)); }
+        }
+        room.MeshPoints.AddRange(Surface(Boxes.Upright(desk), 0.05));   // the desk, already Meta's box
+        var chair = new Box3 { Centre = new Vec3(-1.0, 0.475, 2.5), Size = new Vec3(0.62, 0.95, 0.58), YawDeg = 35 };   // not the prior's size
+        var laptop = new Box3 { Centre = new Vec3(0.8, 0.905, 0.9), Size = new Vec3(0.34, 0.25, 0.25), YawDeg = 20 };
+        var bin = new Box3 { Centre = new Vec3(2.2, 0.2, 3.8), Size = new Vec3(0.3, 0.4, 0.3), YawDeg = 0 };
+        room.MeshPoints.AddRange(Surface(chair, 0.03));
+        room.MeshPoints.AddRange(Surface(laptop, 0.03));
+        room.MeshPoints.AddRange(Surface(bin, 0.03));
+        room.MeshPoints.AddRange(new[] { new Vec3(-2.0, 1.2, 0.5), new Vec3(-2.02, 1.2, 0.5), new Vec3(-2.0, 1.22, 0.5) });   // a speck of noise
+        var a = new AutoScan("scan.mesh.1", s5, map4, Priors, "yolox_nano_coco.se1", new string('c', 64), "quest_left", Fx);
+        var lines = new List<string> { PyJson.Canonical(a.Header("f00d", 1280, 960, Fx, 643, 481, 416)), PyJson.Canonical(room.ToJson()) };
+        a.SetRoom(room);
+        var mouse = new Box3 { Centre = new Vec3(1.3, 0.80, 1.1), Size = new Vec3(0.07, 0.04, 0.15), YawDeg = 20 };
+        var frames = new List<FrameRecord>();
+        for (int n = 1; n <= 3; n++)
+            frames.Add(Frame(n, new Vec3(0.3, 1.5, -0.5) + new Vec3(0.1 * n, 0, 0), DetOn("chair", Face(chair, 2, -1, 5)), DetOn("laptop", Face(laptop, 2, -1, 5)),
+                             DetOn("mouse", Face(mouse, 1, 1, 5))));
+        foreach (var f in frames) { lines.Add(PyJson.Canonical(f.ToJson())); a.Add(f); }
+        var r = a.Snapshot(3);
+        var objs = r.Scene["objects"].Items;
+        string cats = string.Join(",", objs.Select(o => o["category"]["state"].Text == "known" ? Cat(o) : "?"));
+        Check("the scene: the chair and the laptop from the mesh, the mouse from live depth, Meta's desk, and the bin nobody named", cats == "chair,laptop,mouse,table,?", cats);
+        JNode mt = r.Trace["mesh"];
+        Check("the floor, the walls and Meta's desk are taken off the mesh, and the speck of noise dropped",
+              mt["used"].Bool && mt["structure"].Num > 4000 && mt["explained"].Num > 0 && mt["dropped"].Num >= 1 && mt["boxes"].Items.Count == 3,
+              "structure " + mt["structure"].Text + ", explained " + mt["explained"].Text + ", dropped " + mt["dropped"].Text + ", boxes " + mt["boxes"].Items.Count);
+        Func<string, JNode> one = name => objs.Single(o => o["category"]["state"].Text == "known" && Cat(o) == name);
+        JNode ch = one("chair");
+        var cs = ch["geometry"]["size_m"]["value"].Items.Select(x => x.Num).ToList();
+        var cq = ch["geometry"]["rotation_xyzw"]["value"].Items;
+        double chTurn = -2 * Math.Atan2(cq[2].Num, cq[3].Num) * 180 / Math.PI;
+        Check("the chair's box is measured from the mesh, every side: its own 0.62 by 0.58 by 0.95 m and its 35-degree turn, not the prior's size",
+              Math.Abs(Math.Max(cs[0], cs[1]) - 0.62) < 0.04 && Math.Abs(Math.Min(cs[0], cs[1]) - 0.58) < 0.04 && Math.Abs(cs[2] - 0.95) < 0.03
+              && Math.Abs(((chTurn - 35) % 90 + 135) % 90 - 45) <= 2 && ch["geometry"]["center_m"]["evidence"]["assumptions"].Items.Single().Text == AutoScan.MeshAssumption
+              && !ch["geometry"]["size_m"]["evidence"]["assumptions"].Items.Any(x => x.Text == AutoScan.CompletionAssumption),
+              string.Join(" x ", cs.Select(x => x.ToString("0.00"))) + " at " + chTurn.ToString("0.0"));
+        Check("the laptop on the desk is its own mesh box, named by its sightings", one("laptop")["source_ref"]["source_id"].Text == AutoScan.RoomSourceId
+              && one("laptop")["geometry"]["center_m"]["evidence"]["assumptions"].Items.Single().Text == AutoScan.MeshAssumption);
+        JNode binObj = objs.Single(o => o["category"]["state"].Text == "unknown" && o["source_ref"]["source_id"].Text == AutoScan.RoomSourceId);
+        var bs = binObj["geometry"]["size_m"]["value"].Items.Select(x => x.Num).ToList();
+        Check("the bin nobody named is still an obstacle with a measured box, its category unknown", Math.Abs(bs[0] - 0.3) < 0.04 && Math.Abs(bs[1] - 0.3) < 0.04 && Math.Abs(bs[2] - 0.4) < 0.04,
+              string.Join(" x ", bs.Select(x => x.ToString("0.00"))));
+        Check("the mouse, flattened into the desk in the mesh, keeps its box from live depth", one("mouse")["source_ref"]["source_id"].Text == AutoScan.ScanSourceId);
+        var shown = a.ConfirmedBoxes();
+        Check("boxes to draw: the mesh's named ones, the unnamed one, Meta's desk and the live-depth mouse",
+              shown.Count(x => x.Kind == "mesh") == 2 && shown.Count(x => x.Kind == "unnamed") == 1 && shown.Count(x => x.Kind == "meta") == 1 && shown.Count(x => x.Kind == "scan") == 1);
+        var contract = new Contract(schema);
+        var issues = contract.Validate(new List<KeyValuePair<string, JNode>> { new KeyValuePair<string, JNode>("scene", r.Scene), new KeyValuePair<string, JNode>("map", map4) });
+        Check("the scene passes the contract", !issues.Any(i => i.IsError), string.Join(", ", issues.Where(i => i.IsError).Select(i => i.Code + " " + i.Path)));
+        var b2 = AutoScan.FromHeader(JParse.Parse(lines[0]), s5, map4, Priors);
+        foreach (string line in lines.Skip(1))
+        {
+            JNode n = JParse.Parse(line);
+            if (n["record_type"].Text == RoomModel.RecordType) b2.SetRoom(RoomModel.FromJson(n)); else b2.Add(FrameRecord.FromJson(n));
+        }
+        var r2 = b2.Snapshot(3);
+        Check("replayed from its lines, the mesh included, the same scene and trace byte for byte", PyJson.Canonical(r2.Scene) == PyJson.Canonical(r.Scene) && PyJson.Canonical(r2.Trace) == PyJson.Canonical(r.Trace));
+        if (sampleDir != null)
+        {
+            Directory.CreateDirectory(sampleDir);
+            File.WriteAllLines(Path.Combine(sampleDir, "frames.jsonl"), lines);
+            File.WriteAllText(Path.Combine(sampleDir, "scene.json"), PyJson.Canonical(r.Scene) + "\n");
+            File.WriteAllText(Path.Combine(sampleDir, "trace.json"), PyJson.Canonical(r.Trace) + "\n");
+            Console.WriteLine("  (a sample scan with Meta's mesh written to " + sampleDir + ")");
+        }
+    }
+
     static string bedObjLabel(List<JNode> objs) { return objs.Single(o => o["source_ref"]["source_object_id"].Text == "anchor-bed")["source_ref"]["source_label"].Text; }
 
     static RoomBox Box(string id, string label, Vec3 c, Vec3 size, double yawDeg = 0)
@@ -515,6 +608,7 @@ static class Program
         Room(schema, args.Length > 1 ? Path.Combine(args[1], "room") : null);
         BoxChecks(schema, args.Length > 1 ? Path.Combine(args[1], "boxes") : null);
         SupportChecks(schema, args.Length > 1 ? Path.Combine(args[1], "support") : null);
+        MeshChecks(schema, args.Length > 1 ? Path.Combine(args[1], "mesh") : null);
 
         Console.WriteLine("7. Tracking");
         var s8 = NewScan();

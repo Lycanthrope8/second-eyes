@@ -55,6 +55,73 @@ namespace SecondEyes.Perception.AutoScan
         }
     }
 
+    /// <summary>v5: Meta's room mesh cut into obstacles. The floor, the ceiling, the walls and anything outside the room
+    /// are taken off, and so is whatever lies inside one of Meta's boxes (already an object); what remains is split into
+    /// clusters of points within link of each other. A cluster with too few points, smaller than minSize every way, or
+    /// wider than maxSize (leftover structure) is dropped.</summary>
+    public static class MeshClusters
+    {
+        public sealed class Result
+        {
+            public readonly List<List<Vec3>> Clusters = new List<List<Vec3>>();
+            public int Structure, Explained, Dropped;
+        }
+
+        private static (long, long, long) Cell(Vec3 p, double size)
+        {
+            return ((long)Math.Floor(p.X / size), (long)Math.Floor(p.Y / size), (long)Math.Floor(p.Z / size));
+        }
+
+        public static Result Find(RoomModel room, IList<Box3> metaBoxes, double structureMargin, double wallMargin, double link,
+                                  int minPoints, double minSize, double maxSize)
+        {
+            var result = new Result();
+            var keep = new List<Vec3>();
+            foreach (Vec3 p in room.MeshPoints)
+            {
+                if (p.Y < room.FloorY + structureMargin || p.Y > room.CeilingY - structureMargin || !room.InRoom(p, 0) || room.WallDistance(p) < wallMargin)
+                    result.Structure++;
+                else if (metaBoxes.Any(b => b.Outside(p, 0) <= structureMargin)) result.Explained++;
+                else keep.Add(p);
+            }
+            var cells = new Dictionary<(long, long, long), List<int>>();
+            for (int i = 0; i < keep.Count; i++)
+            {
+                var k = Cell(keep[i], link);
+                List<int> l;
+                if (!cells.TryGetValue(k, out l)) cells[k] = l = new List<int>();
+                l.Add(i);
+            }
+            var seen = new bool[keep.Count];
+            for (int i = 0; i < keep.Count; i++)
+            {
+                if (seen[i]) continue;
+                seen[i] = true;
+                var members = new List<int> { i };
+                for (int q = 0; q < members.Count; q++)
+                {
+                    Vec3 p = keep[members[q]];
+                    var c = Cell(p, link);
+                    for (long dx = -1; dx <= 1; dx++)
+                        for (long dy = -1; dy <= 1; dy++)
+                            for (long dz = -1; dz <= 1; dz++)
+                            {
+                                List<int> l;
+                                if (!cells.TryGetValue((c.Item1 + dx, c.Item2 + dy, c.Item3 + dz), out l)) continue;
+                                foreach (int j in l)
+                                    if (!seen[j] && (keep[j] - p).Norm <= link) { seen[j] = true; members.Add(j); }
+                            }
+                }
+                members.Sort();
+                var pts = members.Select(j => keep[j]).ToList();
+                double sx = pts.Max(v => v.X) - pts.Min(v => v.X), sy = pts.Max(v => v.Y) - pts.Min(v => v.Y), sz = pts.Max(v => v.Z) - pts.Min(v => v.Z);
+                if (pts.Count < minPoints || Math.Max(Math.Max(sx, sz), sy) < minSize || Math.Max(sx, sz) > maxSize) { result.Dropped++; continue; }
+                result.Clusters.Add(pts);
+            }
+            return result;
+        }
+    }
+
     public static class Boxes
     {
         /// <summary>The value at fraction f of the sorted values (0 the smallest, 1 the largest), the nearer index.</summary>
