@@ -16,10 +16,11 @@ scene (`notes/decisions.md`). The headset scans its side of the room; the drone 
 Code: the core is `quest-app/Assets/SecondEyes/Perception/AutoScan/AutoScan.cs`, `Boxes.cs` and `RoomModel.cs` (free of
 Unity: the same code runs on the headset and in the PC's replay); the Unity glue is `Perception/AutoScan/Glue/AutoScanner.cs`;
 the blocks' shader is `Assets/SecondEyes/Resources/SecondEyesSeeThrough.shader`. Settings:
-`schemas/auto-scan-config.v5.json`, defaults `perception/autoscan/autoscan.default.v5.json`, in the perception folder
-(`perception-folder.md`). The bedroom's map is `perception/bedroom/category-map.bedroom.v4.json`. Older settings files
+`schemas/auto-scan-config.v6.json`, defaults `perception/autoscan/autoscan.default.v6.json`, in the perception folder
+(`perception-folder.md`). The bedroom's map is `perception/bedroom/category-map.bedroom.v5.json`. Older settings files
 keep their behaviour, so older scans replay exactly: v1 has no Meta room, v2 has Meta's room but no fitted boxes, v3 has
-the boxes but neither support turns nor joining groups, v4 has those but no boxes from Meta's mesh.
+the boxes but neither support turns nor joining groups, v4 has those but no boxes from Meta's mesh, v5 has mesh boxes
+linked within 6 cm, unnamed ones kept as objects of unknown category.
 
 ## What happens
 
@@ -55,12 +56,17 @@ the boxes but neither support turns nor joining groups, v4 has those but no boxe
    `structure_margin_m` of the floor or the ceiling, within `wall_margin_m` of a wall, outside the room, or inside one of
    Meta's boxes (already objects) are taken off; the rest is split into clusters of points within `mesh_link_m` of each
    other, and each cluster of at least `cluster_min_points`, at least `cluster_min_size_m` some way and at most
-   `cluster_max_size_m` across becomes a box fitted to it: every side Space Setup saw, measured, not assumed. A box
+   `cluster_max_size_m` across becomes a box fitted to it: every side Space Setup saw, measured, not assumed. The link is
+   15 cm (v6), measured on the bedroom's mesh: Meta's mesh is coarse (about 3,700 points for the room at 3 cm), and at
+   6 cm each chair fell apart into several boxes. Clusters starting above `obstacle_max_bottom_m` (a light) and slabs
+   thinner than `slab_max_m` within `wall_band_m` of a wall (a door, a mirror) are fixtures, dropped. A box
    resting on one of Meta's boxes (a laptop on a desk) reaches down to its top, since its lowest few centimetres went
    with the desk's surface. A sighting
    whose point lies inside one, of any category, votes for it, since the cluster is the object; it takes the leading
-   category with `min_box_votes` sightings. A cluster nobody names stays in the scene as an obstacle of unknown
-   category, as Space Setup boxes every obstacle.
+   category with `min_box_votes` sightings. **A box exists once it is detected** (v6, `unnamed_as`: `omit`): a cluster
+   no sighting has named is not an object, isn't drawn and isn't in the scene, so no command is held up by it; the
+   trace keeps it as an unknown cluster. (A cat walking through the room during Space Setup leaves such clusters.) A
+   live-depth object inside a named mesh box of its kind is that box (`merge_live_into_mesh`).
 9. **The scan's boxes.** Any other sighting joins the object whose box it lies inside (furniture joins furniture,
    whatever the label, and counts as inside when resting on it), else the nearest object of its category within reach,
    else it starts one. Its surface points join the object's, thinned to one per `point_voxel_m` (the voxel doubles past
@@ -101,7 +107,7 @@ allows this since 18 October 2026 (`scene-contract.md`). A box of Meta's carries
 named it (`meta:BED`, the detector's `chair`, or `meta:OTHER` unnamed); its views count the frames that voted for it, and
 one no frame saw counts Space Setup's capture once, because a scene's views can't be zero.
 
-## The settings (v5)
+## The settings (v6)
 
 | Setting | Default | What it does |
 |---|---|---|
@@ -123,6 +129,10 @@ one no frame saw counts Space Setup's capture once, because a scene's views can'
 | `structure_margin_m`, `wall_margin_m` (v5) | 0.05, 0.08 | mesh points this close to floor or ceiling or Meta's boxes, or to a wall, taken off |
 | `mesh_link_m`, `cluster_min_points` (v5) | 0.06, 20 | points this close are one cluster; the points a cluster needs |
 | `cluster_min_size_m`, `cluster_max_size_m` (v5) | 0.15, 3 | a cluster smaller every way is noise; wider, leftover structure |
+| `mesh_link_m` (v6) | 0.15 | points this close are one cluster, measured on the bedroom's mesh |
+| `unnamed_as` (v6) | omit | a cluster no sighting named: left out (only in the trace), or `unknown` |
+| `obstacle_max_bottom_m`, `slab_max_m`, `wall_band_m` (v6) | 1.8, 0.1, 0.4 | fixtures: a cluster starting this high; a slab this thin this near a wall |
+| `absorb_on_furniture`, `merge_live_into_mesh` (v6) | true, true | an unnamed cluster on Meta's furniture is part of it; a live-depth object in its mesh box is that box |
 
 The defaults are first values, set by reasoning, not tuned; a change is a new `config_id`.
 
@@ -144,7 +154,7 @@ be the same: the same objects from the same sources, categories and placements, 
 
 ## Checks
 
-`tools/csharp-tests/AutoScan` (84 checks) covers the settings, sampling, every leave-out reason, joining and merging, the
+`tools/csharp-tests/AutoScan` (91 checks) covers the settings, sampling, every leave-out reason, joining and merging, the
 replay byte for byte and the contract; Meta's room (a point in a turned box, the room's outline, rotations into the
 scene's axes, Meta's name winning, OTHER boxes named or unnamed, a laptop on a desk, a reflection outside the room); and
 the 3D boxes: the grid, a turned box fitted within a degree with stray rays trimmed, an L of points fitted as the object and not
@@ -155,7 +165,9 @@ the replay; and v4: a keyboard whose outer samples hit the desk taking the desk'
 bottle staying one cup, a laptop absorbing its own keyboard while the real keyboard stays, and the replay; and v5, on a
 synthetic room mesh: the floor, walls, Meta's desk and a speck of noise taken off, a chair's box measured from the mesh
 at its own size and turn (not its prior's), a laptop on the desk its own mesh box, a bin nobody named kept as an
-obstacle, a mouse flattened into the desk keeping its live-depth box, the contract and the replay, the mesh included. `tools/csharp-tests/ScanGlue` compiles the scanner against stubs of the Unity, app and Meta SDK 207 members it
+obstacle, a mouse flattened into the desk keeping its live-depth box, the contract and the replay, the mesh included;
+and v6: a chair as sparse as the bedroom's mesh one box, the sightings beside it merged in, a cat and a blanket nobody
+named and a lamp and a door no boxes, the contract and the replay. `tools/csharp-tests/ScanGlue` compiles the scanner against stubs of the Unity, app and Meta SDK 207 members it
 calls, every Meta signature copied from the SDK's source.
 
 ## Known limits
