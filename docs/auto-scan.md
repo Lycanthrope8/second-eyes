@@ -55,7 +55,9 @@ the boxes but neither support turns nor joining groups, v4 has those but no boxe
    `structure_margin_m` of the floor or the ceiling, within `wall_margin_m` of a wall, outside the room, or inside one of
    Meta's boxes (already objects) are taken off; the rest is split into clusters of points within `mesh_link_m` of each
    other, and each cluster of at least `cluster_min_points`, at least `cluster_min_size_m` some way and at most
-   `cluster_max_size_m` across becomes a box fitted to it: every side Space Setup saw, measured, not assumed. A sighting
+   `cluster_max_size_m` across becomes a box fitted to it: every side Space Setup saw, measured, not assumed. A box
+   resting on one of Meta's boxes (a laptop on a desk) reaches down to its top, since its lowest few centimetres went
+   with the desk's surface. A sighting
    whose point lies inside one, of any category, votes for it, since the cluster is the object; it takes the leading
    category with `min_box_votes` sightings. A cluster nobody names stays in the scene as an obstacle of unknown
    category, as Space Setup boxes every obstacle.

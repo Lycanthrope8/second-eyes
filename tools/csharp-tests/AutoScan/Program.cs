@@ -327,8 +327,9 @@ static class Program
               && Math.Abs(((chTurn - 35) % 90 + 135) % 90 - 45) <= 2 && ch["geometry"]["center_m"]["evidence"]["assumptions"].Items.Single().Text == AutoScan.MeshAssumption
               && !ch["geometry"]["size_m"]["evidence"]["assumptions"].Items.Any(x => x.Text == AutoScan.CompletionAssumption),
               string.Join(" x ", cs.Select(x => x.ToString("0.00"))) + " at " + chTurn.ToString("0.0"));
-        Check("the laptop on the desk is its own mesh box, named by its sightings", one("laptop")["source_ref"]["source_id"].Text == AutoScan.RoomSourceId
-              && one("laptop")["geometry"]["center_m"]["evidence"]["assumptions"].Items.Single().Text == AutoScan.MeshAssumption);
+        Check("the laptop on the desk is its own mesh box, named by its sightings, reaching down to the desk's top (0.25 m tall)",
+              one("laptop")["source_ref"]["source_id"].Text == AutoScan.RoomSourceId && one("laptop")["geometry"]["center_m"]["evidence"]["assumptions"].Items.Single().Text == AutoScan.MeshAssumption
+              && Math.Abs(one("laptop")["geometry"]["size_m"]["value"].Items[2].Num - 0.25) < 0.03, one("laptop")["geometry"]["size_m"]["value"].Items[2].Text);
         JNode binObj = objs.Single(o => o["category"]["state"].Text == "unknown" && o["source_ref"]["source_id"].Text == AutoScan.RoomSourceId);
         var bs = binObj["geometry"]["size_m"]["value"].Items.Select(x => x.Num).ToList();
         Check("the bin nobody named is still an obstacle with a measured box, its category unknown", Math.Abs(bs[0] - 0.3) < 0.04 && Math.Abs(bs[1] - 0.3) < 0.04 && Math.Abs(bs[2] - 0.4) < 0.04,

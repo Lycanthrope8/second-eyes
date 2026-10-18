@@ -329,7 +329,17 @@ namespace SecondEyes.Perception.AutoScan
                 meshCut = MeshClusters.Find(room, uprights, s.StructureMarginM, s.WallMarginM, s.MeshLinkM, s.ClusterMinPoints, s.ClusterMinSizeM, s.ClusterMaxSizeM);
                 foreach (List<Vec3> c in meshCut.Clusters)
                 {
-                    meshBoxes.Add(Boxes.Fit(c, s.BoxTrim, c.Min(v => v.Y) < room.FloorY + 0.1, room.FloorY));
+                    Box3 mb = Boxes.Fit(c, s.BoxTrim, c.Min(v => v.Y) < room.FloorY + 0.1, room.FloorY);
+                    double bottom = mb.Centre.Y - mb.Size.Y / 2, top = mb.Centre.Y + mb.Size.Y / 2;
+                    foreach (Box3 u in uprights)   // resting on one of Meta's boxes: its bottom was taken off with that box's surface
+                    {
+                        double uTop = u.Centre.Y + u.Size.Y / 2;
+                        Vec3 l = u.Local(mb.Centre);
+                        if (bottom < uTop || bottom - uTop > s.StructureMarginM + 0.02 || Math.Abs(l.X) > u.Size.X / 2 || Math.Abs(l.Z) > u.Size.Z / 2) continue;
+                        mb = new Box3 { YawDeg = mb.YawDeg, Size = new Vec3(mb.Size.X, top - uTop, mb.Size.Z), Centre = new Vec3(mb.Centre.X, (top + uTop) / 2, mb.Centre.Z) };
+                        break;
+                    }
+                    meshBoxes.Add(mb);
                     meshVotes.Add(new BoxVotes());
                     meshPoints.Add(c.Count);
                 }
