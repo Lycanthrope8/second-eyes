@@ -110,6 +110,15 @@ namespace SecondEyes.Perception.AutoScan
                 double score = Closeness(pts, yaw, trim, out uLo, out uHi, out wLo, out wHi);
                 if (score > bestScore * (1 + 1e-12) + 1e-12 || (Math.Abs(score - bestScore) <= 1e-12 * Math.Max(1, bestScore) && yaw < best)) { bestScore = score; best = yaw; }
             }
+            return FitAt(pts, trim, onFloor, floorY, best);
+        }
+
+        /// <summary>The upright box around the points at a given turn (brought into [0, 90) degrees): the trimmed
+        /// extents along that turn's axes, the height as in Fit.</summary>
+        public static Box3 FitAt(List<Vec3> pts, double trim, bool onFloor, double floorY, double yawDeg)
+        {
+            double best = ((yawDeg % 90) + 90) % 90, uLo, uHi, wLo, wHi;
+            if (best > 89.9999) best = 0;
             Closeness(pts, best, trim, out uLo, out uHi, out wLo, out wHi);
             double[] ys = pts.Select(p => p.Y).OrderBy(y => y).ToArray();
             double top = At(ys, 1 - trim), bottom = onFloor ? floorY : At(ys, trim);

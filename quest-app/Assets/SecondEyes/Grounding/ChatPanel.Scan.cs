@@ -79,6 +79,20 @@ namespace SecondEyes.Grounding
                 ScanResult r = sc.TakeResult();
                 if (r != null) BindScan(r, sc.LastCaptureId);
             }
+            // A4: once a room is scanned, a typed command is about it: back to the room if a dataset scene is showing
+            // (the Scene button and presets are for the dataset scenes).
+            if (interactiveSession != null && interactiveSession.Current != null)
+            {
+                int room = interactiveSession.Scenes.FindIndex(x => Perceived(x.Record));
+                InteractiveService.Scene current = interactiveSession.Scenes.Find(x => x.SnapshotId == interactiveSession.Current.SnapshotId);
+                if (room >= 0 && (current == null || !Perceived(current.Record)))
+                {
+                    sceneIndex = room;
+                    interactiveSession.SetScene(room);
+                    ShowScene(null, null);
+                    SetStatus("Typed commands go to your scanned room");
+                }
+            }
             ScanRegistry.HoldUntil = UnityEngine.Time.realtimeSinceStartupAsDouble + CommandHoldS;
         }
 
@@ -117,13 +131,20 @@ namespace SecondEyes.Grounding
                 string id = obj["object_id"].Text;
                 JNode c = obj["geometry"]["center_m"], a = obj["observation"]["association"], v = obj["observation"]["views"];
                 bool depth = c["state"].Text == "known" && c["evidence"]["assumptions"].Items.Any(x => x.Text == "depth_surface");
+                JNode size = obj["geometry"]["size_m"];
+                bool boxed = c["state"].Text == "known" && size["state"].Text == "known"
+                             && c["evidence"]["assumptions"].Items.Any(x => x.Text == "box_centre" || x.Text == "meta_volume");
                 string how = a["status"].Text == "possible_duplicate" ? "maybe the same as " + string.Join(", ", a["may_duplicate"].Items.Select(x => x.Text))
                            : c["state"].Text != "known" ? "position unknown"
+                           : boxed ? (c["evidence"]["assumptions"].Items.Any(x => x.Text == "meta_volume") ? "Meta's box " : "box ")
+                                     + string.Join(" x ", size["value"].Items.Select(x => x.Num.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture))) + " m, seen "
+                                     + v["keyframes"].Text + (v["keyframes"].Num == 1 ? " time" : " times")
                            : depth ? "placed by depth, seen " + v["keyframes"].Text + " times" + (v["positions"].Num >= 2 ? " from " + v["positions"].Text + " places" : "")
                            : a["status"].Text == "multi_position" ? "placed from " + obj["observation"]["views"]["positions"].Text + " spots"
                            : "placed from its size";
                 bool target = present && o != null && o.TargetObjectId == id;
-                yield return id + "  " + obj["category"]["value"]["standard"].Text + "  " + how + (target ? "   <- target" : "");
+                string name = obj["category"]["state"].Text == "known" ? obj["category"]["value"]["standard"].Text : "?";   // an unnamed box
+                yield return id + "  " + name + "  " + how + (target ? "   <- target" : "");
             }
         }
 

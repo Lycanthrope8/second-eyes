@@ -203,6 +203,68 @@ static class Program
         }
     }
 
+    /// <summary>10. Resting on a desk, and categories that join (v4).</summary>
+    static void SupportChecks(Func<string, Schema> schema, string sampleDir)
+    {
+        Console.WriteLine("10. Resting on a desk, and categories that join (v4)");
+        var s4 = AutoScanSettings.From(JParse.Parse(File.ReadAllText(Path.Combine("perception", "autoscan", "autoscan.default.v4.json"))));
+        var map4 = JParse.Parse(File.ReadAllText(Path.Combine("perception", "bedroom", "category-map.bedroom.v4.json")));
+        Check("the v4 settings: small things take their support's turn; a bottle and a cup, and a keyboard and a laptop, join",
+              s4.AlignToSupport.Contains("keyboard") && s4.RestGapM == 0.08 && s4.JoinGroups.Count == 2
+              && s4.JoinGroups.Any(g => g.SetEquals(new[] { "bottle", "cup" })) && s4.JoinGroups.Any(g => g.SetEquals(new[] { "keyboard", "laptop" })));
+        var room = new RoomModel { Status = "loaded", FloorY = 0, CeilingY = 2.6 };
+        foreach (var c in new[] { new[] { -3.0, -1.0 }, new[] { 3.0, -1.0 }, new[] { 3.0, 5.0 }, new[] { -3.0, 5.0 } }) room.FloorXz.Add(c);
+        room.Boxes.Add(Box("anchor-desk", "TABLE", new Vec3(1.0, 0.39, 1.0), new Vec3(1.4, 0.78, 0.7), 20));
+        var a = new AutoScan("scan.support.1", s4, map4, Priors, "yolox_nano_coco.se1", new string('c', 64), "quest_left", Fx);
+        var lines = new List<string> { PyJson.Canonical(a.Header("f00d", 1280, 960, Fx, 643, 481, 416)), PyJson.Canonical(room.ToJson()) };
+        a.SetRoom(room);
+        var kb = new Box3 { Centre = new Vec3(1.2, 0.795, 0.9), Size = new Vec3(0.38, 0.03, 0.14), YawDeg = 20 };
+        var kbPts = new List<Vec3>();   // its middle samples on the keyboard, the outer ring on the desk around it, along the picture's axes
+        for (int j = 0; j < 5; j++)
+            for (int i = 0; i < 5; i++)
+                kbPts.Add(i >= 1 && i <= 3 && j >= 1 && j <= 3 ? kb.World(new Vec3((i - 2) * 0.12, 0.015, (j - 2) * 0.04))
+                                                               : new Vec3(kb.Centre.X + (i - 2) * 0.13, 0.78, kb.Centre.Z + (j - 2) * 0.06));
+        var tumbler = new Box3 { Centre = new Vec3(1.5, 0.915, 1.15), Size = new Vec3(0.09, 0.27, 0.09), YawDeg = 0 };
+        var laptop = new Box3 { Centre = new Vec3(0.6, 0.905, 1.0), Size = new Vec3(0.34, 0.25, 0.25), YawDeg = 20 };
+        var frames = new List<FrameRecord>();
+        for (int n = 1; n <= 3; n++)
+        {
+            var dets = new List<FrameDetection> { DetOn("keyboard", kbPts), DetOn(n == 3 ? "bottle" : "cup", Face(tumbler, 2, -1, 5)), DetOn("laptop", Face(laptop, 2, -1, 5)) };
+            if (n <= 2) dets.Add(DetOn("keyboard", Face(new Box3 { Centre = laptop.Centre - new Vec3(0, 0.08, 0), Size = new Vec3(0.3, 0.01, 0.2), YawDeg = 20 }, 1, 1, 5)));
+            frames.Add(Frame(n, new Vec3(1.0, 1.5, -0.5) + new Vec3(0.1 * n, 0, 0), dets.ToArray()));
+        }
+        foreach (var f in frames) { lines.Add(PyJson.Canonical(f.ToJson())); a.Add(f); }
+        var r = a.Snapshot(3);
+        var objs = r.Scene["objects"].Items;
+        string cats = string.Join(",", objs.Select(o => o["category"]["state"].Text == "known" ? Cat(o) : "?"));
+        Check("the scene: one cup (the tumbler, called a cup twice and a bottle once), one keyboard, the laptop and Meta's desk", cats == "cup,keyboard,laptop,table", cats);
+        Func<string, JNode> one = name => objs.Single(o => o["category"]["state"].Text == "known" && Cat(o) == name);
+        Func<JNode, double> turn = o => { var q = o["geometry"]["rotation_xyzw"]["value"].Items; return -2 * Math.Atan2(q[2].Num, q[3].Num) * 180 / Math.PI; };
+        double kbTurn = turn(one("keyboard"));
+        Check("the keyboard, its outer samples on the desk around it, takes the desk's turn (20 degrees)", Math.Abs(((kbTurn - 20) % 90 + 135) % 90 - 45) < 0.5, kbTurn.ToString("0.0"));
+        Check("the laptop's own keyboard joined the laptop: one keyboard, the real one on the desk, and the laptop still a laptop",
+              one("laptop")["observation"]["views"]["keyframes"].Num == 3 && (Centre(one("keyboard")) - AutoScan.ToScene(kb.Centre)).Norm < 0.2);
+        var contract = new Contract(schema);
+        var issues = contract.Validate(new List<KeyValuePair<string, JNode>> { new KeyValuePair<string, JNode>("scene", r.Scene), new KeyValuePair<string, JNode>("map", map4) });
+        Check("the scene passes the contract with the bedroom's map v4", !issues.Any(i => i.IsError), string.Join(", ", issues.Where(i => i.IsError).Select(i => i.Code + " " + i.Path)));
+        var b2 = AutoScan.FromHeader(JParse.Parse(lines[0]), s4, map4, Priors);
+        foreach (string line in lines.Skip(1))
+        {
+            JNode n = JParse.Parse(line);
+            if (n["record_type"].Text == RoomModel.RecordType) b2.SetRoom(RoomModel.FromJson(n)); else b2.Add(FrameRecord.FromJson(n));
+        }
+        var r2 = b2.Snapshot(3);
+        Check("replayed from its lines, the same scene and trace byte for byte", PyJson.Canonical(r2.Scene) == PyJson.Canonical(r.Scene) && PyJson.Canonical(r2.Trace) == PyJson.Canonical(r.Trace));
+        if (sampleDir != null)
+        {
+            Directory.CreateDirectory(sampleDir);
+            File.WriteAllLines(Path.Combine(sampleDir, "frames.jsonl"), lines);
+            File.WriteAllText(Path.Combine(sampleDir, "scene.json"), PyJson.Canonical(r.Scene) + "\n");
+            File.WriteAllText(Path.Combine(sampleDir, "trace.json"), PyJson.Canonical(r.Trace) + "\n");
+            Console.WriteLine("  (a sample scan with v4 written to " + sampleDir + ")");
+        }
+    }
+
     static string bedObjLabel(List<JNode> objs) { return objs.Single(o => o["source_ref"]["source_object_id"].Text == "anchor-bed")["source_ref"]["source_label"].Text; }
 
     static RoomBox Box(string id, string label, Vec3 c, Vec3 size, double yawDeg = 0)
@@ -452,6 +514,7 @@ static class Program
 
         Room(schema, args.Length > 1 ? Path.Combine(args[1], "room") : null);
         BoxChecks(schema, args.Length > 1 ? Path.Combine(args[1], "boxes") : null);
+        SupportChecks(schema, args.Length > 1 ? Path.Combine(args[1], "support") : null);
 
         Console.WriteLine("7. Tracking");
         var s8 = NewScan();

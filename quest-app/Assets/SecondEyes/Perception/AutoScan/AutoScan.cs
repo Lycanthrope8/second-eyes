@@ -31,6 +31,12 @@ namespace SecondEyes.Perception.AutoScan
         public double DepthWindowM = 0.5, PointVoxelM = 0.03, BoxTrim = 0.03, TopAllowanceM = 0, BoxMaxOverPrior = 1.5;
         public bool BoxCompletion;
         public HashSet<string> FloorCategories = new HashSet<string>(StringComparer.Ordinal);
+        /// <summary>v4: categories that take the turn of the box they rest on (their bottom within rest_gap_m of its top,
+        /// their centre over its footprint), and groups of categories that join each other's boxes as furniture does
+        /// (the tumbler seen as a bottle and as a cup; a laptop's own keyboard). A v3 file: neither.</summary>
+        public HashSet<string> AlignToSupport = new HashSet<string>(StringComparer.Ordinal);
+        public double RestGapM = 0.08;
+        public List<HashSet<string>> JoinGroups = new List<HashSet<string>>();
 
         public static AutoScanSettings From(JNode n)
         {
@@ -62,6 +68,12 @@ namespace SecondEyes.Perception.AutoScan
                 s.TopAllowanceM = n["top_allowance_m"].Num;
                 s.BoxCompletion = n["box_completion"].Bool;
                 s.BoxMaxOverPrior = n["box_max_over_prior"].Num;
+                if (n.Has("align_to_support"))
+                {
+                    s.AlignToSupport = new HashSet<string>(n["align_to_support"].Items.Select(x => x.Text), StringComparer.Ordinal);
+                    s.RestGapM = n["rest_gap_m"].Num;
+                    s.JoinGroups = n["join_groups"].Items.Select(g => new HashSet<string>(g.Items.Select(x => x.Text), StringComparer.Ordinal)).ToList();
+                }
                 s.FloorCategories = new HashSet<string>(n["floor_categories"].Items.Select(x => x.Text), StringComparer.Ordinal);
             }
             return s;
@@ -492,7 +504,7 @@ namespace SecondEyes.Perception.AutoScan
             Obj best = null;
             foreach (Obj o in objects)
             {
-                if (o.MergedInto >= 0 || o.Box == null || !(o.Standard == standard || (furniture && s.BoxCategories.Contains(o.Standard)))) continue;
+                if (o.MergedInto >= 0 || o.Box == null || !Joinable(o.Standard, standard)) continue;
                 if (o.Box.Outside(pick, furniture ? s.TopAllowanceM : 0) > s.BoxMarginM) continue;
                 if (best == null || o.Box.Volume < best.Box.Volume) best = o;
             }
@@ -528,7 +540,11 @@ namespace SecondEyes.Perception.AutoScan
                 o.Standard = lead; o.Model = e["model"].Text; o.Label = e["source_label"].Text;
             }
             o.Voxel = Boxes.Thin(o.Surface, Math.Max(o.Voxel, s.PointVoxelM), s.BoxPointsMax);
-            Box3 b = Boxes.Fit(o.Surface, s.BoxTrim, s.FloorCategories.Contains(o.Standard), room.Loaded ? room.FloorY : s.FloorYM);
+            bool onFloor = s.FloorCategories.Contains(o.Standard);
+            double floorY = room.Loaded ? room.FloorY : s.FloorYM;
+            Box3 b = Boxes.Fit(o.Surface, s.BoxTrim, onFloor, floorY);
+            Box3 support = s.AlignToSupport.Contains(o.Standard) ? SupportOf(o, b) : null;
+            if (support != null) b = Boxes.FitAt(o.Surface, s.BoxTrim, onFloor, floorY, support.YawDeg);   // a keyboard lines up with its desk
             List<JNode> pri;
             if (s.BoxCompletion && sizes.TryGetValue(o.Standard, out pri))
             {
@@ -541,12 +557,37 @@ namespace SecondEyes.Perception.AutoScan
             o.Size = Math.Max(b.Size.X, b.Size.Z);
         }
 
+        /// <summary>Two categories may be one object: the same, both furniture, or in one of join_groups (v4).</summary>
+        private bool Joinable(string a, string b)
+        {
+            return a == b || (s.BoxCategories.Contains(a) && s.BoxCategories.Contains(b)) || s.JoinGroups.Any(g => g.Contains(a) && g.Contains(b));
+        }
+
+        /// <summary>v4: the box a box rests on: one of Meta's, or a furniture object's, whose top is within rest_gap_m of
+        /// its bottom and whose footprint is under its centre; the highest when several.</summary>
+        private Box3 SupportOf(Obj o, Box3 b)
+        {
+            double bottom = b.Centre.Y - b.Size.Y / 2;
+            Box3 best = null;
+            IEnumerable<Box3> candidates = (room.Loaded ? uprights : new List<Box3>())
+                .Concat(objects.Where(x => x != o && x.MergedInto < 0 && x.Box != null && s.FloorCategories.Contains(x.Standard)).Select(x => x.Box));
+            foreach (Box3 c in candidates)
+            {
+                double top = c.Centre.Y + c.Size.Y / 2;
+                if (Math.Abs(bottom - top) > s.RestGapM) continue;
+                Vec3 l = c.Local(b.Centre);
+                if (Math.Abs(l.X) > c.Size.X / 2 + s.BoxMarginM || Math.Abs(l.Z) > c.Size.Z / 2 + s.BoxMarginM) continue;
+                if (best == null || top > best.Centre.Y + best.Size.Y / 2) best = c;
+            }
+            return best;
+        }
+
         /// <summary>v3: two objects are one when they may be (the same category, or both furniture) and either's centre
         /// is inside the other's box, or, of one category, their centres are within reach.</summary>
         private bool Overlap(Obj a, Obj b)
         {
             bool furniture = s.BoxCategories.Contains(a.Standard) && s.BoxCategories.Contains(b.Standard);
-            if (a.Standard != b.Standard && !furniture) return false;
+            if (!Joinable(a.Standard, b.Standard)) return false;
             double top = furniture ? s.TopAllowanceM : 0;
             if (a.Box != null && b.Box != null && (a.Box.Outside(b.Box.Centre, top) <= s.BoxMarginM || b.Box.Outside(a.Box.Centre, top) <= s.BoxMarginM)) return true;
             return a.Standard == b.Standard && (a.Centre - b.Centre).Norm <= Reach(a.Size, b.Size);
