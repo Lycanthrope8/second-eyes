@@ -143,7 +143,7 @@ static class Program
               && pile["observation"]["views"]["keyframes"].Num == 1 && pile["observation"]["capture_time"]["state"].Text == "unknown");
         var sz = boxOf("anchor-chair")["size_m"].Items;
         Check("the trace keeps each box's true size in scene axes (height last) and its rotation", sz[0].Num == 0.6 && sz[1].Num == 0.6 && sz[2].Num == 0.9
-              && boxOf("anchor-chair")["rotation_xyzw"].Items.Count == 4);
+              && Math.Abs(boxOf("anchor-chair")["yaw_deg"].Num + 30) < 1e-6, boxOf("anchor-chair")["yaw_deg"].Text);
         var dets2 = r.Trace["detections"].Items;
         Check("the trace sends each box's sightings to the box's object", dets2.Count(d => d["fate"].Text == "object" && d["object_id"].Text == chairBox["object_id"].Text) == 3);
         var contract = new Contract(schema);

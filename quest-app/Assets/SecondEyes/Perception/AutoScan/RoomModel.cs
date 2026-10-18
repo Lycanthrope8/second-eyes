@@ -39,7 +39,7 @@ namespace SecondEyes.Perception.AutoScan
         public JNode ToJson()
         {
             return JNode.Obj().Add("id", JNode.Str(Id)).Add("meta_label", JNode.Str(MetaLabel)).Add("centre", Localizer.Vec(Centre))
-                .Add("size", Localizer.Vec(Size)).Add("rotation_xyzw", JNode.Arr(Rotation.Select(x => Localizer.Num(x)).ToList()));
+                .Add("size", Localizer.Vec(Size)).Add("rotation_xyzw", JNode.Arr(Rotation.Select(x => RoomModel.Fine(x)).ToList()));
         }
 
         public static RoomBox FromJson(JNode n)
@@ -120,6 +120,15 @@ namespace SecondEyes.Perception.AutoScan
         public static double[] RotationToScene(double[] q) { return new[] { -q[0], -q[2], -q[1], q[3] }; }
 
         internal static Vec3 V(JNode n) { return new Vec3(n.Items[0].Num, n.Items[1].Num, n.Items[2].Num); }
+
+        /// <summary>A unit quaternion's component, to 9 decimals: at the scene's 4 decimals a turned box's quaternion
+        /// would be off unit length by more than the contract's tolerance, and its turn by thousandths of a degree.</summary>
+        public static JNode Fine(double v)
+        {
+            double r = Math.Round(v, 9, MidpointRounding.AwayFromZero);
+            if (r == 0) r = 0;   // never "-0"
+            return new JNode { Kind = JKind.Number, Num = r, Text = r.ToString("0.0########", CultureInfo.InvariantCulture), IsInteger = false };
+        }
 
         public JNode ToJson()
         {

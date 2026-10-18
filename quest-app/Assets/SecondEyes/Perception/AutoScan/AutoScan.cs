@@ -21,6 +21,16 @@ namespace SecondEyes.Perception.AutoScan
         public double BoxMarginM = 0.1, RoomMarginM = 0.25;
         public int MinBoxVotes = 2;
         public HashSet<string> BoxCategories = new HashSet<string>(StringComparer.Ordinal);
+        /// <summary>v3: every object a 3D box. Depth sampled on a sample_grid by sample_grid grid in each detection; a
+        /// detection's points within depth_window_m of its median are its surface; points thinned to one per
+        /// point_voxel_m, at most box_points_max per object; box sides trimmed by box_trim at either end; boxes of
+        /// floor_categories reach the floor; furniture resting on a box within top_allowance_m above it is that box;
+        /// box_completion grows a box's hidden side to its size prior. A v1 or v2 file: no boxes.</summary>
+        public bool Boxes;
+        public int SampleGrid, BoxPointsMax = 800;
+        public double DepthWindowM = 0.5, PointVoxelM = 0.03, BoxTrim = 0.03, TopAllowanceM = 0;
+        public bool BoxCompletion;
+        public HashSet<string> FloorCategories = new HashSet<string>(StringComparer.Ordinal);
 
         public static AutoScanSettings From(JNode n)
         {
@@ -40,6 +50,18 @@ namespace SecondEyes.Perception.AutoScan
                 s.RoomMarginM = n["room_margin_m"].Num;
                 s.MinBoxVotes = (int)n["min_box_votes"].Num;
                 s.BoxCategories = new HashSet<string>(n["box_categories"].Items.Select(x => x.Text), StringComparer.Ordinal);
+            }
+            if (n.Has("sample_grid"))
+            {
+                s.Boxes = true;
+                s.SampleGrid = (int)n["sample_grid"].Num;
+                s.DepthWindowM = n["depth_window_m"].Num;
+                s.PointVoxelM = n["point_voxel_m"].Num;
+                s.BoxPointsMax = (int)n["box_points_max"].Num;
+                s.BoxTrim = n["box_trim"].Num;
+                s.TopAllowanceM = n["top_allowance_m"].Num;
+                s.BoxCompletion = n["box_completion"].Bool;
+                s.FloorCategories = new HashSet<string>(n["floor_categories"].Items.Select(x => x.Text), StringComparer.Ordinal);
             }
             return s;
         }
@@ -144,7 +166,12 @@ namespace SecondEyes.Perception.AutoScan
     /// </summary>
     public sealed class AutoScan
     {
-        public const string ScanSourceId = "scan", DepthAssumption = "depth_surface", RoomSourceId = "meta_room", VolumeAssumption = "meta_volume";
+        public const string ScanSourceId = "scan", DepthAssumption = "depth_surface", RoomSourceId = "meta_room", VolumeAssumption = "meta_volume",
+                            BoxAssumption = "box_centre", CompletionAssumption = "box_completion";
+
+        /// <summary>A box to draw: its label ("?" when unnamed), who named it ("scan", "meta", "detector" or
+        /// "unnamed"), and the box in quest_tracking.</summary>
+        public sealed class ShownBox { public string Label, Kind; public Box3 Box; }
 
         /// <summary>What the scan's sightings say about one of Meta's boxes.</summary>
         private sealed class BoxVotes
@@ -167,6 +194,25 @@ namespace SecondEyes.Perception.AutoScan
             public double BestScore, Size;
             public long LastUs;
             public Vec3 Centre;
+            // v3: the category votes, the surface points (quest_tracking), their voxel, and the box fitted to them.
+            public readonly SortedDictionary<string, int> Votes = new SortedDictionary<string, int>(StringComparer.Ordinal);
+            public readonly List<Vec3> Surface = new List<Vec3>();
+            public double Voxel;
+            public Box3 Box;
+
+            public void AddBox(string standard, List<Vec3> patch, Vec3 p, double size, int frame, Vec3 camera, double score, long timeUs, AutoScanSettings s)
+            {
+                Votes[standard] = (Votes.TryGetValue(standard, out int n) ? n : 0) + 1;
+                Surface.AddRange(patch);
+                Add(p, size, frame, camera, score, timeUs, s);
+            }
+
+            public void AbsorbBox(Obj b, AutoScanSettings s)
+            {
+                foreach (var kv in b.Votes) Votes[kv.Key] = (Votes.TryGetValue(kv.Key, out int n) ? n : 0) + kv.Value;
+                Surface.AddRange(b.Surface);
+                Absorb(b, s);
+            }
 
             public void Add(Vec3 p, double size, int frame, Vec3 camera, double score, long timeUs, AutoScanSettings s)
             {
@@ -221,6 +267,7 @@ namespace SecondEyes.Perception.AutoScan
         private readonly List<int> fateObject = new List<int>();
         private readonly List<int> fateBox = new List<int>();
         private RoomModel room = RoomModel.None("not loaded");
+        private List<Box3> uprights = new List<Box3>();
         private readonly List<BoxVotes> boxVotes = new List<BoxVotes>();
         private readonly SortedDictionary<string, int> leftOut = new SortedDictionary<string, int>(StringComparer.Ordinal);
         private long epoch = long.MinValue;
@@ -239,6 +286,7 @@ namespace SecondEyes.Perception.AutoScan
             room = RoomModel.FromJson(JParse.Parse(PyJson.Canonical(model.ToJson())));
             boxVotes.Clear();
             foreach (RoomBox b in room.Boxes) boxVotes.Add(new BoxVotes());
+            uprights = room.Boxes.Select(Boxes.Upright).ToList();
             Changed = true;
         }
         public int Tentative => objects.Count(o => o.MergedInto < 0 && o.Frames.Count < s.MinFrames);
@@ -284,6 +332,19 @@ namespace SecondEyes.Perception.AutoScan
                 list.Add(new[] { cx - dx, cy }); list.Add(new[] { cx + dx, cy });
                 list.Add(new[] { cx, cy - dy }); list.Add(new[] { cx, cy + dy });
             }
+            return list;
+        }
+
+        /// <summary>Where depth is sampled in a detection's box: v3, a grid of sample_grid by sample_grid points at the
+        /// centres of equal cells; before, the centre and four points sample_spread of the box away.</summary>
+        public static List<double[]> SamplePixels(double x1, double y1, double x2, double y2, AutoScanSettings s)
+        {
+            if (!s.Boxes) return SamplePixels(x1, y1, x2, y2, s.SampleSpread);
+            var list = new List<double[]>();
+            int n = s.SampleGrid;
+            for (int j = 0; j < n; j++)
+                for (int i = 0; i < n; i++)
+                    list.Add(new[] { x1 + (i + 0.5) / n * (x2 - x1), y1 + (j + 0.5) / n * (y2 - y1) });
             return list;
         }
 
@@ -333,7 +394,8 @@ namespace SecondEyes.Perception.AutoScan
                         else if (!room.InRoom(pick.Value, s.RoomMarginM)) fate = "outside_room";
                         else
                         {
-                            RoomBox inside = s.BoxCategories.Contains(entry["standard"].Text) ? room.BoxAt(pick.Value, s.BoxMarginM) : null;
+                            string std = entry["standard"].Text;
+                            RoomBox inside = s.Boxes ? MetaBoxFor(std, pick.Value) : s.BoxCategories.Contains(std) ? room.BoxAt(pick.Value, s.BoxMarginM) : null;
                             if (inside != null)
                             {
                                 box = room.Boxes.IndexOf(inside);   // furniture seen inside one of Meta's boxes votes for it
@@ -342,7 +404,9 @@ namespace SecondEyes.Perception.AutoScan
                             else
                             {
                                 double size = Math.Max(d.X2 - d.X1, d.Y2 - d.Y1) * pick.Key / fx;
-                                obj = Join(entry, d.Label, ToScene(pick.Value), camera, size, f.Frame, d.Score, f.TimeUs);
+                                obj = s.Boxes ? JoinBox(entry, d.Label, pick.Value, hits.Where(h => Math.Abs(h.Key - pick.Key) <= s.DepthWindowM).Select(h => h.Value).ToList(),
+                                                        camera, size, f.Frame, d.Score, f.TimeUs)
+                                              : Join(entry, d.Label, ToScene(pick.Value), camera, size, f.Frame, d.Score, f.TimeUs);
                             }
                             fate = "kept";
                             Sightings++;
@@ -389,8 +453,7 @@ namespace SecondEyes.Perception.AutoScan
             var lead = boxVotes[i].Votes.OrderByDescending(kv => kv.Value).ThenBy(kv => kv.Key, StringComparer.Ordinal).FirstOrDefault();
             if (lead.Key != null && lead.Value >= s.MinBoxVotes)
             {
-                e = map["entries"].Items.Where(x => x["standard"].Text == lead.Key && !x["source_label"].Text.StartsWith("meta:", StringComparison.Ordinal))
-                                         .Concat(map["entries"].Items.Where(x => x["standard"].Text == lead.Key)).First();
+                e = EntryFor(lead.Key);
                 by = "detector";
                 return e;
             }
@@ -418,6 +481,98 @@ namespace SecondEyes.Perception.AutoScan
             return best.Id;
         }
 
+        /// <summary>v3: the sighting joins the object whose box it is inside (furniture joins furniture, whatever the
+        /// label, and counts as inside when resting on it), the smallest when several; else the nearest object of its
+        /// category within reach; else it starts one. The object's box is fitted again.</summary>
+        private int JoinBox(JNode entry, string label, Vec3 pick, List<Vec3> patch, Vec3 camera, double size, int frame, double score, long timeUs)
+        {
+            string standard = entry["standard"].Text;
+            bool furniture = s.BoxCategories.Contains(standard);
+            Obj best = null;
+            foreach (Obj o in objects)
+            {
+                if (o.MergedInto >= 0 || o.Box == null || !(o.Standard == standard || (furniture && s.BoxCategories.Contains(o.Standard)))) continue;
+                if (o.Box.Outside(pick, furniture ? s.TopAllowanceM : 0) > s.BoxMarginM) continue;
+                if (best == null || o.Box.Volume < best.Box.Volume) best = o;
+            }
+            if (best == null)
+            {
+                Vec3 p = ToScene(pick);
+                double bestD = double.MaxValue;
+                foreach (Obj o in objects)
+                {
+                    if (o.MergedInto >= 0 || o.Standard != standard) continue;
+                    double dist = (o.Centre - p).Norm;
+                    if (dist <= Reach(o.Size, size) && dist < bestD) { best = o; bestD = dist; }
+                }
+            }
+            if (best == null)
+            {
+                best = new Obj { Id = objects.Count, Standard = standard, Model = entry["model"].Text, Label = label };
+                objects.Add(best);
+            }
+            best.AddBox(standard, patch.Count > 0 ? patch : new List<Vec3> { pick }, ToScene(pick), size, frame, camera, score, timeUs, s);
+            Refit(best);
+            return best.Id;
+        }
+
+        /// <summary>v3: the object's category is its leading vote (ties to the category that sorts first); its box is
+        /// fitted to its thinned surface points and completed to its size prior; its centre is the box's.</summary>
+        private void Refit(Obj o)
+        {
+            string lead = o.Votes.OrderByDescending(kv => kv.Value).ThenBy(kv => kv.Key, StringComparer.Ordinal).First().Key;
+            if (lead != o.Standard)
+            {
+                JNode e = EntryFor(lead);
+                o.Standard = lead; o.Model = e["model"].Text; o.Label = e["source_label"].Text;
+            }
+            o.Voxel = Boxes.Thin(o.Surface, Math.Max(o.Voxel, s.PointVoxelM), s.BoxPointsMax);
+            Box3 b = Boxes.Fit(o.Surface, s.BoxTrim, s.FloorCategories.Contains(o.Standard), room.Loaded ? room.FloorY : s.FloorYM);
+            List<JNode> pri;
+            if (s.BoxCompletion && sizes.TryGetValue(o.Standard, out pri))
+                b = Boxes.Complete(b, pri.Select(x => x["size_m"].Items.Select(v => v.Num).ToArray()).ToList(), o.Viewpoints.Select(ToUnity).ToList());
+            o.Box = b;
+            o.Centre = ToScene(b.Centre);
+            o.Size = Math.Max(b.Size.X, b.Size.Z);
+        }
+
+        /// <summary>v3: two objects are one when they may be (the same category, or both furniture) and either's centre
+        /// is inside the other's box, or, of one category, their centres are within reach.</summary>
+        private bool Overlap(Obj a, Obj b)
+        {
+            bool furniture = s.BoxCategories.Contains(a.Standard) && s.BoxCategories.Contains(b.Standard);
+            if (a.Standard != b.Standard && !furniture) return false;
+            double top = furniture ? s.TopAllowanceM : 0;
+            if (a.Box != null && b.Box != null && (a.Box.Outside(b.Box.Centre, top) <= s.BoxMarginM || b.Box.Outside(a.Box.Centre, top) <= s.BoxMarginM)) return true;
+            return a.Standard == b.Standard && (a.Centre - b.Centre).Norm <= Reach(a.Size, b.Size);
+        }
+
+        /// <summary>v3: the Meta box a sighting belongs to: for furniture any box, else a box Meta named as the
+        /// sighting's category (the monitor inside Meta's screen); inside it within box_margin_m, or resting on its top
+        /// within top_allowance_m (a pile on the bed); the smallest when several.</summary>
+        private RoomBox MetaBoxFor(string standard, Vec3 p)
+        {
+            if (!room.Loaded) return null;
+            bool furniture = s.BoxCategories.Contains(standard);
+            RoomBox best = null;
+            for (int i = 0; i < room.Boxes.Count; i++)
+            {
+                RoomBox b = room.Boxes[i];
+                JNode e;
+                bool own = entries.TryGetValue("meta:" + b.MetaLabel, out e) && e["standard"].Text == standard;
+                if ((!furniture && !own) || uprights[i].Outside(p, s.TopAllowanceM) > s.BoxMarginM) continue;
+                if (best == null || b.Volume < best.Volume || (b.Volume == best.Volume && string.CompareOrdinal(b.Id, best.Id) < 0)) best = b;
+            }
+            return best;
+        }
+
+        /// <summary>The map entry for a standard category: the detector's own when it has one, else Meta's.</summary>
+        private JNode EntryFor(string standard)
+        {
+            return map["entries"].Items.Where(x => x["standard"].Text == standard && !x["source_label"].Text.StartsWith("meta:", StringComparison.Ordinal))
+                                       .Concat(map["entries"].Items.Where(x => x["standard"].Text == standard)).First();
+        }
+
         private void MergePass()
         {
             bool again = true;
@@ -429,8 +584,8 @@ namespace SecondEyes.Perception.AutoScan
                     for (int b = a + 1; b < live.Count && !again; b++)
                     {
                         Obj A = live[a], B = live[b];
-                        if (A.Standard != B.Standard || (A.Centre - B.Centre).Norm > Reach(A.Size, B.Size)) continue;
-                        A.Absorb(B, s);
+                        if (s.Boxes ? !Overlap(A, B) : A.Standard != B.Standard || (A.Centre - B.Centre).Norm > Reach(A.Size, B.Size)) continue;
+                        if (s.Boxes) { A.AbsorbBox(B, s); Refit(A); } else A.Absorb(B, s);
                         B.MergedInto = A.Id;
                         again = true;
                     }
@@ -474,8 +629,36 @@ namespace SecondEyes.Perception.AutoScan
         /// floats in quest_tracking: a depth object's centre, a box's top.</summary>
         public List<KeyValuePair<string, Vec3>> ConfirmedInTracking()
         {
-            return SceneItems().Select(x => x.Box < 0 ? new KeyValuePair<string, Vec3>(x.Depth.Standard, ToUnity(x.Depth.Centre))
-                                                      : new KeyValuePair<string, Vec3>(x.Entry != null ? x.Entry["standard"].Text : "?", room.Boxes[x.Box].Top)).ToList();
+            return SceneItems().Select(x => x.Box < 0 ? new KeyValuePair<string, Vec3>(x.Depth.Standard, x.Depth.Box != null ? x.Depth.Box.Top : ToUnity(x.Depth.Centre))
+                                                      : new KeyValuePair<string, Vec3>(x.Entry != null ? x.Entry["standard"].Text : "?", uprights[x.Box].Top)).ToList();
+        }
+
+        /// <summary>v3: every object of the scene so far as the box to draw.</summary>
+        public List<ShownBox> ConfirmedBoxes()
+        {
+            return SceneItems().Where(x => x.Box >= 0 || x.Depth.Box != null).Select(x => x.Box < 0
+                ? new ShownBox { Label = x.Depth.Standard, Kind = "scan", Box = x.Depth.Box }
+                : new ShownBox { Label = x.Entry != null ? x.Entry["standard"].Text : "?", Kind = x.Entry == null ? "unnamed" : x.By, Box = uprights[x.Box] }).ToList();
+        }
+
+        /// <summary>A unit quaternion's component, to 9 decimals: the scene's 4-decimal numbers would leave a turned
+        /// box's quaternion off unit length by more than the contract's tolerance.</summary>
+        private static JNode Quat(double v) { return RoomModel.Fine(v); }
+
+        /// <summary>A box's size in the scene's axes: along its own x, along its own horizontal z, then its height.</summary>
+        private static JNode BoxSize(Box3 b, string source, bool completed)
+        {
+            return Localizer.Known(Localizer.Vec(new Vec3(b.Size.X, b.Size.Z, b.Size.Y)), "inferred", source,
+                                   completed ? new List<JNode> { JNode.Str(CompletionAssumption) } : new List<JNode>());
+        }
+
+        /// <summary>A box's turn about the scene's +z (yaw only), from its turn about quest_tracking's +y.</summary>
+        private static JNode BoxTurn(Box3 b, string source)
+        {
+            double[] q = RoomModel.RotationToScene(b.Rotation());
+            JNode n = Localizer.Known(JNode.Arr(new List<JNode> { Quat(0), Quat(0), Quat(q[2]), Quat(q[3]) }), "inferred", source, new List<JNode>());
+            n.Add("support", JNode.Str("yaw_only"));
+            return n;
         }
 
         /// <summary>The scene of the confirmed objects (scene v3, perceived) and the trace of how it was made.</summary>
@@ -492,7 +675,7 @@ namespace SecondEyes.Perception.AutoScan
             }
             var confirmed = items.Where(x => x.Box < 0).Select(x => x.Depth).ToList();
             string priorsId = priors["priors_id"].Text;
-            bool usedSize = false, usedVolume = false;
+            bool usedSize = false, usedVolume = false, usedBox = false, usedCompletion = false;
             var objs = new List<JNode>();
             foreach (Item it in items)
             {
@@ -503,19 +686,23 @@ namespace SecondEyes.Perception.AutoScan
                     continue;
                 }
                 Obj o = it.Depth;
-                List<JNode> sz;
-                bool oneSize = sizes.TryGetValue(o.Standard, out sz) && sz.Count == 1;   // two sizes: neither is claimed
+                List<JNode> sz = null;
+                bool oneSize = !s.Boxes && sizes.TryGetValue(o.Standard, out sz) && sz.Count == 1;   // two sizes: neither is claimed
                 usedSize |= oneSize;
-                JNode size = oneSize
-                    ? Localizer.Known(JNode.Arr(sz[0]["size_m"].Items.Select(x => Localizer.Num(x.Num)).ToList()), "assumed", priorsId, new List<JNode> { JNode.Str(Localizer.SizeAssumption) })
+                usedBox |= s.Boxes;
+                usedCompletion |= s.Boxes && o.Box.Completed;
+                JNode size = s.Boxes ? BoxSize(o.Box, ScanSourceId, o.Box.Completed)
+                    : oneSize ? Localizer.Known(JNode.Arr(sz[0]["size_m"].Items.Select(x => Localizer.Num(x.Num)).ToList()), "assumed", priorsId, new List<JNode> { JNode.Str(Localizer.SizeAssumption) })
                     : Localizer.Unknown("no_permitted_prior", priorsId);
+                JNode centre = s.Boxes ? Localizer.Known(Localizer.Vec(ToScene(o.Box.Centre)), "inferred", ScanSourceId, new List<JNode> { JNode.Str(BoxAssumption) })
+                                       : Localizer.Known(Localizer.Vec(o.Centre), "inferred", ScanSourceId, new List<JNode> { JNode.Str(DepthAssumption) });
+                JNode turn = s.Boxes ? BoxTurn(o.Box, ScanSourceId) : Localizer.Unknown("not_estimated", ScanSourceId);
                 objs.Add(JNode.Obj()
                     .Add("object_id", JNode.Str(ids[o.Id]))
                     .Add("source_ref", JNode.Obj().Add("source_id", JNode.Str(ScanSourceId)).Add("source_object_id", JNode.Str("track_" + o.Id.ToString(CultureInfo.InvariantCulture)))
                         .Add("source_label", JNode.Str(o.Label)))
                     .Add("category", Localizer.Known(JNode.Obj().Add("standard", JNode.Str(o.Standard)).Add("model", JNode.Str(o.Model)), "inferred", ScanSourceId, new List<JNode>()))
-                    .Add("geometry", JNode.Obj().Add("center_m", Localizer.Known(Localizer.Vec(o.Centre), "inferred", ScanSourceId, new List<JNode> { JNode.Str(DepthAssumption) }))
-                        .Add("size_m", size).Add("rotation_xyzw", Localizer.Unknown("not_estimated", ScanSourceId)))
+                    .Add("geometry", JNode.Obj().Add("center_m", centre).Add("size_m", size).Add("rotation_xyzw", turn))
                     .Add("semantic_front", Localizer.Unknown("not_estimated", ScanSourceId))
                     .Add("attributes", JNode.Obj().Add("colours", Localizer.Unknown("not_estimated", ScanSourceId)))
                     .Add("observation", JNode.Obj()
@@ -529,6 +716,10 @@ namespace SecondEyes.Perception.AutoScan
             }
             var assumptions = new List<JNode> { JNode.Obj().Add("assumption_id", JNode.Str(DepthAssumption))
                 .Add("description", JNode.Str("The object's position is the median of depth points on its visible surface, so it lies toward the camera from its true centre by up to half its depth")) };
+            if (usedBox) assumptions.Add(JNode.Obj().Add("assumption_id", JNode.Str(BoxAssumption))
+                .Add("description", JNode.Str("The object's centre is its 3D box's centre: the box is fitted to the points its depth samples hit on its surface, each side trimmed of stray points; its size and turn are the box's")));
+            if (usedCompletion) assumptions.Add(JNode.Obj().Add("assumption_id", JNode.Str(CompletionAssumption))
+                .Add("description", JNode.Str("A side of the box no viewpoint saw is grown to its category's measured size in the size priors (" + priorsId + "), away from where the object was seen")));
             if (usedVolume) assumptions.Add(JNode.Obj().Add("assumption_id", JNode.Str(VolumeAssumption))
                 .Add("description", JNode.Str("The object is one of the boxes Meta's Space Setup put around obstacles: its centre is the box's centre; the box's size and rotation are in the trace")));
             if (usedSize) assumptions.Add(JNode.Obj().Add("assumption_id", JNode.Str(Localizer.SizeAssumption))
@@ -597,7 +788,7 @@ namespace SecondEyes.Perception.AutoScan
             BoxVotes v = boxVotes[it.Box];
             bool seen = v.Frames.Count > 0;
             List<JNode> sz = null;
-            bool oneSize = it.Entry != null && sizes.TryGetValue(it.Entry["standard"].Text, out sz) && sz.Count == 1;
+            bool oneSize = !s.Boxes && it.Entry != null && sizes.TryGetValue(it.Entry["standard"].Text, out sz) && sz.Count == 1;
             usedSize |= oneSize;
             JNode size = oneSize
                 ? Localizer.Known(JNode.Arr(sz[0]["size_m"].Items.Select(x => Localizer.Num(x.Num)).ToList()), "assumed", priorsId, new List<JNode> { JNode.Str(Localizer.SizeAssumption) })
@@ -613,7 +804,8 @@ namespace SecondEyes.Perception.AutoScan
                     .Add("source_label", JNode.Str(it.Entry != null ? it.Entry["source_label"].Text : "meta:" + b.MetaLabel)))   // the map entry that named it
                 .Add("category", category)
                 .Add("geometry", JNode.Obj().Add("center_m", Localizer.Known(Localizer.Vec(ToScene(b.Centre)), "inferred", RoomSourceId, new List<JNode> { JNode.Str(VolumeAssumption) }))
-                    .Add("size_m", size).Add("rotation_xyzw", Localizer.Unknown("not_estimated", RoomSourceId)))
+                    .Add("size_m", s.Boxes ? BoxSize(uprights[it.Box], RoomSourceId, false) : size)
+                    .Add("rotation_xyzw", s.Boxes ? BoxTurn(uprights[it.Box], RoomSourceId) : Localizer.Unknown("not_estimated", RoomSourceId)))
                 .Add("semantic_front", Localizer.Unknown("not_estimated", RoomSourceId))
                 .Add("attributes", JNode.Obj().Add("colours", Localizer.Unknown("not_estimated", RoomSourceId)))
                 .Add("observation", JNode.Obj()
@@ -641,8 +833,8 @@ namespace SecondEyes.Perception.AutoScan
                 boxes.Add(JNode.Obj().Add("object_id", JNode.Str(boxIds[i])).Add("id", JNode.Str(b.Id)).Add("meta_label", JNode.Str(b.MetaLabel))
                     .Add("named_by", JNode.Str(by)).Add("category", JNode.Str(e != null ? e["standard"].Text : "")).Add("votes", votes)
                     .Add("frames", Localizer.Int(boxVotes[i].Frames.Count)).Add("viewpoints", Localizer.Int(boxVotes[i].Viewpoints.Count))
-                    .Add("center_m", Localizer.Vec(ToScene(b.Centre))).Add("size_m", Localizer.Vec(new Vec3(b.Size.X, b.Size.Z, b.Size.Y)))
-                    .Add("rotation_xyzw", JNode.Arr(RoomModel.RotationToScene(b.Rotation).Select(x => Localizer.Num(x)).ToList())));
+                    .Add("center_m", Localizer.Vec(ToScene(b.Centre))).Add("size_m", Localizer.Vec(new Vec3(uprights[i].Size.X, uprights[i].Size.Z, uprights[i].Size.Y)))
+                    .Add("yaw_deg", Localizer.Num(-uprights[i].YawDeg)));
             }
             return JNode.Obj().Add("status", JNode.Str(room.Status)).Add("why", JNode.Str(room.Why)).Add("boxes", JNode.Arr(boxes));
         }
