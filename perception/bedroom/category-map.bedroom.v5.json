@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "record_type": "category_map",
+  "map_id": "map.bedroom.v5",
+  "description": "The bedroom (A4): the detector's labels and Meta's Space Setup labels (meta:...) mapped to standard categories; the couch is a couch whose parser word is sofa, and the detector's dining table is the desks' table; v4 adds the cup (the tumbler on the black desk); v5 adds the backpack",
+  "release": "a4-bedroom-v1",
+  "model_vocabulary": [
+    "backpack",
+    "bed",
+    "bottle",
+    "cabinet",
+    "chair",
+    "cup",
+    "keyboard",
+    "lamp",
+    "laptop",
+    "mouse",
+    "plant",
+    "sofa",
+    "table",
+    "television"
+  ],
+  "entries": [
+    {
+      "source_label": "chair",
+      "standard": "chair",
+      "model": "chair"
+    },
+    {
+      "source_label": "bed",
+      "standard": "bed",
+      "model": "bed"
+    },
+    {
+      "source_label": "bottle",
+      "standard": "bottle",
+      "model": "bottle"
+    },
+    {
+      "source_label": "laptop",
+      "standard": "laptop",
+      "model": "laptop"
+    },
+    {
+      "source_label": "tv",
+      "standard": "television",
+      "model": "television"
+    },
+    {
+      "source_label": "keyboard",
+      "standard": "keyboard",
+      "model": "keyboard"
+    },
+    {
+      "source_label": "mouse",
+      "standard": "mouse",
+      "model": "mouse"
+    },
+    {
+      "source_label": "couch",
+      "standard": "couch",
+      "model": "sofa"
+    },
+    {
+      "source_label": "dining table",
+      "standard": "table",
+      "model": "table"
+    },
+    {
+      "source_label": "meta:BED",
+      "standard": "bed",
+      "model": "bed"
+    },
+    {
+      "source_label": "meta:COUCH",
+      "standard": "couch",
+      "model": "sofa"
+    },
+    {
+      "source_label": "meta:TABLE",
+      "standard": "table",
+      "model": "table"
+    },
+    {
+      "source_label": "meta:STORAGE",
+      "standard": "storage",
+      "model": "cabinet"
+    },
+    {
+      "source_label": "meta:SCREEN",
+      "standard": "television",
+      "model": "television"
+    },
+    {
+      "source_label": "meta:LAMP",
+      "standard": "lamp",
+      "model": "lamp"
+    },
+    {
+      "source_label": "meta:PLANT",
+      "standard": "plant",
+      "model": "plant"
+    },
+    {
+      "source_label": "cup",
+      "standard": "cup",
+      "model": "cup"
+    },
+    {
+      "source_label": "backpack",
+      "standard": "backpack",
+      "model": "backpack"
+    }
+  ]
+}

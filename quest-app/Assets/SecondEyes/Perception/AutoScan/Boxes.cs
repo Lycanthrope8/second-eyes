@@ -64,7 +64,7 @@ namespace SecondEyes.Perception.AutoScan
         public sealed class Result
         {
             public readonly List<List<Vec3>> Clusters = new List<List<Vec3>>();
-            public int Structure, Explained, Dropped;
+            public int Structure, Explained, Dropped, Fixtures;
         }
 
         private static (long, long, long) Cell(Vec3 p, double size)
@@ -74,6 +74,14 @@ namespace SecondEyes.Perception.AutoScan
 
         public static Result Find(RoomModel room, IList<Box3> metaBoxes, double structureMargin, double wallMargin, double link,
                                   int minPoints, double minSize, double maxSize)
+        {
+            return Find(room, metaBoxes, structureMargin, wallMargin, link, minPoints, minSize, maxSize, double.PositiveInfinity, 0, 0);
+        }
+
+        /// <summary>v6 also drops fixtures: a cluster starting above maxBottom (a light, a shelf up high), and a slab
+        /// thinner than slabMax within wallBand of a wall (a door, a mirror, a frame).</summary>
+        public static Result Find(RoomModel room, IList<Box3> metaBoxes, double structureMargin, double wallMargin, double link,
+                                  int minPoints, double minSize, double maxSize, double maxBottom, double slabMax, double wallBand)
         {
             var result = new Result();
             var keep = new List<Vec3>();
@@ -116,6 +124,13 @@ namespace SecondEyes.Perception.AutoScan
                 var pts = members.Select(j => keep[j]).ToList();
                 double sx = pts.Max(v => v.X) - pts.Min(v => v.X), sy = pts.Max(v => v.Y) - pts.Min(v => v.Y), sz = pts.Max(v => v.Z) - pts.Min(v => v.Z);
                 if (pts.Count < minPoints || Math.Max(Math.Max(sx, sz), sy) < minSize || Math.Max(sx, sz) > maxSize) { result.Dropped++; continue; }
+                if (pts.Min(v => v.Y) > room.FloorY + maxBottom) { result.Fixtures++; continue; }
+                if (slabMax > 0)
+                {
+                    Box3 fit = Boxes.Fit(pts, 0.03, false, room.FloorY);
+                    double near = room.WallDistance(fit.Centre);
+                    if (Math.Min(fit.Size.X, fit.Size.Z) < slabMax && near < wallBand) { result.Fixtures++; continue; }
+                }
                 result.Clusters.Add(pts);
             }
             return result;

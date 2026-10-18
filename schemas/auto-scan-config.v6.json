@@ -1,0 +1,355 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "auto-scan-config.v6.json",
+  "title": "The headset's automatic scan: settings (A4) (v6)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "record_type",
+    "config_id",
+    "description",
+    "interval_s",
+    "min_score",
+    "sample_spread",
+    "max_range_m",
+    "floor_y_m",
+    "floor_margin_m",
+    "min_reach_m",
+    "reach_factor",
+    "min_frames",
+    "viewpoint_m",
+    "max_points_per_object",
+    "publish_interval_s",
+    "save_images_max",
+    "space_setup",
+    "box_margin_m",
+    "room_margin_m",
+    "min_box_votes",
+    "box_categories",
+    "sample_grid",
+    "depth_window_m",
+    "point_voxel_m",
+    "box_points_max",
+    "box_trim",
+    "top_allowance_m",
+    "box_completion",
+    "floor_categories",
+    "box_max_over_prior",
+    "align_to_support",
+    "rest_gap_m",
+    "join_groups",
+    "use_mesh",
+    "mesh_voxel_m",
+    "structure_margin_m",
+    "wall_margin_m",
+    "mesh_link_m",
+    "cluster_min_points",
+    "cluster_min_size_m",
+    "cluster_max_size_m",
+    "unnamed_as",
+    "obstacle_max_bottom_m",
+    "slab_max_m",
+    "wall_band_m",
+    "absorb_on_furniture",
+    "merge_live_into_mesh"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 6
+    },
+    "record_type": {
+      "const": "auto_scan_config"
+    },
+    "config_id": {
+      "$ref": "#/$defs/id"
+    },
+    "description": {
+      "$ref": "#/$defs/text"
+    },
+    "interval_s": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 10,
+      "description": "Seconds between detector runs while scanning"
+    },
+    "min_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Detections below this score are left out"
+    },
+    "sample_spread": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 0.5,
+      "description": "Depth is sampled at the box's centre and at four points this fraction of the box's width and height from it"
+    },
+    "max_range_m": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 20,
+      "description": "Depth hits farther than this are left out"
+    },
+    "floor_y_m": {
+      "type": "number",
+      "description": "The floor's height in quest_tracking (the Quest's floor-level origin puts it at 0)"
+    },
+    "floor_margin_m": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 2,
+      "description": "A point more than this below the floor is impossible and left out"
+    },
+    "min_reach_m": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 3,
+      "description": "The smallest distance within which a sighting joins an object of its category"
+    },
+    "reach_factor": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 2,
+      "description": "The reach grows to this fraction of the object's measured size"
+    },
+    "min_frames": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 20,
+      "description": "Frames an object must be seen in before it is in the scene"
+    },
+    "viewpoint_m": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 5,
+      "description": "Camera positions closer than this count as one viewpoint"
+    },
+    "max_points_per_object": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "description": "The most recent depth points an object keeps for its median"
+    },
+    "publish_interval_s": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 120,
+      "description": "At most this often, a changed scene is published to the session"
+    },
+    "save_images_max": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2000,
+      "description": "At most this many frames are saved as images each session; the previous session's images are deleted when a scan starts"
+    },
+    "space_setup": {
+      "enum": [
+        "every_start",
+        "if_missing",
+        "never"
+      ],
+      "description": "When the app asks the headset for Space Setup, Meta's room scan: every time the scan starts, only when the headset has no room, or never (depth only)"
+    },
+    "box_margin_m": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 0.5,
+      "description": "A detection's depth point this close to one of Meta's boxes counts as inside it"
+    },
+    "room_margin_m": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "A depth point farther than this outside the room's floor outline, or below its floor or above its ceiling, is outside the room"
+    },
+    "min_box_votes": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 20,
+      "description": "Sightings of its leading category a box Meta calls OTHER needs before the detector names it"
+    },
+    "box_categories": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true,
+      "description": "Standard categories whose sightings inside a box vote for it (furniture); every other category is placed by depth, even on a box"
+    },
+    "sample_grid": {
+      "type": "integer",
+      "minimum": 2,
+      "maximum": 9,
+      "description": "Depth is sampled on a sample_grid by sample_grid grid of points in each detection's box, at the centres of equal cells"
+    },
+    "depth_window_m": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 3,
+      "description": "A detection's depth points farther than this from its median distance are the background, not its surface"
+    },
+    "point_voxel_m": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 0.5,
+      "description": "An object keeps one surface point per voxel of this size"
+    },
+    "box_points_max": {
+      "type": "integer",
+      "minimum": 16,
+      "maximum": 20000,
+      "description": "Past this many points, an object's voxel doubles and its points are thinned again"
+    },
+    "box_trim": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 0.25,
+      "description": "Each side of a fitted box drops this fraction of points at either end, so stray rays don't stretch it"
+    },
+    "top_allowance_m": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 2,
+      "description": "Furniture seen up to this far above a box's top counts as resting on it, so as that box"
+    },
+    "box_completion": {
+      "type": "boolean",
+      "description": "Grow each box's hidden side to its category's size prior, away from where it was seen"
+    },
+    "floor_categories": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true,
+      "description": "Categories whose boxes reach down to the floor"
+    },
+    "box_max_over_prior": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 10,
+      "description": "A box side longer than this many times its category's measured size shrinks to that size, centred on the object's points (a small thing's samples landing on the surface around it)"
+    },
+    "align_to_support": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true,
+      "description": "Categories whose boxes take the turn of the box they rest on (a keyboard lines up with its desk)"
+    },
+    "rest_gap_m": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 0.5,
+      "description": "A box rests on another when its bottom is within this of the other's top, its centre over the other's footprint"
+    },
+    "join_groups": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        },
+        "minItems": 2,
+        "uniqueItems": true
+      },
+      "description": "Groups of categories that join each other's boxes as furniture does, the leading vote naming the object (the tumbler seen as a bottle and as a cup; a laptop's own keyboard)"
+    },
+    "use_mesh": {
+      "type": "boolean",
+      "description": "Fit boxes to Meta's room mesh (Space Setup's fused depth): every cluster of it becomes a box that sightings inside name"
+    },
+    "mesh_voxel_m": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 0.2,
+      "description": "The mesh is thinned to one point per voxel of this size before it is logged and used"
+    },
+    "structure_margin_m": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 0.5,
+      "description": "Mesh points this close to the floor or the ceiling, or to one of Meta's boxes, are structure or already an object"
+    },
+    "wall_margin_m": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 0.5,
+      "description": "Mesh points this close to a wall, along the floor's outline, are the wall"
+    },
+    "mesh_link_m": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 0.5,
+      "description": "Mesh points within this of each other are one cluster"
+    },
+    "cluster_min_points": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100000,
+      "description": "A cluster needs at least this many points to be a box"
+    },
+    "cluster_min_size_m": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 3,
+      "description": "A cluster smaller than this every way is noise, not a box"
+    },
+    "cluster_max_size_m": {
+      "type": "number",
+      "minimum": 0.1,
+      "maximum": 20,
+      "description": "A cluster wider than this is leftover structure, not a box"
+    },
+    "unnamed_as": {
+      "enum": [
+        "omit",
+        "unknown"
+      ],
+      "description": "What a cluster of Meta's mesh that no sighting has named becomes: left out (not an object, not drawn, only in the trace) or an object of unknown category"
+    },
+    "obstacle_max_bottom_m": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 5,
+      "description": "A cluster starting higher than this above the floor is a fixture (a light, a shelf up high), not an obstacle"
+    },
+    "slab_max_m": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 0.5,
+      "description": "A cluster thinner than this within wall_band_m of a wall is a fixture (a door, a mirror, a frame)"
+    },
+    "wall_band_m": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 2,
+      "description": "How near a wall a thin slab must be to count as a fixture"
+    },
+    "absorb_on_furniture": {
+      "type": "boolean",
+      "description": "An unnamed cluster resting on one of Meta's boxes is part of it (a blanket on the bed)"
+    },
+    "merge_live_into_mesh": {
+      "type": "boolean",
+      "description": "A live-depth object inside a named mesh box of its kind is that box"
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_.-]{0,127}(?![\\s\\S])",
+      "description": "Lower-case identifier: letters, digits, '_', '.', '-'; starts with a letter or digit."
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

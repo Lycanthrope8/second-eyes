@@ -44,6 +44,14 @@ namespace SecondEyes.Perception.AutoScan
         public bool UseMesh;
         public double MeshVoxelM = 0.03, StructureMarginM = 0.05, WallMarginM = 0.08, MeshLinkM = 0.06, ClusterMinSizeM = 0.15, ClusterMaxSizeM = 3.0;
         public int ClusterMinPoints = 20;
+        /// <summary>v6: an unnamed cluster (no category detected in it, or too few sightings) is left out ("omit": not an
+        /// object, not drawn, only in the trace) or stays an object of "unknown" category; clusters starting above obstacle_max_bottom_m, or slabs thinner than slab_max_m within
+        /// wall_band_m of a wall, are fixtures; with absorb_on_furniture an unnamed cluster resting on one of Meta's boxes is
+        /// part of it (a blanket on the bed); with merge_live_into_mesh a live-depth object inside a named mesh box of its
+        /// kind is that box. A v5 file: unknown, no fixtures, neither merge.</summary>
+        public string UnnamedAs = "unknown";
+        public double ObstacleMaxBottomM = double.PositiveInfinity, SlabMaxM = 0, WallBandM = 0;
+        public bool AbsorbOnFurniture, MergeLiveIntoMesh;
 
         public static AutoScanSettings From(JNode n)
         {
@@ -91,6 +99,15 @@ namespace SecondEyes.Perception.AutoScan
                     s.ClusterMinPoints = (int)n["cluster_min_points"].Num;
                     s.ClusterMinSizeM = n["cluster_min_size_m"].Num;
                     s.ClusterMaxSizeM = n["cluster_max_size_m"].Num;
+                }
+                if (n.Has("unnamed_as"))
+                {
+                    s.UnnamedAs = n["unnamed_as"].Text;
+                    s.ObstacleMaxBottomM = n["obstacle_max_bottom_m"].Num;
+                    s.SlabMaxM = n["slab_max_m"].Num;
+                    s.WallBandM = n["wall_band_m"].Num;
+                    s.AbsorbOnFurniture = n["absorb_on_furniture"].Bool;
+                    s.MergeLiveIntoMesh = n["merge_live_into_mesh"].Bool;
                 }
                 s.FloorCategories = new HashSet<string>(n["floor_categories"].Items.Select(x => x.Text), StringComparer.Ordinal);
             }
@@ -326,7 +343,8 @@ namespace SecondEyes.Perception.AutoScan
             meshBoxes = new List<Box3>(); meshVotes.Clear(); meshPoints.Clear(); meshCut = null;
             if (s.UseMesh && room.Loaded && room.MeshPoints.Count > 0)
             {
-                meshCut = MeshClusters.Find(room, uprights, s.StructureMarginM, s.WallMarginM, s.MeshLinkM, s.ClusterMinPoints, s.ClusterMinSizeM, s.ClusterMaxSizeM);
+                meshCut = MeshClusters.Find(room, uprights, s.StructureMarginM, s.WallMarginM, s.MeshLinkM, s.ClusterMinPoints, s.ClusterMinSizeM, s.ClusterMaxSizeM,
+                                            s.ObstacleMaxBottomM, s.SlabMaxM, s.WallBandM);
                 foreach (List<Vec3> c in meshCut.Clusters)
                 {
                     Box3 mb = Boxes.Fit(c, s.BoxTrim, c.Min(v => v.Y) < room.FloorY + 0.1, room.FloorY);
@@ -670,6 +688,54 @@ namespace SecondEyes.Perception.AutoScan
             return best;
         }
 
+        /// <summary>v6: the live-depth objects that are a named mesh box of their kind (one inside the other, within
+        /// box_margin_m and 10 cm): object track to mesh box, the smallest box when several.</summary>
+        private Dictionary<int, int> LiveIntoMesh()
+        {
+            var into = new Dictionary<int, int>();
+            if (!s.MergeLiveIntoMesh) return into;
+            foreach (Obj o in objects.Where(o => o.MergedInto < 0 && o.Frames.Count >= s.MinFrames && o.Box != null))
+            {
+                int best = -1;
+                for (int i = 0; i < meshBoxes.Count; i++)
+                {
+                    JNode e = MeshName(i);
+                    if (e == null || !Joinable(o.Standard, e["standard"].Text)) continue;
+                    double top = s.BoxCategories.Contains(o.Standard) ? s.TopAllowanceM : 0;
+                    if (meshBoxes[i].Outside(o.Box.Centre, top) > s.BoxMarginM + 0.1 && o.Box.Outside(meshBoxes[i].Centre, 0) > s.BoxMarginM) continue;
+                    if (best < 0 || meshBoxes[i].Volume < meshBoxes[best].Volume) best = i;
+                }
+                if (best >= 0) into[o.Id] = best;
+            }
+            return into;
+        }
+
+        /// <summary>v6: whether a box rests on one of Meta's boxes: its bottom near that box's top, its centre over it.</summary>
+        private bool RestsOnMeta(Box3 b) { return RestsOnMetaIndex(b) >= 0; }
+
+        /// <summary>v6: the index of the Meta box a box rests on, the first in the room's order; -1 when none.</summary>
+        private int RestsOnMetaIndex(Box3 b)
+        {
+            double bottom = b.Centre.Y - b.Size.Y / 2;
+            for (int i = 0; i < uprights.Count; i++)
+            {
+                Box3 u = uprights[i];
+                double top = u.Centre.Y + u.Size.Y / 2;
+                Vec3 l = u.Local(b.Centre);
+                if (Math.Abs(bottom - top) <= s.StructureMarginM + 0.05 && Math.Abs(l.X) <= u.Size.X / 2 && Math.Abs(l.Z) <= u.Size.Z / 2) return i;
+            }
+            return -1;
+        }
+
+        /// <summary>v6: the object a mesh box's sightings belong to: its own, or, absorbed, the Meta box it rests on; null when none.</summary>
+        private string MeshObjectId(int mesh, Dictionary<int, string> meshIds, Dictionary<int, string> boxIds)
+        {
+            string id;
+            if (meshIds.TryGetValue(mesh, out id)) return id;
+            int host = RestsOnMetaIndex(meshBoxes[mesh]);
+            return host >= 0 && boxIds.TryGetValue(host, out id) ? id : null;
+        }
+
         /// <summary>v5: a cluster box's name: the leading vote with at least min_box_votes sightings, else none.</summary>
         private JNode MeshName(int i)
         {
@@ -724,7 +790,8 @@ namespace SecondEyes.Perception.AutoScan
         /// boxes last), then position. With no room, the depth objects in the order they always had.</summary>
         private List<Item> SceneItems()
         {
-            var items = objects.Where(o => o.MergedInto < 0 && o.Frames.Count >= s.MinFrames)
+            Dictionary<int, int> merged = LiveIntoMesh();
+            var items = objects.Where(o => o.MergedInto < 0 && o.Frames.Count >= s.MinFrames && !merged.ContainsKey(o.Id))
                                .Select(o => new Item { Depth = o, Sort = o.Standard, Centre = o.Centre }).ToList();
             if (room.Loaded)
                 for (int i = 0; i < room.Boxes.Count; i++)
@@ -736,7 +803,10 @@ namespace SecondEyes.Perception.AutoScan
             for (int i = 0; i < meshBoxes.Count; i++)
             {
                 JNode e = MeshName(i);
-                items.Add(new Item { Mesh = i, Entry = e, By = e != null ? "detector" : "none", Sort = e != null ? e["standard"].Text : "\uffff", Centre = ToScene(meshBoxes[i].Centre) });
+                string by = e != null ? "detector" : "none";
+                if (e == null && s.UnnamedAs == "omit") continue;   // a box exists once it is detected; the rest stays unknown, in the trace
+                if (e == null && s.AbsorbOnFurniture && RestsOnMeta(meshBoxes[i])) continue;   // a blanket on the bed is the bed's
+                items.Add(new Item { Mesh = i, Entry = e, By = by, Sort = e != null ? e["standard"].Text : "\uffff", Centre = ToScene(meshBoxes[i].Centre) });
             }
             return items.OrderBy(x => x.Sort, StringComparer.Ordinal).ThenBy(x => Math.Round(x.Centre.X, 4)).ThenBy(x => Math.Round(x.Centre.Y, 4))
                         .ThenBy(x => Math.Round(x.Centre.Z, 4)).ThenBy(x => x.IsDepth ? 0 : x.Box >= 0 ? 1 : 2)
@@ -793,6 +863,8 @@ namespace SecondEyes.Perception.AutoScan
                 string id = "obj_" + (n + 1).ToString("D3", CultureInfo.InvariantCulture);
                 if (items[n].IsDepth) ids[items[n].Depth.Id] = id; else if (items[n].Box >= 0) boxIds[items[n].Box] = id; else meshIds[items[n].Mesh] = id;
             }
+            Dictionary<int, int> mergedLive = LiveIntoMesh();
+            foreach (var kv in mergedLive) if (meshIds.ContainsKey(kv.Value)) ids[kv.Key] = meshIds[kv.Value];   // its detections point at the mesh box
             var confirmed = items.Where(x => x.IsDepth).Select(x => x.Depth).ToList();
             string priorsId = priors["priors_id"].Text;
             bool usedSize = false, usedVolume = false, usedBox = false, usedCompletion = false, usedMesh = false;
@@ -801,7 +873,7 @@ namespace SecondEyes.Perception.AutoScan
             {
                 if (it.Mesh >= 0)
                 {
-                    objs.Add(MeshObject(it, meshIds[it.Mesh]));
+                    objs.Add(MeshObject(it, meshIds[it.Mesh], objects.Where(o => mergedLive.TryGetValue(o.Id, out int m) && m == it.Mesh).ToList()));
                     usedMesh = true;
                     continue;
                 }
@@ -883,7 +955,11 @@ namespace SecondEyes.Perception.AutoScan
                     else d.Add("fate", JNode.Str("tentative"));
                 }
                 else if (fateBox[i] >= 0) d.Add("fate", JNode.Str("object")).Add("object_id", JNode.Str(boxIds[fateBox[i]]));
-                else if (fateMesh[i] >= 0) d.Add("fate", JNode.Str("object")).Add("object_id", JNode.Str(meshIds[fateMesh[i]]));
+                else if (fateMesh[i] >= 0)
+                {
+                    string mid = MeshObjectId(fateMesh[i], meshIds, boxIds);
+                    if (mid != null) d.Add("fate", JNode.Str("object")).Add("object_id", JNode.Str(mid)); else d.Add("fate", JNode.Str("tentative"));
+                }
                 dets.Add(d);
             }
             var left = JNode.Obj();
@@ -895,7 +971,7 @@ namespace SecondEyes.Perception.AutoScan
                 .Add("objects", JNode.Arr(confirmed.Select(o => JNode.Obj().Add("object_id", JNode.Str(ids[o.Id])).Add("track", Localizer.Int(o.Id))
                     .Add("frames", Localizer.Int(o.Frames.Count)).Add("viewpoints", Localizer.Int(o.Viewpoints.Count)).Add("size_m", Localizer.Num(o.Size))).ToList()))
                 .Add("room", RoomTrace(boxIds))
-                .Add("mesh", MeshTrace(meshIds))
+                .Add("mesh", MeshTrace(meshIds, boxIds))
                 .Add("detections", JNode.Arr(dets));
             return new LocalizationOutput { Scene = scene, Trace = trace };
         }
@@ -912,14 +988,23 @@ namespace SecondEyes.Perception.AutoScan
         }
 
         /// <summary>v5: a cluster box of Meta's mesh as a scene object: named by the sightings inside it, else unknown.</summary>
-        private JNode MeshObject(Item it, string objectId)
+        private JNode MeshObject(Item it, string objectId, List<Obj> merged)
         {
             Box3 b = meshBoxes[it.Mesh];
-            BoxVotes v = meshVotes[it.Mesh];
+            BoxVotes v = new BoxVotes();   // the box's own sightings, and those of the live-depth objects that are it
+            foreach (var kv in meshVotes[it.Mesh].Votes) v.Votes[kv.Key] = kv.Value;
+            v.Frames.UnionWith(meshVotes[it.Mesh].Frames);
+            v.Viewpoints.AddRange(meshVotes[it.Mesh].Viewpoints);
+            v.BestScore = meshVotes[it.Mesh].BestScore; v.LastUs = meshVotes[it.Mesh].LastUs;
+            foreach (Obj o in merged)
+            {
+                v.Frames.UnionWith(o.Frames);
+                foreach (Vec3 p in o.Viewpoints) if (!v.Viewpoints.Any(q => (q - p).Norm < s.ViewpointM)) v.Viewpoints.Add(p);
+                v.BestScore = Math.Max(v.BestScore, o.BestScore); v.LastUs = Math.Max(v.LastUs, o.LastUs);
+            }
             bool seen = v.Frames.Count > 0;
-            JNode category = it.Entry != null
-                ? Localizer.Known(JNode.Obj().Add("standard", JNode.Str(it.Entry["standard"].Text)).Add("model", JNode.Str(it.Entry["model"].Text)), "inferred", ScanSourceId, new List<JNode>())
-                : Localizer.Unknown("not_estimated", RoomSourceId);
+            JNode category = it.Entry == null ? Localizer.Unknown("not_estimated", RoomSourceId)
+                : Localizer.Known(JNode.Obj().Add("standard", JNode.Str(it.Entry["standard"].Text)).Add("model", JNode.Str(it.Entry["model"].Text)), "inferred", ScanSourceId, new List<JNode>());
             int keyframes = Math.Max(1, v.Frames.Count), positions = Math.Max(1, v.Viewpoints.Count);
             return JNode.Obj()
                 .Add("object_id", JNode.Str(objectId))
@@ -941,7 +1026,7 @@ namespace SecondEyes.Perception.AutoScan
         }
 
         /// <summary>v5: Meta's mesh in the trace: what was taken off, what was dropped, and every cluster box with its votes.</summary>
-        private JNode MeshTrace(Dictionary<int, string> meshIds)
+        private JNode MeshTrace(Dictionary<int, string> meshIds, Dictionary<int, string> boxIds)
         {
             var n = JNode.Obj().Add("status", JNode.Str(room.MeshStatus)).Add("points", Localizer.Int(room.MeshPoints.Count))
                 .Add("used", new JNode { Kind = JKind.Bool, Bool = meshCut != null });
@@ -952,10 +1037,13 @@ namespace SecondEyes.Perception.AutoScan
                 var votes = JNode.Obj();
                 foreach (var kv in meshVotes[i].Votes) votes.Add(kv.Key, Localizer.Int(kv.Value));
                 JNode e = MeshName(i);
-                boxes.Add(JNode.Obj().Add("object_id", JNode.Str(meshIds[i])).Add("category", JNode.Str(e != null ? e["standard"].Text : "")).Add("votes", votes)
+                bool own = meshIds.ContainsKey(i);
+                boxes.Add(JNode.Obj().Add("object_id", JNode.Str(MeshObjectId(i, meshIds, boxIds) ?? "")).Add("in_scene", new JNode { Kind = JKind.Bool, Bool = own })
+                    .Add("category", JNode.Str(e != null ? e["standard"].Text : "")).Add("votes", votes)
                     .Add("points", Localizer.Int(meshPoints[i])).Add("center_m", Localizer.Vec(ToScene(meshBoxes[i].Centre)))
                     .Add("size_m", Localizer.Vec(new Vec3(meshBoxes[i].Size.X, meshBoxes[i].Size.Z, meshBoxes[i].Size.Y))).Add("yaw_deg", Localizer.Num(-meshBoxes[i].YawDeg)));
             }
+            if (meshCut.Fixtures > 0) n.Add("fixtures", Localizer.Int(meshCut.Fixtures));
             return n.Add("structure", Localizer.Int(meshCut.Structure)).Add("explained", Localizer.Int(meshCut.Explained))
                     .Add("dropped", Localizer.Int(meshCut.Dropped)).Add("boxes", JNode.Arr(boxes));
         }
