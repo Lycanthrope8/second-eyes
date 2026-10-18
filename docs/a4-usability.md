@@ -19,8 +19,8 @@ The automatic scan (`auto-scan.md`) runs by itself from the moment the app start
 1. Start the app. Meta's Space Setup opens: look around the room until it has the walls and has wrapped the furniture
    in boxes, then finish. The app resumes.
 2. Look around the room at a normal pace, including down at desks and tables. Walking around helps: furniture names
-   its box sooner, and small things are placed more surely. A label floats over each object as it is found: over a box
-   once it has a name, "?" while it has none.
+   its box sooner, and every object's box fits more closely as you see more of its sides. Each object appears as a
+   see-through block with bright edges (Meta's boxes blue, the scan's green, unnamed grey), its name over its top.
 3. Start a session. The scan's objects join it; the panel's Scan button reads Pause or Resume, and the right thumbstick
    hides the panel when it is in view and brings it in front otherwise.
 

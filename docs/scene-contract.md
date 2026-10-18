@@ -172,9 +172,13 @@ versions: they name a scene by ID, revision, profile and frame, not by its schem
   | Field | Known | Unknown |
   |---|---|---|
   | Category, centre, colours, detector confidence | `inferred`, from the scan | `not_estimated` |
-  | Size | `assumed`, from the size table | `no_permitted_prior` |
+  | Size | `assumed`, from the size table; or `inferred`, from the scan, as the object's 3D box | `no_permitted_prior` |
   | Capture time | `measured`, from the scan | `not_estimated` |
-  | Rotation, semantic front, geometry uncertainty | never | `not_estimated` |
+  | Rotation | `inferred`, from the scan, as its 3D box's turn (`yaw_only`) | `not_estimated` |
+  | Semantic front, geometry uncertainty | never | `not_estimated` |
+
+  The 3D box rows were added on 18 October 2026 for A4's automatic scan (`auto-scan.md`); every scene valid before
+  stays valid.
 
   A centre placed from one position rests on its size prior, so its evidence names that assumption; the resolver's
   conditional flag then fires by its existing rule. Any other combination is `E_PROFILE_PERCEIVED`.
