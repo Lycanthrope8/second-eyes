@@ -22,7 +22,8 @@ The automatic scan (`auto-scan.md`) runs by itself from the moment the app start
    its box sooner, and every object's box fits more closely as you see more of its sides. Each object appears as a
    see-through block with bright edges (Meta's boxes blue, the scan's green, unnamed grey), its name over its top.
 3. Start a session. The scan's objects join it; the panel's Scan button reads Pause or Resume, and the right thumbstick
-   hides the panel when it is in view and brings it in front otherwise.
+   hides the panel when it is in view and brings it in front otherwise. Typed commands always go to your scanned room;
+   the Scene button and presets are for the dataset scenes.
 
 ## The commands
 

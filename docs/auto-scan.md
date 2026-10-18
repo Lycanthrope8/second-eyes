@@ -16,9 +16,10 @@ scene (`notes/decisions.md`). The headset scans its side of the room; the drone 
 Code: the core is `quest-app/Assets/SecondEyes/Perception/AutoScan/AutoScan.cs`, `Boxes.cs` and `RoomModel.cs` (free of
 Unity: the same code runs on the headset and in the PC's replay); the Unity glue is `Perception/AutoScan/Glue/AutoScanner.cs`;
 the blocks' shader is `Assets/SecondEyes/Resources/SecondEyesSeeThrough.shader`. Settings:
-`schemas/auto-scan-config.v3.json`, defaults `perception/autoscan/autoscan.default.v3.json`, in the perception folder
+`schemas/auto-scan-config.v4.json`, defaults `perception/autoscan/autoscan.default.v4.json`, in the perception folder
 (`perception-folder.md`). The bedroom's map is `perception/bedroom/category-map.bedroom.v4.json`. Older settings files
-keep their behaviour, so older scans replay exactly: v1 has no Meta room, v2 has Meta's room but no fitted boxes.
+keep their behaviour, so older scans replay exactly: v1 has no Meta room, v2 has Meta's room but no fitted boxes, v3 has
+the boxes but neither support turns nor joining groups.
 
 ## What happens
 
@@ -61,12 +62,21 @@ keep their behaviour, so older scans replay exactly: v1 has no Meta room, v2 has
      viewpoints that saw the object, since the hidden side is the far one, as SpatialLM's boxes are whole; a side longer
      than `box_max_over_prior` priors (a small thing's samples landing on the desk around it) shrinks to the prior,
      centred on the object's points;
-   - the object's category is its leading vote. Objects whose boxes contain each other's centres merge.
+   - **resting on a support** (v4, `align_to_support`): a small thing whose box rests on another (its bottom within
+     `rest_gap_m` of that box's top, its centre over its footprint), one of Meta's or a piece of furniture, takes that
+     box's turn and is fitted again at it: a keyboard lines up with its desk. A thin thing's outer samples land on the
+     desk around it at its own height, so its fitted turn alone can be tens of degrees off;
+   - the object's category is its leading vote. Objects whose boxes contain each other's centres merge, when they may be
+     one object: the same category, both furniture, or both in one of `join_groups` (v4: a bottle and a cup, the tumbler
+     the detector calls both; a keyboard and a laptop, the laptop's own keyboard, which then joins the laptop).
 9. An object seen in at least `min_frames` frames is in the scene. At most every `publish_interval_s`, a changed scene is
    published: `scene.json`, `trace.json` and `facts.json` are rewritten, the panel binds it to the session, and every
    object is drawn: a see-through block (Meta's boxes blue, the scan's green, unnamed grey) with bright edges, its name
    over its top.
-10. Sending a typed command binds the newest snapshot first, then holds the scan until the outcome is shown. The panel's
+10. Sending a typed command binds the newest snapshot first and, once a room is scanned, goes to the room: if a dataset
+    scene is showing, the panel switches back to the room and says so (the Scene button and presets are for the dataset
+    scenes). The scan holds until the outcome is shown. The room's list gives each object's name ("?" for an unnamed
+    box) and its box. The panel's
     Scan button reads Pause or Resume; the right thumbstick hides the panel when it is in view and brings it in front
     otherwise.
 
@@ -79,7 +89,7 @@ allows this since 18 October 2026 (`scene-contract.md`). A box of Meta's carries
 named it (`meta:BED`, the detector's `chair`, or `meta:OTHER` unnamed); its views count the frames that voted for it, and
 one no frame saw counts Space Setup's capture once, because a scene's views can't be zero.
 
-## The settings (v3)
+## The settings (v4)
 
 | Setting | Default | What it does |
 |---|---|---|
@@ -95,6 +105,8 @@ one no frame saw counts Space Setup's capture once, because a scene's views can'
 | `min_reach_m`, `reach_factor`, `viewpoint_m` | 0.3, 0.5, 0.5 | joining by distance when no box contains a sighting; one viewpoint |
 | `min_frames`, `max_points_per_object`, `publish_interval_s` | 3, 64, 3 | frames before an object is in the scene; the older median's points; publishing |
 | `save_images_max` | 120 | frames saved as images each session; the previous session's are deleted when a scan starts |
+| `align_to_support`, `rest_gap_m` (v4) | bottle, cup, keyboard, laptop, mouse; 0.08 | small things that take their support's turn; how near counts as resting |
+| `join_groups` (v4) | bottle and cup; keyboard and laptop | categories that may be one object |
 
 The defaults are first values, set by reasoning, not tuned; a change is a new `config_id`.
 
@@ -116,20 +128,22 @@ be the same: the same objects from the same sources, categories and placements, 
 
 ## Checks
 
-`tools/csharp-tests/AutoScan` (68 checks) covers the settings, sampling, every leave-out reason, joining and merging, the
+`tools/csharp-tests/AutoScan` (74 checks) covers the settings, sampling, every leave-out reason, joining and merging, the
 replay byte for byte and the contract; Meta's room (a point in a turned box, the room's outline, rotations into the
 scene's axes, Meta's name winning, OTHER boxes named or unnamed, a laptop on a desk, a reflection outside the room); and
 the 3D boxes: the grid, a turned box fitted within a degree with stray rays trimmed, an L of points fitted as the object and not
 along its diagonal, completion away from the viewer, a
 stretched small thing shrunk, one of Meta's boxes standing on its z axis, a side view joining a chair's box (fitted at the chair's own turn), the monitor
 going into Meta's screen box, a pile on the mattress counting as the bed, boxes in a scene that passes the contract, and
-the replay. `tools/csharp-tests/ScanGlue` compiles the scanner against stubs of the Unity, app and Meta SDK 207 members it
+the replay; and v4: a keyboard whose outer samples hit the desk taking the desk's turn, a tumbler called a cup and a
+bottle staying one cup, a laptop absorbing its own keyboard while the real keyboard stays, and the replay. `tools/csharp-tests/ScanGlue` compiles the scanner against stubs of the Unity, app and Meta SDK 207 members it
 calls, every Meta signature copied from the SDK's source.
 
 ## Known limits
 
 - A box is fitted to what was seen: until an object is seen from more sides, its hidden side comes from its size prior,
-  and a category without one (the bed, the tables, a cup) keeps the visible extent.
+  and a category without one (the bed, the tables, a cup) keeps the visible extent: the cup's box takes in some of the desk
+  around it.
 - Meta's depth is coarse at a mouse's scale, so small things' boxes are approximate.
 - A chair pushed fully under a desk's box is absorbed into the desk. Meta's name wins even where it is wrong, and the
   detector can still mislabel; the laptop's own keyboard counts as a keyboard.
