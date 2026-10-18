@@ -55,6 +55,12 @@ namespace SecondEyes.Perception.AutoScan
         private AutoScan scan;
         private EnvironmentRaycastManager raycaster;
         private MRUK mruk;
+        private static bool spaceSetupDone;   // Space Setup runs once per app launch: a restarted scan reloads the room
+        private Shader seeThrough;
+        private Transform boxRoot;
+        private readonly List<Transform> boxViews = new List<Transform>();
+        private readonly Dictionary<string, Material> boxMaterials = new Dictionary<string, Material>();
+        private const float EdgeM = 0.008f, FillAlpha = 0.18f, EdgeAlpha = 0.9f;
         private RoomModel room = RoomModel.None("not loaded");
         private List<JNode> classes;
         private HashSet<string> mapped;
@@ -185,9 +191,19 @@ namespace SecondEyes.Perception.AutoScan
             }
             runner.SetOn(true, "a4_autoscan");
             until = Time.realtimeSinceStartupAsDouble + ReadyTimeoutS;
-            while (!runner.ReadyForScan)
+            bool retried = false;
+            while (!runner.ReadyForScan)   // after Space Setup the camera can take longer to come back: one restart, then 60 s in all
             {
-                if (Time.realtimeSinceStartupAsDouble > until) { Fail("the camera or detector didn't start within 30 s"); yield break; }
+                if (Time.realtimeSinceStartupAsDouble > until)
+                {
+                    if (retried) { Fail("the camera or detector didn't start within 60 s, one restart included"); yield break; }
+                    retried = true;
+                    EventLog.Write("autoscan.camera_retry", "{\"waited_s\":30}");
+                    runner.SetOn(false, "a4_autoscan");
+                    yield return null;
+                    runner.SetOn(true, "a4_autoscan");
+                    until = Time.realtimeSinceStartupAsDouble + ReadyTimeoutS;
+                }
                 yield return null;
             }
             JNode manifest = JParse.Parse(runner.ManifestText);
@@ -239,8 +255,9 @@ namespace SecondEyes.Perception.AutoScan
         {
             room = RoomModel.None("space_setup is never");
             if (settings.SpaceSetup == "never") yield break;
-            if (settings.SpaceSetup == "every_start")
+            if (settings.SpaceSetup == "every_start" && !spaceSetupDone)
             {
+                spaceSetupDone = true;
                 StatusLine = "Scan: Meta's Space Setup is open: look around until it has the walls and furniture, then finish";
                 OVRTask<bool> setup = OVRScene.RequestSpaceSetup();
                 while (!setup.IsCompleted) yield return null;
@@ -391,7 +408,7 @@ namespace SecondEyes.Perception.AutoScan
                 string label = d.ClassId >= 0 && d.ClassId < classes.Count ? classes[d.ClassId].Text : "class_" + d.ClassId.ToString(CultureInfo.InvariantCulture);
                 var fd = new FrameDetection { ClassId = d.ClassId, Label = label, Score = d.Score, X1 = d.X1, Y1 = d.Y1, X2 = d.X2, Y2 = d.Y2 };
                 if (trackedAtStart && mapped.Contains(label) && d.Score >= settings.MinScore)   // only detections the scan can keep are raycast
-                    foreach (double[] px in AutoScan.SamplePixels(d.X1, d.Y1, d.X2, d.Y2, settings.SampleSpread))
+                    foreach (double[] px in AutoScan.SamplePixels(d.X1, d.Y1, d.X2, d.Y2, settings))
                     {
                         Vec3 local = AutoScan.CameraDirection(px[0], px[1], fx, fy, cx, cy);
                         Vector3 world = rotation * new Vector3((float)local.X, (float)local.Y, (float)local.Z);
@@ -425,6 +442,7 @@ namespace SecondEyes.Perception.AutoScan
             LastCaptureId = scanId + ".r" + revision.ToString(CultureInfo.InvariantCulture);
             latest = r;
             ShowLabels();
+            if (settings.Boxes) ShowBoxes();
             EventLog.Write("autoscan.publish", "{\"capture_id\":" + Json(scanId) + ",\"snapshot\":" + Json(LastCaptureId)
                            + ",\"objects\":" + o.Scene["objects"].Items.Count.ToString(CultureInfo.InvariantCulture)
                            + ",\"frames\":" + scan.Frames.ToString(CultureInfo.InvariantCulture) + ",\"ok\":" + (r.Ok ? "true" : "false") + "}");
@@ -439,7 +457,9 @@ namespace SecondEyes.Perception.AutoScan
                 .Add("frames", Localizer.Int(scan == null ? 0 : scan.Frames)).Add("sightings", Localizer.Int(scan == null ? 0 : scan.Sightings))
                 .Add("objects", Localizer.Int(scan == null ? 0 : scan.Confirmed)).Add("tentative", Localizer.Int(scan == null ? 0 : scan.Tentative))
                 .Add("scene_revision", Localizer.Int(revision))
-                .Add("room", JNode.Obj().Add("status", JNode.Str(room.Status)).Add("why", JNode.Str(room.Why)).Add("boxes", Localizer.Int(room.Boxes.Count)));
+                .Add("room", JNode.Obj().Add("status", JNode.Str(room.Status)).Add("why", JNode.Str(room.Why)).Add("boxes", Localizer.Int(room.Boxes.Count)))
+                .Add("boxes_drawn", new JNode { Kind = JKind.Bool, Bool = settings != null && settings.Boxes })
+                .Add("see_through_shader", new JNode { Kind = JKind.Bool, Bool = Resources.Load<Shader>("SecondEyesSeeThrough") != null });
         }
 
         private void ShowLabels()
@@ -455,6 +475,74 @@ namespace SecondEyes.Perception.AutoScan
                 Vec3 p = objs[i].Value;
                 labels[i].transform.position = new Vector3((float)p.X, (float)p.Y + LabelLiftM, (float)p.Z);
             }
+        }
+
+        /// <summary>v3: every object of the scene so far as a see-through block with bright edges (docs/auto-scan.md),
+        /// coloured by who named it: Meta blue, the scan green, unnamed grey.</summary>
+        private void ShowBoxes()
+        {
+            if (seeThrough == null) seeThrough = Resources.Load<Shader>("SecondEyesSeeThrough");
+            if (seeThrough == null) return;   // facts.json says so (see_through_shader)
+            if (boxRoot == null)
+            {
+                var root = new GameObject("A4 boxes");
+                DontDestroyOnLoad(root);
+                boxRoot = root.transform;
+            }
+            List<AutoScan.ShownBox> boxes = scan.ConfirmedBoxes();
+            while (boxViews.Count < Math.Min(boxes.Count, MaxLabels)) boxViews.Add(NewBoxView());
+            for (int i = 0; i < boxViews.Count; i++)
+            {
+                bool on = i < boxes.Count;
+                boxViews[i].gameObject.SetActive(on);
+                if (on) PlaceBox(boxViews[i], boxes[i]);
+            }
+        }
+
+        private Transform NewBoxView()
+        {
+            var view = new GameObject("A4 box").transform;
+            view.SetParent(boxRoot, false);
+            for (int k = 0; k < 13; k++)   // the fill, then the 12 edges
+            {
+                GameObject part = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                Destroy(part.GetComponent<Collider>());   // nothing to hit with the controller's ray
+                part.transform.SetParent(view, false);
+            }
+            return view;
+        }
+
+        private void PlaceBox(Transform view, AutoScan.ShownBox b)
+        {
+            view.position = new Vector3((float)b.Box.Centre.X, (float)b.Box.Centre.Y, (float)b.Box.Centre.Z);
+            view.rotation = Quaternion.Euler(0f, (float)b.Box.YawDeg, 0f);
+            float sx = (float)b.Box.Size.X, sy = (float)b.Box.Size.Y, sz = (float)b.Box.Size.Z;
+            Color c = b.Kind == "meta" ? new Color(0.25f, 0.7f, 1f, 1f) : b.Kind == "unnamed" ? new Color(0.75f, 0.75f, 0.75f, 1f) : new Color(0.3f, 0.9f, 0.5f, 1f);
+            Transform fill = view.GetChild(0);
+            fill.localPosition = Vector3.zero;
+            fill.localScale = new Vector3(sx, sy, sz);
+            fill.GetComponent<MeshRenderer>().sharedMaterial = BoxMaterial(b.Kind + "/fill", new Color(c.r, c.g, c.b, FillAlpha));
+            Material edge = BoxMaterial(b.Kind + "/edge", new Color(c.r, c.g, c.b, EdgeAlpha));
+            int n = 1;
+            foreach (int ax in new[] { 0, 1, 2 })   // 4 edges along each axis, at the corners of the other two
+                foreach (int s1 in new[] { -1, 1 })
+                    foreach (int s2 in new[] { -1, 1 })
+                    {
+                        Transform e = view.GetChild(n++);
+                        e.localPosition = ax == 0 ? new Vector3(0, s1 * sy / 2, s2 * sz / 2) : ax == 1 ? new Vector3(s1 * sx / 2, 0, s2 * sz / 2) : new Vector3(s1 * sx / 2, s2 * sy / 2, 0);
+                        e.localScale = ax == 0 ? new Vector3(sx, EdgeM, EdgeM) : ax == 1 ? new Vector3(EdgeM, sy, EdgeM) : new Vector3(EdgeM, EdgeM, sz);
+                        e.GetComponent<MeshRenderer>().sharedMaterial = edge;
+                    }
+        }
+
+        private Material BoxMaterial(string key, Color colour)
+        {
+            Material m;
+            if (boxMaterials.TryGetValue(key, out m)) return m;
+            m = new Material(seeThrough);
+            m.SetColor("_Color", colour);
+            boxMaterials[key] = m;
+            return m;
         }
 
         private TextMesh NewLabel()

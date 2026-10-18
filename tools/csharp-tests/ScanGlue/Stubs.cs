@@ -11,6 +11,7 @@ namespace UnityEngine
     {
         public static T FindFirstObjectByType<T>() where T : Object { return null; }
         public static void DontDestroyOnLoad(Object target) { }
+        public static void Destroy(Object obj) { }
     }
     public class Component : Object
     {
@@ -29,6 +30,9 @@ namespace UnityEngine
         public Transform parent { get { return null; } }
         public Vector3 localScale { get; set; }
         public Vector3 TransformPoint(Vector3 position) { return position; }
+        public Vector3 localPosition { get; set; }
+        public void SetParent(Transform parent, bool worldPositionStays) { }
+        public Transform GetChild(int index) { return null; }
     }
     public sealed class GameObject : Object
     {
@@ -38,6 +42,7 @@ namespace UnityEngine
         public Transform transform { get { return null; } }
         public bool activeSelf { get { return false; } }
         public void SetActive(bool value) { }
+        public static GameObject CreatePrimitive(PrimitiveType type) { return null; }
     }
     public sealed class Camera : Behaviour { public static Camera main { get { return null; } } }
     public struct Vector3
@@ -45,6 +50,7 @@ namespace UnityEngine
         public float x, y, z;
         public Vector3(float x, float y, float z) { this.x = x; this.y = y; this.z = z; }
         public static Vector3 one { get { return new Vector3(1, 1, 1); } }
+        public static Vector3 zero { get { return default(Vector3); } }
         public static Vector3 operator -(Vector3 a, Vector3 b) { return new Vector3(a.x - b.x, a.y - b.y, a.z - b.z); }
         public static Vector3 operator *(Vector3 a, float d) { return new Vector3(a.x * d, a.y * d, a.z * d); }
     }
@@ -54,13 +60,26 @@ namespace UnityEngine
         public Quaternion(float x, float y, float z, float w) { this.x = x; this.y = y; this.z = z; this.w = w; }
         public static Vector3 operator *(Quaternion rotation, Vector3 point) { return point; }
         public static Quaternion LookRotation(Vector3 forward) { return default(Quaternion); }
+        public static Quaternion Euler(float x, float y, float z) { return default(Quaternion); }
     }
     public struct Ray { public Ray(Vector3 origin, Vector3 direction) { } }
     public struct Bounds { public Vector3 size { get { return default(Vector3); } } }
     public struct Vector2 { public float x, y; }
-    public struct Color { public static Color white { get { return default(Color); } } }
+    public struct Color
+    {
+        public float r, g, b, a;
+        public Color(float r, float g, float b, float a) { this.r = r; this.g = g; this.b = b; this.a = a; }
+        public static Color white { get { return default(Color); } }
+    }
+    public enum PrimitiveType { Sphere = 0, Capsule = 1, Cylinder = 2, Cube = 3, Plane = 4, Quad = 5 }
+    public class Collider : Component { }
+    public sealed class Shader : Object { }
     public enum TextAnchor { UpperLeft, UpperCenter, UpperRight, MiddleLeft, MiddleCenter, MiddleRight, LowerLeft, LowerCenter, LowerRight }
-    public class Material : Object { }
+    public class Material : Object
+    {
+        public Material(Shader shader) { }
+        public void SetColor(string name, Color value) { }
+    }
     public class Font : Object { public Material material { get { return null; } } }
     public class Renderer : Component { public Bounds bounds { get { return default(Bounds); } } public Material sharedMaterial { get; set; } }
     public class MeshRenderer : Renderer { }
@@ -73,7 +92,11 @@ namespace UnityEngine
         public TextAnchor anchor { get; set; }
         public Color color { get; set; }
     }
-    public static class Resources { public static T GetBuiltinResource<T>(string path) where T : Object { return null; } }
+    public static class Resources
+    {
+        public static T GetBuiltinResource<T>(string path) where T : Object { return null; }
+        public static T Load<T>(string path) where T : Object { return null; }
+    }
     public class Texture : Object { public int width { get { return 0; } } public int height { get { return 0; } } }
     public static class Time { public static double realtimeSinceStartupAsDouble { get { return 0; } } }
     public static class Application { public static string persistentDataPath { get { return ""; } } public static string version { get { return ""; } } }
