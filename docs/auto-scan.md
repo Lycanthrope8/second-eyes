@@ -16,12 +16,12 @@ scene (`notes/decisions.md`). The headset scans its side of the room; the drone 
 Code: the core is `quest-app/Assets/SecondEyes/Perception/AutoScan/AutoScan.cs`, `Boxes.cs` and `RoomModel.cs` (free of
 Unity: the same code runs on the headset and in the PC's replay); the Unity glue is `Perception/AutoScan/Glue/AutoScanner.cs`;
 the blocks' shader is `Assets/SecondEyes/Resources/SecondEyesSeeThrough.shader`. Settings:
-`schemas/auto-scan-config.v7.json`, defaults `perception/autoscan/autoscan.default.v7.json`, in the perception folder
+`schemas/auto-scan-config.v8.json`, defaults `perception/autoscan/autoscan.default.v8.json`, in the perception folder
 (`perception-folder.md`). The bedroom's map is `perception/bedroom/category-map.bedroom.v5.json`. Older settings files
 keep their behaviour, so older scans replay exactly: v1 has no Meta room, v2 has Meta's room but no fitted boxes, v3 has
 the boxes but neither support turns nor joining groups, v4 has those but no boxes from Meta's mesh, v5 has mesh boxes
 linked within 6 cm, unnamed ones kept as objects of unknown category, v6 has neither full provenance nor same-frame
-separation.
+separation, v7 has no world lock and sorts a prior's width and depth to the box's measured sides.
 
 The scan uses **Meta's platform perception services** (Space Setup, the room's boxes and mesh, the depth API): this app
 implements what it does with them, the detector's naming, the boxes it fits, the scene and the commands, not the services
@@ -140,7 +140,26 @@ diagnose a failure upstream of them (the camera, the detector). Its comparison c
 byte for byte once canonical; the scans of stages 4 to 8 pass it. **The 15 cm link** is a development-set adjustment
 made on the bedroom's stage 8 mesh; the bedroom trials that shaped the settings can't also serve as their evaluation.
 
-## The settings (v7)
+## What stage 10 changed (v8)
+
+- **World lock.** MRUK's world lock (`world_lock`) holds Unity's world on the room through a recenter: the boxes stay on
+  the furniture and the scan goes on with what it has found. Without it (v7), a recenter turned everything virtual with
+  the headset's new origin. The scene's origin says which world it is in.
+- **The room is stale only when it really moves.** The headset raises its tracking-origin event far more often than
+  on a recenter (stage 10: 78 times before Space Setup ended, then every two seconds or so), so the event only prompts a
+  check: the room is stale when its floor anchor has moved more than `room_shift_m` or turned more than
+  `room_shift_deg` in Unity's world since the room loaded. Only then does the epoch change, are commands refused and
+  does a fresh scan start. A frame that is lost times out even while the room is stale (in stage 10 one never came back,
+  and the fresh scan waited for it for good).
+- **One world for every pose.** A frame whose camera pose lies more than 0.5 m from the head's position is dropped and
+  counted (`facts.json`, `tracking`), so a pose in another space can't enter the scan silently.
+- **A small thing's prior in its desk's frame** (`prior_in_support_frame`). A small thing that takes its desk's turn reads
+  its size-table width along the desk's longer side and its depth across it, as the table states them; before, the
+  prior's larger side went to whichever side the few samples measured longer, so a mouse could come out a quarter-turn
+  off and the table's order made no difference. Size table v2 (`size-priors.bedroom.v2`) swaps the mouse's width and
+  depth, which the project lead measured the wrong way round in v1.
+
+## The settings (v8)
 
 | Setting | Default | What it does |
 |---|---|---|
@@ -167,6 +186,8 @@ made on the bedroom's stage 8 mesh; the bedroom trials that shaped the settings 
 | `obstacle_max_bottom_m`, `slab_max_m`, `wall_band_m` (v6) | 1.8, 0.1, 0.4 | fixtures: a cluster starting this high; a slab this thin this near a wall |
 | `absorb_on_furniture`, `merge_live_into_mesh` (v6) | true, true | an unnamed cluster on Meta's furniture is part of it; a live-depth object in its mesh box is that box |
 | `full_provenance`, `separate_same_frame` (v7) | true, true | every assumption on the field it shaped, measured sizes in the trace, the inventory note; two of one category in one frame kept apart |
+| `world_lock`, `room_shift_m`, `room_shift_deg` (v8) | true, 0.05, 2 | MRUK holds the world on the room; stale only when the floor anchor moves this far or turns this much |
+| `prior_in_support_frame` (v8) | true | a small thing on a desk reads its prior's width along the desk's longer side |
 
 The defaults are first values, set by reasoning, not tuned; a change is a new `config_id`.
 
@@ -188,7 +209,7 @@ be the same: the same objects from the same sources, categories and placements, 
 
 ## Checks
 
-`tools/csharp-tests/AutoScan` (99 checks) covers the settings, sampling, every leave-out reason, joining and merging, the
+`tools/csharp-tests/AutoScan` (106 checks) covers the settings, sampling, every leave-out reason, joining and merging, the
 replay byte for byte and the contract; Meta's room (a point in a turned box, the room's outline, rotations into the
 scene's axes, Meta's name winning, OTHER boxes named or unnamed, a laptop on a desk, a reflection outside the room); and
 the 3D boxes: the grid, a turned box fitted within a degree with stray rays trimmed, an L of points fitted as the object and not
@@ -203,7 +224,9 @@ obstacle, a mouse flattened into the desk keeping its live-depth box, the contra
 and v6: a chair as sparse as the bedroom's mesh one box, the sightings beside it merged in, a cat and a blanket nobody
 named and a lamp and a door no boxes, the contract and the replay; and v7: two touching bottles two objects (one in
 v6), a laptop's own keys still joining it, a keyboard seen from above stating its prior on the centre and its desk's turn,
-the trace's measured and written sizes, the inventory note, the contract and the replay. `tools/csharp-tests/ScanGlue` compiles the scanner against stubs of the Unity, app and Meta SDK 207 members it
+the trace's measured and written sizes, the inventory note, the contract and the replay; and v8: size table v2's mouse,
+its prior read in its desk's frame (the 0.15 m side along the desk, where v7 put it across), the scene's origin under
+world lock, the contract and the replay. `tools/csharp-tests/ScanGlue` compiles the scanner against stubs of the Unity, app and Meta SDK 207 members it
 calls, every Meta signature copied from the SDK's source.
 
 ## Known limits
