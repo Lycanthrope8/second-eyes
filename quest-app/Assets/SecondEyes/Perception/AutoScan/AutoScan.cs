@@ -52,6 +52,10 @@ namespace SecondEyes.Perception.AutoScan
         public string UnnamedAs = "unknown";
         public double ObstacleMaxBottomM = double.PositiveInfinity, SlabMaxM = 0, WallBandM = 0;
         public bool AbsorbOnFurniture, MergeLiveIntoMesh;
+        /// <summary>v7 (Astra's review): full_provenance states every assumption on the field it shaped (completion on the
+        /// centre too, support alignment on the turn), records observed and final sizes in the trace, and notes in the scene
+        /// that it lists only recognized objects; separate_same_frame keeps two detections of one category in one frame apart.</summary>
+        public bool FullProvenance, SeparateSameFrame;
 
         public static AutoScanSettings From(JNode n)
         {
@@ -108,6 +112,11 @@ namespace SecondEyes.Perception.AutoScan
                     s.WallBandM = n["wall_band_m"].Num;
                     s.AbsorbOnFurniture = n["absorb_on_furniture"].Bool;
                     s.MergeLiveIntoMesh = n["merge_live_into_mesh"].Bool;
+                }
+                if (n.Has("full_provenance"))
+                {
+                    s.FullProvenance = n["full_provenance"].Bool;
+                    s.SeparateSameFrame = n["separate_same_frame"].Bool;
                 }
                 s.FloorCategories = new HashSet<string>(n["floor_categories"].Items.Select(x => x.Text), StringComparer.Ordinal);
             }
@@ -215,7 +224,8 @@ namespace SecondEyes.Perception.AutoScan
     public sealed class AutoScan
     {
         public const string ScanSourceId = "scan", DepthAssumption = "depth_surface", RoomSourceId = "meta_room", VolumeAssumption = "meta_volume",
-                            BoxAssumption = "box_centre", CompletionAssumption = "box_completion", MeshAssumption = "mesh_cluster";
+                            BoxAssumption = "box_centre", CompletionAssumption = "box_completion", MeshAssumption = "mesh_cluster",
+                            SupportAssumption = "support_alignment", InventoryAssumption = "recognized_inventory";
 
         /// <summary>A box to draw: its label ("?" when unnamed), who named it ("scan", "meta", "detector" or
         /// "unnamed"), and the box in quest_tracking.</summary>
@@ -247,6 +257,8 @@ namespace SecondEyes.Perception.AutoScan
             public readonly List<Vec3> Surface = new List<Vec3>();
             public double Voxel;
             public Box3 Box;
+            public Box3 Support, Observed;   // v7: the support whose turn it took, and its box before any prior
+            public readonly HashSet<string> Seen = new HashSet<string>(StringComparer.Ordinal);   // "frame:category" of each sighting
 
             public void AddBox(string standard, List<Vec3> patch, Vec3 p, double size, int frame, Vec3 camera, double score, long timeUs, AutoScanSettings s)
             {
@@ -279,6 +291,7 @@ namespace SecondEyes.Perception.AutoScan
                 Points.AddRange(b.Points);
                 Sizes.AddRange(b.Sizes);
                 Frames.UnionWith(b.Frames);
+                Seen.UnionWith(b.Seen);
                 foreach (Vec3 v in b.Viewpoints) AddViewpoint(v, s);
                 BestScore = Math.Max(BestScore, b.BestScore);
                 LastUs = Math.Max(LastUs, b.LastUs);
@@ -547,7 +560,7 @@ namespace SecondEyes.Perception.AutoScan
             double bestD = double.MaxValue;
             foreach (Obj o in objects)
             {
-                if (o.MergedInto >= 0 || o.Standard != standard) continue;
+                if (o.MergedInto >= 0 || o.Standard != standard || SeenAs(o, frame, standard)) continue;
                 double dist = (o.Centre - p).Norm;
                 if (dist <= Reach(o.Size, size) && dist < bestD) { best = o; bestD = dist; }
             }
@@ -557,6 +570,7 @@ namespace SecondEyes.Perception.AutoScan
                 objects.Add(best);
             }
             best.Add(p, size, frame, camera, score, timeUs, s);
+            best.Seen.Add(frame.ToString(CultureInfo.InvariantCulture) + ":" + standard);
             return best.Id;
         }
 
@@ -570,7 +584,7 @@ namespace SecondEyes.Perception.AutoScan
             Obj best = null;
             foreach (Obj o in objects)
             {
-                if (o.MergedInto >= 0 || o.Box == null || !Joinable(o.Standard, standard)) continue;
+                if (o.MergedInto >= 0 || o.Box == null || !Joinable(o.Standard, standard) || SeenAs(o, frame, standard)) continue;
                 if (o.Box.Outside(pick, furniture ? s.TopAllowanceM : 0) > s.BoxMarginM) continue;
                 if (best == null || o.Box.Volume < best.Box.Volume) best = o;
             }
@@ -580,7 +594,7 @@ namespace SecondEyes.Perception.AutoScan
                 double bestD = double.MaxValue;
                 foreach (Obj o in objects)
                 {
-                    if (o.MergedInto >= 0 || o.Standard != standard) continue;
+                    if (o.MergedInto >= 0 || o.Standard != standard || SeenAs(o, frame, standard)) continue;
                     double dist = (o.Centre - p).Norm;
                     if (dist <= Reach(o.Size, size) && dist < bestD) { best = o; bestD = dist; }
                 }
@@ -591,6 +605,7 @@ namespace SecondEyes.Perception.AutoScan
                 objects.Add(best);
             }
             best.AddBox(standard, patch.Count > 0 ? patch : new List<Vec3> { pick }, ToScene(pick), size, frame, camera, score, timeUs, s);
+            best.Seen.Add(frame.ToString(CultureInfo.InvariantCulture) + ":" + standard);
             Refit(best);
             return best.Id;
         }
@@ -611,6 +626,8 @@ namespace SecondEyes.Perception.AutoScan
             Box3 b = Boxes.Fit(o.Surface, s.BoxTrim, onFloor, floorY);
             Box3 support = s.AlignToSupport.Contains(o.Standard) ? SupportOf(o, b) : null;
             if (support != null) b = Boxes.FitAt(o.Surface, s.BoxTrim, onFloor, floorY, support.YawDeg);   // a keyboard lines up with its desk
+            o.Support = support;
+            o.Observed = b;
             List<JNode> pri;
             if (s.BoxCompletion && sizes.TryGetValue(o.Standard, out pri))
             {
@@ -737,6 +754,13 @@ namespace SecondEyes.Perception.AutoScan
             return host >= 0 && boxIds.TryGetValue(host, out id) ? id : null;
         }
 
+        /// <summary>v7: whether an object was already sighted as this category in this frame (a second such detection is a
+        /// second object); off before v7.</summary>
+        private bool SeenAs(Obj o, int frame, string standard)
+        {
+            return s.SeparateSameFrame && o.Seen.Contains(frame.ToString(CultureInfo.InvariantCulture) + ":" + standard);
+        }
+
         /// <summary>v5: a cluster box's name: the leading vote with at least min_box_votes sightings, else none.</summary>
         private JNode MeshName(int i)
         {
@@ -762,6 +786,7 @@ namespace SecondEyes.Perception.AutoScan
                     for (int b = a + 1; b < live.Count && !again; b++)
                     {
                         Obj A = live[a], B = live[b];
+                        if (s.SeparateSameFrame && A.Seen.Overlaps(B.Seen)) continue;   // seen apart as one category in one frame: two objects
                         if (s.Boxes ? !Overlap(A, B) : A.Standard != B.Standard || (A.Centre - B.Centre).Norm > Reach(A.Size, B.Size)) continue;
                         if (s.Boxes) { A.AbsorbBox(B, s); Refit(A); } else A.Absorb(B, s);
                         B.MergedInto = A.Id;
@@ -843,10 +868,13 @@ namespace SecondEyes.Perception.AutoScan
         }
 
         /// <summary>A box's turn about the scene's +z (yaw only), from its turn about quest_tracking's +y.</summary>
-        private static JNode BoxTurn(Box3 b, string source)
+        private static JNode BoxTurn(Box3 b, string source) { return BoxTurn(b, source, new List<JNode>()); }
+
+        /// <summary>v7: the turn with the assumptions that shaped it (support_alignment when it is its support's).</summary>
+        private static JNode BoxTurn(Box3 b, string source, List<JNode> assumptions)
         {
             double[] q = RoomModel.RotationToScene(b.Rotation());
-            JNode n = Localizer.Known(JNode.Arr(new List<JNode> { Quat(0), Quat(0), Quat(q[2]), Quat(q[3]) }), "inferred", source, new List<JNode>());
+            JNode n = Localizer.Known(JNode.Arr(new List<JNode> { Quat(0), Quat(0), Quat(q[2]), Quat(q[3]) }), "inferred", source, assumptions);
             n.Add("support", JNode.Str("yaw_only"));
             return n;
         }
@@ -868,7 +896,7 @@ namespace SecondEyes.Perception.AutoScan
             foreach (var kv in mergedLive) if (meshIds.ContainsKey(kv.Value)) ids[kv.Key] = meshIds[kv.Value];   // its detections point at the mesh box
             var confirmed = items.Where(x => x.IsDepth).Select(x => x.Depth).ToList();
             string priorsId = priors["priors_id"].Text;
-            bool usedSize = false, usedVolume = false, usedBox = false, usedCompletion = false, usedMesh = false;
+            bool usedSize = false, usedVolume = false, usedBox = false, usedCompletion = false, usedMesh = false, usedSupport = false;
             var objs = new List<JNode>();
             foreach (Item it in items)
             {
@@ -893,9 +921,14 @@ namespace SecondEyes.Perception.AutoScan
                 JNode size = s.Boxes ? BoxSize(o.Box, ScanSourceId, o.Box.Completed)
                     : oneSize ? Localizer.Known(JNode.Arr(sz[0]["size_m"].Items.Select(x => Localizer.Num(x.Num)).ToList()), "assumed", priorsId, new List<JNode> { JNode.Str(Localizer.SizeAssumption) })
                     : Localizer.Unknown("no_permitted_prior", priorsId);
-                JNode centre = s.Boxes ? Localizer.Known(Localizer.Vec(ToScene(o.Box.Centre)), "inferred", ScanSourceId, new List<JNode> { JNode.Str(BoxAssumption) })
+                var centreBasis = new List<JNode> { JNode.Str(BoxAssumption) };
+                if (s.FullProvenance && s.Boxes && o.Box.Completed) centreBasis.Add(JNode.Str(CompletionAssumption));   // completion moves the centre too
+                bool aligned = s.FullProvenance && s.Boxes && o.Support != null;
+                usedSupport |= aligned;
+                JNode centre = s.Boxes ? Localizer.Known(Localizer.Vec(ToScene(o.Box.Centre)), "inferred", ScanSourceId, centreBasis)
                                        : Localizer.Known(Localizer.Vec(o.Centre), "inferred", ScanSourceId, new List<JNode> { JNode.Str(DepthAssumption) });
-                JNode turn = s.Boxes ? BoxTurn(o.Box, ScanSourceId) : Localizer.Unknown("not_estimated", ScanSourceId);
+                JNode turn = !s.Boxes ? Localizer.Unknown("not_estimated", ScanSourceId)
+                    : aligned ? BoxTurn(o.Box, ScanSourceId, new List<JNode> { JNode.Str(SupportAssumption) }) : BoxTurn(o.Box, ScanSourceId);
                 objs.Add(JNode.Obj()
                     .Add("object_id", JNode.Str(ids[o.Id]))
                     .Add("source_ref", JNode.Obj().Add("source_id", JNode.Str(ScanSourceId)).Add("source_object_id", JNode.Str("track_" + o.Id.ToString(CultureInfo.InvariantCulture)))
@@ -915,6 +948,12 @@ namespace SecondEyes.Perception.AutoScan
             }
             var assumptions = new List<JNode> { JNode.Obj().Add("assumption_id", JNode.Str(DepthAssumption))
                 .Add("description", JNode.Str("The object's position is the median of depth points on its visible surface, so it lies toward the camera from its true centre by up to half its depth")) };
+            if (usedSupport) assumptions.Add(JNode.Obj().Add("assumption_id", JNode.Str(SupportAssumption))
+                .Add("description", JNode.Str("The object's turn is its support's (the desk or table under it), not measured: a small thing resting on it is assumed to line up with it")));
+            int omittedClusters = meshCut == null ? 0 : Enumerable.Range(0, meshBoxes.Count).Count(i => !meshIds.ContainsKey(i) && RestsOnMetaIndex(meshBoxes[i]) < 0);
+            if (s.FullProvenance && meshCut != null) assumptions.Add(JNode.Obj().Add("assumption_id", JNode.Str(InventoryAssumption))
+                .Add("description", JNode.Str("The scene lists only the objects the detector recognized: " + omittedClusters.ToString(CultureInfo.InvariantCulture)
+                    + " cluster(s) of Meta's mesh no sighting named were left out (they are in the trace). They are not free space, and nothing is known to be absent; an answer such as the closest object is among the recognized objects")));
             if (usedMesh) assumptions.Add(JNode.Obj().Add("assumption_id", JNode.Str(MeshAssumption))
                 .Add("description", JNode.Str("The object's box is fitted to a cluster of Meta's room mesh (Space Setup's fused depth), with the floor, ceiling, walls and Meta's own boxes taken off: every side Space Setup saw, measured")));
             if (usedBox) assumptions.Add(JNode.Obj().Add("assumption_id", JNode.Str(BoxAssumption))
