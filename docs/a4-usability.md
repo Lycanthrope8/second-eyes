@@ -51,3 +51,20 @@ For each command, note what you typed, what the panel says it read (**Read as**)
 
 The scan's files (`files/scans/<capture ID>/`) and the event log are pulled after the check, so every answer can be
 traced to its scan, its scene and its query.
+
+## The acceptance (stages 10 and 11, 19 October 2026)
+
+The focused acceptance check from Astra's review, on the headset, with the automatic scan's v7 (stage 10) and v8
+(stage 11) settings. An engineering and usability check, not Gate C: nothing is measured against ground truth.
+
+| Case | What happened | |
+|---|---|---|
+| A normal command (`the chair closest to the bed`, `the mouse closest to the keyboard`, `the table closest to the bed`) | answered, in both stages | accepted |
+| An ambiguous command (`the chair`, two chairs) | asked which (stage 10) | accepted |
+| Two bottles side by side, touching | two objects, two blocks | accepted |
+| A keyboard turned about 30 degrees on its desk | its block lined up with the desk, the turn stated as `support_alignment` (D126) | accepted, as documented |
+| The mouse's block | the 0.15 m side along the desk's longer side, from size table v2 (D130) | accepted |
+| A recenter during the session | v7: the blocks turned with the headset and the fresh scan never recovered; v8 (world lock, D129): the blocks stayed on the furniture, the scan went on, the next command was answered; 39 tracking events, no real room shift, no pose disagreement | accepted (v8) |
+
+Stage 10's `the bottle closest to the bed` came back with no match; stage 11 answered it. The scans replay on the PC to
+the complete, identical scene (`scan.468bfd88.2`, `scan.d421455f.1`).
