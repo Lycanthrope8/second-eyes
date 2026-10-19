@@ -503,6 +503,73 @@ static class Program
         }
     }
 
+    /// <summary>14. The stage 10 fixes (v8): a small thing's prior read in its desk's frame, world lock stated.</summary>
+    static void StageTenChecks(Func<string, Schema> schema, string sampleDir)
+    {
+        Console.WriteLine("14. The stage 10 fixes (v8)");
+        var s7 = AutoScanSettings.From(JParse.Parse(File.ReadAllText(Path.Combine("perception", "autoscan", "autoscan.default.v7.json"))));
+        var s8 = AutoScanSettings.From(JParse.Parse(File.ReadAllText(Path.Combine("perception", "autoscan", "autoscan.default.v8.json"))));
+        var map5 = JParse.Parse(File.ReadAllText(Path.Combine("perception", "bedroom", "category-map.bedroom.v5.json")));
+        var priors2 = JParse.Parse(File.ReadAllText(Path.Combine("perception", "bedroom", "size-priors.bedroom.v2.json")));
+        Check("the v8 settings: world lock, the room stale beyond 5 cm or 2 degrees, priors in the desk's frame (all off in v7)",
+              s8.WorldLock && s8.RoomShiftM == 0.05 && s8.RoomShiftDeg == 2.0 && s8.PriorInSupportFrame && !s7.WorldLock && !s7.PriorInSupportFrame);
+        Check("size table v2: the mouse's width and depth swapped (0.15 by 0.07 by 0.04 m), the rest as in v1",
+              priors2["priors_id"].Text == "sizes.bedroom.v2" && string.Join(",", priors2["entries"].Items.Single(e => e["category"].Text == "mouse")["size_m"].Items.Select(x => x.Text)) == "0.15,0.07,0.04"
+              && priors2["entries"].Items.Count(e => e["category"].Text == "keyboard" && e["size_m"].Items[0].Num == 0.38) == 1);
+        var room = new RoomModel { Status = "loaded", FloorY = 0, CeilingY = 2.6, MeshStatus = "loaded" };
+        foreach (var c in new[] { new[] { -3.0, -1.0 }, new[] { 3.0, -1.0 }, new[] { 3.0, 5.0 }, new[] { -3.0, 5.0 } }) room.FloorXz.Add(c);
+        room.Boxes.Add(Box("anchor-desk", "TABLE", new Vec3(1.0, 0.39, 1.0), new Vec3(1.4, 0.78, 0.6), 20));
+        Box3 up = Boxes.Upright(room.Boxes[0]);
+        bool longAlongX = up.Size.X >= up.Size.Z;
+        var seen = new Box3 { Centre = up.World(new Vec3(0.3, 0.39 + 0.02, 0.0)), YawDeg = up.YawDeg,   // what the samples saw: longer across the desk
+                              Size = longAlongX ? new Vec3(0.05, 0.04, 0.10) : new Vec3(0.10, 0.04, 0.05) };
+        Func<AutoScanSettings, JNode, KeyValuePair<SecondEyes.Perception.Localization.LocalizationOutput, List<string>>> run = (st, pri) =>
+        {
+            var a = new AutoScan("scan.worldlock.1", st, map5, pri, "yolox_nano_coco.se1", new string('c', 64), "quest_left", Fx);
+            var lines = new List<string> { PyJson.Canonical(a.Header("f00d", 1280, 960, Fx, 643, 481, 416)), PyJson.Canonical(room.ToJson()) };
+            a.SetRoom(room);
+            for (int n = 1; n <= 3; n++)
+            {
+                var f = Frame(n, new Vec3(0.3, 1.5, -0.5) + new Vec3(0.1 * n, 0, 0), DetOn("mouse", Face(seen, 1, 1, 5)));
+                lines.Add(PyJson.Canonical(f.ToJson())); a.Add(f);
+            }
+            return new KeyValuePair<SecondEyes.Perception.Localization.LocalizationOutput, List<string>>(a.Snapshot(3), lines);
+        };
+        var r7 = run(s7, priors2).Key;
+        var r8run = run(s8, priors2); var r8 = r8run.Key;
+        Func<SecondEyes.Perception.Localization.LocalizationOutput, double> alongDesk = r =>
+        {
+            var m = r.Scene["objects"].Items.Single(o => o["category"]["state"].Text == "known" && Cat(o) == "mouse")["geometry"]["size_m"]["value"].Items;
+            return longAlongX ? m[0].Num : m[1].Num;   // the mouse's side along the desk's longer side (both take the desk's turn)
+        };
+        Check("the mouse's prior read in its desk's frame (v8): its 0.15 m side along the desk's longer side, whatever the few samples said",
+              Math.Abs(alongDesk(r8) - 0.15) < 0.005, alongDesk(r8).ToString("0.000"));
+        Check("in v7 the same samples, longer across the desk, gave it the 0.15 m side across", Math.Abs(alongDesk(r7) - 0.07) < 0.005, alongDesk(r7).ToString("0.000"));
+        string origin = r8.Scene["coordinate_frame"]["origin"].Text;
+        Check("the scene's origin says MRUK's world lock holds it on the room (v8); v7's says the tracking origin",
+              origin.StartsWith("Unity's world, held on the room by MRUK's world lock") && r7.Scene["coordinate_frame"]["origin"].Text.StartsWith("the headset's tracking origin"), origin);
+        var contract = new Contract(schema);
+        var issues = contract.Validate(new List<KeyValuePair<string, JNode>> { new KeyValuePair<string, JNode>("scene", r8.Scene), new KeyValuePair<string, JNode>("map", map5) });
+        Check("the scene passes the contract", !issues.Any(i => i.IsError), string.Join(", ", issues.Where(i => i.IsError).Select(i => i.Code + " " + i.Path)));
+        var lines8 = r8run.Value;
+        var b2 = AutoScan.FromHeader(JParse.Parse(lines8[0]), s8, map5, priors2);
+        foreach (string line in lines8.Skip(1))
+        {
+            JNode n = JParse.Parse(line);
+            if (n["record_type"].Text == RoomModel.RecordType) b2.SetRoom(RoomModel.FromJson(n)); else b2.Add(FrameRecord.FromJson(n));
+        }
+        var rr = b2.Snapshot(3);
+        Check("replayed from its lines, the same scene and trace byte for byte", PyJson.Canonical(rr.Scene) == PyJson.Canonical(r8.Scene) && PyJson.Canonical(rr.Trace) == PyJson.Canonical(r8.Trace));
+        if (sampleDir != null)
+        {
+            Directory.CreateDirectory(sampleDir);
+            File.WriteAllLines(Path.Combine(sampleDir, "frames.jsonl"), lines8);
+            File.WriteAllText(Path.Combine(sampleDir, "scene.json"), PyJson.Canonical(r8.Scene) + "\n");
+            File.WriteAllText(Path.Combine(sampleDir, "trace.json"), PyJson.Canonical(r8.Trace) + "\n");
+            Console.WriteLine("  (a sample scan with v8 written to " + sampleDir + ")");
+        }
+    }
+
     static string bedObjLabel(List<JNode> objs) { return objs.Single(o => o["source_ref"]["source_object_id"].Text == "anchor-bed")["source_ref"]["source_label"].Text; }
 
     static RoomBox Box(string id, string label, Vec3 c, Vec3 size, double yawDeg = 0)
@@ -756,6 +823,7 @@ static class Program
         MeshChecks(schema, args.Length > 1 ? Path.Combine(args[1], "mesh") : null);
         DetectedOnlyChecks(schema, args.Length > 1 ? Path.Combine(args[1], "detected") : null);
         CorrectionChecks(schema, args.Length > 1 ? Path.Combine(args[1], "corrections") : null);
+        StageTenChecks(schema, args.Length > 1 ? Path.Combine(args[1], "worldlock") : null);
 
         Console.WriteLine("7. Tracking");
         var s8 = NewScan();
