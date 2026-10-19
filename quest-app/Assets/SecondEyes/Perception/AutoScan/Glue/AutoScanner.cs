@@ -80,6 +80,12 @@ namespace SecondEyes.Perception.AutoScan
         /// scene is in the old origin. The boxes go, commands are refused, and once the origin settles a fresh scan starts (a
         /// new capture, Meta's room reloaded); the flag clears when that scan publishes.</summary>
         public bool Stale { get; private set; }
+        private MRUKAnchor floorAnchor;
+        private Vector3 floorAt;
+        private Quaternion floorTurn;
+        private double nextShiftCheck, poseVsHeadMax;
+        private int originEvents, roomShifts, poseMismatches;
+        private const double ShiftCheckS = 0.5, PoseMismatchM = 0.5;
         private float labelScale;
         private readonly List<XRInputSubsystem> subsystems = new List<XRInputSubsystem>();
         private readonly List<TextMesh> labels = new List<TextMesh>();
@@ -103,18 +109,41 @@ namespace SecondEyes.Perception.AutoScan
             foreach (XRInputSubsystem s in subsystems) s.trackingOriginUpdated -= OnTrackingOrigin;
         }
 
+        /// <summary>The headset raises this often, not only on a recenter (stage 10: 78 times before Space Setup ended):
+        /// it is a hint to check the room's floor anchor now, never a reason alone to call the room stale.</summary>
         private void OnTrackingOrigin(XRInputSubsystem s)
         {
+            originEvents++;
+            EventLog.Write("autoscan.tracking_origin", "{\"epoch\":" + epoch.ToString(CultureInfo.InvariantCulture) + ",\"events\":" + originEvents.ToString(CultureInfo.InvariantCulture) + "}");
+            nextShiftCheck = 0;
+        }
+
+        /// <summary>Whether the room's floor anchor has moved in Unity's world since the room loaded: with world lock it
+        /// shouldn't; without it, a recenter moves it.</summary>
+        private bool RoomShifted(out double moved, out double turned)
+        {
+            Vector3 p = floorAnchor.transform.position;
+            Quaternion q = floorAnchor.transform.rotation;
+            double dx = p.x - floorAt.x, dy = p.y - floorAt.y, dz = p.z - floorAt.z;
+            moved = Math.Sqrt(dx * dx + dy * dy + dz * dz);
+            double dot = Math.Min(1.0, Math.Abs((double)q.x * floorTurn.x + (double)q.y * floorTurn.y + (double)q.z * floorTurn.z + (double)q.w * floorTurn.w));
+            turned = 2 * Math.Acos(dot) * 180 / Math.PI;
+            return moved > settings.RoomShiftM || turned > settings.RoomShiftDeg;
+        }
+
+        /// <summary>The room really moved: its scene is in the old world, so it is stale until a fresh scan publishes.</summary>
+        private void MarkStale(double moved, double turned)
+        {
             epoch++;
-            EventLog.Write("autoscan.tracking_origin", "{\"epoch\":" + epoch.ToString(CultureInfo.InvariantCulture) + "}");
-            if (scan == null || (Phase != "scanning" && Phase != "paused")) return;
+            roomShifts++;
             Stale = true;
             restarted = false;
             restartAt = Time.realtimeSinceStartupAsDouble + RestartAfterS;
             latest = null;   // the stale scene isn't handed out
             HideBoxes();
-            StatusLine = "The headset's tracking changed: your room will be scanned again";
-            EventLog.Write("autoscan.stale", "{\"capture_id\":" + Json(scanId) + ",\"epoch\":" + epoch.ToString(CultureInfo.InvariantCulture) + "}");
+            StatusLine = "The room moved in the headset's world: it will be scanned again";
+            EventLog.Write("autoscan.stale", "{\"capture_id\":" + Json(scanId) + ",\"epoch\":" + epoch.ToString(CultureInfo.InvariantCulture)
+                           + ",\"moved_m\":" + moved.ToString("0.###", CultureInfo.InvariantCulture) + ",\"turned_deg\":" + turned.ToString("0.#", CultureInfo.InvariantCulture) + "}");
         }
 
         private void Start() { StartCoroutine(Begin()); }
@@ -286,7 +315,7 @@ namespace SecondEyes.Perception.AutoScan
                 DontDestroyOnLoad(go);
                 mruk = go.AddComponent<MRUK>();
                 mruk.SceneSettings = new MRUK.MRUKSettings { DataSource = MRUK.SceneDataSource.Device, LoadSceneOnStartup = false };
-                mruk.EnableWorldLock = false;
+                mruk.EnableWorldLock = settings.WorldLock;   // v8: MRUK holds Unity's world on the room through a recenter
                 go.SetActive(true);
             }
             StatusLine = "Scan: loading Meta's room...";
@@ -300,6 +329,8 @@ namespace SecondEyes.Perception.AutoScan
             if (load.Result != MRUK.LoadDeviceResult.Success) { room = RoomModel.None("no room from Meta: " + load.Result); yield break; }
             MRUKRoom r = mruk.GetCurrentRoom() ?? mruk.Rooms.FirstOrDefault();
             room = r != null ? FromMeta(r, settings.UseMesh ? settings.MeshVoxelM : 0) : RoomModel.None("Meta loaded no room");
+            floorAnchor = r != null ? r.FloorAnchor : null;   // its pose now: the room is stale only if this really moves
+            if (floorAnchor != null) { floorAt = floorAnchor.transform.position; floorTurn = floorAnchor.transform.rotation; }
         }
 
         /// <summary>A Meta room as the scan's room model, in quest_tracking: the floor's outline and heights, and every
@@ -398,7 +429,19 @@ namespace SecondEyes.Perception.AutoScan
         private void Update()
         {
             FaceLabels();
-            if (Stale && !restarted && !pending && Time.realtimeSinceStartupAsDouble >= restartAt) Restart();
+            double t = Time.realtimeSinceStartupAsDouble;
+            if (pending && t - pendingSince > FrameTimeoutS)   // a lost frame times out whatever the room's state
+            {
+                pending = false;
+                EventLog.Write("autoscan.frame_timeout", "{\"capture_id\":" + Json(scanId) + "}");
+            }
+            if (!Stale && scan != null && floorAnchor != null && (Phase == "scanning" || Phase == "paused") && t >= nextShiftCheck)
+            {
+                nextShiftCheck = t + ShiftCheckS;
+                double moved, turned;
+                if (RoomShifted(out moved, out turned)) MarkStale(moved, turned);
+            }
+            if (Stale && !restarted && !pending && t >= restartAt) Restart();
             if (Phase != "scanning" || scan == null || (Stale && !restarted)) return;
             double now = Time.realtimeSinceStartupAsDouble;
             if (pending && now - pendingSince > FrameTimeoutS)
@@ -413,7 +456,9 @@ namespace SecondEyes.Perception.AutoScan
             bool tracked = HeadTracked();
             long epochAtStart = epoch;
             bool snapshot = saveImages && savedImages < settings.SaveImagesMax;
-            if (runner.RunScanKeyframe(snapshot, f => OnFrame(f, epochAtStart, tracked)))
+            bool hasHead = Camera.main != null;
+            Vector3 head = hasHead ? Camera.main.transform.position : default(Vector3);   // to check the frame's pose is in the same world
+            if (runner.RunScanKeyframe(snapshot, f => OnFrame(f, epochAtStart, tracked, head, hasHead)))
             {
                 pending = true;
                 pendingSince = now;
@@ -445,7 +490,7 @@ namespace SecondEyes.Perception.AutoScan
             foreach (TextMesh l in labels) if (l != null) l.gameObject.SetActive(false);
         }
 
-        private void OnFrame(ScanFrame f, long epochAtStart, bool trackedAtStart)
+        private void OnFrame(ScanFrame f, long epochAtStart, bool trackedAtStart, Vector3 head, bool hasHead)
         {
             pending = false;
             if (scan == null || f == null) return;
@@ -460,6 +505,18 @@ namespace SecondEyes.Perception.AutoScan
             {
                 EventLog.Write("autoscan.frame_error", "{\"capture_id\":" + Json(scanId) + ",\"error\":" + Json(f.Error ?? "the frame wasn't completed") + "}");
                 return;
+            }
+            if (hasHead)   // the camera's pose and the head's must be in one world (world lock moves the rig)
+            {
+                double hx = f.TranslationM[0] - head.x, hy = f.TranslationM[1] - head.y, hz = f.TranslationM[2] - head.z;
+                double off = Math.Sqrt(hx * hx + hy * hy + hz * hz);
+                poseVsHeadMax = Math.Max(poseVsHeadMax, off);
+                if (off > PoseMismatchM)
+                {
+                    poseMismatches++;
+                    EventLog.Write("autoscan.frame_dropped", "{\"capture_id\":" + Json(scanId) + ",\"why\":" + Json("the camera's pose is " + off.ToString("0.00", CultureInfo.InvariantCulture) + " m from the head's: not the same world") + "}");
+                    return;
+                }
             }
             var rec = new FrameRecord
             {
@@ -527,7 +584,9 @@ namespace SecondEyes.Perception.AutoScan
                 .Add("save_images", new JNode { Kind = JKind.Bool, Bool = saveImages }).Add("images_saved", Localizer.Int(savedImages))
                 .Add("frames", Localizer.Int(scan == null ? 0 : scan.Frames)).Add("sightings", Localizer.Int(scan == null ? 0 : scan.Sightings))
                 .Add("objects", Localizer.Int(scan == null ? 0 : scan.Confirmed))
-                .Add("system", JNode.Obj().Add("os", JNode.Str(SystemInfo.operatingSystem)).Add("unity", JNode.Str(Application.unityVersion)).Add("app", JNode.Str(Application.version))).Add("tentative", Localizer.Int(scan == null ? 0 : scan.Tentative))
+                .Add("system", JNode.Obj().Add("os", JNode.Str(SystemInfo.operatingSystem)).Add("unity", JNode.Str(Application.unityVersion)).Add("app", JNode.Str(Application.version)))
+                .Add("tracking", JNode.Obj().Add("world_lock", new JNode { Kind = JKind.Bool, Bool = settings.WorldLock }).Add("origin_events", Localizer.Int(originEvents))
+                    .Add("room_shifts", Localizer.Int(roomShifts)).Add("pose_mismatch_frames", Localizer.Int(poseMismatches)).Add("pose_vs_head_max_m", Localizer.Num(poseVsHeadMax))).Add("tentative", Localizer.Int(scan == null ? 0 : scan.Tentative))
                 .Add("scene_revision", Localizer.Int(revision))
                 .Add("room", JNode.Obj().Add("status", JNode.Str(room.Status)).Add("why", JNode.Str(room.Why)).Add("boxes", Localizer.Int(room.Boxes.Count))
                     .Add("mesh", JNode.Str(room.MeshStatus)).Add("mesh_points", Localizer.Int(room.MeshPoints.Count)))
