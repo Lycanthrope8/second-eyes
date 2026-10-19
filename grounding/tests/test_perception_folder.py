@@ -47,8 +47,8 @@ def main() -> int:
         folder = tmp / "a"
         m = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
         check("the manifest is a perception folder's", m["record_type"] == "a4_perception_folder" and m["format_version"] == 1)
-        check("it lists every file, sixteen schemas and five role files", len(m["files"]) == 21
-              and sum(k.startswith("schemas/") for k in m["files"]) == 16, str(len(m["files"])))
+        check("it lists every file, seventeen schemas and five role files", len(m["files"]) == 22
+              and sum(k.startswith("schemas/") for k in m["files"]) == 17, str(len(m["files"])))
         same = all((folder / dest).read_bytes() == src.read_bytes().replace(b"\r\n", b"\n") for dest, src in PD.files(REPO).items())
         check("every file is the repository's, with Git's line endings", same)
         check("the scan configuration is scan.default.v3, the localization one localization.default.v2",
@@ -57,7 +57,7 @@ def main() -> int:
               and f["sha256"] == hashlib.sha256((folder / n).read_bytes()).hexdigest() for n, f in m["files"].items()))
         check("the five roles name listed files, the automatic scan's settings and the bedroom's map v2 among them",
               all(m[k] in m["files"] for k in ("scan_config", "localization_config", "size_priors", "category_map", "autoscan_config"))
-              and m["autoscan_config"] == "configs/autoscan.default.v7.json" and m["category_map"] == "maps/category-map.bedroom.v5.json")
+              and m["autoscan_config"] == "configs/autoscan.default.v8.json" and m["category_map"] == "maps/category-map.bedroom.v5.json")
         check("the manifest's SHA-256 is reported", r["manifest_sha256"] == hashlib.sha256((folder / "manifest.json").read_bytes()).hexdigest())
         check("it reads back", PD.verify(folder) == [])
         PD.build(out=tmp / "b")
@@ -85,7 +85,7 @@ def main() -> int:
         broken = tmp / "repo"
         shutil.copytree(REPO / "schemas", broken / "schemas")
         shutil.copytree(REPO / "perception", broken / "perception", ignore=shutil.ignore_patterns("detector"))
-        pri = broken / "perception" / "bedroom" / "size-priors.bedroom.v1.json"
+        pri = broken / "perception" / "bedroom" / "size-priors.bedroom.v2.json"
         rec = json.loads(pri.read_text(encoding="utf-8")); rec["entries"][0]["size_m"] = [0.1, 0.1]
         pri.write_text(json.dumps(rec), encoding="utf-8")
         check("a size prior that fails its schema", any("size-priors" in x for x in PD.check_sources(broken)))

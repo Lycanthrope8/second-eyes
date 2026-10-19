@@ -56,6 +56,12 @@ namespace SecondEyes.Perception.AutoScan
         /// centre too, support alignment on the turn), records observed and final sizes in the trace, and notes in the scene
         /// that it lists only recognized objects; separate_same_frame keeps two detections of one category in one frame apart.</summary>
         public bool FullProvenance, SeparateSameFrame;
+        /// <summary>v8 (stage 10): world_lock has MRUK hold Unity's world on the room through a recenter, so the scan goes on;
+        /// the room is stale only when its floor anchor really moves (room_shift_m, room_shift_deg) in that world. With
+        /// prior_in_support_frame, a small thing that takes its support's turn reads its prior in the support's frame: the
+        /// width along the support's longer side, the depth across it.</summary>
+        public bool WorldLock, PriorInSupportFrame;
+        public double RoomShiftM = 0.05, RoomShiftDeg = 2.0;
 
         public static AutoScanSettings From(JNode n)
         {
@@ -117,6 +123,13 @@ namespace SecondEyes.Perception.AutoScan
                 {
                     s.FullProvenance = n["full_provenance"].Bool;
                     s.SeparateSameFrame = n["separate_same_frame"].Bool;
+                }
+                if (n.Has("world_lock"))
+                {
+                    s.WorldLock = n["world_lock"].Bool;
+                    s.RoomShiftM = n["room_shift_m"].Num;
+                    s.RoomShiftDeg = n["room_shift_deg"].Num;
+                    s.PriorInSupportFrame = n["prior_in_support_frame"].Bool;
                 }
                 s.FloorCategories = new HashSet<string>(n["floor_categories"].Items.Select(x => x.Text), StringComparer.Ordinal);
             }
@@ -633,7 +646,8 @@ namespace SecondEyes.Perception.AutoScan
             {
                 var local = o.Surface.Select(b.Local).ToList();
                 var median = new Vec3(Median(local.Select(v => v.X)), 0, Median(local.Select(v => v.Z)));
-                b = Boxes.Complete(b, pri.Select(x => x["size_m"].Items.Select(v => v.Num).ToArray()).ToList(), o.Viewpoints.Select(ToUnity).ToList(), s.BoxMaxOverPrior, median);
+                bool? widthAlongX = s.PriorInSupportFrame && o.Support != null ? (bool?)(o.Support.Size.X >= o.Support.Size.Z) : null;   // v8: the prior in its desk's frame
+                b = Boxes.Complete(b, pri.Select(x => x["size_m"].Items.Select(v => v.Num).ToArray()).ToList(), o.Viewpoints.Select(ToUnity).ToList(), s.BoxMaxOverPrior, median, widthAlongX);
             }
             o.Box = b;
             o.Centre = ToScene(b.Centre);
@@ -988,7 +1002,7 @@ namespace SecondEyes.Perception.AutoScan
                 .Add("schema_version", Localizer.Int(3)).Add("record_type", JNode.Str("scene")).Add("scene_id", JNode.Str(scanId))
                 .Add("scene_revision", Localizer.Int(revision)).Add("evidence_profile", JNode.Str("perceived")).Add("category_map", JNode.Str(map["map_id"].Text))
                 .Add("coordinate_frame", JNode.Obj().Add("frame_id", JNode.Str("scene")).Add("units", JNode.Str("m")).Add("handedness", JNode.Str("right"))
-                    .Add("up_axis", JNode.Str("+z")).Add("origin", JNode.Str("the headset's tracking origin in epoch " + ep.ToString(CultureInfo.InvariantCulture) + ", re-expressed through the basis change (docs/frames.md)"))
+                    .Add("up_axis", JNode.Str("+z")).Add("origin", JNode.Str((s.WorldLock ? "Unity's world, held on the room by MRUK's world lock, tracking epoch " : "the headset's tracking origin in epoch ") + ep.ToString(CultureInfo.InvariantCulture) + ", re-expressed through the basis change (docs/frames.md)"))
                     .Add("conversion", JNode.Obj().Add("kind", JNode.Str("quest_tracking_basis")).Add("source_id", JNode.Str(ScanSourceId))
                         .Add("source_frame_id", JNode.Str("quest_tracking")).Add("tracking_epoch", Localizer.Int(ep))
                         .Add("source_to_scene", JNode.Arr(new List<JNode> { Localizer.Row(1, 0, 0, 0), Localizer.Row(0, 0, 1, 0), Localizer.Row(0, 1, 0, 0), Localizer.Row(0, 0, 0, 1) }))))

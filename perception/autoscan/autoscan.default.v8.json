@@ -1,0 +1,81 @@
+{
+  "schema_version": 8,
+  "record_type": "auto_scan_config",
+  "config_id": "autoscan.default.v8",
+  "description": "The automatic scan's settings for the bedroom (A4), v8 after the stage 10 trial: as v7, with MRUK's world lock holding the room through a recenter (stale only when the floor anchor really moves) and a small thing's prior read in its desk's frame; v7 was, after Astra's review, as v6 with every assumption stated on the field it shaped, observed and final sizes in the trace, the scene noted as listing only recognized objects, and two detections of one category in one frame kept apart. The clustering link (15 cm) is a development-set adjustment made on the bedroom's stage 8 mesh; the other values are first values, set by reasoning. The bedroom trials that shaped them can't also serve as their evaluation",
+  "interval_s": 0.5,
+  "min_score": 0.3,
+  "sample_spread": 0.2,
+  "max_range_m": 6.0,
+  "floor_y_m": 0.0,
+  "floor_margin_m": 0.15,
+  "min_reach_m": 0.3,
+  "reach_factor": 0.5,
+  "min_frames": 3,
+  "viewpoint_m": 0.5,
+  "max_points_per_object": 64,
+  "publish_interval_s": 3.0,
+  "save_images_max": 120,
+  "space_setup": "every_start",
+  "box_margin_m": 0.1,
+  "room_margin_m": 0.25,
+  "min_box_votes": 2,
+  "box_categories": [
+    "bed",
+    "chair",
+    "couch",
+    "table"
+  ],
+  "sample_grid": 5,
+  "depth_window_m": 0.5,
+  "point_voxel_m": 0.03,
+  "box_points_max": 800,
+  "box_trim": 0.03,
+  "top_allowance_m": 0.5,
+  "box_completion": true,
+  "floor_categories": [
+    "bed",
+    "chair",
+    "couch",
+    "table"
+  ],
+  "box_max_over_prior": 1.5,
+  "align_to_support": [
+    "bottle",
+    "cup",
+    "keyboard",
+    "laptop",
+    "mouse"
+  ],
+  "rest_gap_m": 0.08,
+  "join_groups": [
+    [
+      "bottle",
+      "cup"
+    ],
+    [
+      "keyboard",
+      "laptop"
+    ]
+  ],
+  "use_mesh": true,
+  "mesh_voxel_m": 0.03,
+  "structure_margin_m": 0.05,
+  "wall_margin_m": 0.08,
+  "mesh_link_m": 0.15,
+  "cluster_min_points": 20,
+  "cluster_min_size_m": 0.15,
+  "cluster_max_size_m": 3.0,
+  "unnamed_as": "omit",
+  "obstacle_max_bottom_m": 1.8,
+  "slab_max_m": 0.1,
+  "wall_band_m": 0.4,
+  "absorb_on_furniture": true,
+  "merge_live_into_mesh": true,
+  "full_provenance": true,
+  "separate_same_frame": true,
+  "world_lock": true,
+  "room_shift_m": 0.05,
+  "room_shift_deg": 2.0,
+  "prior_in_support_frame": true
+}

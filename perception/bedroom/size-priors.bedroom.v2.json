@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "record_type": "size_priors",
+  "priors_id": "sizes.bedroom.v2",
+  "description": "The bedroom's objects for A4's usability check, as measured by the project lead (width, depth, height); the two chairs differ in height, so a chair has two sizes, and the bed has none; v2 swaps the mouse's width and depth, measured the wrong way round in v1 (the project lead, 19 October 2026). A small thing that takes its desk's turn reads its width along the desk's longer side (autoscan v8)",
+  "release": "a4-bedroom-v2",
+  "entries": [
+    {
+      "category": "bottle",
+      "size_m": [
+        0.09,
+        0.09,
+        0.25
+      ],
+      "upright": true,
+      "source": "measured by the project lead, 16 October 2026"
+    },
+    {
+      "category": "chair",
+      "size_m": [
+        0.55,
+        0.45,
+        0.88
+      ],
+      "upright": true,
+      "source": "measured by the project lead, 16 October 2026 (the first chair)"
+    },
+    {
+      "category": "chair",
+      "size_m": [
+        0.55,
+        0.45,
+        1.15
+      ],
+      "upright": true,
+      "source": "measured by the project lead, 16 October 2026 (the second chair)"
+    },
+    {
+      "category": "keyboard",
+      "size_m": [
+        0.38,
+        0.14,
+        0.03
+      ],
+      "upright": true,
+      "source": "measured by the project lead, 16 October 2026"
+    },
+    {
+      "category": "laptop",
+      "size_m": [
+        0.34,
+        0.25,
+        0.25
+      ],
+      "upright": true,
+      "source": "measured by the project lead, 16 October 2026 (open)"
+    },
+    {
+      "category": "mouse",
+      "size_m": [
+        0.15,
+        0.07,
+        0.04
+      ],
+      "upright": true,
+      "source": "measured by the project lead, 16 October 2026; width and depth swapped by the project lead, 19 October 2026"
+    },
+    {
+      "category": "television",
+      "size_m": [
+        0.62,
+        0.1,
+        0.37
+      ],
+      "upright": true,
+      "source": "measured by the project lead, 16 October 2026 (62 wide, 37 tall, 10 deep)"
+    }
+  ]
+}

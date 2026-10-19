@@ -217,6 +217,14 @@ namespace SecondEyes.Perception.AutoScan
         /// box's own axes; a height so tall keeps its bottom.</summary>
         public static Box3 Complete(Box3 b, IList<double[]> priors, IList<Vec3> viewpoints, double maxOver, Vec3 medianLocal)
         {
+            return Complete(b, priors, viewpoints, maxOver, medianLocal, null);
+        }
+
+        /// <summary>v8: with widthAlongX given (the box takes its support's turn), the prior's width goes along the support's
+        /// longer side (the box's x when widthAlongX, else its z) and its depth across, as the table states them; without
+        /// it, the prior's larger side goes to the box's longer observed side.</summary>
+        public static Box3 Complete(Box3 b, IList<double[]> priors, IList<Vec3> viewpoints, double maxOver, Vec3 medianLocal, bool? widthAlongX)
+        {
             if (priors == null || priors.Count == 0) return b;
             double big = Math.Max(b.Size.X, b.Size.Z), small = Math.Min(b.Size.X, b.Size.Z);
             double[] p = priors.OrderBy(q =>
@@ -226,6 +234,7 @@ namespace SecondEyes.Perception.AutoScan
             }).First();
             double pBig = Math.Max(p[0], p[1]), pSmall = Math.Min(p[0], p[1]);
             double tx = b.Size.X >= b.Size.Z ? pBig : pSmall, tz = b.Size.X >= b.Size.Z ? pSmall : pBig;
+            if (widthAlongX.HasValue) { tx = widthAlongX.Value ? p[0] : p[1]; tz = widthAlongX.Value ? p[1] : p[0]; }
             Vec3 view = new Vec3(viewpoints.Average(v => v.X), viewpoints.Average(v => v.Y), viewpoints.Average(v => v.Z));
             Vec3 toView = b.Local(view);
             double sx = b.Size.X, sy = b.Size.Y, sz = b.Size.Z, lx = 0, lz = 0, bottom = b.Centre.Y - b.Size.Y / 2;
