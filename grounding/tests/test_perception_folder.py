@@ -47,8 +47,8 @@ def main() -> int:
         folder = tmp / "a"
         m = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
         check("the manifest is a perception folder's", m["record_type"] == "a4_perception_folder" and m["format_version"] == 1)
-        check("it lists every file, fifteen schemas and five role files", len(m["files"]) == 20
-              and sum(k.startswith("schemas/") for k in m["files"]) == 15, str(len(m["files"])))
+        check("it lists every file, sixteen schemas and five role files", len(m["files"]) == 21
+              and sum(k.startswith("schemas/") for k in m["files"]) == 16, str(len(m["files"])))
         same = all((folder / dest).read_bytes() == src.read_bytes().replace(b"\r\n", b"\n") for dest, src in PD.files(REPO).items())
         check("every file is the repository's, with Git's line endings", same)
         check("the scan configuration is scan.default.v3, the localization one localization.default.v2",
@@ -57,7 +57,7 @@ def main() -> int:
               and f["sha256"] == hashlib.sha256((folder / n).read_bytes()).hexdigest() for n, f in m["files"].items()))
         check("the five roles name listed files, the automatic scan's settings and the bedroom's map v2 among them",
               all(m[k] in m["files"] for k in ("scan_config", "localization_config", "size_priors", "category_map", "autoscan_config"))
-              and m["autoscan_config"] == "configs/autoscan.default.v6.json" and m["category_map"] == "maps/category-map.bedroom.v5.json")
+              and m["autoscan_config"] == "configs/autoscan.default.v7.json" and m["category_map"] == "maps/category-map.bedroom.v5.json")
         check("the manifest's SHA-256 is reported", r["manifest_sha256"] == hashlib.sha256((folder / "manifest.json").read_bytes()).hexdigest())
         check("it reads back", PD.verify(folder) == [])
         PD.build(out=tmp / "b")

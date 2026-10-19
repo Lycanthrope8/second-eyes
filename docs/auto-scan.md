@@ -16,11 +16,16 @@ scene (`notes/decisions.md`). The headset scans its side of the room; the drone 
 Code: the core is `quest-app/Assets/SecondEyes/Perception/AutoScan/AutoScan.cs`, `Boxes.cs` and `RoomModel.cs` (free of
 Unity: the same code runs on the headset and in the PC's replay); the Unity glue is `Perception/AutoScan/Glue/AutoScanner.cs`;
 the blocks' shader is `Assets/SecondEyes/Resources/SecondEyesSeeThrough.shader`. Settings:
-`schemas/auto-scan-config.v6.json`, defaults `perception/autoscan/autoscan.default.v6.json`, in the perception folder
+`schemas/auto-scan-config.v7.json`, defaults `perception/autoscan/autoscan.default.v7.json`, in the perception folder
 (`perception-folder.md`). The bedroom's map is `perception/bedroom/category-map.bedroom.v5.json`. Older settings files
 keep their behaviour, so older scans replay exactly: v1 has no Meta room, v2 has Meta's room but no fitted boxes, v3 has
 the boxes but neither support turns nor joining groups, v4 has those but no boxes from Meta's mesh, v5 has mesh boxes
-linked within 6 cm, unnamed ones kept as objects of unknown category.
+linked within 6 cm, unnamed ones kept as objects of unknown category, v6 has neither full provenance nor same-frame
+separation.
+
+The scan uses **Meta's platform perception services** (Space Setup, the room's boxes and mesh, the depth API): this app
+implements what it does with them, the detector's naming, the boxes it fits, the scene and the commands, not the services
+themselves. Its logs keep the inputs to its own pipeline; they don't make Meta's reconstruction reproducible.
 
 ## What happens
 
@@ -107,7 +112,35 @@ allows this since 18 October 2026 (`scene-contract.md`). A box of Meta's carries
 named it (`meta:BED`, the detector's `chair`, or `meta:OTHER` unnamed); its views count the frames that voted for it, and
 one no frame saw counts Space Setup's capture once, because a scene's views can't be zero.
 
-## The settings (v6)
+## What the review changed (v7, and every version)
+
+From Astra's review of 19 October 2026:
+
+- **A tracking change makes the room stale** (every version). When the headset's tracking origin moves (a recenter,
+  tracking lost and found), the published room is in the old origin: its boxes are hidden, typed commands are refused
+  with a message, a frame whose processing spans the change is dropped, and once the origin has settled (1.5 s) a fresh
+  scan starts, a new capture with Meta's room reloaded. The room is current again when that scan publishes. A session
+  keeps one scanned room: the fresh scan replaces the stale one.
+- **Commands and the scan are kept apart** (every version). Each command sent holds the scan until its outcome is shown
+  (a lost one is capped at the hold's timeout); a frame that finishes while a command is held is dropped, so the bound
+  room doesn't change under a command.
+- **Every assumption is stated on the field it shaped** (v7, `full_provenance`). A size prior (`box_completion`)
+  grows a side no sensor saw, or shrinks an observed extent beyond `box_max_over_prior` times the prior, so it is stated on
+  the centre as well as the size; a small thing that takes its desk's turn states `support_alignment` on its turn. The
+  trace's `provenance` lists each live-depth box as measured and as written, whether a prior changed it, and the support's
+  turn. The size table (`size-priors.bedroom.v1`) is a **development prior**, not a measurement of the objects.
+- **The scene lists only recognized objects** (v7). Its `recognized_inventory` assumption says how many clusters of
+  Meta's mesh were left out (D128): they are not free space, and nothing is known to be absent; "the closest chair" is the
+  closest among the chairs recognized.
+- **Two detections of one category in one frame are two objects** (v7, `separate_same_frame`): neither joins the other,
+  and they are never merged. Different categories of one group (a laptop and its keys) may still join.
+
+**The replay** is an **observation-log replay**: it starts after detection and depth sampling, so it can't reproduce or
+diagnose a failure upstream of them (the camera, the detector). Its comparison covers the complete scene, every field,
+byte for byte once canonical; the scans of stages 4 to 8 pass it. **The 15 cm link** is a development-set adjustment
+made on the bedroom's stage 8 mesh; the bedroom trials that shaped the settings can't also serve as their evaluation.
+
+## The settings (v7)
 
 | Setting | Default | What it does |
 |---|---|---|
@@ -133,6 +166,7 @@ one no frame saw counts Space Setup's capture once, because a scene's views can'
 | `unnamed_as` (v6) | omit | a cluster no sighting named: left out (only in the trace), or `unknown` |
 | `obstacle_max_bottom_m`, `slab_max_m`, `wall_band_m` (v6) | 1.8, 0.1, 0.4 | fixtures: a cluster starting this high; a slab this thin this near a wall |
 | `absorb_on_furniture`, `merge_live_into_mesh` (v6) | true, true | an unnamed cluster on Meta's furniture is part of it; a live-depth object in its mesh box is that box |
+| `full_provenance`, `separate_same_frame` (v7) | true, true | every assumption on the field it shaped, measured sizes in the trace, the inventory note; two of one category in one frame kept apart |
 
 The defaults are first values, set by reasoning, not tuned; a change is a new `config_id`.
 
@@ -154,7 +188,7 @@ be the same: the same objects from the same sources, categories and placements, 
 
 ## Checks
 
-`tools/csharp-tests/AutoScan` (91 checks) covers the settings, sampling, every leave-out reason, joining and merging, the
+`tools/csharp-tests/AutoScan` (99 checks) covers the settings, sampling, every leave-out reason, joining and merging, the
 replay byte for byte and the contract; Meta's room (a point in a turned box, the room's outline, rotations into the
 scene's axes, Meta's name winning, OTHER boxes named or unnamed, a laptop on a desk, a reflection outside the room); and
 the 3D boxes: the grid, a turned box fitted within a degree with stray rays trimmed, an L of points fitted as the object and not
@@ -167,7 +201,9 @@ synthetic room mesh: the floor, walls, Meta's desk and a speck of noise taken of
 at its own size and turn (not its prior's), a laptop on the desk its own mesh box, a bin nobody named kept as an
 obstacle, a mouse flattened into the desk keeping its live-depth box, the contract and the replay, the mesh included;
 and v6: a chair as sparse as the bedroom's mesh one box, the sightings beside it merged in, a cat and a blanket nobody
-named and a lamp and a door no boxes, the contract and the replay. `tools/csharp-tests/ScanGlue` compiles the scanner against stubs of the Unity, app and Meta SDK 207 members it
+named and a lamp and a door no boxes, the contract and the replay; and v7: two touching bottles two objects (one in
+v6), a laptop's own keys still joining it, a keyboard seen from above stating its prior on the centre and its desk's turn,
+the trace's measured and written sizes, the inventory note, the contract and the replay. `tools/csharp-tests/ScanGlue` compiles the scanner against stubs of the Unity, app and Meta SDK 207 members it
 calls, every Meta signature copied from the SDK's source.
 
 ## Known limits

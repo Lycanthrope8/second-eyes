@@ -35,9 +35,11 @@ The positive examples are commands a scanned room can answer: a target **closest
 - `the bottle closest to the laptop`
 - `the mouse closest to the keyboard`
 
-Commands with *near*, *on* or *below* need object orientations a scan doesn't estimate, so they should come back
-unresolved (`insufficient_information`), not with a guess. A command about two chairs that might be one chair seen twice
-should come back ambiguous.
+Since the automatic scan's v3 settings (D125), every object is a box with an inferred turn about the vertical and a size,
+so commands with *near*, *on* or *below* are evaluated on those boxes; they are as reliable as the assumptions the boxes
+state (a size prior completing a side, a small thing taking its desk's turn). A box's turn is not the object's front, so a
+command that needs an object's front still comes back unresolved, not with a guess. Answers are among the objects the scan
+recognized (D128). A command about two chairs that might be one chair seen twice should come back ambiguous.
 
 ## What counts
 

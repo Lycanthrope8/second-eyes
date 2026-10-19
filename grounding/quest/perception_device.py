@@ -34,7 +34,7 @@ from .replay_device import APP_DIR, _fail, _one_device, _remote_size, _stamp  # 
 from .runtime_identity import REPO, Adb  # noqa: E402
 
 REMOTE = APP_DIR + "/perception"
-SCHEMAS = ("auto-scan-config.v1.json", "auto-scan-config.v2.json", "auto-scan-config.v3.json", "auto-scan-config.v4.json", "auto-scan-config.v5.json", "auto-scan-config.v6.json", "capture.v1.json", "category-map.v1.json", "command-context.v2.json", "grounding-query.v2.json",
+SCHEMAS = ("auto-scan-config.v1.json", "auto-scan-config.v2.json", "auto-scan-config.v3.json", "auto-scan-config.v4.json", "auto-scan-config.v5.json", "auto-scan-config.v6.json", "auto-scan-config.v7.json", "capture.v1.json", "category-map.v1.json", "command-context.v2.json", "grounding-query.v2.json",
            "grounding-result.v2.json", "localization-config.v1.json", "scan-config.v1.json", "scene.v3.json",
            "size-priors.v1.json")
 ROLES = {"scan_config": ("configs/scan.default.v3.json", "perception/scan/scan.default.v3.json", "scan-config.v1.json"),
@@ -42,7 +42,7 @@ ROLES = {"scan_config": ("configs/scan.default.v3.json", "perception/scan/scan.d
                                  "localization-config.v1.json"),
          "size_priors": ("priors/size-priors.bedroom.v1.json", "perception/bedroom/size-priors.bedroom.v1.json", "size-priors.v1.json"),
          "category_map": ("maps/category-map.bedroom.v5.json", "perception/bedroom/category-map.bedroom.v5.json", None),
-         "autoscan_config": ("configs/autoscan.default.v6.json", "perception/autoscan/autoscan.default.v6.json", "auto-scan-config.v6.json")}
+         "autoscan_config": ("configs/autoscan.default.v7.json", "perception/autoscan/autoscan.default.v7.json", "auto-scan-config.v7.json")}
 
 
 def files(repo: Path = REPO) -> dict:
