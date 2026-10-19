@@ -761,6 +761,25 @@ namespace SecondEyes.Perception.AutoScan
             return s.SeparateSameFrame && o.Seen.Contains(frame.ToString(CultureInfo.InvariantCulture) + ":" + standard);
         }
 
+        /// <summary>v7: every live-depth box as measured (before any size prior) and as written, and what changed it: the
+        /// prior (grown where a side wasn't seen, or shrunk where an extent passed box_max_over_prior times it), and the support
+        /// whose turn it took.</summary>
+        private JNode ProvenanceTrace(List<Item> items, Dictionary<int, string> ids)
+        {
+            var list = new List<JNode>();
+            foreach (Item it in items.Where(x => x.IsDepth && x.Depth.Box != null))
+            {
+                Obj o = it.Depth;
+                Box3 seen = o.Observed ?? o.Box;
+                list.Add(JNode.Obj().Add("object_id", JNode.Str(ids[o.Id])).Add("category", JNode.Str(o.Standard))
+                    .Add("observed_size_m", Localizer.Vec(new Vec3(seen.Size.X, seen.Size.Z, seen.Size.Y)))
+                    .Add("size_m", Localizer.Vec(new Vec3(o.Box.Size.X, o.Box.Size.Z, o.Box.Size.Y)))
+                    .Add("size_prior", new JNode { Kind = JKind.Bool, Bool = o.Box.Completed })
+                    .Add("support_yaw_deg", o.Support != null ? Localizer.Num(-o.Support.YawDeg) : new JNode { Kind = JKind.Null }));
+            }
+            return JNode.Arr(list);
+        }
+
         /// <summary>v5: a cluster box's name: the leading vote with at least min_box_votes sightings, else none.</summary>
         private JNode MeshName(int i)
         {
@@ -1013,6 +1032,7 @@ namespace SecondEyes.Perception.AutoScan
                 .Add("room", RoomTrace(boxIds))
                 .Add("mesh", MeshTrace(meshIds, boxIds))
                 .Add("detections", JNode.Arr(dets));
+            if (s.FullProvenance && s.Boxes) trace.Add("provenance", ProvenanceTrace(items, ids));   // v7: each box as measured, and what changed it
             return new LocalizationOutput { Scene = scene, Trace = trace };
         }
 

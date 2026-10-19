@@ -104,7 +104,9 @@ namespace UnityEngine
     }
     public class Texture : Object { public int width { get { return 0; } } public int height { get { return 0; } } }
     public static class Time { public static double realtimeSinceStartupAsDouble { get { return 0; } } }
-    public static class Application { public static string persistentDataPath { get { return ""; } } public static string version { get { return ""; } } }
+    public static class SystemInfo { public static string operatingSystem { get { return null; } } }
+    public static class Application {
+        public static string unityVersion { get { return null; } } public static string persistentDataPath { get { return ""; } } public static string version { get { return ""; } } }
     public enum RuntimeInitializeLoadType { AfterSceneLoad, BeforeSceneLoad }
     [System.AttributeUsage(System.AttributeTargets.Method)]
     public sealed class RuntimeInitializeOnLoadMethodAttribute : System.Attribute { public RuntimeInitializeOnLoadMethodAttribute(RuntimeInitializeLoadType t) { } }
