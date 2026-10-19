@@ -422,6 +422,87 @@ static class Program
         }
     }
 
+    /// <summary>13. The corrections from the review (v7).</summary>
+    static void CorrectionChecks(Func<string, Schema> schema, string sampleDir)
+    {
+        Console.WriteLine("13. The corrections from the review (v7)");
+        var s6 = AutoScanSettings.From(JParse.Parse(File.ReadAllText(Path.Combine("perception", "autoscan", "autoscan.default.v6.json"))));
+        var s7 = AutoScanSettings.From(JParse.Parse(File.ReadAllText(Path.Combine("perception", "autoscan", "autoscan.default.v7.json"))));
+        var map5 = JParse.Parse(File.ReadAllText(Path.Combine("perception", "bedroom", "category-map.bedroom.v5.json")));
+        Check("the v7 settings: v6's, with full provenance and same-frame separation (both off in v6)",
+              s7.FullProvenance && s7.SeparateSameFrame && s7.MeshLinkM == s6.MeshLinkM && s7.UnnamedAs == "omit" && !s6.FullProvenance && !s6.SeparateSameFrame);
+        var room = new RoomModel { Status = "loaded", FloorY = 0, CeilingY = 2.6, MeshStatus = "loaded" };
+        foreach (var c in new[] { new[] { -3.0, -1.0 }, new[] { 3.0, -1.0 }, new[] { 3.0, 5.0 }, new[] { -3.0, 5.0 } }) room.FloorXz.Add(c);
+        var desk = Box("anchor-desk", "TABLE", new Vec3(1.0, 0.39, 1.0), new Vec3(1.4, 0.78, 0.7), 20);
+        room.Boxes.Add(desk);
+        room.MeshPoints.AddRange(Surface(new Box3 { Centre = new Vec3(-1.5, 0.13, 3.0), Size = new Vec3(0.45, 0.26, 0.22), YawDeg = 0 }, 0.05));   // the cat
+        Box3 up = Boxes.Upright(desk);
+        Func<double, double, double, Vec3> on = (x, h, z) => up.World(new Vec3(x, 0.39 + h / 2, z));
+        var bottleA = new Box3 { Centre = on(-0.30, 0.25, 0.0), Size = new Vec3(0.09, 0.25, 0.09), YawDeg = 20 };
+        var bottleB = new Box3 { Centre = on(-0.24, 0.25, 0.0), Size = new Vec3(0.09, 0.25, 0.09), YawDeg = 20 };   // touching it, 6 cm apart
+        var laptop = new Box3 { Centre = on(0.25, 0.25, 0.0), Size = new Vec3(0.34, 0.25, 0.25), YawDeg = 20 };
+        var laptopKeys = new Box3 { Centre = laptop.World(new Vec3(0, -0.11, -0.03)), Size = new Vec3(0.28, 0.02, 0.12), YawDeg = 20 };
+        var keyboard = new Box3 { Centre = on(-0.05, 0.03, 0.24), Size = new Vec3(0.38, 0.03, 0.14), YawDeg = 20 };
+        Func<AutoScanSettings, KeyValuePair<SecondEyes.Perception.Localization.LocalizationOutput, List<string>>> run = st =>
+        {
+            var a = new AutoScan("scan.corrections.1", st, map5, Priors, "yolox_nano_coco.se1", new string('c', 64), "quest_left", Fx);
+            var lines = new List<string> { PyJson.Canonical(a.Header("f00d", 1280, 960, Fx, 643, 481, 416)), PyJson.Canonical(room.ToJson()) };
+            a.SetRoom(room);
+            for (int n = 1; n <= 3; n++)
+            {
+                var dets = new List<FrameDetection> { DetOn("bottle", Face(bottleA, 2, -1, 5)), DetOn("bottle", Face(bottleB, 2, -1, 5)), DetOn("laptop", Face(laptop, 2, -1, 5)) };
+                if (n >= 2) dets.Add(DetOn("keyboard", Face(laptopKeys, 1, 1, 5)));   // its keys seen less often than the laptop
+                dets.Add(DetOn("keyboard", Face(keyboard, 1, 1, 5)));
+                var f = Frame(n, new Vec3(0.3, 1.5, -0.5) + new Vec3(0.1 * n, 0, 0), dets.ToArray());
+                lines.Add(PyJson.Canonical(f.ToJson())); a.Add(f);
+            }
+            return new KeyValuePair<SecondEyes.Perception.Localization.LocalizationOutput, List<string>>(a.Snapshot(3), lines);
+        };
+        var r6 = run(s6).Key;
+        var r7run = run(s7); var r7 = r7run.Key;
+        Func<SecondEyes.Perception.Localization.LocalizationOutput, string> cats = r => string.Join(",", r.Scene["objects"].Items.Select(o => o["category"]["state"].Text == "known" ? Cat(o) : "?"));
+        Check("two bottles touching, both seen in every frame, are two objects in v7 (v6 joined them into one)",
+              cats(r7) == "bottle,bottle,keyboard,laptop,table" && cats(r6) == "bottle,keyboard,laptop,table", "v7 " + cats(r7) + "; v6 " + cats(r6));
+        var objs = r7.Scene["objects"].Items;
+        Check("the laptop's own keys, seen in the same frames as the laptop, still join it (one laptop, one separate keyboard)",
+              objs.Count(o => o["category"]["state"].Text == "known" && Cat(o) == "laptop") == 1 && objs.Count(o => o["category"]["state"].Text == "known" && Cat(o) == "keyboard") == 1);
+        JNode kb = objs.Single(o => o["category"]["state"].Text == "known" && Cat(o) == "keyboard");
+        var centreBasis = kb["geometry"]["center_m"]["evidence"]["assumptions"].Items.Select(x => x.Text).ToList();
+        var turnBasis = kb["geometry"]["rotation_xyzw"]["evidence"]["assumptions"].Items.Select(x => x.Text).ToList();
+        Check("the keyboard seen only from above: its centre states the size prior's completion too, and its turn states it is the desk's",
+              centreBasis.Contains(AutoScan.BoxAssumption) && centreBasis.Contains(AutoScan.CompletionAssumption) && turnBasis.SequenceEqual(new[] { AutoScan.SupportAssumption }),
+              "centre [" + string.Join(", ", centreBasis) + "], turn [" + string.Join(", ", turnBasis) + "]");
+        JNode prov = r7.Trace["provenance"].Items.Single(p => p["object_id"].Text == kb["object_id"].Text);
+        Check("the trace has the keyboard as measured and as written, the prior growing what was seen (to 0.38 by 0.14 by 0.03 m), and the desk's turn it took",
+              prov["size_prior"].Bool && prov["observed_size_m"].Items[0].Num < prov["size_m"].Items[0].Num && prov["observed_size_m"].Items[2].Num < prov["size_m"].Items[2].Num
+              && Math.Abs(prov["size_m"].Items[2].Num - 0.03) < 0.005 && Math.Abs(prov["support_yaw_deg"].Num + 20) < 0.5,
+              "observed " + string.Join(" x ", prov["observed_size_m"].Items.Select(x => x.Text)) + ", written " + string.Join(" x ", prov["size_m"].Items.Select(x => x.Text)) + ", support " + prov["support_yaw_deg"].Text);
+        var notes = r7.Scene["assumptions"].Items.Where(x => x["assumption_id"].Text == AutoScan.InventoryAssumption).ToList();
+        Check("the scene says it lists only recognized objects, the cat's cluster counted as left out; v6 says nothing of it",
+              notes.Count == 1 && notes[0]["description"].Text.Contains(": 1 cluster(s)") && !r6.Scene["assumptions"].Items.Any(x => x["assumption_id"].Text == AutoScan.InventoryAssumption),
+              notes.Count == 1 ? notes[0]["description"].Text.Substring(0, 90) : "no note");
+        var contract = new Contract(schema);
+        var issues = contract.Validate(new List<KeyValuePair<string, JNode>> { new KeyValuePair<string, JNode>("scene", r7.Scene), new KeyValuePair<string, JNode>("map", map5) });
+        Check("the scene passes the contract with the bedroom's map v5", !issues.Any(i => i.IsError), string.Join(", ", issues.Where(i => i.IsError).Select(i => i.Code + " " + i.Path)));
+        var lines7 = r7run.Value;
+        var b2 = AutoScan.FromHeader(JParse.Parse(lines7[0]), s7, map5, Priors);
+        foreach (string line in lines7.Skip(1))
+        {
+            JNode n = JParse.Parse(line);
+            if (n["record_type"].Text == RoomModel.RecordType) b2.SetRoom(RoomModel.FromJson(n)); else b2.Add(FrameRecord.FromJson(n));
+        }
+        var rr = b2.Snapshot(3);
+        Check("replayed from its lines, the same scene and trace byte for byte", PyJson.Canonical(rr.Scene) == PyJson.Canonical(r7.Scene) && PyJson.Canonical(rr.Trace) == PyJson.Canonical(r7.Trace));
+        if (sampleDir != null)
+        {
+            Directory.CreateDirectory(sampleDir);
+            File.WriteAllLines(Path.Combine(sampleDir, "frames.jsonl"), lines7);
+            File.WriteAllText(Path.Combine(sampleDir, "scene.json"), PyJson.Canonical(r7.Scene) + "\n");
+            File.WriteAllText(Path.Combine(sampleDir, "trace.json"), PyJson.Canonical(r7.Trace) + "\n");
+            Console.WriteLine("  (a sample scan with v7 written to " + sampleDir + ")");
+        }
+    }
+
     static string bedObjLabel(List<JNode> objs) { return objs.Single(o => o["source_ref"]["source_object_id"].Text == "anchor-bed")["source_ref"]["source_label"].Text; }
 
     static RoomBox Box(string id, string label, Vec3 c, Vec3 size, double yawDeg = 0)
@@ -674,6 +755,7 @@ static class Program
         SupportChecks(schema, args.Length > 1 ? Path.Combine(args[1], "support") : null);
         MeshChecks(schema, args.Length > 1 ? Path.Combine(args[1], "mesh") : null);
         DetectedOnlyChecks(schema, args.Length > 1 ? Path.Combine(args[1], "detected") : null);
+        CorrectionChecks(schema, args.Length > 1 ? Path.Combine(args[1], "corrections") : null);
 
         Console.WriteLine("7. Tracking");
         var s8 = NewScan();
