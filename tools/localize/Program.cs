@@ -5,8 +5,8 @@
 // Or, for the automatic scan (docs/auto-scan.md): --memory <frames.jsonl> <category-map> <size-priors> <autoscan-config> <out-dir>
 // [schemas] [--compare <scene>]: the headset's frames.jsonl replayed through the same AutoScan code. With --compare, the
 // replay stops at the frame count the headset's trace.json (beside the compared scene) recorded for that scene's revision.
-// With --compare, the rerun's scene is compared with another (the headset's, from a pulled scan): the same objects,
-// categories, placements and possible duplicates, and centres within 1 mm; any difference is listed and the exit is 1.
+// With --compare, the rerun's scene is compared with another (the headset's, from a pulled scan): the complete scene, every
+// field, byte for byte once canonical; the paths that differ are listed and the exit is 1.
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -135,16 +135,44 @@ static class Program
         }
         Console.WriteLine("scene.json and trace.json written to " + args[4] + "; the scene passes the contract (scene v3)");
         if (compare == null) return 0;
-        var diff = Differences(o.Scene, load(compare));
-        if (diff.Count == 0)
+        JNode expected = load(compare);
+        if (PyJson.Canonical(o.Scene) == PyJson.Canonical(expected))   // the complete scene, every field
         {
-            Console.WriteLine("compared with " + compare + ": the same " + o.Scene["objects"].Items.Count
-                              + " objects, categories, placements and possible duplicates; centres within 1 mm");
+            Console.WriteLine("compared with " + compare + ": the complete scene is the same, byte for byte once canonical ("
+                              + o.Scene["objects"].Items.Count + " objects; every field, sizes, rotations and evidence included)");
             return 0;
         }
         Console.WriteLine("DIFFERS from " + compare + ":");
-        foreach (string line in diff.Take(20)) Console.WriteLine("  " + line);
+        foreach (string line in Paths(o.Scene, expected, "").Take(20)) Console.WriteLine("  " + line);
+        foreach (string line in Differences(o.Scene, expected).Take(10)) Console.WriteLine("  " + line);
         return 1;
+    }
+
+    /// <summary>Every JSON path where two scenes differ, with both values: the complete comparison's explanation.</summary>
+    static IEnumerable<string> Paths(JNode a, JNode b, string at)
+    {
+        string where = at.Length == 0 ? "(the scene)" : at;
+        if (a == null || b == null || a.Kind != b.Kind) { yield return where + ": " + Show(a) + " here, " + Show(b) + " there"; yield break; }
+        if (a.Kind == JKind.Object)
+        {
+            var keys = a.Fields.Select(kv => kv.Key).Union(b.Fields.Select(kv => kv.Key)).OrderBy(k => k, StringComparer.Ordinal).ToList();
+            foreach (string k in keys)
+                foreach (string d in Paths(a.Has(k) ? a[k] : null, b.Has(k) ? b[k] : null, at + "." + k)) yield return d;
+        }
+        else if (a.Kind == JKind.Array)
+        {
+            if (a.Items.Count != b.Items.Count) { yield return where + ": " + a.Items.Count + " items here, " + b.Items.Count + " there"; yield break; }
+            for (int i = 0; i < a.Items.Count; i++)
+                foreach (string d in Paths(a.Items[i], b.Items[i], at + "[" + i.ToString(System.Globalization.CultureInfo.InvariantCulture) + "]")) yield return d;
+        }
+        else if (PyJson.Canonical(a) != PyJson.Canonical(b)) yield return where + ": " + Show(a) + " here, " + Show(b) + " there";
+    }
+
+    static string Show(JNode n)
+    {
+        if (n == null) return "nothing";
+        string s = PyJson.Canonical(n);
+        return s.Length > 70 ? s.Substring(0, 67) + "..." : s;
     }
 
     static int Main(string[] argv)
@@ -206,15 +234,16 @@ static class Program
         }
         Console.WriteLine("scene.json and trace.json written to " + args[4] + "; the scene passes the contract (scene v3)");
         if (compare == null) return 0;
-        var diff = Differences(o.Scene, load(compare));
-        if (diff.Count == 0)
+        JNode expected = load(compare);
+        if (PyJson.Canonical(o.Scene) == PyJson.Canonical(expected))   // the complete scene, every field
         {
-            Console.WriteLine("compared with " + compare + ": the same " + o.Scene["objects"].Items.Count
-                              + " objects, categories, placements and possible duplicates; centres within 1 mm");
+            Console.WriteLine("compared with " + compare + ": the complete scene is the same, byte for byte once canonical ("
+                              + o.Scene["objects"].Items.Count + " objects; every field, sizes, rotations and evidence included)");
             return 0;
         }
         Console.WriteLine("DIFFERS from " + compare + ":");
-        foreach (string line in diff.Take(20)) Console.WriteLine("  " + line);
+        foreach (string line in Paths(o.Scene, expected, "").Take(20)) Console.WriteLine("  " + line);
+        foreach (string line in Differences(o.Scene, expected).Take(10)) Console.WriteLine("  " + line);
         return 1;
     }
 }

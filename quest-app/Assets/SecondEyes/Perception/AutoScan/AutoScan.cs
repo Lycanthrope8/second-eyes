@@ -330,7 +330,8 @@ namespace SecondEyes.Perception.AutoScan
         public bool Changed { get; private set; }
         public string ScanId => scanId;
         public AutoScanSettings Settings => s;
-        public int Confirmed => objects.Count(o => o.MergedInto < 0 && o.Frames.Count >= s.MinFrames) + (room.Loaded ? room.Boxes.Count : 0) + meshBoxes.Count;
+        /// <summary>The objects the scene holds now (left-out clusters and merged boxes not counted twice).</summary>
+        public int Confirmed => SceneItems().Count;
         public RoomModel Room => room;
 
         /// <summary>Meta's room, applied to every frame after it. The scan keeps it exactly as frames.jsonl holds it.</summary>
