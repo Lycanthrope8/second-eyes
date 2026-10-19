@@ -54,47 +54,63 @@ namespace SecondEyes.Grounding
 
         private async void ToggleSession()
         {
+            if (sessionStarting) return;   // O28: a start is already under way
             if (interactiveSession != null)
             {
-                if (!sessionStarting) EndSession();
+                EndSession();
                 return;
             }
-            string path = Path.Combine(Application.persistentDataPath, ggufFile);
-            Parsing.ParserFolder parserFolder = null;   // A2.7 (D115): with a pushed parser folder, the session grounds through the parser
-            perceptionFolder = null;   // A4 (stage 3): with a pushed perception folder, scanned rooms join the session
-            if (Perception.PerceptionFolder.Present(PerceptionDir))
-            {
-                try { perceptionFolder = Perception.PerceptionFolder.Load(PerceptionDir); }
-                catch (Exception e)
-                {
-                    SetStatus("The perception folder failed its check (" + e.Message + "); no session started. Push it again.");
-                    return;
-                }
-            }
-            if (Parsing.ParserCheckRunner.FolderPresent)
-            {
-                try
-                {
-                    parserFolder = perceptionFolder == null ? Parsing.ParserFolder.Load(Parsing.ParserCheckRunner.FolderDir)
-                        : Parsing.ParserFolder.Load(Parsing.ParserCheckRunner.FolderDir, perceptionFolder.SchemaText, perceptionFolder.Maps);
-                    path = Path.Combine(Application.persistentDataPath, parserFolder.GgufFile);
-                }
-                catch (Exception e)
-                {
-                    SetStatus("The parser folder failed its check (" + e.Message + "); no session started. Push it again.");
-                    return;
-                }
-            }
-            if (!File.Exists(path))
-            {
-                SetStatus(parserFolder != null ? "The parser model " + parserFolder.GgufFile + " isn't on the headset. Push it."
-                                               : "llama.cpp's model isn't on the headset. Push it: python grounding/llama_headset.py push-model");
-                return;
-            }
+            // O28: what needs Unity is read here, on the main thread; the start-up state is set and the controls disabled
+            // before anything is awaited; the folders' integrity checks, unchanged, then run off the main thread.
+            string dataDir = Application.persistentDataPath;
+            string path = Path.Combine(dataDir, ggufFile);
+            string perceptionDir = PerceptionDir;
+            bool perceptionPresent = Perception.PerceptionFolder.Present(perceptionDir);   // A4 (stage 3): scanned rooms join the session
+            bool parserPresent = Parsing.ParserCheckRunner.FolderPresent;   // A2.7 (D115): with a parser folder, the session grounds through the parser
+            string parserDir = Parsing.ParserCheckRunner.FolderDir;
+            perceptionFolder = null;
             replaying = true;
             sessionStarting = true;
             loadWasBeforeSession = loadButton.interactable;
             loadButton.interactable = false;
+            UpdateReplayButton();
+            UpdateSessionButtons();
+            SetStatus("Checking the folders before the session starts...");
+            Parsing.ParserFolder parserFolder = null;
+            Perception.PerceptionFolder loaded = null;
+            string failed = await System.Threading.Tasks.Task.Run(() =>
+            {
+                if (perceptionPresent)
+                {
+                    try { loaded = Perception.PerceptionFolder.Load(perceptionDir); }
+                    catch (Exception e) { return "The perception folder failed its check (" + e.Message + "); no session started. Push it again."; }
+                }
+                if (parserPresent)
+                {
+                    try
+                    {
+                        parserFolder = loaded == null ? Parsing.ParserFolder.Load(parserDir)
+                            : Parsing.ParserFolder.Load(parserDir, loaded.SchemaText, loaded.Maps);
+                    }
+                    catch (Exception e) { return "The parser folder failed its check (" + e.Message + "); no session started. Push it again."; }
+                }
+                return null;
+            });
+            perceptionFolder = loaded;
+            if (parserFolder != null) path = Path.Combine(dataDir, parserFolder.GgufFile);
+            if (failed == null && !File.Exists(path))
+                failed = parserFolder != null ? "The parser model " + parserFolder.GgufFile + " isn't on the headset. Push it."
+                                              : "llama.cpp's model isn't on the headset. Push it: python grounding/llama_headset.py push-model";
+            if (failed != null)
+            {
+                SetStatus(failed);
+                replaying = false;
+                sessionStarting = false;
+                loadButton.interactable = loadWasBeforeSession;
+                UpdateReplayButton();
+                UpdateSessionButtons();
+                return;
+            }
             interactiveSession = new InteractiveService(System.Threading.SynchronizationContext.Current, SetStatus, ShowOutcome);
             UpdateReplayButton();
             UpdateSessionButtons();
