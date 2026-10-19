@@ -186,8 +186,9 @@ namespace SecondEyes.Grounding.Interactive
             var s = new Scene { SnapshotId = captureId, SceneId = record["scene_id"].Text, SceneRevision = record["scene_revision"].Text,
                                 Sha256 = ReplayHash.Sha256Hex(Encoding.UTF8.GetBytes(sceneText)), Text = sceneText,
                                 Objects = record["objects"].Items.Count, Record = record };
-            // A newer snapshot of the same scan (the automatic scan publishes as it goes) replaces the older one.
-            int index = Scenes.FindIndex(x => x.Record != null && x.SceneId == s.SceneId && x.Record["evidence_profile"].Text == "perceived");
+            // One scanned room per session: a newer snapshot (the automatic scan publishes as it goes), or a fresh scan after
+            // the tracking origin moved, replaces the older one.
+            int index = Scenes.FindIndex(x => x.Record != null && x.Record["evidence_profile"].Text == "perceived");
             if (index >= 0) Scenes[index] = s;
             else { Scenes.Add(s); index = Scenes.Count - 1; }
             SetScene(index);

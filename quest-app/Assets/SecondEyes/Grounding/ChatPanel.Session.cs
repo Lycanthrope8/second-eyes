@@ -116,6 +116,7 @@ namespace SecondEyes.Grounding
 
         private async void EndSession()
         {
+            SecondEyes.Perception.Scan.ScanRegistry.Holds = 0; SecondEyes.Perception.Scan.ScanRegistry.HoldUntil = 0;   // no command is waiting any more
             InteractiveService s = interactiveSession;
             ShutdownReport r = null;
             if (s != null)

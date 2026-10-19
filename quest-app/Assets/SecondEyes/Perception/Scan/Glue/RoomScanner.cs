@@ -27,6 +27,7 @@ namespace SecondEyes.Perception.Scan
     /// </summary>
     public sealed class RoomScanner : MonoBehaviour, IRoomScanner
     {
+        public bool Stale { get { return false; } }   // the walking scan has no tracking recovery
         private const double ReadyTimeoutS = 30, KeyframeTimeoutS = 20, FinishWaitS = 20;
 
         public string Phase { get; private set; } = "idle";

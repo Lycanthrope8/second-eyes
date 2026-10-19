@@ -64,16 +64,21 @@ namespace SecondEyes.Grounding
                 SetStatus(scanShown);
             }
             // A snapshot joins the session only with a session, and not while a command is being processed.
-            if (interactiveSession == null || UnityEngine.Time.realtimeSinceStartupAsDouble < ScanRegistry.HoldUntil) return;
+            if (interactiveSession == null || (ScanRegistry.Holds > 0 && UnityEngine.Time.realtimeSinceStartupAsDouble < ScanRegistry.HoldUntil)) return;
             ScanResult r = sc.TakeResult();
             if (r != null) BindScan(r, sc.LastCaptureId);
         }
 
         /// <summary>A4 (the automatic scan): before a command is sent, the newest snapshot joins the session, so the
         /// command sees everything found so far; then the scan holds until the command's outcome is shown.</summary>
-        private void BeforeCommand()
+        private bool BeforeCommand()
         {
             IRoomScanner sc = ScanRegistry.Scanner;
+            if (sc != null && sc.Stale)   // the room is in the old tracking origin: no command about it
+            {
+                SetStatus("The headset's tracking changed, so your room is being scanned again: send the command once its objects are back.");
+                return false;
+            }
             if (sc != null && interactiveSession != null)
             {
                 ScanResult r = sc.TakeResult();
@@ -93,11 +98,17 @@ namespace SecondEyes.Grounding
                     SetStatus("Typed commands go to your scanned room");
                 }
             }
+            ScanRegistry.Holds++;
             ScanRegistry.HoldUntil = UnityEngine.Time.realtimeSinceStartupAsDouble + CommandHoldS;
+            return true;
         }
 
-        /// <summary>The command's outcome is shown: the scan may go on.</summary>
-        private static void AfterCommand() { ScanRegistry.HoldUntil = 0; }
+        /// <summary>A command's outcome is shown: the scan goes on once no command is waiting.</summary>
+        private static void AfterCommand()
+        {
+            ScanRegistry.Holds = ScanRegistry.Holds > 0 ? ScanRegistry.Holds - 1 : 0;
+            if (ScanRegistry.Holds == 0) ScanRegistry.HoldUntil = 0;
+        }
 
         private void BindScan(ScanResult r, string captureId)
         {

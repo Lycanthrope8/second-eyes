@@ -73,6 +73,13 @@ namespace SecondEyes.Perception.AutoScan
         private bool pending, saveImages;
         private double pendingSince, nextRun, nextPublish;
         private long epoch;
+        private double restartAt = double.MaxValue;
+        private bool restarted;
+        private const double RestartAfterS = 1.5;
+        /// <summary>The tracking origin moved since the room was scanned (a recenter, tracking lost and found): the published
+        /// scene is in the old origin. The boxes go, commands are refused, and once the origin settles a fresh scan starts (a
+        /// new capture, Meta's room reloaded); the flag clears when that scan publishes.</summary>
+        public bool Stale { get; private set; }
         private float labelScale;
         private readonly List<XRInputSubsystem> subsystems = new List<XRInputSubsystem>();
         private readonly List<TextMesh> labels = new List<TextMesh>();
@@ -100,11 +107,19 @@ namespace SecondEyes.Perception.AutoScan
         {
             epoch++;
             EventLog.Write("autoscan.tracking_origin", "{\"epoch\":" + epoch.ToString(CultureInfo.InvariantCulture) + "}");
+            if (scan == null || (Phase != "scanning" && Phase != "paused")) return;
+            Stale = true;
+            restarted = false;
+            restartAt = Time.realtimeSinceStartupAsDouble + RestartAfterS;
+            latest = null;   // the stale scene isn't handed out
+            HideBoxes();
+            StatusLine = "The headset's tracking changed: your room will be scanned again";
+            EventLog.Write("autoscan.stale", "{\"capture_id\":" + Json(scanId) + ",\"epoch\":" + epoch.ToString(CultureInfo.InvariantCulture) + "}");
         }
 
         private void Start() { StartCoroutine(Begin()); }
 
-        private void OnApplicationPause(bool paused) { if (paused && scan != null && scan.Changed) Publish(); }
+        private void OnApplicationPause(bool paused) { if (paused && scan != null && scan.Changed && !Stale) Publish(); }
 
         private void OnDestroy()
         {
@@ -383,7 +398,8 @@ namespace SecondEyes.Perception.AutoScan
         private void Update()
         {
             FaceLabels();
-            if (Phase != "scanning" || scan == null) return;
+            if (Stale && !restarted && !pending && Time.realtimeSinceStartupAsDouble >= restartAt) Restart();
+            if (Phase != "scanning" || scan == null || (Stale && !restarted)) return;
             double now = Time.realtimeSinceStartupAsDouble;
             if (pending && now - pendingSince > FrameTimeoutS)
             {
@@ -392,8 +408,8 @@ namespace SecondEyes.Perception.AutoScan
             }
             if (scan.Changed && now >= nextPublish) Publish();
             StatusLine = "Scanning: " + scan.Confirmed + " objects, " + scan.Tentative + " seen once, " + scan.Frames + " frames"
-                         + (now < ScanRegistry.HoldUntil ? " (waiting for the command)" : "");
-            if (pending || now < nextRun || now < ScanRegistry.HoldUntil || runner.IsBusy) return;
+                         + (Held(now) ? " (waiting for the command)" : "");
+            if (pending || now < nextRun || Held(now) || runner.IsBusy) return;
             bool tracked = HeadTracked();
             long epochAtStart = epoch;
             bool snapshot = saveImages && savedImages < settings.SaveImagesMax;
@@ -406,10 +422,40 @@ namespace SecondEyes.Perception.AutoScan
             }
         }
 
+        /// <summary>A command is being answered: no scan work starts, and none that finishes is added.</summary>
+        private static bool Held(double now) { return ScanRegistry.Holds > 0 && now < ScanRegistry.HoldUntil; }
+
+        /// <summary>After the tracking origin moved: the stale scan closes, and a fresh one starts.</summary>
+        private void Restart()
+        {
+            restarted = true;
+            restartAt = double.MaxValue;
+            if (frames != null) { frames.Dispose(); frames = null; }
+            string old = scanId;
+            scan = null; latest = null; pending = false;
+            Phase = "idle";
+            StatusLine = "Scanning your room again: the headset's tracking changed";
+            EventLog.Write("autoscan.restart", "{\"stale_capture_id\":" + Json(old) + ",\"epoch\":" + epoch.ToString(CultureInfo.InvariantCulture) + "}");
+            StartCoroutine(Begin());
+        }
+
+        private void HideBoxes()
+        {
+            foreach (Transform t in boxViews) if (t != null) t.gameObject.SetActive(false);
+            foreach (TextMesh l in labels) if (l != null) l.gameObject.SetActive(false);
+        }
+
         private void OnFrame(ScanFrame f, long epochAtStart, bool trackedAtStart)
         {
             pending = false;
             if (scan == null || f == null) return;
+            string dropped = epochAtStart != epoch ? "the tracking origin moved while the frame was processed"
+                           : Held(Time.realtimeSinceStartupAsDouble) ? "a command was being answered" : null;
+            if (dropped != null)   // its depth would be read in another origin, or the bound room would change under a command
+            {
+                EventLog.Write("autoscan.frame_dropped", "{\"capture_id\":" + Json(scanId) + ",\"why\":" + Json(dropped) + "}");
+                return;
+            }
             if (!f.Completed || f.Error != null || f.TranslationM == null || f.RotationXyzw == null)
             {
                 EventLog.Write("autoscan.frame_error", "{\"capture_id\":" + Json(scanId) + ",\"error\":" + Json(f.Error ?? "the frame wasn't completed") + "}");
@@ -454,6 +500,11 @@ namespace SecondEyes.Perception.AutoScan
             revision++;
             LocalizationOutput o = scan.Snapshot(revision);
             var r = new ScanResult { Scene = o.Scene, Trace = o.Trace, Facts = Facts() };
+            if (Stale && restarted)   // the fresh scan's first snapshot: the room is current again
+            {
+                Stale = false; restarted = false;
+                EventLog.Write("autoscan.current", "{\"capture_id\":" + Json(scanId) + "}");
+            }
             r.SceneIssues = new Contract(folder.Schema).Validate(new List<KeyValuePair<string, JNode>> {
                 new KeyValuePair<string, JNode>("scene", o.Scene), new KeyValuePair<string, JNode>("map", folder.CategoryMap) });
             Write("scene.json", o.Scene);

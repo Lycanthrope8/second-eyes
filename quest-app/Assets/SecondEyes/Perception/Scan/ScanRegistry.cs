@@ -15,6 +15,8 @@ namespace SecondEyes.Perception.Scan
         string HudText { get; }
         /// <summary>The newest scan's capture ID, its folder's name under files/scans.</summary>
         string LastCaptureId { get; }
+        /// <summary>The published room no longer matches the tracking origin: commands about it are refused.</summary>
+        bool Stale { get; }
         bool TryStart(PerceptionFolder folder, out string why);
         void Finish();
         /// <summary>A finished scan's result, handed over once; null otherwise.</summary>
@@ -28,5 +30,7 @@ namespace SecondEyes.Perception.Scan
         /// <summary>The automatic scan doesn't run its detector before this time (Time.realtimeSinceStartupAsDouble):
         /// the panel sets it while a command is being processed, so the parser has the headset's processors to itself.</summary>
         public static double HoldUntil;
+        /// <summary>Commands sent and not yet answered; the scan holds while there are any (HoldUntil caps a lost one).</summary>
+        public static int Holds;
     }
 }
