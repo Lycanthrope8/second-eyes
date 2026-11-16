@@ -69,3 +69,10 @@ def test_video_tools_end_to_end(tmp_path, monkeypatch):
         assert np.allclose(link[:3, 3], [2.5, 0.0, 1.0], atol=0.05)
     finally:
         open(os.path.join(cfg_dir, "references.yaml"), "w").write(orig)
+
+
+def test_missing_video_is_an_error_not_zero_frames(tmp_path):
+    tool = os.path.join(REPO, "scripts", "video_tools.py")
+    out = subprocess.run([sys.executable, tool, "frames", "--video", str(tmp_path / "nope.mp4"), "--out", str(tmp_path / "fr")],
+                         capture_output=True, text=True)
+    assert out.returncode != 0 and "video not found" in (out.stderr + out.stdout)

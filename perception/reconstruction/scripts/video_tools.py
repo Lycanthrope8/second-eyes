@@ -85,7 +85,11 @@ def cmd_anchor(a):
     print(f"scale {out['scale']:.4f}, corner fit {out['corner_fit_rms_m']*1000:.1f} mm, {out['views']} views -> {a.out}")
 
 def _segments(video, start_s, end_s, every):
+    if not os.path.isfile(video):
+        sys.exit(f"video not found: {os.path.abspath(video)}\nPut it in this folder or pass its full path with --video.")
     cap = cv2.VideoCapture(video)
+    if not cap.isOpened():
+        sys.exit(f"OpenCV cannot open {video}; send me the output of: python -c \"import cv2; print(cv2.getBuildInformation())\"")
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
     cap.set(cv2.CAP_PROP_POS_MSEC, 1000.0 * start_s)
     i = int(round(start_s * fps))
@@ -127,6 +131,8 @@ def cmd_frames(a):
         name = f"rgb/{i:06d}.jpg"
         cv2.imwrite(os.path.join(a.out, name), bgr, [cv2.IMWRITE_JPEG_QUALITY, a.quality])
         lines.append(f"{t:.6f} {name}")
+    if not lines:
+        sys.exit("no frames in that time range: check --start and --end against the video's length")
     with open(os.path.join(a.out, "rgb.txt"), "w") as f:
         f.write(f"# {os.path.basename(a.video)} every={a.every} scale={a.scale} size={size}\n" + "\n".join(lines) + "\n")
     print(f"{len(lines)} frames at {size} -> {a.out}")

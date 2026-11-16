@@ -8,4 +8,4 @@ pytest
 #   Depth Anything V2:  third_party/Depth-Anything-V2 at a561b849ebae10a6f5ef49e26c83cbbcd36c71bf
 #   Depth Anything 3:   pip install -e third_party/Depth-Anything-3 (3d835ec1a5802d64a8b8b15f817a1ab54809bfe4)
 # Model export (workstation only, step 4 of the runbook):
-#   pip install onnx onnxruntime==1.29.1
+#   pip install onnx onnxruntime==1.29.0

@@ -92,7 +92,13 @@ def download(name, record):
     arc = TP / Path(pin["url"]).name
     if not arc.is_file():
         print(f"  downloading {pin['url']}", flush=True)
-        urllib.request.urlretrieve(pin["url"], arc)
+        try:
+            urllib.request.urlretrieve(pin["url"], arc)
+        except Exception as e:
+            if arc.exists():
+                arc.unlink()
+            raise ToolError(f"{name}: download failed ({e}). Open the URL in a browser; if that version is gone, "
+                            "tell me which versions the site lists rather than editing tracking/pins.json.")
     digest = sha256_of(arc)
     if pin.get("sha256") and pin["sha256"] != digest:
         raise ToolError(f"{name}: SHA-256 {digest} does not match the pin {pin['sha256']}")

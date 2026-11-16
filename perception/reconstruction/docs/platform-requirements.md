@@ -12,8 +12,8 @@ Windows, Python, PyTorch 2.11 with CUDA 12.8, no WSL2 or Linux.
 | stella_vslam on the Quest | Laptop | `tools/build_tracking.py`: Unity's NDK (as for llama.cpp), CMake and Ninja (`pip install cmake ninja`), Git; it fetches and cross-builds Eigen, SQLite, yaml-cpp, g2o and stella, and uses OpenCV's prebuilt Android SDK |
 | MASt3R-SLAM comparison | **No** | Linux with CUDA. Blocked until Linux or WSL2 is authorized. Not needed for the screening decision |
 | SpatialLM on the reconstructed clouds | Not established | Its sparse-convolution dependencies are Linux-first. Needed only for the semantic evaluation after the geometry comparison |
-| Reconstruction program for the headset | Laptop | Built by the same `tools/build_tracking.py`, with ONNX Runtime's prebuilt Android package (1.29.1) |
-| Depth model export | Workstation | `scripts/export_dav2_onnx.py` with the pinned repository and checkpoint; `pip install onnx onnxruntime==1.29.1` |
+| Reconstruction program for the headset | Laptop | Built by the same `tools/build_tracking.py`, with ONNX Runtime's prebuilt Android package (1.29.0) |
+| Depth model export | Workstation | `scripts/export_dav2_onnx.py` with the pinned repository and checkpoint; `pip install onnx onnxruntime==1.29.0` |
 | Decoding a recorded video into frames | Laptop | `scripts/video_tools.py frames` (OpenCV); with the drone, frames come from the CM4 instead |
 | Tracking on the headset | Laptop and headset | adb; `tools/track_on_quest.py` runs the tracker as a command-line program, with the Second Eyes app in the foreground for its normal load |
 | Depth resource test | Laptop and headset | The Second Eyes Unity project; a model export the headset runtime can load (next delivery) |

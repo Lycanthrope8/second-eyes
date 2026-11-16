@@ -9,7 +9,7 @@ Checks, written to <out>.json:
   2. the whole headset path (the C++ program's preprocessing and its corner-aligned bilinear resize, re-implemented
      here in numpy, with the ONNX model) against Depth Anything V2's own infer_image on a real frame.
 Run on the workstation, in the harness venv with the pinned repository and checkpoint (RUNBOOK). Needs onnx and
-onnxruntime (pip install onnx onnxruntime==1.29.1)."""
+onnxruntime (pip install onnx onnxruntime==1.29.0)."""
 import argparse, hashlib, json, math, os, sys
 import numpy as np
 import cv2

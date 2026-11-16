@@ -22,6 +22,6 @@ numbers. Rows follow the log's columns. Decisions go newest first; open items go
 | O35 | Headset limits for memory and rendering in the resource tests | the first Quest resource test | reuse Gate A's definitions (O19) · set them for this work |
 | O36 | Which Revision 3 phase this work's runs belong to (D5) | the first registered run | A6, drone integration and registration (proposed) · 2A.1 · another |
 | O37 | Where the work lives in the repository (D2) | before the first commit | `perception/reconstruction/` (proposed) · elsewhere |
-| O38 | How the depth model runs on the headset | the app integration | ONNX Runtime 1.29.1 (MIT) on the CPU, as the command-line pipeline does now · Unity Inference Engine 2.2.1 on the GPU inside the app |
+| O38 | How the depth model runs on the headset | the app integration | ONNX Runtime 1.29.0 (MIT) on the CPU, as the command-line pipeline does now · Unity Inference Engine 2.2.1 on the GPU inside the app |
 | O39 | Board 02's print scale is not measured; its scale-drift figure includes any print difference from board 01 | reading the house result | measure one printed square on board 02 |
 | O40 | Whether the boards hang upright and level | a z-up cloud for SpatialLM | yes: set `mounting: upright_level` · no: take the up direction from the floor plane (not yet written) |

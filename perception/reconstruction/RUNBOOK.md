@@ -79,7 +79,7 @@ python scripts\qrecon.py compare --baseline <dav2s run> --challenger <da3 run>
 
 ## 4. Workstation: export the depth model for the headset
 ```
-pip install onnx onnxruntime==1.29.1
+pip install onnx onnxruntime==1.29.0
 python scripts\video_tools.py frames --video 20261110_191353.mp4 --start 30 --end 30.1 --scale 0.5 --out data\one_frame
 python scripts\export_dav2_onnx.py --frame-size 960 540 --image data\one_frame\rgb\000900.jpg --out models\dav2s_960x540.onnx
 python scripts\export_dav2_onnx.py --frame-size 640 480 --image data\tum\rgbd_dataset_freiburg3_long_office_household\rgb\<any>.png --out models\dav2s_640x480.onnx
