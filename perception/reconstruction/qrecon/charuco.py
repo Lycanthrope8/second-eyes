@@ -127,9 +127,11 @@ def anchor(obs, poses, K, dist, board, cfg, holdout_every=None):
     out = {"ok": True, "scale": s, "R": R, "t": t, "frames": len(frames), "held_out_frames": len(held),
            "triangulated_corners": int(len(ids)), "corner_fit_rms_m": float(np.sqrt(np.mean(resid ** 2))),
            "corner_fit_max_m": float(resid.max())}
-    if held:
-        errs = []
-        for f in held:
+    def reproject(frame_ids):
+        """Per frame: pixel errors of the measured board seen through the anchored path, and the distance at the
+        board they amount to (pixels x depth / focal length), comparable with corner_fit_rms_m."""
+        rows = []
+        for f in frame_ids:
             fid, fpx = obs[f]
             T_b = poses[f].copy()
             T_b[:3, :3] = R @ T_b[:3, :3]
@@ -138,10 +140,27 @@ def anchor(obs, poses, K, dist, board, cfg, holdout_every=None):
             Tcb = inv(T_b)
             pc = P @ Tcb[:3, :3].T + Tcb[:3, 3]
             uv = np.stack([K[0, 0] * pc[:, 0] / pc[:, 2] + K[0, 2], K[1, 1] * pc[:, 1] / pc[:, 2] + K[1, 2]], axis=1)
-            errs.append(np.linalg.norm(uv - undistort_px(fpx, K, dist), axis=1))
-        e = np.concatenate(errs)
+            e = np.linalg.norm(uv - undistort_px(fpx, K, dist), axis=1)
+            rows.append((f, e, e * pc[:, 2] / K[0, 0], pc[:, 2]))
+        return rows
+
+    fit_rows = reproject(sorted(fit_obs))
+    if fit_rows:
+        e = np.concatenate([r[1] for r in fit_rows])
+        out["fit_reprojection_px"] = {"median": float(np.median(e)), "p95": float(np.percentile(e, 95))}
+    if held:
+        rows = reproject(sorted(held))
+        e = np.concatenate([r[1] for r in rows])
+        em = np.concatenate([r[2] for r in rows])
         out["held_out_reprojection_px"] = {"median": float(np.median(e)), "p95": float(np.percentile(e, 95))}
-        if np.median(e) > cfg["max_held_out_px"]:
+        out["held_out_error_m"] = {"median": float(np.median(em)), "p95": float(np.percentile(em, 95))}
+        out["held_out_detail"] = [{"frame": int(f), "corners": int(len(ep)), "distance_m": float(np.median(z)),
+                                   "median_px": float(np.median(ep)), "median_m": float(np.median(m))}
+                                  for f, ep, m, z in rows]
+        metric = "max_held_out_m" in cfg              # a limit in metres at the board takes precedence over pixels
+        value, limit = (np.median(em), cfg["max_held_out_m"]) if metric else (np.median(e), cfg["max_held_out_px"])
+        out["held_out_limit"] = {"value": float(limit), "unit": "m" if metric else "px"}
+        if value > limit:
             out.update(ok=False, reason="held-out views of the board disagree with the anchored trajectory")
     if out["ok"] and out["corner_fit_rms_m"] > cfg["max_corner_fit_rms_m"]:
         out.update(ok=False, reason="triangulated corners do not fit the measured board")

@@ -164,6 +164,9 @@ def main():
             summary[f[:-5]] = json.loads((rec / f).read_text())
     if (path / "tracking" / "stats.json").is_file():
         summary["tracking"] = json.loads((path / "tracking" / "stats.json").read_text())
+    elif a.tracking_run and (HERE / "runs" / a.tracking_run / "tracking" / "stats.json").is_file():
+        summary["tracking"] = {"reused_from": a.tracking_run,
+                               **json.loads((HERE / "runs" / a.tracking_run / "tracking" / "stats.json").read_text())}
     REG.save_json(str(path), "summary.json", summary)
     print(json.dumps({k: summary.get(k) for k in ("run", "tracking", "stats")}, indent=1)[:3000])
     if not res.endswith("exit=0"):

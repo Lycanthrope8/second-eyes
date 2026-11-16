@@ -126,3 +126,22 @@ def test_upright_board_gives_z_up_map_frame():
     assert abs(np.linalg.det(R) - 1) < 1e-12
     with pytest.raises(ValueError):
         CH.map_frame_rotation("other")
+
+
+def test_anchor_reports_metric_error_and_honours_a_metric_limit():
+    rng = np.random.default_rng(3)
+    board = CH.make_board(SPEC)
+    poses_metric = _poses(16, np.array([0.14, 0.10, 0.0]))
+    poses_tracker = []
+    for T in poses_metric:
+        Tt = T.copy(); Tt[:3, 3] /= 3.1; poses_tracker.append(Tt)
+    obs = _observe(board, poses_metric, K, rng)
+    strict = dict(REF["anchor"], max_held_out_px=1e-6)          # an impossible pixel limit refuses the anchor
+    out = CH.anchor(obs, poses_tracker, K, np.zeros(5), board, strict)
+    assert not out["ok"] and out["held_out_limit"]["unit"] == "px"
+    assert out["held_out_error_m"]["median"] < 0.002 and len(out["held_out_detail"]) == out["held_out_frames"]
+    assert "fit_reprojection_px" in out
+    metric = dict(strict, max_held_out_m=0.01)                  # a limit in metres takes precedence
+    out = CH.anchor(obs, poses_tracker, K, np.zeros(5), board, metric)
+    assert out["ok"], out
+    assert out["held_out_limit"] == {"value": 0.01, "unit": "m"}

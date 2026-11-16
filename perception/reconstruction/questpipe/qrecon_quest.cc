@@ -233,6 +233,7 @@ struct Obs {
     std::vector<int> ids;
     std::vector<Eigen::Vector2d> px;  // undistorted
     Mat4 pose;
+    double t = 0.0;                   // board frame's time, for the per-frame report
 };
 std::map<int, Vec3> corners_in_frame(const std::vector<Obs>& obs, const Mat3& K, const json& cfg) {
     std::map<int, std::vector<std::pair<int, Eigen::Vector2d>>> seen;
@@ -314,19 +315,47 @@ json fit_board(const std::vector<Obs>& obs, const Board& B, const Mat3& K, const
     r["corner_fit_max_m"] = mx;
     r["ok"] = r["corner_fit_rms_m"].get<double>() <= cfg.at("max_corner_fit_rms_m").get<double>();
     if (!r["ok"].get<bool>()) r["reason"] = "triangulated corners do not fit the measured board";
-    if (!held.empty()) {
-        std::vector<double> errs;
-        for (auto& o : held) {
+    // Reprojection of the measured board through the anchored path: in pixels, and as the distance at the board that
+    // the pixel error amounts to (pixels x depth / focal length), which is comparable with corner_fit_rms_m.
+    auto reproject = [&](const std::vector<Obs>& views, std::vector<double>& px_all, std::vector<double>& m_all, json* detail) {
+        for (auto& o : views) {
             Mat4 Tb = S.apply(o.pose), Tcb = inv(Tb);
+            std::vector<double> e_px, e_m, depth;
             for (size_t i = 0; i < o.ids.size(); ++i) {
                 auto c = B.corners.at(o.ids[i]);
                 Vec3 pc = Tcb.block<3, 3>(0, 0) * Vec3(c.x, c.y, c.z) + Tcb.block<3, 1>(0, 3);
                 Eigen::Vector2d uv(K(0, 0) * pc.x() / pc.z() + K(0, 2), K(1, 1) * pc.y() / pc.z() + K(1, 2));
-                errs.push_back((uv - o.px[i]).norm());
+                const double e = (uv - o.px[i]).norm();
+                e_px.push_back(e);
+                e_m.push_back(e * pc.z() / K(0, 0));
+                depth.push_back(pc.z());
             }
+            px_all.insert(px_all.end(), e_px.begin(), e_px.end());
+            m_all.insert(m_all.end(), e_m.begin(), e_m.end());
+            if (detail)
+                detail->push_back({{"t", o.t}, {"corners", o.ids.size()}, {"distance_m", pct(depth, 0.5)},
+                                   {"median_px", pct(e_px, 0.5)}, {"median_m", pct(e_m, 0.5)}});
         }
+    };
+    {
+        std::vector<double> px_fit, m_fit;
+        reproject(fit, px_fit, m_fit, nullptr);
+        if (!px_fit.empty()) r["fit_reprojection_px"] = {{"median", pct(px_fit, 0.5)}, {"p95", pct(px_fit, 0.95)}};
+    }
+    if (!held.empty()) {
+        std::vector<double> errs, errs_m;
+        json detail = json::array();
+        reproject(held, errs, errs_m, &detail);
         r["held_out_reprojection_px"] = {{"median", pct(errs, 0.5)}, {"p95", pct(errs, 0.95)}};
-        if (pct(errs, 0.5) > cfg.at("max_held_out_px").get<double>()) {
+        r["held_out_error_m"] = {{"median", pct(errs_m, 0.5)}, {"p95", pct(errs_m, 0.95)}};
+        r["held_out_detail"] = detail;
+        // The limit is either in metres at the board (max_held_out_m) or in pixels (max_held_out_px), whichever the
+        // configuration names; metres take precedence.
+        const bool metric = cfg.contains("max_held_out_m");
+        const double value = metric ? pct(errs_m, 0.5) : pct(errs, 0.5);
+        const double limit = metric ? cfg.at("max_held_out_m").get<double>() : cfg.at("max_held_out_px").get<double>();
+        r["held_out_limit"] = {{"value", limit}, {"unit", metric ? "m" : "px"}};
+        if (value > limit) {
             r["ok"] = false;
             r["reason"] = "held-out views of the board disagree with the anchored trajectory";
         }
@@ -702,7 +731,7 @@ int main(int argc, char** argv) {
                     std::vector<int> ids;
                     std::vector<cv::Point2f> px;
                     if (g.empty() || !detect(B, g, A.at("params")["min_corners"], ids, px)) continue;
-                    obs.push_back({ids, undistort(px, bc), pre ? pre->apply(tp[j]) : tp[j]});
+                    obs.push_back({ids, undistort(px, bc), pre ? pre->apply(tp[j]) : tp[j], it.t});
                 }
                 return obs;
             };
