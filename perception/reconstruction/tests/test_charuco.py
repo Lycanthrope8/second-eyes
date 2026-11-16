@@ -136,7 +136,8 @@ def test_anchor_reports_metric_error_and_honours_a_metric_limit():
     for T in poses_metric:
         Tt = T.copy(); Tt[:3, 3] /= 3.1; poses_tracker.append(Tt)
     obs = _observe(board, poses_metric, K, rng)
-    strict = dict(REF["anchor"], max_held_out_px=1e-6)          # an impossible pixel limit refuses the anchor
+    pixels_only = {k: v for k, v in REF["anchor"].items() if k != "max_held_out_m"}   # whatever the config holds
+    strict = dict(pixels_only, max_held_out_px=1e-6)            # an impossible pixel limit refuses the anchor
     out = CH.anchor(obs, poses_tracker, K, np.zeros(5), board, strict)
     assert not out["ok"] and out["held_out_limit"]["unit"] == "px"
     assert out["held_out_error_m"]["median"] < 0.002 and len(out["held_out_detail"]) == out["held_out_frames"]

@@ -112,7 +112,8 @@ def test_report_flags_a_blank_stretch_and_finds_the_board(tmp_path):
     assert not any(e <= 3.0 or s >= 5.2 for s, e in spans), spans             # and nothing else
     b = rep["boards"]["ref01"]
     assert b and b[0]["start_s"] <= 0.5 and 2.0 <= b[0]["end_s"] < 3.0 and not rep["boards"]["ref02"]
-    assert rep["suggested_windows_s"]["ref01_start"][0] == 0.0
+    assert rep["tracking_screen"]["map_start_estimate_s"] == 0.0
+    assert rep["suggested_windows_s"]["ref01_start"][0] == 0.0 and rep["suggested_windows_s"]["calibration"][0] == 0.0
     assert os.path.exists(tmp_path / "rep" / "contact.jpg")
     lines = open(tmp_path / "rep" / "timeline.csv").read().splitlines()
     assert len(lines) == 1 + 120

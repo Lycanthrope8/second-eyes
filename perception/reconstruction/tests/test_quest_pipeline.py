@@ -108,12 +108,17 @@ def test_board_anchoring_matches_python(tmp_path):
     assert rep["ref01"]["ok"], rep
     assert abs(rep["ref01"]["scale"] - scale) / scale < 0.02
     assert rep["ref01"]["held_out_reprojection_px"]["median"] < 1.5
-    assert rep["ref01"]["held_out_limit"]["unit"] == "px" and "fit_reprojection_px" in rep["ref01"]
+    assert rep["ref01"]["held_out_limit"]["unit"] == ("m" if "max_held_out_m" in ref["anchor"] else "px")
+    assert "fit_reprojection_px" in rep["ref01"]
     assert rep["ref01"]["held_out_error_m"]["median"] < 0.005
     assert len(rep["ref01"]["held_out_detail"]) == rep["ref01"]["held_out_frames"]
     traj = np.loadtxt(tmp_path / "out" / "anchored_trajectory.txt")
     assert np.allclose(traj[:, 1:4], np.array([T[:3, 3] for T in poses]), atol=0.01)   # metric, in the board's frame
-    cfg["anchor"]["params"] = dict(ref["anchor"], max_held_out_px=1e-6, max_held_out_m=0.01)   # metres take precedence
+    pixels_only = {k: v for k, v in ref["anchor"].items() if k != "max_held_out_m"}
+    cfg["anchor"]["params"] = dict(pixels_only, max_held_out_px=1e-6)                     # impossible pixel limit
+    r, stats, rep = _run(cfg, str(tmp_path / "out_px"))
+    assert not rep["ref01"]["ok"] and rep["ref01"]["held_out_limit"]["unit"] == "px"
+    cfg["anchor"]["params"] = dict(pixels_only, max_held_out_px=1e-6, max_held_out_m=0.01)   # metres take precedence
     r, stats, rep = _run(cfg, str(tmp_path / "out_m"))
     assert r.returncode == 0, r.stderr
     assert rep["ref01"]["ok"] and rep["ref01"]["held_out_limit"] == {"value": 0.01, "unit": "m"}

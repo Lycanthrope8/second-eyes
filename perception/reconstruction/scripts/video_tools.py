@@ -336,11 +336,15 @@ def cmd_report(a):
             s0 = k
         if not r and s0 is not None:
             if T[k - 1, 0] - T[s0, 0] + dt >= a.min_span_s:
-                spans.append([round(T[s0, 0], 2), round(T[k - 1, 0] + dt, 2)])
+                spans.append([round(float(T[s0, 0]), 2), round(float(T[k - 1, 0] + dt), 2)])
             s0 = None
     need = max(1, int(round(1.0 / dt)))
     good = ~risky
-    first_good = next((round(T[k, 0], 2) for k in range(len(T) - need + 1) if good[k:k + need].all()), None)
+    first_good = next((round(float(T[k, 0]), 2) for k in range(len(T) - need + 1) if good[k:k + need].all()), None)
+    # Starting a map needs texture across the image, not just many features in one place: on the house video stella
+    # made its first attempt exactly when texture first covered 30% of the image for a second (5.2 s).
+    wide = T[:, 2] >= a.min_start_cells
+    map_start = next((round(float(T[k, 0]), 2) for k in range(len(T) - need + 1) if wide[k:k + need].all()), None)
 
     def board_spans(h):
         out_s, cur = [], None
@@ -353,12 +357,27 @@ def cmd_report(a):
     found = {k: board_spans(h) for k, h in hits.items()}
     duration = (i - 1) / fps
     pad = lambda s: [round(max(0.0, s["start_s"] - 1.0), 1), round(min(duration, s["end_s"] + 1.0), 1)]
-    windows = {}
+    windows, notes = {}, []
     r1, r2 = found.get("ref01", []), found.get("ref02", [])
     if r1:
-        windows["ref01_start"] = pad(r1[0])
-        if len(r1) > 1 and r1[-1]["start_s"] > duration / 2:
-            windows["ref01_end"] = pad(r1[-1])
+        windows["calibration"] = pad(r1[0])
+        # The anchor needs board 01 while the tracker has a map: views before the map can start give no poses.
+        usable = [sp for sp in r1 if map_start is not None and sp["end_s"] >= map_start + 0.5]
+        groups = []                                       # the first usable views and any others within 20 s of them
+        if usable:
+            near = [sp for sp in usable if sp["start_s"] <= usable[0]["start_s"] + 20.0]
+            groups.append({"start_s": usable[0]["start_s"], "end_s": near[-1]["end_s"]})
+        if groups:
+            windows["ref01_start"] = pad(groups[0])
+            if r1[0]["end_s"] < (map_start or 0) + 0.5:
+                notes.append(f"board 01 at {r1[0]['start_s']}-{r1[0]['end_s']} s comes before the map can start "
+                             f"(about {map_start} s), so the anchor window uses its later views")
+        else:
+            windows["ref01_start"] = pad(r1[0])
+            notes.append("board 01 is only seen before the map can start: the anchor will find no tracked views")
+        last = r1[-1]
+        if last["start_s"] > duration / 2 and (not groups or last["start_s"] > groups[0]["end_s"]):
+            windows["ref01_end"] = pad(last)
     if r2:
         windows["ref02"] = [pad(s) for s in r2]
 
@@ -385,18 +404,21 @@ def cmd_report(a):
            "tracking_screen": {"every": a.every, "scale": a.scale, "fast_threshold": a.fast, "features": a.features,
                                "min_matches": a.min_matches, "min_keypoints": a.min_keypoints, "min_span_s": a.min_span_s,
                                "frames": len(rows), "risky_share": round(float(risky.mean()), 3),
+                               "min_start_cells": a.min_start_cells, "map_start_estimate_s": map_start,
                                "risky_spans_s": spans, "first_good_second_s": first_good,
                                "median": {"keypoints": med(1), "cells_share": med(2), "matches": med(3), "sharpness": med(4)}},
-           "boards": found, "suggested_windows_s": windows,
+           "boards": found, "suggested_windows_s": windows, "notes": notes,
            "outputs": {"timeline": os.path.join(out, "timeline.csv"), "contact_sheet": os.path.join(out, "contact.jpg")}}
     json.dump(rep, open(os.path.join(out, "report.json"), "w"), indent=2)
     print(json.dumps({k: rep[k] for k in ("video", "size", "fps", "duration_s", "constant_rate")}))
     ts = rep["tracking_screen"]
-    print(f"tracking screen: {ts['risky_share']:.0%} of frames risky; first good second at {first_good} s; "
+    print(f"tracking screen: map can start at about {map_start} s; {ts['risky_share']:.0%} of frames risky; "
           f"{len(spans)} risky stretches: {spans[:12]}{' ...' if len(spans) > 12 else ''}")
     for k, sp in found.items():
         print(f"{k}: " + (", ".join(f"{s['start_s']}-{s['end_s']} s (up to {s['max_corners']} corners)" for s in sp) or "not found"))
     print(f"suggested windows_s: {json.dumps(windows)}")
+    for n in notes:
+        print(f"note: {n}")
     print(f"-> {out}")
 
 
@@ -438,6 +460,7 @@ def main():
     p.add_argument("--features", type=int, default=2000); p.add_argument("--fast", type=int, default=20)
     p.add_argument("--min-matches", type=int, default=50, help="stella needs 50 to try a map; below it is risky")
     p.add_argument("--min-keypoints", type=int, default=300); p.add_argument("--min-span-s", type=float, default=0.5)
+    p.add_argument("--min-start-cells", type=float, default=0.3, help="texture cover needed to start a map")
     p.add_argument("--board-every", type=int, default=15); p.add_argument("--sheet-every", type=float, default=10.0)
     p.set_defaults(fn=cmd_report)
     a = ap.parse_args(); a.fn(a)
