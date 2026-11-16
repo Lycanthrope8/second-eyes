@@ -9,7 +9,7 @@ Checks, written to <out>.json:
   2. the whole headset path (the C++ program's preprocessing and its corner-aligned bilinear resize, re-implemented
      here in numpy, with the ONNX model) against Depth Anything V2's own infer_image on a real frame.
 Run on the workstation, in the harness venv with the pinned repository and checkpoint (RUNBOOK). Needs onnx and
-onnxruntime (pip install onnx onnxruntime==1.29.0)."""
+onnxruntime (pip install onnx onnxscript onnxruntime==1.29.0 "ml_dtypes==0.5.4")."""
 import argparse, hashlib, json, math, os, sys
 import numpy as np
 import cv2
@@ -55,10 +55,14 @@ def main():
     ap.add_argument("--short-side", type=int, default=518)
     ap.add_argument("--repo-dir", default=os.path.join(REPO, "third_party", "Depth-Anything-V2"))
     ap.add_argument("--checkpoint", default=os.path.join(REPO, "models", "depth_anything_v2_vits.pth"))
-    ap.add_argument("--opset", type=int, default=17)
+    ap.add_argument("--opset", type=int, default=18)
     a = ap.parse_args()
     import torch
     import onnxruntime as ort
+    try:
+        import onnxscript  # noqa: F401  PyTorch's exporter needs it
+    except ImportError:
+        sys.exit('PyTorch\'s ONNX exporter needs onnxscript: pip install onnxscript "numpy==1.26.4" "ml_dtypes==0.5.4"')
     sys.path.insert(0, a.repo_dir)
     from depth_anything_v2.dpt import DepthAnythingV2
     w, h = a.frame_size
@@ -67,9 +71,15 @@ def main():
     model.load_state_dict(torch.load(a.checkpoint, map_location="cpu"))
     model.eval()
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
+    dummy = torch.zeros(1, 3, in_h, in_w)
+    kw = dict(input_names=["image"], output_names=["depth"], opset_version=a.opset)
     with torch.no_grad():
-        torch.onnx.export(model, torch.zeros(1, 3, in_h, in_w), a.out, input_names=["image"], output_names=["depth"],
-                          opset_version=a.opset, dynamic_axes=None)
+        try:   # one self-contained file: the headset gets the weights inside the model, not beside it
+            torch.onnx.export(model, (dummy,), a.out, dynamo=True, external_data=False, **kw)
+        except TypeError:   # an older PyTorch without these options
+            torch.onnx.export(model, (dummy,), a.out, **kw)
+    if os.path.exists(a.out + ".data"):
+        sys.exit(f"the exporter wrote the weights to {a.out}.data; send me the PyTorch version (the headset needs one file)")
     bgr = cv2.imread(a.image)
     if bgr is None or (bgr.shape[1], bgr.shape[0]) != (w, h):
         sys.exit(f"--image must be a {w}x{h} frame")

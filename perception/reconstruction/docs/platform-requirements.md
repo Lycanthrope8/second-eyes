@@ -13,7 +13,7 @@ Windows, Python, PyTorch 2.11 with CUDA 12.8, no WSL2 or Linux.
 | MASt3R-SLAM comparison | **No** | Linux with CUDA. Blocked until Linux or WSL2 is authorized. Not needed for the screening decision |
 | SpatialLM on the reconstructed clouds | Not established | Its sparse-convolution dependencies are Linux-first. Needed only for the semantic evaluation after the geometry comparison |
 | Reconstruction program for the headset | Laptop | Built by the same `tools/build_tracking.py`, with ONNX Runtime's prebuilt Android package (1.29.0) |
-| Depth model export | Workstation | `scripts/export_dav2_onnx.py` with the pinned repository and checkpoint; `pip install onnx onnxruntime==1.29.0` |
+| Depth model export | Workstation | `scripts/export_dav2_onnx.py` with the pinned repository and checkpoint; `pip install onnx onnxscript onnxruntime==1.29.0 "ml_dtypes==0.5.4"` |
 | Decoding a recorded video into frames | Laptop | `scripts/video_tools.py frames` (OpenCV); with the drone, frames come from the CM4 instead |
 | Tracking on the headset | Laptop and headset | adb; `tools/track_on_quest.py` runs the tracker as a command-line program, with the Second Eyes app in the foreground for its normal load |
 | Depth resource test | Laptop and headset | The Second Eyes Unity project; a model export the headset runtime can load (next delivery) |
