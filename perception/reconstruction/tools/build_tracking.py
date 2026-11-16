@@ -22,6 +22,7 @@ OUT = TRK / "out" / "android-arm64"
 PINS = json.loads((TRK / "pins.json").read_text())
 sys.path.insert(0, str(TRK))
 import patch_stella  # noqa: E402
+import patch_g2o  # noqa: E402
 
 
 class ToolError(Exception):
@@ -176,6 +177,7 @@ def build(args):
               "host": f"{platform.system()} {platform.machine()}", "abi": "arm64-v8a", "platform": "android-28", "stl": "c++_shared"}
     PREFIX.mkdir(parents=True, exist_ok=True)
     base = ["-G", "Ninja", "-Wno-dev", "-Wno-deprecated", "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
+            "-DCMAKE_PLATFORM_NO_VERSIONED_SONAME=ON",       # plain libX.so names, as Android loads them
             f"-DCMAKE_MAKE_PROGRAM={shutil.which('ninja')}",
             f"-DCMAKE_TOOLCHAIN_FILE={ndk / 'build' / 'cmake' / 'android.toolchain.cmake'}",
             "-DANDROID_ABI=arm64-v8a", "-DANDROID_PLATFORM=android-28", "-DANDROID_STL=c++_shared",
@@ -211,6 +213,7 @@ def build(args):
 
     print("== g2o (BSD parts only: no CSparse, no CHOLMOD, no viewer)")
     g2o = git_fetch("g2o")
+    print("  " + patch_g2o.apply(g2o))
     cmake_build(g2o, BUILD / "g2o", common + ["-DBUILD_SHARED_LIBS=ON", "-DBUILD_UNITTESTS=OFF", "-DG2O_USE_CHOLMOD=OFF",
                                              "-DG2O_USE_CSPARSE=OFF", "-DG2O_USE_LGPL_LIBS=OFF", "-DG2O_USE_OPENGL=OFF",
                                              "-DG2O_USE_OPENMP=OFF", "-DG2O_BUILD_APPS=OFF", "-DG2O_BUILD_EXAMPLES=OFF",

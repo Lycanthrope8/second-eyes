@@ -38,3 +38,17 @@ def test_refuses_unexpected_sources(tmp_path):
     with pytest.raises(SystemExit):
         patch_stella.apply(root)
 
+
+
+g2o_spec = importlib.util.spec_from_file_location("patch_g2o", os.path.join(REPO, "tracking", "patch_g2o.py"))
+patch_g2o = importlib.util.module_from_spec(g2o_spec)
+g2o_spec.loader.exec_module(patch_g2o)
+
+
+def test_g2o_config_stops_asking_for_opengl(tmp_path):
+    t = tmp_path / patch_g2o.TEMPLATE
+    t.parent.mkdir(parents=True)
+    t.write_text("include(CMakeFindDependencyMacro)\n\nfind_dependency(Eigen3)\nfind_dependency(OpenGL)\n\ninclude(x)\n")
+    assert patch_g2o.apply(tmp_path) == "patched"
+    assert "OpenGL" not in t.read_text()
+    assert patch_g2o.apply(tmp_path) == "already patched"
