@@ -17,7 +17,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HERE))
-from qrecon import registry as REG  # noqa: E402
+from qrecon import framelist as FL, registry as REG  # noqa: E402
 
 REMOTE = "/data/local/tmp/qtrack"
 RUNTIME = HERE / "tracking" / "out" / "android-arm64"
@@ -70,10 +70,9 @@ def main():
         for d in ("bin", "lib", "share"):
             adb("push", str(RUNTIME / d), f"{REMOTE}/")
         adb("shell", f"chmod 755 {REMOTE}/bin/qtrack && echo {stamp} > {REMOTE}/runtime.sha256")
-    n_local = sum(1 for l in open(frames / "rgb.txt") if l.strip() and not l.startswith("#"))
-    remote_list = remote_text(f"{REMOTE}/frames/{a.name}/rgb.txt")
-    n_remote = sum(1 for l in remote_list.splitlines() if l.strip() and not l.startswith("#"))
-    if n_remote != n_local:
+    local_list = (frames / "rgb.txt").read_text(encoding="utf-8", errors="replace")
+    n_local = FL.count(local_list)
+    if FL.differs(local_list, remote_text(f"{REMOTE}/frames/{a.name}/rgb.txt")):
         print(f"pushing {n_local} frames (this can take a while)")
         adb("shell", f"rm -rf {REMOTE}/frames/{a.name} && mkdir -p {REMOTE}/frames")
         adb("push", str(frames), f"{REMOTE}/frames/{a.name}")

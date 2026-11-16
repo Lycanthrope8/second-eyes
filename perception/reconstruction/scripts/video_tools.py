@@ -13,6 +13,7 @@
   charuco-anchor    metric scale and frame from board 01; link and scale drift from board 02
   stella-config     stella_vslam camera file from a calibration
   report            a recording's fitness for tracking and anchoring, before any tracker runs
+  check-frames      whether extracted frames are the video frames their names say
 """
 import argparse, json, os, sys
 import numpy as np
@@ -85,26 +86,35 @@ def cmd_anchor(a):
             f.write(f"{t:.6f} {T[0,3]:.6f} {T[1,3]:.6f} {T[2,3]:.6f} {q[0]:.8f} {q[1]:.8f} {q[2]:.8f} {q[3]:.8f}\n")
     print(f"scale {out['scale']:.4f}, corner fit {out['corner_fit_rms_m']*1000:.1f} mm, {out['views']} views -> {a.out}")
 
-def _segments(video, start_s, end_s, every):
+def _spans(video, spans, every):
+    """Frames whose time lies inside any of the spans, as (index, time, image), in one pass. The video is decoded in
+    order from its first frame, so every index is the frame's true position and time = index / fps, exactly as for
+    the tracker's frames. It does not seek: on variable-rate video (phones in dim light) OpenCV's seek can land a
+    frame or more away from the index it implies, which pairs board views with the wrong tracker poses."""
     if not os.path.isfile(video):
         sys.exit(f"video not found: {os.path.abspath(video)}\nPut it in this folder or pass its full path with --video.")
     cap = cv2.VideoCapture(video)
     if not cap.isOpened():
         sys.exit(f"OpenCV cannot open {video}; send me the output of: python -c \"import cv2; print(cv2.getBuildInformation())\"")
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-    cap.set(cv2.CAP_PROP_POS_MSEC, 1000.0 * start_s)
-    i = int(round(start_s * fps))
-    while True:
-        ok, bgr = cap.read()
-        if not ok:
-            break
+    spans = sorted((float(s0), float("inf") if s1 is None else float(s1)) for s0, s1 in spans)
+    last = max(s1 for _, s1 in spans)
+    i = 0
+    while i / fps <= last:
         t = i / fps
-        if end_s is not None and t > end_s:
-            break
-        if i % every == 0:
+        if i % every == 0 and any(s0 <= t <= s1 for s0, s1 in spans):
+            ok, bgr = cap.read()
+            if not ok:
+                break
             yield i, t, bgr
+        elif not cap.grab():
+            break
         i += 1
     cap.release()
+
+
+def _segments(video, start_s, end_s, every):
+    yield from _spans(video, [(start_s, end_s)], every)
 
 
 def _windows_of(recording):
@@ -122,10 +132,7 @@ def cmd_frames(a):
     os.makedirs(os.path.join(a.out, "rgb"), exist_ok=True)
     lines, size = [], None
     spans = _windows_of(a.recording) if a.recording else [[a.start, a.end]]
-    def frames_in_spans():
-        for s0, s1 in spans:
-            yield from _segments(a.video, s0, s1, a.every)
-    for i, t, bgr in frames_in_spans():
+    for i, t, bgr in _spans(a.video, spans, a.every):
         if a.scale != 1.0:
             bgr = cv2.resize(bgr, None, fx=a.scale, fy=a.scale, interpolation=cv2.INTER_AREA)
         size = (bgr.shape[1], bgr.shape[0])
@@ -134,8 +141,11 @@ def cmd_frames(a):
         lines.append(f"{t:.6f} {name}")
     if not lines:
         sys.exit("no frames in that time range: check --start and --end against the video's length")
+    import datetime
+    stamp = datetime.datetime.now().isoformat(timespec="seconds")      # lets the headset tools see a re-extraction
     with open(os.path.join(a.out, "rgb.txt"), "w") as f:
-        f.write(f"# {os.path.basename(a.video)} every={a.every} scale={a.scale} size={size}\n" + "\n".join(lines) + "\n")
+        f.write(f"# {os.path.basename(a.video)} every={a.every} scale={a.scale} size={size} decoded=in-order "
+                f"extracted={stamp}\n" + "\n".join(lines) + "\n")
     print(f"{len(lines)} frames at {size} -> {a.out}")
 
 
@@ -180,7 +190,12 @@ def cmd_charuco_calibrate(a):
     out = CH.calibrate(dets, board, size, ref["calibration"])
     out.update(video=os.path.basename(a.video), board=a.board, window_s=[a.start, a.end])
     json.dump(out, open(a.out, "w"), indent=2)
-    print(json.dumps({k: out.get(k) for k in ("ok", "reason", "warning", "rms_px", "views", "image_coverage", "board_distance_m")}, indent=2))
+    out_print = {k: out.get(k) for k in ("ok", "reason", "warning", "rms_px", "views", "image_coverage", "board_distance_m",
+                                          "focal_std_fraction")}
+    if out.get("K"):
+        out_print["focal_px"] = out["K"][0][0]
+        out_print["k1"] = out["dist"][0]
+    print(json.dumps(out_print, indent=2))
 
 
 def cmd_charuco_anchor(a):
@@ -199,12 +214,11 @@ def cmd_charuco_anchor(a):
 
     def collect(board, windows):
         obs, idx = {}, {}
-        for start, end in windows:
-            for i, t, bgr in _segments(a.video, start, end, a.every):
-                d = CH.detect(bgr, board, ref["anchor"]["min_corners"])
-                j = int(np.argmin(np.abs(times - t)))
-                if d is not None and abs(times[j] - t) <= a.max_dt:
-                    obs[i], idx[i] = d, j
+        for i, t, bgr in _spans(a.video, windows, a.every):
+            d = CH.detect(bgr, board, ref["anchor"]["min_corners"])
+            j = int(np.argmin(np.abs(times - t)))
+            if d is not None and abs(times[j] - t) <= a.max_dt:
+                obs[i], idx[i] = d, j
         return obs, idx
 
     def clean(d):
@@ -422,6 +436,64 @@ def cmd_report(a):
     print(f"-> {out}")
 
 
+def cmd_check_frames(a):
+    """Checks that extracted frames are the video frames their names say: a sample of them is compared with the video
+    decoded in order, frame by frame around each one's index. An offset other than 0 means those frames are paired
+    with the wrong tracker poses (frames extracted by seeking in a variable-rate video can be)."""
+    items = [l.split() for l in open(os.path.join(a.frames, "rgb.txt")) if l.strip() and not l.startswith("#")]
+    if not items:
+        sys.exit(f"no frames listed in {a.frames}/rgb.txt")
+    names = [it[1] for it in items]
+    index = [int(os.path.splitext(os.path.basename(n))[0]) for n in names]
+    pick = sorted(set(np.linspace(0, len(names) - 1, min(a.samples, len(names))).round().astype(int).tolist()))
+    targets = {index[k]: cv2.imread(os.path.join(a.frames, names[k]), cv2.IMREAD_GRAYSCALE) for k in pick}
+    missing = [names[k] for k in pick if targets[index[k]] is None]
+    if missing:
+        sys.exit(f"cannot read {len(missing)} listed frame(s) in {a.frames}, for example {missing[0]}")
+    want = {}
+    for n in targets:
+        for d in range(-a.radius, a.radius + 1):
+            want.setdefault(n + d, []).append(n)
+    diffs = {n: {} for n in targets}
+    cap = cv2.VideoCapture(a.video)
+    if not cap.isOpened():
+        sys.exit(f"OpenCV cannot open {a.video}")
+    i, last = 0, max(want)
+    while i <= last:
+        if i in want:
+            ok, bgr = cap.read()
+            if not ok:
+                break
+            g = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+            for n in want[i]:
+                ref = targets[n]
+                h = g if g.shape == ref.shape else cv2.resize(g, (ref.shape[1], ref.shape[0]), interpolation=cv2.INTER_AREA)
+                diffs[n][i - n] = float(np.mean(cv2.absdiff(h, ref)))
+        elif not cap.grab():
+            break
+        i += 1
+    cap.release()
+    rows, off = [], []
+    for n in sorted(targets):
+        d = diffs[n]
+        if 0 not in d:
+            continue
+        best = min(d, key=d.get)
+        # Only call it an offset when the frame named matches clearly worse than another one (a still camera makes
+        # neighbouring frames look alike, and that is not an error).
+        clear = best != 0 and d[0] - d[best] > max(0.5, 0.2 * d[0])
+        rows.append({"frame": n, "best_offset": best if clear else 0, "diff_named": round(d[0], 2),
+                     "diff_best": round(d[best], 2)})
+        if clear:
+            off.append((n, best))
+    for r in rows:
+        print(f"  frame {r['frame']:6d}: offset {r['best_offset']:+d}  (difference {r['diff_named']} named, {r['diff_best']} best)")
+    if off:
+        print(f"{len(off)} of {len(rows)} sampled frames are not the frames their names say: {off}")
+    else:
+        print(f"all {len(rows)} sampled frames are the frames their names say")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -463,6 +535,10 @@ def main():
     p.add_argument("--min-start-cells", type=float, default=0.3, help="texture cover needed to start a map")
     p.add_argument("--board-every", type=int, default=15); p.add_argument("--sheet-every", type=float, default=10.0)
     p.set_defaults(fn=cmd_report)
+    p = sub.add_parser("check-frames", help="are extracted frames the video frames their names say?")
+    p.add_argument("--video", required=True); p.add_argument("--frames", required=True)
+    p.add_argument("--samples", type=int, default=12); p.add_argument("--radius", type=int, default=4)
+    p.set_defaults(fn=cmd_check_frames)
     a = ap.parse_args(); a.fn(a)
 
 

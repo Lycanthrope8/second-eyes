@@ -1,7 +1,8 @@
 """End-to-end check of the video tools on a synthetic recording: a board segment, then a later second board."""
-import json, os, subprocess, sys
+import json, os, shutil, subprocess, sys
 import numpy as np
 import cv2
+import pytest
 import yaml
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from qrecon import charuco as CH, geometry as G
@@ -117,3 +118,79 @@ def test_report_flags_a_blank_stretch_and_finds_the_board(tmp_path):
     assert os.path.exists(tmp_path / "rep" / "contact.jpg")
     lines = open(tmp_path / "rep" / "timeline.csv").read().splitlines()
     assert len(lines) == 1 + 120
+
+
+def _barcode_frames(n, w=640, h=360):
+    """Frames that carry their own index as a 10-bit barcode along the top, over a moving texture."""
+    rng = np.random.default_rng(1)
+    tex = cv2.GaussianBlur((rng.random((h, w + 3 * n)) * 255).astype(np.uint8), (0, 0), 2)
+    for k in range(n):
+        f = cv2.cvtColor(tex[:, 3 * k:3 * k + w].copy(), cv2.COLOR_GRAY2BGR)
+        for b in range(10):
+            f[0:40, b * 64:(b + 1) * 64] = 255 if (k >> b) & 1 else 0
+        yield f
+
+
+def _barcode(img):
+    g = img if img.ndim == 2 else cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    s = g.shape[1] / 640.0
+    return sum(1 << b for b in range(10) if g[int(8 * s):int(32 * s), int((b * 64 + 12) * s):int((b * 64 + 52) * s)].mean() > 127)
+
+
+def _extracted_codes(folder):
+    rows = [l.split() for l in open(os.path.join(folder, "rgb.txt")) if l.strip() and not l.startswith("#")]
+    return [(int(os.path.basename(n)[:6]), _barcode(cv2.imread(os.path.join(folder, n)))) for _, n in rows]
+
+
+def test_frames_carry_their_true_index_and_check_frames_finds_a_mislabel(tmp_path):
+    video = str(tmp_path / "coded.avi")
+    vw = cv2.VideoWriter(video, cv2.VideoWriter_fourcc(*"MJPG"), 30.0, (640, 360))
+    for f in _barcode_frames(240):
+        vw.write(f)
+    vw.release()
+    tool = os.path.join(REPO, "scripts", "video_tools.py")
+    out = subprocess.run([sys.executable, tool, "frames", "--video", video, "--out", str(tmp_path / "w"), "--every", "2",
+                          "--start", "3.0", "--end", "5.0"], capture_output=True, text=True)
+    assert out.returncode == 0, out.stderr
+    codes = _extracted_codes(tmp_path / "w")
+    assert codes and all(name == code for name, code in codes), codes
+    assert codes[0][0] == 90 and codes[-1][0] == 150
+    assert "decoded=in-order" in open(tmp_path / "w" / "rgb.txt").readline()
+    out = subprocess.run([sys.executable, tool, "check-frames", "--video", video, "--frames", str(tmp_path / "w")],
+                         capture_output=True, text=True)
+    assert "are the frames their names say" in out.stdout, out.stdout + out.stderr
+    # mislabel one frame: the image of frame 120 named as frame 122
+    rgb = open(tmp_path / "w" / "rgb.txt").read()
+    os.remove(tmp_path / "w" / "rgb" / "000122.jpg")
+    os.rename(tmp_path / "w" / "rgb" / "000120.jpg", tmp_path / "w" / "rgb" / "000122.jpg")
+    open(tmp_path / "w" / "rgb.txt", "w").write("".join(l for l in rgb.splitlines(True) if not l.rstrip().endswith("rgb/000120.jpg")))
+    out = subprocess.run([sys.executable, tool, "check-frames", "--video", video, "--frames", str(tmp_path / "w"),
+                          "--samples", "40"], capture_output=True, text=True)
+    assert "(122, -2)" in out.stdout, out.stdout + out.stderr
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="needs ffmpeg to make a variable-rate video")
+def test_frames_are_exact_on_variable_rate_video(tmp_path):
+    for k, f in enumerate(_barcode_frames(300)):
+        cv2.imwrite(str(tmp_path / f"f{k:05d}.png"), f)
+    cfr, vfr = str(tmp_path / "cfr.mp4"), str(tmp_path / "vfr.mp4")
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-framerate", "30", "-i", str(tmp_path / "f%05d.png"),
+                    "-c:v", "libx264", "-pix_fmt", "yuv420p", "-g", "30", cfr], check=True)
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", cfr, "-vf", "setpts=(N/30+0.08*sin(2*PI*N/200))/TB",
+                    "-fps_mode", "passthrough", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-g", "30", vfr], check=True)
+    tool = os.path.join(REPO, "scripts", "video_tools.py")
+    for start in (2.3, 4.6, 7.3):
+        out_dir = tmp_path / f"w{start}"
+        out = subprocess.run([sys.executable, tool, "frames", "--video", vfr, "--out", str(out_dir), "--every", "2",
+                              "--start", str(start), "--end", str(start + 1.0)], capture_output=True, text=True)
+        assert out.returncode == 0, out.stderr
+        codes = _extracted_codes(out_dir)
+        assert codes and all(name == code for name, code in codes), (start, codes)
+
+
+def test_frame_lists_differ_on_a_new_extraction_with_the_same_count():
+    from qrecon import framelist as FL
+    old = "# v.mp4 every=2 scale=1.0 size=(1920, 1080)\n1.0 rgb/000030.jpg\n2.0 rgb/000060.jpg\n"
+    new = "# v.mp4 every=2 scale=1.0 size=(1920, 1080) decoded=in-order extracted=2026-11-16T14:00:00\n" + old.split("\n", 1)[1]
+    assert FL.count(old) == FL.count(new) == 2
+    assert FL.differs(new, old) and not FL.differs(old, old.replace("\n", "\r\n"))

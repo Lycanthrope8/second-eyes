@@ -17,7 +17,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HERE))
-from qrecon import registry as REG, questconfig as QC, config as C  # noqa: E402
+from qrecon import framelist as FL, registry as REG, questconfig as QC, config as C  # noqa: E402
 
 REMOTE = "/data/local/tmp/qtrack"
 RUNTIME = HERE / "tracking" / "out" / "android-arm64"
@@ -43,9 +43,9 @@ def sha(path):
 
 
 def push_frames(local, name):
-    n_local = sum(1 for l in open(Path(local) / "rgb.txt") if l.strip() and not l.startswith("#"))
-    n_remote = sum(1 for l in remote(f"{REMOTE}/frames/{name}/rgb.txt").splitlines() if l.strip() and not l.startswith("#"))
-    if n_local != n_remote:
+    local_list = (Path(local) / "rgb.txt").read_text(encoding="utf-8", errors="replace")
+    n_local = FL.count(local_list)
+    if FL.differs(local_list, remote(f"{REMOTE}/frames/{name}/rgb.txt")):
         print(f"pushing {n_local} frames of {name} (this can take a while)")
         adb("shell", f"rm -rf {REMOTE}/frames/{name} && mkdir -p {REMOTE}/frames")
         adb("push", str(local), f"{REMOTE}/frames/{name}", capture=False)
