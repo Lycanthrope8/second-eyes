@@ -1,0 +1,13 @@
+# Local environments, downloads and outputs: never committed (large, or machine-specific)
+.venv-qrecon/
+data/
+models/
+third_party/
+runs/
+build/
+tracking/out/
+__pycache__/
+.pytest_cache/
+*.mp4
+*.onnx
+*.ply

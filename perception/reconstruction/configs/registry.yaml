@@ -1,0 +1,5 @@
+# Run IDs. With a phase set, runs follow the repository's registry (D5): YYYYMMDD_<phase>_r<NNN>.
+# Which Revision 3 phase this work belongs to is open (see docs/decision-record.md); until it is set,
+# run IDs are provisional (qrecon_YYYYMMDD_rNNN) and every manifest says so.
+phase: null        # proposed: A6 (drone integration and registration)
+operator: "JH"

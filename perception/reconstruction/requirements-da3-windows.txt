@@ -1,0 +1,28 @@
+# Depth Anything 3's dependencies WITHOUT xformers (optional in its code), so pip cannot replace the
+# workstation's CUDA PyTorch. Install after torch/torchvision are present in the venv:
+#   pip install -r requirements-da3-windows.txt
+#   pip install --no-deps -e third_party/Depth-Anything-3
+numpy<2
+einops
+huggingface_hub
+safetensors
+omegaconf
+addict
+tqdm
+pillow
+pillow_heif
+imageio
+trimesh
+plyfile
+open3d
+scikit-learn
+matplotlib
+typer
+fastapi
+uvicorn
+pydantic
+requests
+evo
+e3nn
+moviepy==1.0.3
+pycolmap

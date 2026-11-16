@@ -1,0 +1,46 @@
+{
+  "stella_vslam": {
+    "git": "https://github.com/stella-cv/stella_vslam.git",
+    "ref": "0.7.0",
+    "commit": "525231147319bcd31242f981078c36d9272727b4",
+    "licence": "BSD-2-Clause (patched: tracking/patch_stella.py)"
+  },
+  "g2o": {
+    "git": "https://github.com/RainerKuemmerle/g2o.git",
+    "ref": "20230223_git",
+    "commit": "e8df2004e07ea8f5b8e6a8b9f2dc067b45b45036",
+    "licence": "BSD (built without its LGPL and GPL parts)"
+  },
+  "yaml_cpp": {
+    "git": "https://github.com/jbeder/yaml-cpp.git",
+    "ref": "yaml-cpp-0.7.0",
+    "commit": "0579ae3d976091d7d664aa9d2527e0d0cff25763",
+    "licence": "MIT"
+  },
+  "orb_vocab": {
+    "git": "https://github.com/stella-cv/FBoW_orb_vocab.git",
+    "ref": "main",
+    "commit": "708407ae4cd59219b996eda7ed1f4562c7ae106a",
+    "licence": "MIT"
+  },
+  "eigen": {
+    "url": "https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz",
+    "sha256": null,
+    "licence": "MPL-2.0 (D132)"
+  },
+  "opencv_android_sdk": {
+    "url": "https://github.com/opencv/opencv/releases/download/4.10.0/opencv-4.10.0-android-sdk.zip",
+    "sha256": null,
+    "licence": "Apache-2.0"
+  },
+  "sqlite": {
+    "url": "https://www.sqlite.org/2024/sqlite-amalgamation-3460100.zip",
+    "sha256": null,
+    "licence": "public domain"
+  },
+  "onnxruntime_android": {
+    "url": "https://repo1.maven.org/maven2/com/microsoft/onnxruntime/onnxruntime-android/1.29.1/onnxruntime-android-1.29.1.aar",
+    "sha256": null,
+    "licence": "MIT"
+  }
+}

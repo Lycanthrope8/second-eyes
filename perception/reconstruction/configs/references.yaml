@@ -1,0 +1,55 @@
+# Physical references for the Quest-only path. Values come from the project lead (16 Nov 2026).
+boards:
+  ref01:                         # room A
+    dictionary: "DICT_5X5_100"
+    squares_x: 10
+    squares_y: 6
+    square_length_m: 0.022       # measured on board 01
+    marker_length_m: 0.0154      # 0.7 x square: the generator's ratio, not measured. Detection only needs the ratio;
+                                 # metric scale comes from the square length
+    first_marker_id: 0           # IDs 0-29
+    legacy_pattern: false
+    mounting: "unknown"          # set to upright_level only if the board hangs upright and level (gives the up direction)
+  ref02:                         # room B
+    dictionary: "DICT_5X5_100"
+    squares_x: 10
+    squares_y: 6
+    square_length_m: 0.022       # NOT measured: assumed printed identically to board 01. Board 02's scale-drift
+                                 # figure includes any print-scale difference between the two boards
+    marker_length_m: 0.0154
+    first_marker_id: 30          # IDs 30-59
+    legacy_pattern: false
+    mounting: "unknown"
+
+recordings:
+  house_20261110_191353:
+    video: "20261110_191353.mp4"
+    # Windows around the sampled detection times the project lead reported (not verified continuous visibility):
+    # board 01 at 0.000, 3.440, 6.673, weakly 18.074, then 299.215 and 300.515 s; board 02 at 163.044-164.611 and
+    # 236.680-239.747 s. Each window adds 1-2 s either side.
+    windows_s:
+      ref01_start: [0.0, 20.0]
+      ref01_end: [297.5, 302.5]
+      ref02: [[161.5, 166.5], [235.0, 241.5]]
+
+calibration:                     # from board views inside a recording (no separate calibration video exists)
+  min_corners: 12
+  min_views: 8
+  max_views: 40
+  max_rms_px: 1.0
+  min_image_coverage: 0.35
+  coverage_grid: [8, 6]
+  max_focal_std_fraction: 0.02   # warn when the focal length's standard deviation exceeds 2%
+  profiles:
+    full: ["CALIB_ZERO_TANGENT_DIST", "CALIB_FIX_K3"]
+    weak: ["CALIB_FIX_PRINCIPAL_POINT", "CALIB_FIX_ASPECT_RATIO", "CALIB_ZERO_TANGENT_DIST", "CALIB_FIX_K2", "CALIB_FIX_K3"]
+  profile: "weak"                # a small board at ~1 m covers little of the image: estimate focal length and k1 only
+
+anchor:
+  min_views: 6
+  min_corners: 12
+  min_views_per_corner: 3
+  min_parallax_deg: 4.0
+  holdout_every: 4
+  max_held_out_px: 3.0
+  max_corner_fit_rms_m: 0.01

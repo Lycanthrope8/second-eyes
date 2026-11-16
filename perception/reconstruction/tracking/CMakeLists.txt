@@ -1,0 +1,11 @@
+# qtrack: links against an installed stella_vslam (see android/build.ps1 for the Quest build).
+cmake_minimum_required(VERSION 3.16)
+project(qtrack CXX)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+find_package(stella_vslam REQUIRED)
+find_package(OpenCV REQUIRED COMPONENTS core imgcodecs)
+find_package(yaml-cpp REQUIRED)
+add_executable(qtrack qtrack.cc)
+target_link_libraries(qtrack PRIVATE stella_vslam::stella_vslam ${OpenCV_LIBS} yaml-cpp)
+install(TARGETS qtrack RUNTIME DESTINATION bin)

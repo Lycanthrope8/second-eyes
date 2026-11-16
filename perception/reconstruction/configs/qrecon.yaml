@@ -1,0 +1,78 @@
+# Quest-only reconstruction: every tunable value. Tuned on the development sequence only, then frozen
+# (scripts/qrecon.py freeze) before any validation run. See docs/evaluation-spec.md.
+
+keyframes:            # one rule for every method
+  min_trans_m: 0.10
+  min_rot_deg: 10.0
+  min_dt_s: 0.5       # at most two keyframes a second
+
+evaluated_region:     # pixels scored: reference depth valid and inside the sensor's reliable range
+  min_depth_m: 0.4
+  max_depth_m: 4.0
+
+landmarks:
+  orb_features: 2000
+  ratio: 0.75
+  neighbour_offsets: [-2, -1, 1, 2]
+  max_reproj_px: 2.0
+  min_parallax_deg: 1.0
+  min_depth_m: 0.2
+  max_depth_m: 8.0
+
+calibration:
+  min_landmarks: 30
+  min_inliers: 20
+  grid: 4                    # landmarks must cover min_cells of grid x grid image cells
+  min_cells: 6
+  min_depth_spread: 1.2      # 90th / 10th percentile of landmark depth
+  holdout_fraction: 0.2
+  ransac_iters: 300
+  inlier_rel_err: 0.05
+  max_holdout_rel_err: 0.10
+  min_positive_share: 0.98
+
+consistency:
+  neighbour_offsets: [-2, -1, 1, 2]
+  max_rel_diff: 0.05
+  min_agreeing_views: 1
+  keep_unverified: false
+  max_rel_depth_gradient: 0.05
+
+fusion:
+  voxel_m: 0.025
+  max_voxels: 4000000        # bounded map
+  min_observations: 2
+  max_depth_m: 4.0
+  pixel_stride: 2
+
+metrics:
+  taus_m: [0.05, 0.10]
+  cloud_voxel_m: 0.02
+
+gates:                       # provisional screening limits (specification, section 7)
+  max_scale_error: 0.03
+  max_surface_median_m: 0.05
+  min_valid_keyframe_share: 0.95
+  da3_min_fscore5_gain: 0.05     # chosen in the specification, not by Astra
+  max_tail_worsening: 0.10       # chosen in the specification, not by Astra
+
+anchor:
+  min_views: 3
+  min_pair_baseline_fraction: 0.3
+  min_parallax_deg: 3.0        # angle between two views of the tag
+  max_corner_fit_rms_m: 0.01
+  diagnostic_first_k: 10
+
+arms:
+  oracle: {a: 0.37, b: 0.05, noise: 0.01, seed: 7}          # plumbing check only
+  dav2s:
+    repo_dir: "third_party/Depth-Anything-V2"               # commit a561b849ebae10a6f5ef49e26c83cbbcd36c71bf
+    checkpoint: "models/depth_anything_v2_vits.pth"
+    input_size: 518
+    device: "cuda"
+  da3s:
+    model_id: "depth-anything/DA3-SMALL"
+    revision: null            # set to the pinned Hugging Face revision before freezing
+    process_res: 504
+    device: "cuda"
+    apply_landmark_scale: false
