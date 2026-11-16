@@ -1,0 +1,8 @@
+{
+  "frozen": true,
+  "files": {
+    "configs/qrecon.yaml": "3a4130425a3711ae4420f4025e90ca2caaa2eb86c69fb266b361b6281f3c6fd4",
+    "configs/sequences.yaml": "a32861a3d2321395ae0124d0b480af40c538a6d2cfd54d3f1d429e414d8b9c66",
+    "docs/evaluation-spec.md": "c9d8417a97e656d35cc9d7425b5916b2ba6719ea9beb267c7e36baecf2e059fd"
+  }
+}
