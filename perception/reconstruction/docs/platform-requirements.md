@@ -9,7 +9,7 @@ Windows, Python, PyTorch 2.11 with CUDA 12.8, no WSL2 or Linux.
 | Depth Anything V2 Small | Yes, expected | PyTorch (present); the repository and one checkpoint file |
 | DA3-Small with supplied poses | Yes, expected | PyTorch; the package's Python dependencies. `xformers` is optional in its code and is left out so it can't replace the installed PyTorch. `pycolmap` needs a Windows wheel for your Python version |
 | stella_vslam on the desktop | **No** | A C++ build: Linux, WSL2 or Docker; or Visual Studio build tools on Windows. Not required if trajectories come from the Quest build |
-| stella_vslam on the Quest | Laptop | `tools/build_tracking.py`: Unity's NDK (as for llama.cpp), CMake and Ninja (`pip install cmake ninja`), Git; it fetches and cross-builds Eigen, SQLite, yaml-cpp, g2o and stella, and uses OpenCV's prebuilt Android SDK |
+| stella_vslam on the Quest | Laptop | `tools/build_tracking.py`: Unity's NDK (as for llama.cpp), CMake 3.31.10 and Ninja (`pip install "cmake==3.31.10" ninja certifi`; CMake 4 refuses stella's and yaml-cpp's minimums), an NDK path without spaces (a junction to Unity's NDK), Git; it fetches and cross-builds Eigen, SQLite, yaml-cpp, g2o and stella, and uses OpenCV's prebuilt Android SDK |
 | MASt3R-SLAM comparison | **No** | Linux with CUDA. Blocked until Linux or WSL2 is authorized. Not needed for the screening decision |
 | SpatialLM on the reconstructed clouds | Not established | Its sparse-convolution dependencies are Linux-first. Needed only for the semantic evaluation after the geometry comparison |
 | Reconstruction program for the headset | Laptop | Built by the same `tools/build_tracking.py`, with ONNX Runtime's prebuilt Android package (1.29.0) |

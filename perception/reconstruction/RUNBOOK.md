@@ -94,9 +94,13 @@ python scripts\export_dav2_onnx.py --frame-size 640 480 --image data\tum\rgbd_da
 py -3 -m venv .venv-qrecon
 .\.venv-qrecon\Scripts\Activate.ps1
 pip install -r requirements.txt
-pip install cmake ninja
-python tools\build_tracking.py
+pip install "cmake==3.31.10" ninja certifi
+$env:SSL_CERT_FILE = (python -m certifi)
+if (-not (Test-Path "$HOME\android-ndk-unity")) { New-Item -ItemType Junction -Path "$HOME\android-ndk-unity" -Target "C:\Program Files\Unity\Hub\Editor\6000.3.25f1\Editor\Data\PlaybackEngines\AndroidPlayer\NDK" }
+python tools\build_tracking.py --ndk "$HOME\android-ndk-unity"
 ```
+
+CMake 3.31, not 4: stella and yaml-cpp declare CMake minimums that CMake 4 refuses. `SSL_CERT_FILE`: Python on Windows can lack the root certificate sqlite.org uses. The junction: with a space in the NDK path, Ninja calls clang++ by its 8.3 short name and clang then links as C, without the C++ library. Remove the junction only with `cmd /c rmdir`, never `Remove-Item -Recurse`.
 - It finds Unity's NDK as your llama.cpp build does, or takes `--ndk <folder>`.
 - It fetches about 700 MB of sources and prebuilt packages, then builds for 20–60 minutes.
 - Expected end: `done -> ...tracking\out\android-arm64`, with `bin\qtrack`, `bin\qrecon_quest`, `lib\*.so`,

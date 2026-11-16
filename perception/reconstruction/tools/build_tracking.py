@@ -60,6 +60,35 @@ def find_ndk(given):
     raise ToolError("No Android NDK found. Install Unity's Android Build Support, or pass --ndk <the NDK folder>.")
 
 
+# Libraries every Android device provides (the NDK's stable system libraries)
+ANDROID_SYSTEM_LIBS = {"libc.so", "libm.so", "libdl.so", "liblog.so", "libz.so", "libandroid.so", "libEGL.so",
+                       "libGLESv1_CM.so", "libGLESv2.so", "libGLESv3.so", "libjnigraphics.so", "libOpenSLES.so",
+                       "libOpenMAXAL.so", "libmediandk.so", "libcamera2ndk.so", "libvulkan.so", "libnativewindow.so",
+                       "libneuralnetworks.so", "libsync.so", "libbinder_ndk.so", "libaaudio.so", "libamidi.so",
+                       "libstdc++.so"}
+
+
+def needed_of(readelf_output):
+    """Shared libraries listed as NEEDED in `llvm-readelf -d` output."""
+    return [line.split("[", 1)[1].split("]", 1)[0] for line in readelf_output.splitlines()
+            if "(NEEDED)" in line and "[" in line]
+
+
+def missing_libraries(readelf, out):
+    """NEEDED libraries of the staged programs and libraries that are neither staged nor part of Android."""
+    staged = {f.name for f in (out / "lib").iterdir()}
+    missing = {}
+    for f in list((out / "bin").iterdir()) + list((out / "lib").iterdir()):
+        r = subprocess.run([str(readelf), "-d", str(f)], capture_output=True, text=True)
+        if r.returncode != 0:
+            print(f"  (could not read the dependencies of {f.name}; skipped)")
+            continue
+        for lib in needed_of(r.stdout):
+            if lib not in staged and lib not in ANDROID_SYSTEM_LIBS:
+                missing.setdefault(lib, []).append(f.name)
+    return missing
+
+
 def ndk_revision(ndk):
     p = ndk / "source.properties"
     m = re.search(r"Pkg\.Revision\s*=\s*(\S+)", p.read_text()) if p.is_file() else None
@@ -93,7 +122,14 @@ def download(name, record):
     if not arc.is_file():
         print(f"  downloading {pin['url']}", flush=True)
         try:
-            urllib.request.urlretrieve(pin["url"], arc)
+            ctx = None
+            try:   # certifi's roots: Python on Windows can lack the one some sites use
+                import ssl, certifi
+                ctx = ssl.create_default_context(cafile=certifi.where())
+            except ImportError:
+                pass
+            with urllib.request.urlopen(pin["url"], context=ctx) as r, open(arc, "wb") as f:
+                shutil.copyfileobj(r, f)
         except Exception as e:
             if arc.exists():
                 arc.unlink()
@@ -109,7 +145,7 @@ def download(name, record):
             zipfile.ZipFile(arc).extractall(dst)
         else:
             with tarfile.open(arc) as t:
-                t.extractall(dst)
+                t.extractall(dst, filter="data") if hasattr(tarfile, "data_filter") else t.extractall(dst)
     inner = [p for p in dst.iterdir() if p.is_dir()]
     return inner[0] if len(inner) == 1 else dst
 
@@ -129,11 +165,18 @@ def build(args):
             raise ToolError(f"{tool} was not found. Install CMake and Ninja with: pip install cmake ninja (and Git for Windows)")
     base_jobs[0] = args.jobs
     ndk = find_ndk(args.ndk)
+    if os.name == "nt" and " " in str(ndk):
+        # With a space in the path, Ninja calls clang++ by its 8.3 short name (CLANG_~1.EXE); clang picks C or
+        # C++ mode from its own name, so every C++ link would miss the C++ library.
+        raise ToolError(f"The NDK path has a space in it ({ndk}). Make a link without one and pass it:\n"
+                        f'  New-Item -ItemType Junction -Path "$HOME\\android-ndk-unity" -Target "{ndk}"\n'
+                        f'  python tools\\build_tracking.py --ndk "$HOME\\android-ndk-unity"')
     print(f"NDK {ndk_revision(ndk)} at {ndk}")
     record = {"pins": PINS, "ndk": {"path": str(ndk), "revision": ndk_revision(ndk)}, "downloads": {},
               "host": f"{platform.system()} {platform.machine()}", "abi": "arm64-v8a", "platform": "android-28", "stl": "c++_shared"}
     PREFIX.mkdir(parents=True, exist_ok=True)
-    base = ["-G", "Ninja", f"-DCMAKE_MAKE_PROGRAM={shutil.which('ninja')}",
+    base = ["-G", "Ninja", "-Wno-dev", "-Wno-deprecated", "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
+            f"-DCMAKE_MAKE_PROGRAM={shutil.which('ninja')}",
             f"-DCMAKE_TOOLCHAIN_FILE={ndk / 'build' / 'cmake' / 'android.toolchain.cmake'}",
             "-DANDROID_ABI=arm64-v8a", "-DANDROID_PLATFORM=android-28", "-DANDROID_STL=c++_shared",
             "-DCMAKE_BUILD_TYPE=Release", f"-DCMAKE_INSTALL_PREFIX={PREFIX}",
@@ -180,7 +223,7 @@ def build(args):
     st = git_fetch("stella_vslam")
     print("  " + patch_stella.apply(st))
     cmake_build(st, BUILD / "stella", common + [f"-Dg2o_DIR={PREFIX / 'lib' / 'cmake' / 'g2o'}",
-                                                f"-Dyaml-cpp_DIR={PREFIX / 'lib' / 'cmake' / 'yaml-cpp'}",
+                                                f"-Dyaml-cpp_DIR={PREFIX / 'share' / 'cmake' / 'yaml-cpp'}",
                                                 "-DBUILD_SHARED_LIBS=ON", "-DBUILD_TESTS=OFF", "-DUSE_ARUCO=OFF", "-DUSE_GTSAM=OFF",
                                                 "-DBOW_FRAMEWORK=FBoW", "-DUSE_CCACHE=OFF", "-DUSE_SANITIZER=OFF",
                                                 "-DBUILD_WITH_MARCH_NATIVE=OFF"], base)
@@ -188,7 +231,7 @@ def build(args):
     print("== qtrack")
     cmake_build(TRK, BUILD / "qtrack", common + [f"-Dstella_vslam_DIR={PREFIX / 'lib' / 'cmake' / 'stella_vslam'}",
                                                  f"-Dg2o_DIR={PREFIX / 'lib' / 'cmake' / 'g2o'}",
-                                                 f"-Dyaml-cpp_DIR={PREFIX / 'lib' / 'cmake' / 'yaml-cpp'}"], base)
+                                                 f"-Dyaml-cpp_DIR={PREFIX / 'share' / 'cmake' / 'yaml-cpp'}"], base)
 
     print("== ONNX Runtime for Android (prebuilt)")
     ort = download("onnxruntime_android", record)
@@ -214,6 +257,13 @@ def build(args):
     if cxx is None:
         raise ToolError("libc++_shared.so for aarch64 not found in the NDK")
     shutil.copy2(cxx, OUT / "lib" / "libc++_shared.so")
+    omp = next(iter(sorted((ndk / "toolchains" / "llvm" / "prebuilt").glob("*/lib/clang/*/lib/linux/aarch64/libomp.so"))), None)
+    if omp is not None:                                   # stella links OpenMP; clang links the shared runtime
+        shutil.copy2(omp, OUT / "lib" / "libomp.so")
+    missing = missing_libraries(find_tool(ndk, "llvm-readelf"), OUT)
+    if missing:
+        raise ToolError("these libraries are needed on the headset but are not in the output: "
+                        + ", ".join(f"{lib} (by {', '.join(users)})" for lib, users in sorted(missing.items())))
     for f in list((OUT / "bin").iterdir()) + list((OUT / "lib").iterdir()):
         if f.name != "libonnxruntime.so":            # prebuilt and already stripped
             run([strip, "--strip-unneeded", f])
