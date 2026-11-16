@@ -1,0 +1,53 @@
+{
+  "ok": true,
+  "K": [
+    [
+      1637.3153961008873,
+      0.0,
+      959.5
+    ],
+    [
+      0.0,
+      1637.3153961008873,
+      539.5
+    ],
+    [
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "dist": [
+    0.112230059737617,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "size": [
+    1920,
+    1080
+  ],
+  "rms_px": 0.22368391053243217,
+  "views": 40,
+  "image_coverage": 0.16666666666666666,
+  "board_distance_m": [
+    1.6047464944967058,
+    1.966525407111215
+  ],
+  "flags": [
+    "CALIB_FIX_PRINCIPAL_POINT",
+    "CALIB_FIX_ASPECT_RATIO",
+    "CALIB_ZERO_TANGENT_DIST",
+    "CALIB_FIX_K2",
+    "CALIB_FIX_K3"
+  ],
+  "focal_std_fraction": 0.011137869944395638,
+  "warning": "board corners cover 17% of the image; lens distortion is poorly determined outside that area, so fewer distortion terms are estimated (see flags)",
+  "video": "20261111_120450.mp4",
+  "board": "ref01",
+  "window_s": [
+    0.0,
+    54.0
+  ]
+}
