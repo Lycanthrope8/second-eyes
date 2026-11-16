@@ -52,4 +52,5 @@ anchor:
   min_parallax_deg: 4.0
   holdout_every: 4
   max_held_out_px: 3.0
+  max_held_out_m: 0.01
   max_corner_fit_rms_m: 0.01
