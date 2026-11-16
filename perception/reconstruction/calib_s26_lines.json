@@ -1,0 +1,33 @@
+{
+  "ok": true,
+  "K": [
+    [
+      1315.0,
+      0.0,
+      959.5
+    ],
+    [
+      0.0,
+      1315.0,
+      539.5
+    ],
+    [
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "dist": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "size": [
+    1920,
+    1080
+  ],
+  "source": "focal-from-lines medians 1293.7, 1333.8 and 1317.0 px on the three house recordings, 16 Nov 2026; distortion held at zero; principal point at the centre",
+  "decision": "D134"
+}
