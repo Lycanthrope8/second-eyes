@@ -13,3 +13,5 @@ __pycache__/
 *.ply
 *.tgz
 *.tar.gz
+reports/
+*.zip

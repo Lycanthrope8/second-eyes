@@ -76,3 +76,43 @@ def test_missing_video_is_an_error_not_zero_frames(tmp_path):
     out = subprocess.run([sys.executable, tool, "frames", "--video", str(tmp_path / "nope.mp4"), "--out", str(tmp_path / "fr")],
                          capture_output=True, text=True)
     assert out.returncode != 0 and "video not found" in (out.stderr + out.stdout)
+
+
+def test_report_flags_a_blank_stretch_and_finds_the_board(tmp_path):
+    """Synthetic recording: 0-3 s textured scene with board 01, 3-5 s a bare wall, 5-8 s textured again."""
+    ref = yaml.safe_load(open(os.path.join(REPO, "configs", "references.yaml")))
+    board = CH.make_board(ref["boards"]["ref01"])
+    rng = np.random.default_rng(0)
+    tex = cv2.GaussianBlur((rng.random((900, 3000)) * 255).astype(np.uint8), (0, 0), 3)
+    tex = cv2.normalize(tex, None, 0, 255, cv2.NORM_MINMAX)
+    tex = cv2.cvtColor(tex, cv2.COLOR_GRAY2BGR)
+    btex = cv2.cvtColor(board.generateImage((500, 300), marginSize=20), cv2.COLOR_GRAY2BGR)
+    fps, video = 30.0, str(tmp_path / "walk.avi")
+    vw = cv2.VideoWriter(video, cv2.VideoWriter_fourcc(*"MJPG"), fps, (1280, 720))
+    for k in range(240):
+        t = k / fps
+        if 3.0 <= t < 5.0:
+            f = np.full((720, 1280, 3), 180, np.uint8)                       # bare wall
+            f = cv2.add(f, (rng.normal(0, 1.5, f.shape)).clip(0, 255).astype(np.uint8))
+        else:
+            x0 = 4 * k
+            f = tex[90:810, x0:x0 + 1280].copy()
+            if t < 3.0:
+                f[200:500, 390:890] = btex
+        vw.write(f)
+    vw.release()
+    tool = os.path.join(REPO, "scripts", "video_tools.py")
+    out = subprocess.run([sys.executable, tool, "report", "--video", video, "--out", str(tmp_path / "rep"), "--sheet-every", "2"],
+                         capture_output=True, text=True)
+    assert out.returncode == 0, out.stdout + out.stderr
+    rep = json.load(open(tmp_path / "rep" / "report.json"))
+    assert rep["frames"] == 240 and abs(rep["fps"] - 30) < 0.01 and rep["constant_rate"]
+    spans = rep["tracking_screen"]["risky_spans_s"]
+    assert any(s <= 3.2 and e >= 4.8 for s, e in spans), spans                # the bare wall is flagged
+    assert not any(e <= 3.0 or s >= 5.2 for s, e in spans), spans             # and nothing else
+    b = rep["boards"]["ref01"]
+    assert b and b[0]["start_s"] <= 0.5 and 2.0 <= b[0]["end_s"] < 3.0 and not rep["boards"]["ref02"]
+    assert rep["suggested_windows_s"]["ref01_start"][0] == 0.0
+    assert os.path.exists(tmp_path / "rep" / "contact.jpg")
+    lines = open(tmp_path / "rep" / "timeline.csv").read().splitlines()
+    assert len(lines) == 1 + 120
