@@ -72,7 +72,7 @@ arms:
     device: "cuda"
   da3s:
     model_id: "depth-anything/DA3-SMALL"
-    revision: null            # set to the pinned Hugging Face revision before freezing
+    revision: "e08cab65ca0ec38e7826075418411ab90cab4da3"            # set to the pinned Hugging Face revision before freezing
     process_res: 504
     device: "cuda"
     apply_landmark_scale: false
