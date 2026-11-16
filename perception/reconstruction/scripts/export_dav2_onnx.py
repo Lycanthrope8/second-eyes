@@ -87,8 +87,14 @@ def main():
     sess = ort.InferenceSession(a.out, providers=["CPUExecutionProvider"])
     o_onnx = sess.run(None, {"image": x})[0].reshape(in_h, in_w)
     with torch.no_grad():
-        o_torch = model(torch.from_numpy(x)).numpy().reshape(in_h, in_w)
-        ref = model.infer_image(bgr, a.short_side)                     # Depth Anything V2's own path, frame size
+        o_torch = model(torch.from_numpy(x)).numpy().reshape(in_h, in_w)   # on the CPU, as exported
+        # Depth Anything V2's own path puts its input on the GPU when there is one, so the model goes there too;
+        # TF32 off, so the GPU computes in full float32 like the headset
+        dev = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
+        torch.backends.cuda.matmul.allow_tf32 = False
+        torch.backends.cudnn.allow_tf32 = False
+        ref = model.to(dev).infer_image(bgr, a.short_side)               # frame size, Depth Anything V2's own path
+        model.to("cpu")
     head = resize_align_corners(o_onnx, h, w)
     rel = lambda p, q: float(np.median(np.abs(p - q) / (np.abs(q) + 1e-6)))
     report = {"frame_size": [w, h], "input_size": [in_h, in_w], "opset": a.opset,
