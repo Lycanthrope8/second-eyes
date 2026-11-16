@@ -14,6 +14,8 @@
   stella-config     stella_vslam camera file from a calibration
   report            a recording's fitness for tracking and anchoring, before any tracker runs
   check-frames      whether extracted frames are the video frames their names say
+  focal-from-lines  the focal length from the room's straight lines, to check a board calibration
+  charuco-survey    calibrations from every board window of a recording, one by one and together
 """
 import argparse, json, os, sys
 import numpy as np
@@ -494,6 +496,96 @@ def cmd_check_frames(a):
         print(f"all {len(rows)} sampled frames are the frames their names say")
 
 
+def cmd_focal_from_lines(a):
+    """The camera's focal length from the room's straight lines (doors, floors, furniture), independent of any board:
+    frames every --every-s seconds, the dominant vanishing points of each, and the focal length each perpendicular
+    pair implies. Use it to check a board calibration: they should agree within a few percent."""
+    from qrecon import vanishing as VP
+    if not os.path.isfile(a.video):
+        sys.exit(f"video not found: {os.path.abspath(a.video)}")
+    cap = cv2.VideoCapture(a.video)
+    fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+    step = max(1, int(round(a.every_s * fps)))
+    est, frames, i = [], 0, 0
+    while True:
+        if i % step == 0:
+            ok, bgr = cap.read()
+            if not ok:
+                break
+            small = cv2.resize(bgr, None, fx=a.scale, fy=a.scale, interpolation=cv2.INTER_AREA) if a.scale != 1.0 else bgr
+            fs = VP.frame_focals(cv2.cvtColor(small, cv2.COLOR_BGR2GRAY), seed=i)
+            est += [f / a.scale for f in fs]
+            frames += 1
+        elif not cap.grab():
+            break
+        i += 1
+    cap.release()
+    est = np.array(est)
+    out = {"video": os.path.basename(a.video), "frames": frames, "candidates": int(len(est))}
+    if len(est) >= 5:
+        q = np.percentile(est, [25, 50, 75])
+        out.update(focal_px_median=float(q[1]), focal_px_iqr=[float(q[0]), float(q[2])],
+                   histogram={f"{lo}-{lo + 100}": int(((est >= lo) & (est < lo + 100)).sum()) for lo in range(800, 2200, 100)})
+    if a.out:
+        json.dump(dict(out, all=[float(x) for x in est]), open(a.out, "w"), indent=1)
+    print(json.dumps(out, indent=1))
+
+
+def cmd_charuco_survey(a):
+    """Calibrations from every board window of a recording: each window alone, each board, and all views together,
+    each with the lens distortion (k1) free and held at zero. One calibration from a far, nearly face-on board can
+    trade focal length against distance; if the windows disagree with each other, the focal length is not settled."""
+    CH, ref = _boards()
+    boards = {k: CH.make_board(b) for k, b in ref["boards"].items()}
+    groups = []                                            # (label, board, start, end)
+    if a.windows:
+        for wspec in a.windows:
+            name, s0, s1 = wspec.split(":")
+            groups.append((f"{name} {s0}-{s1}", name, float(s0), float(s1)))
+    elif a.recording:
+        win = ref["recordings"][a.recording]["windows_s"]
+        for key, spans in win.items():
+            board = "ref02" if key.startswith("ref02") else "ref01"
+            for s0, s1 in (spans if isinstance(spans[0], list) else [spans]):
+                groups.append((f"{board} {s0}-{s1}", board, float(s0), float(s1)))
+    else:
+        rep = json.load(open(a.report or os.path.join(REPO, "reports", os.path.splitext(os.path.basename(a.video))[0], "report.json")))
+        for board, spans in rep["boards"].items():
+            for sp in spans:
+                s0, s1 = max(0.0, sp["start_s"] - 1.0), sp["end_s"] + 1.0
+                groups.append((f"{board} {s0:.1f}-{s1:.1f}", board, s0, s1))
+    if not groups:
+        sys.exit("no board windows: pass --recording, --report or --windows")
+    found = {g[0]: [] for g in groups}
+    size = None
+    for i, t, bgr in _spans(a.video, [(g[2], g[3]) for g in groups], a.every):
+        size = (bgr.shape[1], bgr.shape[0])
+        for label, board, s0, s1 in groups:
+            if s0 <= t <= s1:
+                d = CH.detect(bgr, boards[board], ref["calibration"]["min_corners"])
+                if d is not None:
+                    found[label].append((boards[board], d[0], d[1]))
+    cfg = ref["calibration"]
+    rows = [(label, found[label]) for label, _, _, _ in groups]
+    for board in sorted({g[1] for g in groups}):
+        rows.append((f"{board} all windows", [v for label, b, _, _ in groups if b == board for v in found[label]]))
+    rows.append(("all boards", [v for label in found for v in found[label]]))
+    results = []
+    print(f"{'views from':24s} {'views':>5s} {'cover':>6s} {'distance m':>11s} | {'focal':>7s} {'k1':>7s} {'rms':>5s} {'std':>5s} | {'focal, k1=0':>11s} {'rms':>5s}")
+    for label, views in rows:
+        r = CH.calibrate_views(views, size, cfg) if size else {"ok": False, "reason": "no frames"}
+        z = CH.calibrate_views(views, size, cfg, fix_k1=True) if size else r
+        results.append({"views_from": label, "free_k1": r, "k1_zero": z})
+        if "K" not in r:
+            print(f"{label:24s} {len([v for v in views if len(v[1]) >= cfg['min_corners']]):5d}  {r.get('reason')}")
+            continue
+        d = r["board_distance_m"]
+        print(f"{label:24s} {r['views']:5d} {r['image_coverage']:6.0%} {d[0]:5.2f}-{d[1]:<5.2f} | {r['K'][0][0]:7.1f} "
+              f"{r['dist'][0]:+7.3f} {r['rms_px']:5.2f} {100 * r['focal_std_fraction']:4.1f}% | {z['K'][0][0]:11.1f} {z['rms_px']:5.2f}")
+    if a.out:
+        json.dump(results, open(a.out, "w"), indent=1, default=float)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -539,6 +631,16 @@ def main():
     p.add_argument("--video", required=True); p.add_argument("--frames", required=True)
     p.add_argument("--samples", type=int, default=12); p.add_argument("--radius", type=int, default=4)
     p.set_defaults(fn=cmd_check_frames)
+    p = sub.add_parser("focal-from-lines", help="the focal length from the room's straight lines, without a board")
+    p.add_argument("--video", required=True); p.add_argument("--every-s", type=float, default=2.0)
+    p.add_argument("--scale", type=float, default=0.5); p.add_argument("--out")
+    p.set_defaults(fn=cmd_focal_from_lines)
+    p = sub.add_parser("charuco-survey", help="calibrations from every board window of a recording")
+    p.add_argument("--video", required=True); p.add_argument("--recording", help="name under recordings: in references.yaml")
+    p.add_argument("--report", help="a report.json whose board spans give the windows (default: reports/<video name>)")
+    p.add_argument("--windows", nargs="*", help="board:start:end, e.g. ref01:0:6 ref02:150:160")
+    p.add_argument("--every", type=int, default=3); p.add_argument("--out")
+    p.set_defaults(fn=cmd_charuco_survey)
     a = ap.parse_args(); a.fn(a)
 
 

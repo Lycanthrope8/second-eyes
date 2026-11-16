@@ -194,3 +194,40 @@ def test_frame_lists_differ_on_a_new_extraction_with_the_same_count():
     new = "# v.mp4 every=2 scale=1.0 size=(1920, 1080) decoded=in-order extracted=2026-11-16T14:00:00\n" + old.split("\n", 1)[1]
     assert FL.count(old) == FL.count(new) == 2
     assert FL.differs(new, old) and not FL.differs(old, old.replace("\n", "\r\n"))
+
+
+def _render_board(board, spec, T_wc, K, size=(1280, 720), px_per_m=3000):
+    W = int(spec["squares_x"] * spec["square_length_m"] * px_per_m)
+    H = int(spec["squares_y"] * spec["square_length_m"] * px_per_m)
+    tex = board.generateImage((W, H), marginSize=0)
+    corners = np.array([[0, 0, 0], [W / px_per_m, 0, 0], [W / px_per_m, H / px_per_m, 0], [0, H / px_per_m, 0]])
+    Tcw = G.inv(T_wc)
+    rvec, _ = cv2.Rodrigues(Tcw[:3, :3])
+    uv, _ = cv2.projectPoints(corners, rvec, Tcw[:3, 3], K, np.zeros(5))
+    Hm = cv2.getPerspectiveTransform(np.float32([[0, 0], [W, 0], [W, H], [0, H]]), uv.reshape(4, 2).astype(np.float32))
+    return cv2.cvtColor(cv2.warpPerspective(tex, Hm, size, borderValue=200), cv2.COLOR_GRAY2BGR)
+
+
+def test_charuco_survey_calibrates_each_window_and_all_together(tmp_path):
+    ref = yaml.safe_load(open(os.path.join(REPO, "configs", "references.yaml")))
+    specs = {k: ref["boards"][k] for k in ("ref01", "ref02")}
+    boards = {k: CH.make_board(v) for k, v in specs.items()}
+    video = str(tmp_path / "boards.avi")
+    vw = cv2.VideoWriter(video, cv2.VideoWriter_fourcc(*"MJPG"), 10.0, (1280, 720))
+    for k in range(60):                                  # 0-3 s board 01, 3-6 s board 02, varied tilted views
+        name = "ref01" if k < 30 else "ref02"
+        sp = specs[name]
+        centre = np.array([sp["squares_x"] * sp["square_length_m"] / 2, sp["squares_y"] * sp["square_length_m"] / 2, 0.0])
+        a = np.radians(-30 + 60 * (k % 30) / 29)
+        cam = centre + [0.25 * np.sin(a), 0.06 * np.cos(3 * a), -0.32 + 0.05 * np.cos(a)]
+        vw.write(_render_board(boards[name], sp, _look_at(cam, centre + [0.02 * np.cos(k), 0.015 * np.sin(k), 0]), K))
+    vw.release()
+    out = subprocess.run([sys.executable, os.path.join(REPO, "scripts", "video_tools.py"), "charuco-survey", "--video", video,
+                          "--windows", "ref01:0:2.9", "ref02:3:5.9", "--every", "1", "--out", str(tmp_path / "s.json")],
+                         capture_output=True, text=True)
+    assert out.returncode == 0, out.stdout + out.stderr
+    res = {r["views_from"]: r for r in json.load(open(tmp_path / "s.json"))}
+    assert set(res) == {"ref01 0-2.9", "ref02 3-5.9", "ref01 all windows", "ref02 all windows", "all boards"}
+    for key in ("ref01 0-2.9", "ref02 3-5.9", "all boards"):
+        assert abs(res[key]["free_k1"]["K"][0][0] - 900) / 900 < 0.03, (key, res[key]["free_k1"])
+    assert "all boards" in out.stdout

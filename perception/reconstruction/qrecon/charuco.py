@@ -35,14 +35,23 @@ def model_points(board, ids):
 
 def calibrate(detections, board, image_size, cfg):
     """detections: list of (ids, pixels). Picks spread-out views, calibrates, reports error and image coverage."""
-    usable = [d for d in detections if len(d[0]) >= cfg["min_corners"]]
+    return calibrate_views([(board, ids, px) for ids, px in detections], image_size, cfg)
+
+
+def calibrate_views(views, image_size, cfg, fix_k1=False):
+    """views: list of (board, ids, pixels), from one board or several. Intrinsics do not depend on a board's printed
+    size (only the views' distances do), so a board whose print scale is unmeasured still constrains them.
+    fix_k1 holds the radial distortion at zero, for comparing against the estimate that frees it."""
+    usable = [v for v in views if len(v[1]) >= cfg["min_corners"]]
     if len(usable) < cfg["min_views"]:
         return {"ok": False, "reason": f"only {len(usable)} usable board views; need {cfg['min_views']}"}
     pick = np.linspace(0, len(usable) - 1, min(cfg["max_views"], len(usable))).round().astype(int)
-    views = [usable[i] for i in sorted(set(pick))]
-    obj = [model_points(board, ids).astype(np.float32) for ids, _ in views]
-    img = [px.astype(np.float32).reshape(-1, 1, 2) for _, px in views]
-    names = cfg["profiles"][cfg["profile"]] if "profiles" in cfg else cfg.get("flags", [])
+    chosen = [usable[i] for i in sorted(set(pick))]
+    obj = [model_points(b, ids).astype(np.float32) for b, ids, _ in chosen]
+    img = [px.astype(np.float32).reshape(-1, 1, 2) for _, _, px in chosen]
+    names = list(cfg["profiles"][cfg["profile"]] if "profiles" in cfg else cfg.get("flags", []))
+    if fix_k1 and "CALIB_FIX_K1" not in names:
+        names.append("CALIB_FIX_K1")
     flags = 0
     for name in names:
         flags |= getattr(cv2, name)
@@ -50,7 +59,7 @@ def calibrate(detections, board, image_size, cfg):
     K0 = np.array([[1.0, 0, (w0 - 1) / 2.0], [0, 1.0, (h0 - 1) / 2.0], [0, 0, 1]])   # aspect 1, centre principal point
     rms, K, dist, rvecs, tvecs, std_in, _, _ = cv2.calibrateCameraExtended(obj, img, tuple(image_size), K0, None, flags=flags)
     std_in = std_in.ravel()
-    allpx = np.concatenate([px for _, px in views])
+    allpx = np.concatenate([px for _, _, px in chosen])
     g = cfg["coverage_grid"]
     w, h = image_size
     cells = set(zip((allpx[:, 0] * g[0] // w).astype(int).clip(0, g[0] - 1), (allpx[:, 1] * g[1] // h).astype(int).clip(0, g[1] - 1)))
@@ -58,7 +67,7 @@ def calibrate(detections, board, image_size, cfg):
     dists = [float(np.linalg.norm(t)) for t in tvecs]
     f_std = float(max(std_in[0], std_in[1]) / max(K[0, 0], 1e-9))
     out = {"ok": True, "K": K.tolist(), "dist": dist.ravel().tolist(), "size": list(image_size), "rms_px": float(rms),
-           "views": len(views), "image_coverage": cov, "board_distance_m": [min(dists), max(dists)], "flags": names,
+           "views": len(chosen), "image_coverage": cov, "board_distance_m": [min(dists), max(dists)], "flags": names,
            "focal_std_fraction": f_std}
     if rms > cfg["max_rms_px"]:
         out.update(ok=False, reason=f"reprojection RMS {rms:.2f} px above {cfg['max_rms_px']}")

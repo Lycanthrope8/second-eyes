@@ -146,3 +146,24 @@ def test_anchor_reports_metric_error_and_honours_a_metric_limit():
     out = CH.anchor(obs, poses_tracker, K, np.zeros(5), board, metric)
     assert out["ok"], out
     assert out["held_out_limit"] == {"value": 0.01, "unit": "m"}
+
+
+def test_calibrate_views_combines_boards_whose_print_scale_is_unknown():
+    """Board B is printed at the same size as A but described as 25% larger: intrinsics must not care."""
+    a = CH.make_board(SPEC)
+    b_true = CH.make_board(dict(SPEC, first_marker_id=20))
+    b_said = CH.make_board(dict(SPEC, first_marker_id=20, square_length_m=0.05, marker_length_m=0.0375))
+    centre = np.array([0.14, 0.10, 0.0])
+    views = []
+    for k, T in enumerate(_poses(16, centre, radius=0.45, dist=0.55)):
+        T = _look_at(T[:3, 3] + [0.05 * np.sin(k), 0.06 * np.cos(2 * k), 0.07 * np.sin(0.7 * k)],
+                     centre + [0.04 * np.cos(k), 0.03 * np.sin(k), 0])
+        board_img, board_cal = (a, a) if k % 2 == 0 else (b_true, b_said)
+        d = CH.detect(_view(board_img, T, K), board_cal, 6)
+        if d is not None:
+            views.append((board_cal, d[0], d[1]))
+    cfg = dict(REF["calibration"], profile="weak")
+    out = CH.calibrate_views(views, SIZE, cfg)
+    assert out["ok"] and abs(out["K"][0][0] - 900) / 900 < 0.03, out
+    fixed = CH.calibrate_views(views, SIZE, cfg, fix_k1=True)
+    assert fixed["dist"][0] == 0.0 and abs(fixed["K"][0][0] - 900) / 900 < 0.03
