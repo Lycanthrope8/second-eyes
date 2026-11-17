@@ -735,33 +735,92 @@ int main(int argc, char** argv) {
                 }
                 return obs;
             };
-            Board b1 = make_board(A.at("boards")["ref01"]);
             auto w = A.at("windows");
-            auto o1 = collect(b1, {w["ref01_start"].get<std::vector<double>>()}, nullptr);
-            report["ref01"] = fit_board(o1, b1, bc.K, A.at("params"), &S, true);
-            if (!report["ref01"]["ok"].get<bool>()) throw std::runtime_error("anchor refused: " + report["ref01"]["reason"].get<std::string>());
-            auto second = [&](const Board& B, const std::vector<std::vector<double>>& wins) {
+            auto wins_of = [&](const std::string& key) {        // one window [a, b] or a list of them
+                std::vector<std::vector<double>> v;
+                if (!w.contains(key) || w[key].empty()) return v;
+                if (w[key][0].is_array()) return w[key].get<std::vector<std::vector<double>>>();
+                v.push_back(w[key].get<std::vector<double>>());
+                return v;
+            };
+            const bool best_effort = A.value("mode", std::string("strict")) == "best_effort";
+            json warnings = json::array();
+            std::string frame = "ref01", anchored_window = "ref01_start";
+            Board b1 = make_board(A.at("boards")["ref01"]);
+            if (!best_effort) {
+                auto o1 = collect(b1, wins_of("ref01_start"), nullptr);
+                report["ref01"] = fit_board(o1, b1, bc.K, A.at("params"), &S, true);
+                if (!report["ref01"]["ok"].get<bool>()) throw std::runtime_error("anchor refused: " + report["ref01"]["reason"].get<std::string>());
+            } else {
+                // Best effort: the first board window that can be fitted at all gives the frame (board 01 at the start, then
+                // board 01 at the end, then board 02); a failed quality check is recorded as a warning, not a refusal.
+                const std::vector<std::pair<std::string, std::string>> cands = {{"ref01", "ref01_start"}, {"ref01", "ref01_end"}, {"ref02", "ref02"}};
+                json attempts = json::array();
+                frame = "tracker", anchored_window = "";
+                for (auto& [board, key] : cands) {
+                    if (!w.contains(key) || !A.at("boards").contains(board)) continue;
+                    Board B = make_board(A.at("boards")[board]);
+                    Sim3 Q;
+                    json r = fit_board(collect(B, wins_of(key), nullptr), B, bc.K, A.at("params"), &Q, true);
+                    attempts.push_back({{"board", board}, {"window", key}, {"ok", r["ok"]}, {"reason", r.value("reason", std::string())}});
+                    if (!r.contains("scale")) continue;                 // too few views, or not enough motion to triangulate
+                    S = Q, frame = board, anchored_window = key;
+                    report[board] = r;
+                    if (!r["ok"].get<bool>()) warnings.push_back("anchored by " + board + " (" + key + ") although " + r["reason"].get<std::string>());
+                    break;
+                }
+                report["anchor_attempts"] = attempts;
+                if (frame == "tracker") warnings.push_back("no board could be fitted: the cloud is in the tracker's own units, unscaled");
+            }
+            report["frame"] = frame;
+            report["anchored_by"] = {{"board", frame}, {"window", anchored_window}};
+            // Another board seen in the anchored path: its pose in the frame, as a similarity (the scale also absorbs a
+            // difference between its assumed and its real print size). This is what joins clouds anchored by different boards.
+            auto second = [&](const Board& B, const std::vector<std::vector<double>>& wins, const std::string& what) {
                 auto o = collect(B, wins, &S);
                 Sim3 Q;
                 json r = fit_board(o, B, bc.K, A.at("params"), &Q, false);
-                if (r["ok"].get<bool>()) {
+                const bool usable = r["ok"].get<bool>() || (best_effort && r.contains("scale"));
+                if (usable) {
+                    if (!r["ok"].get<bool>()) warnings.push_back(what + " used although " + r["reason"].get<std::string>());
                     r["scale_drift"] = 1.0 / Q.s - 1.0;
+                    const Mat3 Rt = Q.R.transpose();
+                    const Vec3 tt = -Rt * Q.t / Q.s;
                     Mat4 L = Mat4::Identity();
-                    L.block<3, 3>(0, 0) = Q.R.transpose();
-                    L.block<3, 1>(0, 3) = -Q.R.transpose() * Q.t / Q.s;
-                    r["board_in_ref01"] = std::vector<std::vector<double>>{{L(0, 0), L(0, 1), L(0, 2), L(0, 3)}, {L(1, 0), L(1, 1), L(1, 2), L(1, 3)},
-                                                                           {L(2, 0), L(2, 1), L(2, 2), L(2, 3)}, {0, 0, 0, 1}};
-                    r["position_m"] = L.block<3, 1>(0, 3).norm();
-                    r["rotation_deg"] = rot_angle_deg(Mat3::Identity(), L.block<3, 3>(0, 0));
+                    L.block<3, 3>(0, 0) = Rt;
+                    L.block<3, 1>(0, 3) = tt;
+                    const auto M = std::vector<std::vector<double>>{{L(0, 0), L(0, 1), L(0, 2), L(0, 3)}, {L(1, 0), L(1, 1), L(1, 2), L(1, 3)},
+                                                                    {L(2, 0), L(2, 1), L(2, 2), L(2, 3)}, {0, 0, 0, 1}};
+                    r["board_in_frame"] = M;
+                    if (frame == "ref01") r["board_in_ref01"] = M;
+                    r["sim3_board_in_frame"] = {{"s", 1.0 / Q.s},
+                                                {"R", std::vector<std::vector<double>>{{Rt(0, 0), Rt(0, 1), Rt(0, 2)}, {Rt(1, 0), Rt(1, 1), Rt(1, 2)},
+                                                                                       {Rt(2, 0), Rt(2, 1), Rt(2, 2)}}},
+                                                {"t", std::vector<double>{tt(0), tt(1), tt(2)}}};
+                    r["position_m"] = tt.norm();
+                    r["rotation_deg"] = rot_angle_deg(Mat3::Identity(), Rt);
                 }
                 return r;
             };
-            if (w.contains("ref02")) {
-                report["ref02"] = second(make_board(A.at("boards")["ref02"]), w["ref02"].get<std::vector<std::vector<double>>>());
-                report["ref02"]["note"] = "assumes board 02 printed at the same scale as board 01 (not measured)";
+            if (frame == "ref01") {
+                if (w.contains("ref02") && A.at("boards").contains("ref02")) {
+                    report["ref02"] = second(make_board(A.at("boards")["ref02"]), wins_of("ref02"), "board 02's pose");
+                    report["ref02"]["note"] = "assumes board 02 printed at the same scale as board 01 (not measured)";
+                }
+                if (anchored_window == "ref01_start" && w.contains("ref01_end")) report["closure_ref01"] = second(b1, wins_of("ref01_end"), "the closure check");
+            } else if (frame == "ref02") {
+                auto both = wins_of("ref01_start");
+                for (auto& x : wins_of("ref01_end")) both.push_back(x);
+                report["ref01_link"] = second(b1, both, "board 01's pose");
+                report["frame_note"] = "board 02's frame, at its assumed print scale (not measured)";
             }
-            if (w.contains("ref01_end")) report["closure_ref01"] = second(b1, {w["ref01_end"].get<std::vector<double>>()});
-            if (A.at("boards")["ref01"].value("mounting", "unknown") == "upright_level") Rup << 1, 0, 0, 0, 0, 1, 0, -1, 0;
+            if (!warnings.empty()) {
+                report["warnings"] = warnings;
+                for (auto& m : warnings) std::cerr << "qrecon_quest: warning: " << m.get<std::string>() << "\n";
+            }
+            stats["anchor_frame"] = frame;
+            stats["anchor_warnings"] = warnings.size();
+            if (frame == "ref01" && A.at("boards")["ref01"].value("mounting", "unknown") == "upright_level") Rup << 1, 0, 0, 0, 0, 1, 0, -1, 0;
         }
         stage_ms["anchor"].push_back(1000 * (now_s() - t0));
         {   // the anchored camera path, in the same TUM format as the tracker's

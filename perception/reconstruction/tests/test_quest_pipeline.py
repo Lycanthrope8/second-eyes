@@ -170,3 +170,76 @@ def test_anchored_reconstruction_in_metres(tmp_path, monkeypatch):
     os.makedirs(tmp_path / "ref"); P.run_reference(src, kf, cfg_y, str(tmp_path / "ref"))
     m = M.cloud_metrics(cloud_w, read_ply_xyz(str(tmp_path / "ref" / "reference.ply")), [0.05], 0.02)
     assert m["accuracy_median_m"] < 0.025 and m["fscore_5cm"] > 0.8, m
+
+
+def _two_board_walk(tmp_path, scale=2.2):
+    """Board 01 at the world origin seen at 0-3.9 s, board 02 elsewhere seen at 4.0-7.9 s; tracker poses in arbitrary units."""
+    from test_charuco import SPEC, _view, _look_at
+    from scipy.spatial.transform import Rotation
+    K = np.array([[900.0, 0, 640], [0, 900.0, 360], [0, 0, 1]])
+    b1, b2 = CH.make_board(SPEC), CH.make_board(dict(SPEC, first_marker_id=20))
+    T_wB = np.eye(4); T_wB[:3, :3] = Rotation.from_euler("y", 30, degrees=True).as_matrix(); T_wB[:3, 3] = [1.2, 0.0, 0.4]
+    centre = np.array([0.14, 0.10, 0.0])
+    (tmp_path / "bf").mkdir()
+    lines, poses = [], []
+    for k in range(80):
+        a = np.radians(-35 + 70 * (k % 40) / 39)
+        local = _look_at(centre + [0.5 * np.sin(a), 0.04 * np.cos(2 * a), -0.85 + 0.15 * np.cos(a)], centre)
+        if k < 40:
+            T, img = local, _view(b1, local, K)
+        else:
+            T = T_wB @ local                                   # the same kind of sweep, in front of board 02
+            img = _view(b2, local, K)
+        cv2.imwrite(str(tmp_path / "bf" / f"{k:04d}.png"), img)
+        lines.append(f"{k * 0.1:.6f} {k:04d}.png"); poses.append(T)
+    (tmp_path / "bf" / "rgb.txt").write_text("\n".join(lines) + "\n")
+
+    def trajectory(path, keep):
+        with open(path, "w") as f:
+            for k in keep:
+                q = Rotation.from_matrix(poses[k][:3, :3]).as_quat(); p = poses[k][:3, 3] / scale
+                f.write(f"{k * 0.1:.6f} {p[0]} {p[1]} {p[2]} {q[0]} {q[1]} {q[2]} {q[3]}\n")
+    ref = C.load(os.path.join(REPO, "configs", "references.yaml"))
+    cam = {"K": K.tolist(), "dist": [0] * 5, "size": [1280, 720]}
+
+    def config(traj, mode, params=None):
+        cfg = QC.build(str(tmp_path / "bf" / "rgb.txt"), str(traj), cam, {"source": "oracle", "oracle": {}})
+        cfg["anchor"] = {"enabled": True, "mode": mode, "board_frames": str(tmp_path / "bf" / "rgb.txt"), "camera": cam,
+                         "boards": {"ref01": dict(SPEC, mounting="unknown"), "ref02": dict(SPEC, first_marker_id=20, mounting="unknown")},
+                         "windows": {"ref01_start": [0.0, 3.95], "ref02": [[4.0, 7.95]]}, "params": params or ref["anchor"]}
+        cfg["anchor_only"] = True
+        return cfg
+    return T_wB, poses, trajectory, config, ref
+
+
+def test_best_effort_links_board_02_and_falls_back_to_it(tmp_path):
+    T_wB, poses, trajectory, config, ref = _two_board_walk(tmp_path)
+    trajectory(tmp_path / "all.txt", range(80))
+    r, stats, rep = _run(config(tmp_path / "all.txt", "best_effort"), str(tmp_path / "link"))
+    assert r.returncode == 0, r.stderr
+    assert rep["frame"] == "ref01" and rep["anchored_by"]["window"] == "ref01_start"
+    L = rep["ref02"]["sim3_board_in_frame"]
+    assert abs(L["s"] - 1.0) < 0.02 and np.allclose(np.array(L["R"]), T_wB[:3, :3], atol=0.02)
+    assert np.allclose(L["t"], T_wB[:3, 3], atol=0.02)                         # board 02's pose in board 01's frame
+    trajectory(tmp_path / "late.txt", range(40, 80))                         # a stretch that never saw board 01
+    r, stats, rep = _run(config(tmp_path / "late.txt", "best_effort"), str(tmp_path / "fallback"))
+    assert r.returncode == 0, r.stderr
+    assert rep["frame"] == "ref02" and stats["anchor_frame"] == "ref02"
+    traj = np.loadtxt(tmp_path / "fallback" / "anchored_trajectory.txt")
+    want = np.array([(np.linalg.inv(T_wB) @ poses[k])[:3, 3] for k in range(40, 80)])
+    assert np.allclose(traj[:, 1:4], want, atol=0.01)                        # metric, in board 02's frame
+    r, stats, rep = _run(config(tmp_path / "late.txt", "strict"), str(tmp_path / "strict"))
+    assert r.returncode != 0 and "anchor refused" in rep["error"]           # strict still refuses without board 01
+
+
+def test_best_effort_records_failed_checks_instead_of_refusing(tmp_path):
+    T_wB, poses, trajectory, config, ref = _two_board_walk(tmp_path)
+    trajectory(tmp_path / "all.txt", range(80))
+    tight = dict(ref["anchor"], max_corner_fit_rms_m=1e-9)
+    r, stats, rep = _run(config(tmp_path / "all.txt", "strict", tight), str(tmp_path / "strict"))
+    assert r.returncode != 0 and "triangulated corners do not fit" in rep["error"]
+    r, stats, rep = _run(config(tmp_path / "all.txt", "best_effort", tight), str(tmp_path / "best"))
+    assert r.returncode == 0, r.stderr
+    assert rep["frame"] == "ref01" and not rep["ref01"]["ok"]
+    assert any("although triangulated corners do not fit" in w for w in rep["warnings"])
+    assert "warning" in r.stderr

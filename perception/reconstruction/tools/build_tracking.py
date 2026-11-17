@@ -107,6 +107,12 @@ def git_fetch(name):
     pin, dst = PINS[name], TP / name
     if not (dst / ".git").is_dir():
         run(["git", "clone", "--recurse-submodules", pin["git"], dst])
+    head = subprocess.check_output(["git", "-C", str(dst), "rev-parse", "HEAD"]).decode().strip()
+    if head == pin["commit"]:
+        # Already at the pinned commit: no forced checkout, which would restore every patched file and make the build
+        # recompile the whole library. The patches below are idempotent and leave already-patched files untouched.
+        print(f"  {name}: at the pinned commit {head[:8]}")
+        return dst
     run(["git", "-C", dst, "fetch", "--tags", "origin"])
     run(["git", "-C", dst, "checkout", "--force", pin["commit"]])
     run(["git", "-C", dst, "submodule", "update", "--init", "--recursive"])

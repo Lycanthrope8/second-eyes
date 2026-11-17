@@ -64,6 +64,9 @@ def main():
     ap.add_argument("--recording"); ap.add_argument("--board-frames")
     ap.add_argument("--tracking-run"); ap.add_argument("--max-keyframes", type=int); ap.add_argument("--threads", type=int, default=2)
     ap.add_argument("--no-loop", action="store_true"); ap.add_argument("--purpose", default="reconstruction on the headset")
+    ap.add_argument("--anchor", choices=["strict", "best-effort"], default="strict",
+                    help="strict: refuse when an anchor check fails; best-effort: anchor by whichever board can be fitted and "
+                         "record failed checks as warnings, so a reconstruction is always made")
     a = ap.parse_args()
     for b in ("qtrack", "qrecon_quest"):
         if not (RUNTIME / "bin" / b).is_file():
@@ -107,7 +110,8 @@ def main():
                                {"purpose": a.purpose, "name": a.name, "frames": a.frames, "board_frames": a.board_frames,
                                 "recording": a.recording, "sequence": a.seq, "calib": a.calib, "frame_scale": a.frame_scale,
                                 "model": Path(a.model).name, "model_sha256": msha, "runtime_build": build["files"],
-                                "tracking_run": a.tracking_run, "max_keyframes": a.max_keyframes, "threads": a.threads})
+                                "tracking_run": a.tracking_run, "max_keyframes": a.max_keyframes, "threads": a.threads,
+                                "anchor_mode": a.anchor})
     path = Path(path)
     rout = f"{REMOTE}/out/{run_id}"
     adb("shell", f"mkdir -p {rout}/tracking {rout}/recon")
@@ -142,7 +146,7 @@ def main():
     anchor = None
     if a.recording:
         anchor = {"board_frames": f"{REMOTE}/frames/{a.name}_boards/rgb.txt", "camera": QC.camera_block(calib, 1.0),
-                  "recording": a.recording}
+                  "recording": a.recording, "mode": "best_effort" if a.anchor == "best-effort" else "strict"}
     cfg = QC.build(f"{REMOTE}/frames/{a.name}/rgb.txt", f"{rout}/tracking/frame_trajectory.txt",
                    QC.camera_block(calib, a.frame_scale), {"source": "onnx", "model": rmodel, "threads": a.threads},
                    anchor=anchor, max_keyframes=a.max_keyframes)
@@ -169,6 +173,11 @@ def main():
                                **json.loads((HERE / "runs" / a.tracking_run / "tracking" / "stats.json").read_text())}
     REG.save_json(str(path), "summary.json", summary)
     print(json.dumps({k: summary.get(k) for k in ("run", "tracking", "stats")}, indent=1)[:3000])
+    an = summary.get("anchor") or {}
+    if an.get("frame"):
+        print(f"anchor: cloud in {an['frame']}'s frame" + (f", by {an['anchored_by']['window']}" if an.get("anchored_by", {}).get("window") else ""))
+    for wmsg in an.get("warnings", []):
+        print(f"warning: {wmsg}")
     if not res.endswith("exit=0"):
         sys.exit("reconstruction failed on the headset; send me runs/<run>/recon/stdout.txt and anchor.json")
     print(f"cloud: {rec / 'cloud.ply'}")

@@ -43,7 +43,7 @@ def apply(root):
     changed = 0
     for rel, edits in EDITS.items():
         p = root / rel
-        s = p.read_text(encoding="utf-8")
+        s = original = p.read_text(encoding="utf-8")
         for old, new in edits:
             if s.count(old) == 1:
                 s = s.replace(old, new)
@@ -53,7 +53,8 @@ def apply(root):
             else:
                 raise SystemExit(f"patch_stella: expected exactly one match in {rel} for:\n{old[:120]}\n"
                                  "The sources are not stella_vslam 0.7.0 as pinned; stopping.")
-        p.write_text(s, encoding="utf-8")
+        if s != original:                                 # untouched files keep their time, so the build stays incremental
+            p.write_text(s, encoding="utf-8")
     left = [str(p) for p in (root / "src").rglob("*") if p.is_file() and p.suffix in (".cc", ".h", ".txt")
             and ("LinearSolverCSparse" in p.read_text(encoding="utf-8", errors="ignore")
                  or "csparse_extension" in p.read_text(encoding="utf-8", errors="ignore"))]

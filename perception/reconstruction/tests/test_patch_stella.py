@@ -20,7 +20,9 @@ def _fake_tree(tmp_path):
 def test_applies_then_is_idempotent(tmp_path):
     root = _fake_tree(tmp_path)
     assert patch_stella.apply(root) == "patched"
+    times = {rel: os.stat(root / rel).st_mtime_ns for rel in patch_stella.EDITS}
     assert patch_stella.apply(root) == "already patched"
+    assert {rel: os.stat(root / rel).st_mtime_ns for rel in patch_stella.EDITS} == times   # untouched: no rebuild
     top = (root / "CMakeLists.txt").read_text()
     assert "find_package(OpenCV QUIET" in top and "3.3.1" not in top
 
