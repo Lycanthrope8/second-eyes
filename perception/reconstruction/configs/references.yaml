@@ -39,6 +39,13 @@ recordings:
       ref01_end: [343.6, 347.4]
       ref02: [[158.0, 166.6], [254.6, 258.6], [324.1, 328.6]]
 
+  house_20261111_121118:
+    video: 20261111_121118.mp4
+    windows_s:
+      ref01_start: [27.0, 29.5]
+      ref01_end: [364.1, 367.4]
+      ref02: [[188.6, 197.1], [276.1, 280.6], [330.1, 338.1]]
+
 calibration:                     # from board views inside a recording (no separate calibration video exists)
   min_corners: 12
   min_views: 8
