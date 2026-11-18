@@ -240,7 +240,9 @@ def test_best_effort_records_failed_checks_instead_of_refusing(tmp_path):
     assert r.returncode != 0 and "triangulated corners do not fit" in rep["error"]
     r, stats, rep = _run(config(tmp_path / "all.txt", "best_effort", tight), str(tmp_path / "best"))
     assert r.returncode == 0, r.stderr
-    assert rep["frame"] == "ref01" and not rep["ref01"]["ok"]
+    F = rep["frame"]                                                    # nothing passes: the tightest corner fit anchors
+    fits = [x["corner_fit_rms_m"] for x in rep["anchor_attempts"] if "corner_fit_rms_m" in x]
+    assert F in ("ref01", "ref02") and not rep[F]["ok"] and rep[F]["corner_fit_rms_m"] == min(fits)
     assert any("although triangulated corners do not fit" in w for w in rep["warnings"])
     assert "warning" in r.stderr
 
@@ -268,3 +270,18 @@ def test_board_windows_found_automatically_anchor_and_link_any_board(tmp_path):
     assert rep["frame"] == "ref02" and rep["anchored_by"]["window"].startswith("ref02 4.0-")
     assert [x["board"] for x in rep["anchor_attempts"]] == ["ref01", "ref02"]
     assert "ref01" in rep["links"] and rep["links"]["ref01"]["ok"] is False
+
+
+def test_best_effort_takes_a_boards_windows_together_when_each_is_too_short(tmp_path):
+    T_wB, poses, trajectory, config, ref = _two_board_walk(tmp_path)
+    trajectory(tmp_path / "all.txt", range(80))
+    cfg = config(tmp_path / "all.txt", "best_effort")
+    del cfg["anchor"]["windows"]
+    cfg["anchor"]["board_windows"] = {"ref01": [[0.0, 0.45], [0.5, 0.95]], "ref02": [[4.0, 7.95]]}   # 5 views each: too few alone
+    cfg["anchor"]["board_order"] = ["ref01", "ref02"]
+    r, stats, rep = _run(cfg, str(tmp_path / "joint"))
+    assert r.returncode == 0, r.stderr
+    tried = [(x["board"], x["window"], x["ok"]) for x in rep["anchor_attempts"]]
+    assert ("ref01", "ref01 all windows", True) in tried and not any(ok for b, w, ok in tried[:2])
+    assert rep["frame"] == "ref01" and rep["anchored_by"]["window"] == "ref01 all windows" and "closure_ref01" not in rep
+    assert "ref02" in rep["links"] and np.allclose(rep["links"]["ref02"]["sim3_board_in_frame"]["t"], T_wB[:3, 3], atol=0.03)

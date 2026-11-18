@@ -91,3 +91,24 @@ def test_merge_chains_links_across_three_boards_and_reports_rooms(tmp_path, monk
     rooms = rep["rooms"]
     assert rooms["ref01"]["keyframe_criterion"] == "met" and rooms["ref01"]["level5"].startswith("pending")
     assert rooms["ref02"]["level5"].startswith("not passed") and rooms["ref02"]["metric_assessment"].endswith("no valid anchor")
+
+
+def test_links_from_failed_anchors_lose_and_disagreeing_links_are_reported(tmp_path, monkeypatch):
+    monkeypatch.setattr(MC, "HERE", tmp_path)
+    world = np.random.default_rng(5).uniform(-1, 1, (100, 3))
+    R = Rotation.from_euler("y", 10, degrees=True).as_matrix(); t = np.array([5.0, 0.0, -3.0])
+    _run(tmp_path, "b", (world - t) @ R, {"frame": "ref02", "ref02": {"ok": True}})          # a cloud in board 02's frame
+    _run(tmp_path, "a", world[:10], {"frame": "ref01", "ref01": {"ok": True}})
+    def link(name, ok, tt, spread):
+        rec = tmp_path / "runs" / name / "recon"; rec.mkdir(parents=True)
+        rec.joinpath("anchor.json").write_text(json.dumps({"frame": "ref01", "ref01": {"ok": ok}, "links": {"ref02": {
+            "position_spread_m": spread, "position_m": 5.8, "sim3_board_in_frame": {"s": 1.0, "R": R.tolist(), "t": list(tt)}}}}))
+    link("good", True, t, 0.004)
+    link("bad", False, t * 0.5, 0.001)                                   # tighter spread, but from a failed anchor
+    sys.argv = ["merge_clouds.py", "--runs", "a", "b", "good", "bad", "--out", "m"]
+    MC.main()
+    P, _ = MC.read_ply(tmp_path / "runs" / "m.ply")
+    assert np.allclose(np.sort(P[10:], axis=0), np.sort(world, axis=0), atol=1e-4)      # placed with the good link
+    rep = json.load(open(tmp_path / "runs" / "m.json"))
+    c = rep["link_checks"][0]
+    assert c["boards"] == "ref01-ref02" and c["links"] == 2 and not c["agree"] and abs(c["max_position_difference_m"] - 2.915) < 0.01

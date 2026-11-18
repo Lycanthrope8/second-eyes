@@ -5,7 +5,9 @@ Each run's anchor.json says which board's frame its cloud is in (or "tracker": u
 run that also saw another board reports that board's pose in its frame, as a similarity (the scale also absorbs any
 print-size difference between the boards). These links join the boards' frames. Every cloud is moved into the target
 frame (board 01's unless --frame says otherwise) along the chain of best links: the tightest board fit, or for a link
-taken from single views (camera standing still), the smallest spread of those views. Because the boards are fixed to
+taken from single views (camera standing still), the smallest spread of those views; a link from a run whose own anchor
+failed its check is used only when nothing better joins. Where several runs link the same two boards, the report says
+how far apart their answers are. Because the boards are fixed to
 the walls, a link measured in one recording holds for every recording of the same place.
 
     python tools/merge_clouds.py --runs RUN [RUN ...] --out NAME [--frame ref01]
@@ -70,7 +72,37 @@ def run_links(run, anchor):
         single = "position_spread_m" in r
         q = r["position_spread_m"] if single else r.get("corner_fit_rms_m")
         out.append({"frm": b, "to": F, "s": float(S["s"]), "R": np.array(S["R"], float), "t": np.array(S["t"], float),
-                    "quality_m": float(q) if q is not None else 1.0, "how": "single views" if single else "board fit", "run": run})
+                    "quality_m": float(q) if q is not None else 1.0, "how": "single views" if single else "board fit", "run": run,
+                    "anchor_ok": bool(anchor.get(F, {}).get("ok"))})
+    return out
+
+
+FAILED_ANCHOR_PENALTY_M = 1.0   # a link from a run whose own anchor failed its check is used only when nothing better joins
+
+
+def link_cost(e):
+    return e["quality_m"] + (0.0 if e.get("anchor_ok", True) else FAILED_ANCHOR_PENALTY_M)
+
+
+def link_checks(edges, max_m=0.10, max_deg=5.0):
+    """Where several runs link the same two boards: how far apart their answers are (board B's pose in A's frame)."""
+    groups = {}
+    for e in edges:
+        a, b = sorted((e["frm"], e["to"]))
+        g = (e["s"], e["R"], e["t"])
+        if e["to"] != a:                       # make every edge map b's frame into a's
+            g = _invert(g)
+        groups.setdefault((a, b), []).append((g, e))
+    out = []
+    for (a, b), items in groups.items():
+        if len(items) < 2:
+            continue
+        dpos = max(np.linalg.norm(g1[2] - g2[2]) for (g1, _), (g2, _) in __import__("itertools").combinations(items, 2))
+        drot = max(np.degrees(np.arccos(np.clip((np.trace(g1[1].T @ g2[1]) - 1) / 2, -1, 1)))
+                   for (g1, _), (g2, _) in __import__("itertools").combinations(items, 2))
+        out.append({"boards": f"{a}-{b}", "links": len(items), "runs": [e["run"] for _, e in items],
+                    "max_position_difference_m": round(float(dpos), 3), "max_rotation_difference_deg": round(float(drot), 2),
+                    "agree": bool(dpos <= max_m and drot <= max_deg)})
     return out
 
 
@@ -102,7 +134,7 @@ def best_paths(edges, target):
             continue
         for nb, g, e in adj.get(f, []):
             # g maps f -> nb, so nb -> target is (f -> target) after (nb -> f)
-            c = cost + e["quality_m"]
+            c = cost + link_cost(e)
             if nb not in best or c < best[nb][0]:
                 best[nb] = (c, _compose(best[f][1], _invert(g)), best[f][2] + [e])
                 heapq.heappush(heap, (c, nb))
@@ -111,7 +143,8 @@ def best_paths(edges, target):
 
 def _desc(e):
     q = f"spread {1000 * e['quality_m']:.1f} mm" if e["how"] == "single views" else f"board fit {1000 * e['quality_m']:.1f} mm"
-    return f"{e['frm']} -> {e['to']} from {e['run']} ({e['how']}, {q}, scale {e['s']:.3f})"
+    return (f"{e['frm']} -> {e['to']} from {e['run']} ({e['how']}, {q}, scale {e['s']:.3f}"
+            + ("" if e.get("anchor_ok", True) else ", its run's own anchor failed its check") + ")")
 
 
 def room_status(runs_info):
@@ -185,11 +218,15 @@ def main():
             parts.append((P, Cc))
         report["runs"].append(entry)
     report["rooms"] = room_status(report["runs"])
+    report["link_checks"] = link_checks(edges)
     for e in report["runs"]:
         print(f"  {e['run']}: {e['points']} points in {e['frame']}'s frame" + ("" if e["placed"] else f" - left out: {e['why']}"))
     for F, used in report["links_used"].items():
         for d in used:
             print(f"  link: {d}")
+    for c in report["link_checks"]:
+        print(f"  {'' if c['agree'] else 'WARNING: '}{c['links']} links between {c['boards']} differ by up to "
+              f"{c['max_position_difference_m']:.2f} m and {c['max_rotation_difference_deg']:.1f} deg ({', '.join(c['runs'])})")
     for F, r in report["rooms"].items():
         print(f"  room of {F}: valid keyframes {r['valid_keyframe_share']:.2f} ({r['keyframe_criterion']}), anchor {r['anchor']}; "
               f"Level 5 {r['level5']}")

@@ -14,3 +14,11 @@ def test_maps_are_reconstructed_only_when_long_enough_and_a_board_was_seen():
     assert set(plan) == {0, 2, 3, 4}                                  # the discarded map is not considered
     assert plan[0] == (["ref01"], None) and plan[3] == (["ref02"], None)
     assert plan[2][1].startswith("no board seen") and "under --min-map-s" in plan[4][1]
+
+
+
+def test_overlapping_board_windows_become_one():
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+    from qrecon import questconfig as QC
+    w = QC.merge_windows({"ref02": [[330.13, 332.63], [276.11, 280.61], [331.63, 338.13]], "ref01": [[46.0, 48.0], [49.0, 54.0]]})
+    assert w["ref02"] == [[276.11, 280.61], [330.13, 338.13]] and w["ref01"] == [[46.0, 48.0], [49.0, 54.0]]

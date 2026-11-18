@@ -94,7 +94,7 @@ def main():
     spans = data / f"{a.name}_boards.json"
     if not spans.is_file():
         run([py, vt, "board-spans", "--video", video, "--out", spans])
-    windows = json.loads(spans.read_text())["windows_s"]
+    windows = QC.merge_windows(json.loads(spans.read_text())["windows_s"])
 
     cap = cv2.VideoCapture(str(video))
     fps = (cap.get(cv2.CAP_PROP_FPS) or 30.0) / a.every

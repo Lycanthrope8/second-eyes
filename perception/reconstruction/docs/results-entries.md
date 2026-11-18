@@ -1,4 +1,4 @@
-# Results-sheet entries, drafted 18 November 2026
+# Results-sheet entries, drafted 18 November 2026 (runs of 18 November added at the end)
 
 For the test guide's results sheet. Values come from the session records; where a record has no value, the entry says
 so. Status: **confirmed result** (a check passed as defined), **failed check**, **provisional measurement** (a value
@@ -33,7 +33,7 @@ use nominal timestamps (frame index / frame rate); R3.14 recomputes them from th
 | 4b | Anchor, 12:04:50 whole walk (1,315 px; r001 strict, r004 best effort) | corner fit 14.0 mm rms (max 39.7 mm); held-out 6.1 mm median; r004 used it with a warning | failed check | 17 Nov |
 | 4b | Keyframes calibrated | house r006: 20 of 20; 12:04:50 r009: 20 of 20 | confirmed result | 16 Nov |
 | 4b | Depth time per keyframe, median | 5.28 s (r006), 5.35 s (r009), 5.52–5.58 s (r004–r006, 17 Nov) | recorded | — |
-| 5 | Coverage, 12:04:50 whole walk (r012, 1,315 px) | whole recording 0.222 (77.0 of 347.5 s); initialisation 8.87 s; from initialisation 0.228; longest gap 75.49–337.09 s (261.6 s, the only one) | provisional measurement (nominal timestamps) | r012, computed 18 Nov |
+| 5 | Coverage, 12:04:50 whole walk (r012, 1,315 px), nominal timestamps | whole recording 0.222 (77.0 of 347.5 s); initialisation 8.87 s; from initialisation 0.228; longest gap 75.49–337.09 s (261.6 s, the only one) | superseded by the source-timestamp row below | r012, computed 18 Nov |
 | 5 | Bedroom (board 01): valid keyframes | 81 of 100 (0.81, r004) | meets the 0.8 criterion; metric assessment pending: its anchor failed its check | 17 Nov |
 | 5 | Living/dining (board 02): valid keyframes | 61 of 92 (0.66, r005) | failed check | 17 Nov |
 | 5 | Living/dining (board 02): anchor | r005 anchored by board 02 with no failed check (values in its anchor.json); r007 on the end stretch: corner fit 4.8 mm rms, held-out 2.4 mm median | confirmed result | 17 Nov |
@@ -42,3 +42,19 @@ use nominal timestamps (frame index / frame rate); R3.14 recomputes them from th
 | 5 | Closure (bedroom, r004) | 0.081 m, 31.8°, scale drift −0.079; its anchor failed its check | provisional measurement | 17 Nov |
 | 5 | Peak memory, total time | r004 871 MB, 580 s; r005 864 MB, 526 s; r006 889 MB, 488 s | recorded | 17 Nov |
 | 5 | Merged cloud `house_both_rooms` | 435,710 points; extent 8.92 × 3.89 × 10.16 m; rooms placed correctly relative to each other (project lead's view) | provisional measurement | 17 Nov |
+
+## Runs of 18 November (R3.14: map restarts, automatic board windows)
+
+| Level | Check | Value | Status | Source |
+|---|---|---|---|---|
+| 5 | Coverage, 12:04:50 whole walk, one map (r012), source timestamps | whole recording 0.222 (77.0 of 347.5 s); initialisation 8.95 s; from initialisation 0.228; longest gap 75.55–337.10 s (261.5 s, the only one) | recorded | 18 Nov |
+| 4b/5 | Coverage, 12:04:50 with map restarts (r004) | whole recording 0.804 (279.3 of 347.5 s); initialisation 6.95 s; from initialisation 0.820; longest gap 75.82–100.09 s (24.3 s); 7 gaps; 4.8 s tracked in maps stella discarded | failed check against Level 4b's 0.9 from initialisation (D135) | 18 Nov |
+| 4b/5 | Coverage, 12:11:18 with map restarts (r001) | whole recording 0.696 (255.9 of 367.5 s); initialisation 10.13 s; from initialisation 0.716; longest gap 176.27–208.74 s (32.5 s); 7 gaps; 10.3 s tracked in maps stella discarded | failed check against 0.9 (D135) | 18 Nov |
+| 5 | Tracked time in maps that saw a board | 12:04:50: 189.8 of 279.3 s (maps 0, 3, 6, 8); 12:11:18: 96.2 of 255.9 s (maps 0, 11). The rest is in maps that never saw a board and cannot be placed (O42) | recorded | 18 Nov |
+| 5 | Anchors (best effort) | passed: r006, r007, r008. Failed check: r002 (corner fit); r003 (corner fit; board 02's viewing split into two windows); r005 (held-out views; board 01's viewing split into two windows) | failed check for r002, r003, r005 | 18 Nov |
+| 5 | Board link from r003 | board 01 at 2.61 m from board 02 (single views, spread 7.1 mm), against 5.19 m from r007 of 17 Nov; r003's own anchor failed its check | failed check (the links disagree) | 18 Nov |
+| 5 | Valid keyframes per reconstruction | r002 47/54 (0.87), r003 41/60 (0.68), r005 5/49 (0.10), r006 35/60 (0.58), r007 11/21 (0.52), r008 14/21 (0.67) | recorded | 18 Nov |
+| 5 | Bedroom (board 01), merge `house_all` | valid keyframes 66 of 124 (0.53); one of three anchors passed | failed check (0.8); metric assessment pending (D137) | 18 Nov |
+| 5 | Living/dining (board 02), merge `house_all` | valid keyframes 87 of 141 (0.62); two of three anchors passed | failed check (0.8); metric assessment pending (D137) | 18 Nov |
+| 5 | Merged cloud `house_all` | 258,351 points; extent 7.59 × 3.75 × 9.64 m; one block is visibly tilted against the rest in a side view | provisional measurement | 18 Nov |
+| 5 | Time and memory on the headset | depth 5.21–5.23 s per keyframe (median); reconstruction peak 829–861 MB; tracking peak 138–162 MB; tracking at capture pace (370 s and 350 s wall) | recorded | 18 Nov |

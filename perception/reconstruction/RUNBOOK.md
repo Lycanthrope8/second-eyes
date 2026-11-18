@@ -185,3 +185,9 @@ It finds the boards, extracts frames (with the video's own timestamps), tracks o
 that saw none as unplaced. The merge joins all boards' frames through the best links and reports each room's Level 5
 status separately (D137). `python tools/coverage.py --run RUN` reports coverage for any tracking run, old or new;
 `video_tools.py source-times` adds source timestamps to a frame folder extracted before R3.14.
+
+R3.15: best-effort anchoring fits every window of every board, and each board's windows together, and takes the
+passing fit of the most preferred board (the tightest corner fit within it), or the tightest fit of all when none
+passes; board windows that overlap are merged. The merge uses a link from a run whose own anchor failed its check only
+when nothing better joins, and reports how far apart several links between the same two boards are. To redo only the
+reconstructions of a processed recording: `process_recording.py ... --tracking-run <its tracking run>`.

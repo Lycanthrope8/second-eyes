@@ -787,22 +787,46 @@ int main(int argc, char** argv) {
                 if (!report[b0]["ok"].get<bool>()) throw std::runtime_error("anchor refused: " + report[b0]["reason"].get<std::string>());
                 frame = b0, anchored_window = bw[b0][0].first, anchored_index = 0;
             } else {
-                // Best effort: the first board window (boards in preference order, windows in time order) that can be
-                // fitted at all gives the frame; a failed quality check is recorded as a warning, not a refusal.
+                // Best effort: every window of every board, and each board's windows taken together, is fitted. The anchor
+                // is the passing fit of the most preferred board (the tightest corner fit within it); if none passes, the
+                // tightest corner fit of all. A failed quality check is recorded as a warning, not a refusal.
+                struct Cand {
+                    std::string board, label;
+                    int index, rank;
+                    Sim3 Q;
+                    json r;
+                };
+                std::vector<Cand> cands;
                 json attempts = json::array();
-                for (auto& b : order) {
+                for (int bi = 0; bi < static_cast<int>(order.size()); ++bi) {
+                    const std::string b = order[bi];
                     if (!usable_board(b)) continue;
                     Board B = make_board(A.at("boards")[b]);
-                    for (int i = 0; i < static_cast<int>(bw[b].size()) && frame == "tracker"; ++i) {
+                    const int n = static_cast<int>(bw[b].size());
+                    for (int i = 0; i <= n; ++i) {
+                        if (i == n && n < 2) break;                      // "all windows" only when there are several
+                        const auto spans = i < n ? std::vector<std::vector<double>>{bw[b][i].second} : spans_of(b, -1);
+                        const std::string label = i < n ? bw[b][i].first : b + " all windows";
                         Sim3 Q;
-                        json r = fit_board(collect(B, {bw[b][i].second}, nullptr), B, bc.K, A.at("params"), &Q, true);
-                        attempts.push_back({{"board", b}, {"window", bw[b][i].first}, {"ok", r["ok"]}, {"reason", r.value("reason", std::string())}});
-                        if (!r.contains("scale")) continue;                 // too few views, or not enough motion to triangulate
-                        S = Q, frame = b, anchored_window = bw[b][i].first, anchored_index = i;
-                        report[b] = r;
-                        if (!r["ok"].get<bool>()) warnings.push_back("anchored by " + b + " (" + bw[b][i].first + ") although " + r["reason"].get<std::string>());
+                        json r = fit_board(collect(B, spans, nullptr), B, bc.K, A.at("params"), &Q, true);
+                        json att = {{"board", b}, {"window", label}, {"ok", r["ok"]}, {"reason", r.value("reason", std::string())}};
+                        if (r.contains("corner_fit_rms_m")) att["corner_fit_rms_m"] = r["corner_fit_rms_m"];
+                        attempts.push_back(att);
+                        if (r.contains("scale")) cands.push_back({b, label, i < n ? i : -1, bi, Q, r});
                     }
-                    if (frame != "tracker") break;
+                }
+                auto fit_of = [](const Cand& c) { return c.r.value("corner_fit_rms_m", 1e9); };
+                const Cand* best = nullptr;
+                for (const auto& c : cands)
+                    if (c.r["ok"].get<bool>() && (!best || c.rank < best->rank || (c.rank == best->rank && fit_of(c) < fit_of(*best)))) best = &c;
+                if (!best)
+                    for (const auto& c : cands)
+                        if (!best || fit_of(c) < fit_of(*best)) best = &c;
+                if (best) {
+                    S = best->Q, frame = best->board, anchored_window = best->label, anchored_index = best->index;
+                    report[frame] = best->r;
+                    if (!best->r["ok"].get<bool>())
+                        warnings.push_back("anchored by " + frame + " (" + anchored_window + ") although " + best->r["reason"].get<std::string>());
                 }
                 report["anchor_attempts"] = attempts;
                 if (frame == "tracker") warnings.push_back("no board could be fitted: the cloud is in the tracker's own units, unscaled");
@@ -889,7 +913,7 @@ int main(int argc, char** argv) {
             };
             if (frame != "tracker") {
                 // The anchoring board's other windows check closure; every other board seen gives a link
-                const auto others = spans_of(frame, anchored_index);
+                const auto others = anchored_index >= 0 ? spans_of(frame, anchored_index) : std::vector<std::vector<double>>{};
                 if (!others.empty()) report["closure_" + frame] = second(make_board(A.at("boards")[frame]), others, "the closure check");
                 json links = json::object();
                 for (auto& b : order) {

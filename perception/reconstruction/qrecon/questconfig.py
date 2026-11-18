@@ -14,6 +14,20 @@ def camera_block(calib, scale=1.0):
     return {"K": K, "dist": list(map(float, calib.get("dist", [0, 0, 0, 0, 0]))), "size": [int(round(w * scale)), int(round(h * scale))]}
 
 
+def merge_windows(windows, gap=0.0):
+    """Per board, windows that overlap (or lie within `gap` seconds) become one: {board: [[start, end], ...]}."""
+    out = {}
+    for board, ws in windows.items():
+        merged = []
+        for w0, w1 in sorted((float(a), float(b)) for a, b in ws):
+            if merged and w0 <= merged[-1][1] + gap:
+                merged[-1][1] = max(merged[-1][1], w1)
+            else:
+                merged.append([w0, w1])
+        out[board] = merged
+    return out
+
+
 def build(frames, trajectory, camera, depth, anchor=None, max_keyframes=None, max_pose_dt_s=0.05):
     """frames, trajectory: paths as the program will see them. camera: camera_block of the tracking frames.
     depth: {"source": "onnx", "model": path, "threads": n} or {"source": "oracle", "oracle": {...}}.
@@ -31,7 +45,7 @@ def build(frames, trajectory, camera, depth, anchor=None, max_keyframes=None, ma
         cfg["anchor"] = {"enabled": True, "board_frames": anchor["board_frames"], "camera": anchor["camera"],
                          "boards": ref["boards"], "params": ref["anchor"], "mode": anchor.get("mode", "strict")}
         if anchor.get("board_windows") is not None:
-            cfg["anchor"]["board_windows"] = {k: v for k, v in anchor["board_windows"].items() if k in ref["boards"]}
+            cfg["anchor"]["board_windows"] = merge_windows({k: v for k, v in anchor["board_windows"].items() if k in ref["boards"]})
             cfg["anchor"]["board_order"] = list(ref["boards"])
         else:
             cfg["anchor"]["windows"] = ref["recordings"][anchor["recording"]]["windows_s"]

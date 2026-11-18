@@ -250,6 +250,8 @@ def cmd_board_spans(a):
                 out_s.append(cur)
         spans[name] = out_s
         windows[name] = [[round(max(0.0, x["start_s"] - a.pad), 2), round(min(duration, x["end_s"] + a.pad), 2)] for x in out_s]
+    from qrecon import questconfig as QC                      # windows that overlap after padding are one window
+    windows = QC.merge_windows(windows)
     out = {"video": os.path.basename(a.video), "fps": fps, "duration_s": round(duration, 3), "every": a.every,
            "pad_s": a.pad, "min_corners": min_c, "spans": spans, "windows_s": windows}
     with open(a.out, "w") as f:
