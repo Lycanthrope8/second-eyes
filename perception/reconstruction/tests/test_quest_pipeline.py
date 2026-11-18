@@ -172,7 +172,7 @@ def test_anchored_reconstruction_in_metres(tmp_path, monkeypatch):
     assert m["accuracy_median_m"] < 0.025 and m["fscore_5cm"] > 0.8, m
 
 
-def _two_board_walk(tmp_path, scale=2.2):
+def _two_board_walk(tmp_path, scale=2.2, still_at_board_02=False):
     """Board 01 at the world origin seen at 0-3.9 s, board 02 elsewhere seen at 4.0-7.9 s; tracker poses in arbitrary units."""
     from test_charuco import SPEC, _view, _look_at
     from scipy.spatial.transform import Rotation
@@ -183,7 +183,7 @@ def _two_board_walk(tmp_path, scale=2.2):
     (tmp_path / "bf").mkdir()
     lines, poses = [], []
     for k in range(80):
-        a = np.radians(-35 + 70 * (k % 40) / 39)
+        a = np.radians(-35 + 70 * (k % 40) / 39) if not (still_at_board_02 and k >= 40) else np.radians(10.0)
         local = _look_at(centre + [0.5 * np.sin(a), 0.04 * np.cos(2 * a), -0.85 + 0.15 * np.cos(a)], centre)
         if k < 40:
             T, img = local, _view(b1, local, K)
@@ -243,3 +243,14 @@ def test_best_effort_records_failed_checks_instead_of_refusing(tmp_path):
     assert rep["frame"] == "ref01" and not rep["ref01"]["ok"]
     assert any("although triangulated corners do not fit" in w for w in rep["warnings"])
     assert "warning" in r.stderr
+
+
+def test_best_effort_links_a_board_seen_only_from_a_still_camera(tmp_path):
+    T_wB, poses, trajectory, config, ref = _two_board_walk(tmp_path, still_at_board_02=True)
+    trajectory(tmp_path / "all.txt", range(80))
+    r, stats, rep = _run(config(tmp_path / "all.txt", "best_effort"), str(tmp_path / "still"))
+    assert r.returncode == 0, r.stderr
+    assert rep["frame"] == "ref01" and rep["ref02"]["method"].startswith("single views")
+    L = rep["ref02"]["sim3_board_in_frame"]
+    assert L["s"] == 1.0 and np.allclose(np.array(L["R"]), T_wB[:3, :3], atol=0.02) and np.allclose(L["t"], T_wB[:3, 3], atol=0.02)
+    assert any("single views" in w for w in rep["warnings"])

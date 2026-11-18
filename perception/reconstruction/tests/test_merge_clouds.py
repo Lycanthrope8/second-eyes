@@ -44,3 +44,21 @@ def test_merge_inverts_a_link_reported_by_a_board_02_run(tmp_path, monkeypatch):
     MC.main()
     P, _ = MC.read_ply(tmp_path / "runs" / "only_b.ply")
     assert np.allclose(P, world, atol=1e-4)
+
+
+def test_merge_takes_the_link_from_an_anchor_only_run(tmp_path, monkeypatch):
+    monkeypatch.setattr(MC, "HERE", tmp_path)
+    R = Rotation.from_euler("z", 15, degrees=True).as_matrix(); t = np.array([0.3, -1.0, 2.5])
+    world = np.random.default_rng(2).uniform(-1, 1, (200, 3))
+    _run(tmp_path, "a", world[:100], {"frame": "ref01"})
+    _run(tmp_path, "b", (world[100:] - t) @ R, {"frame": "ref02"})
+    rec = tmp_path / "runs" / "link" / "recon"; rec.mkdir(parents=True)          # anchor.json only, no cloud
+    Ri, ti = R.T, -R.T @ t
+    (rec / "anchor.json").write_text(json.dumps({"frame": "ref02", "ref01_link": {"corner_fit_rms_m": 0.02,
+                                     "sim3_board_in_frame": {"s": 1.0, "R": Ri.tolist(), "t": ti.tolist()}}}))
+    sys.argv = ["merge_clouds.py", "--runs", "a", "b", "link", "--out", "ab"]
+    MC.main()
+    P, _ = MC.read_ply(tmp_path / "runs" / "ab.ply")
+    assert len(P) == 200 and np.allclose(np.sort(P[100:], axis=0), np.sort(world[100:], axis=0), atol=1e-4)
+    rep = json.load(open(tmp_path / "runs" / "ab.json"))
+    assert rep["link"]["from_run"] == "link" and rep["link_only_runs"] == ["link"]

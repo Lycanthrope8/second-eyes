@@ -64,6 +64,8 @@ def main():
     ap.add_argument("--recording"); ap.add_argument("--board-frames")
     ap.add_argument("--tracking-run"); ap.add_argument("--max-keyframes", type=int); ap.add_argument("--threads", type=int, default=2)
     ap.add_argument("--no-loop", action="store_true"); ap.add_argument("--purpose", default="reconstruction on the headset")
+    ap.add_argument("--anchor-only", action="store_true",
+                    help="compute anchor.json only (seconds): for instance a board link from a run whose cloud already exists")
     ap.add_argument("--anchor", choices=["strict", "best-effort"], default="strict",
                     help="strict: refuse when an anchor check fails; best-effort: anchor by whichever board can be fitted and "
                          "record failed checks as warnings, so a reconstruction is always made")
@@ -111,7 +113,7 @@ def main():
                                 "recording": a.recording, "sequence": a.seq, "calib": a.calib, "frame_scale": a.frame_scale,
                                 "model": Path(a.model).name, "model_sha256": msha, "runtime_build": build["files"],
                                 "tracking_run": a.tracking_run, "max_keyframes": a.max_keyframes, "threads": a.threads,
-                                "anchor_mode": a.anchor})
+                                "anchor_mode": a.anchor, "anchor_only": a.anchor_only})
     path = Path(path)
     rout = f"{REMOTE}/out/{run_id}"
     adb("shell", f"mkdir -p {rout}/tracking {rout}/recon")
@@ -150,6 +152,10 @@ def main():
     cfg = QC.build(f"{REMOTE}/frames/{a.name}/rgb.txt", f"{rout}/tracking/frame_trajectory.txt",
                    QC.camera_block(calib, a.frame_scale), {"source": "onnx", "model": rmodel, "threads": a.threads},
                    anchor=anchor, max_keyframes=a.max_keyframes)
+    if a.anchor_only:
+        if not anchor:
+            sys.exit("--anchor-only needs --recording and --board-frames")
+        cfg["anchor_only"] = True                    # anchor.json only: no depth, no cloud
     (path / "recon.json").write_text(json.dumps(cfg, indent=1))
     adb("push", str(path / "recon.json"), f"{rout}/recon/recon.json", capture=False)
     print(f"{run_id}: reconstructing on the headset")
@@ -180,7 +186,7 @@ def main():
         print(f"warning: {wmsg}")
     if not res.endswith("exit=0"):
         sys.exit("reconstruction failed on the headset; send me runs/<run>/recon/stdout.txt and anchor.json")
-    print(f"cloud: {rec / 'cloud.ply'}")
+    print(f"anchor only: {rec / 'anchor.json'}" if a.anchor_only else f"cloud: {rec / 'cloud.ply'}")
 
 
 if __name__ == "__main__":

@@ -7,6 +7,8 @@ Clouds in board 02's frame are moved into board 01's with the link whose board f
 
     python tools/merge_clouds.py --runs RUN [RUN ...] --out merged_name
 
+A run without a cloud (made with --anchor-only) is used only for the board link it reports.
+
 writes runs/<out>.ply and runs/<out>.json (the runs, their frames, points, and the link used).
 """
 import argparse, json, sys
@@ -60,14 +62,18 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--runs", nargs="+", required=True); ap.add_argument("--out", required=True)
     a = ap.parse_args()
-    runs = []
+    runs, link_only = [], []
     for run in a.runs:
         rec = HERE / "runs" / run / "recon"
-        if not (rec / "cloud.ply").is_file() or not (rec / "anchor.json").is_file():
-            sys.exit(f"{rec}: no cloud.ply and anchor.json; did that reconstruction finish?")
-        runs.append((run, json.loads((rec / "anchor.json").read_text())))
-    cand = links(runs)
-    parts, report = [], {"runs": [], "link": None}
+        if not (rec / "anchor.json").is_file():
+            sys.exit(f"{rec}: no anchor.json; did that reconstruction finish?")
+        anchor = json.loads((rec / "anchor.json").read_text())
+        if (rec / "cloud.ply").is_file():
+            runs.append((run, anchor))
+        else:
+            link_only.append((run, anchor))          # an --anchor-only run: it can only supply a board link
+    cand = links(runs + link_only)
+    parts, report = [], {"runs": [], "link": None, "link_only_runs": [run for run, _ in link_only]}
     if cand:
         fit, s, R, t, src = cand[0]
         report["link"] = {"from_run": src, "corner_fit_rms_m": fit, "scale": s, "R": R.tolist(), "t": t.tolist()}

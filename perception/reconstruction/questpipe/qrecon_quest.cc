@@ -780,6 +780,58 @@ int main(int argc, char** argv) {
                 auto o = collect(B, wins, &S);
                 Sim3 Q;
                 json r = fit_board(o, B, bc.K, A.at("params"), &Q, false);
+                if (best_effort && !r.contains("scale")) {
+                    // The views could not be triangulated (typically a camera standing still at the board): take the board's
+                    // pose from each view on its own (PnP) through that view's anchored camera pose, and average them.
+                    std::vector<Mat4> Ts;
+                    for (auto& ob : o) {
+                        if (ob.ids.size() < 6) continue;
+                        std::vector<cv::Point3f> P3;
+                        std::vector<cv::Point2f> p2;
+                        for (size_t i = 0; i < ob.ids.size(); ++i) {
+                            auto c = B.corners.at(ob.ids[i]);
+                            P3.emplace_back(float(c.x), float(c.y), float(c.z));
+                            p2.emplace_back(float(ob.px[i].x()), float(ob.px[i].y()));
+                        }
+                        cv::Mat Kc = (cv::Mat_<double>(3, 3) << bc.K(0, 0), 0, bc.K(0, 2), 0, bc.K(1, 1), bc.K(1, 2), 0, 0, 1);
+                        cv::Mat rv, tv, Rm;
+                        if (!cv::solvePnP(P3, p2, Kc, cv::noArray(), rv, tv, false, cv::SOLVEPNP_IPPE)) continue;
+                        cv::Rodrigues(rv, Rm);
+                        Mat4 Tcb = Mat4::Identity();
+                        for (int a = 0; a < 3; ++a) {
+                            for (int b = 0; b < 3; ++b) Tcb(a, b) = Rm.at<double>(a, b);
+                            Tcb(a, 3) = tv.at<double>(a);
+                        }
+                        Ts.push_back(ob.pose * Tcb);                         // frame <- camera <- board
+                    }
+                    if (Ts.size() >= 3) {
+                        Mat3 Msum = Mat3::Zero();
+                        for (auto& T : Ts) Msum += T.block<3, 3>(0, 0);
+                        Eigen::JacobiSVD<Mat3> svd(Msum, Eigen::ComputeFullU | Eigen::ComputeFullV);
+                        Mat3 Rm = svd.matrixU() * svd.matrixV().transpose();
+                        if (Rm.determinant() < 0) {
+                            Mat3 D = Mat3::Identity(); D(2, 2) = -1;
+                            Rm = svd.matrixU() * D * svd.matrixV().transpose();
+                        }
+                        Vec3 tm;
+                        std::vector<double> spread;
+                        for (int a = 0; a < 3; ++a) {
+                            std::vector<double> v;
+                            for (auto& T : Ts) v.push_back(T(a, 3));
+                            tm(a) = pct(v, 0.5);
+                        }
+                        for (auto& T : Ts) spread.push_back((T.block<3, 1>(0, 3) - tm).norm());
+                        Q.s = 1.0;
+                        Q.R = Rm.transpose();                                // stored the way fit_board stores it
+                        Q.t = -Q.R * tm;
+                        r["scale"] = 1.0;
+                        r["method"] = "single views (PnP), averaged";
+                        r["views_used"] = Ts.size();
+                        r["position_spread_m"] = pct(spread, 0.5);
+                        r["reason"] = r.value("reason", std::string("too little camera motion to triangulate")) +
+                                      "; pose taken from single views instead, boards assumed printed at the same scale";
+                    }
+                }
                 const bool usable = r["ok"].get<bool>() || (best_effort && r.contains("scale"));
                 if (usable) {
                     if (!r["ok"].get<bool>()) warnings.push_back(what + " used although " + r["reason"].get<std::string>());
