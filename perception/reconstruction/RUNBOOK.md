@@ -191,3 +191,8 @@ passing fit of the most preferred board (the tightest corner fit within it), or 
 passes; board windows that overlap are merged. The merge uses a link from a run whose own anchor failed its check only
 when nothing better joins, and reports how far apart several links between the same two boards are. To redo only the
 reconstructions of a processed recording: `process_recording.py ... --tracking-run <its tracking run>`.
+
+R3.16: `tools/place_maps.py --recordings runs/<name>_recording.json [...]` places the maps that saw no board by the views
+they share with maps that a board placed, in any of the given recordings (D139), reconstructs them on the headset in
+that board's frame, and updates the summaries; then merge as before. `--dry-run` only locates and fits.
+`--include-failed-anchors` also locates against maps whose anchor failed its check but kept half their keyframes.

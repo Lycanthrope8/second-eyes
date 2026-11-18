@@ -58,3 +58,12 @@ use nominal timestamps (frame index / frame rate); R3.14 recomputes them from th
 | 5 | Living/dining (board 02), merge `house_all` | valid keyframes 87 of 141 (0.62); two of three anchors passed | failed check (0.8); metric assessment pending (D137) | 18 Nov |
 | 5 | Merged cloud `house_all` | 258,351 points; extent 7.59 × 3.75 × 9.64 m; one block is visibly tilted against the rest in a side view | provisional measurement | 18 Nov |
 | 5 | Time and memory on the headset | depth 5.21–5.23 s per keyframe (median); reconstruction peak 829–861 MB; tracking peak 138–162 MB; tracking at capture pace (370 s and 350 s wall) | recorded | 18 Nov |
+
+## Runs of 18 November, R3.15 (best-window anchoring), reusing the same tracking runs
+
+| Level | Check | Value | Status | Source |
+|---|---|---|---|---|
+| 5 | Anchor, 12:11:18 map 11 (r010) | board 02, merged window 330.1–338.1 s: passed (no failed check) | confirmed result | 18 Nov |
+| 5 | Anchor, 12:04:50 map 0 (r011) | board 01, all windows together: held-out views disagree; valid keyframes 5 of 49 (0.10), as with R3.14 | failed check; cause not found | 18 Nov |
+| 5 | Links between board 01 and board 02 | r010 (18 Nov): 2.72 m; r007 (17 Nov): 5.19 m. They differ by 2.90 m and 5.6°. Both come from one map tracked from board 02 to board 01 (about 26 s of walking), so tracker scale drift on the way is the likely cause; the merge used r007's | failed check (the links disagree) | 18 Nov |
+| 5 | Merged cloud `house_all2` | 257,381 points; extent 7.86 × 3.86 × 9.64 m; valid keyframes 0.53 (board 01's room) and 0.62 (board 02's room) | failed check (0.8) for both rooms; metric assessment pending (D137) | 18 Nov |

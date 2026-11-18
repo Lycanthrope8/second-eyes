@@ -714,7 +714,22 @@ int main(int argc, char** argv) {
         Sim3 S;
         Mat3 Rup = Mat3::Identity();
         double t0 = now_s();
-        if (C["anchor"].value("enabled", false)) {
+        if (C["anchor"].value("enabled", false) && C["anchor"].contains("fixed")) {
+            // A similarity found outside this program, for instance from the views this map shares with a map that a
+            // board placed (tools/place_maps.py): the cloud goes into that board's frame, and no board is fitted here.
+            const json& F = C["anchor"]["fixed"];
+            S.s = F.at("sim3").at("s").get<double>();
+            for (int a = 0; a < 3; ++a) {
+                for (int b = 0; b < 3; ++b) S.R(a, b) = F["sim3"]["R"][a][b].get<double>();
+                S.t(a) = F["sim3"]["t"][a].get<double>();
+            }
+            const std::string frame = F.at("frame").get<std::string>();
+            report["frame"] = frame;
+            report["anchored_by"] = {{"board", frame}, {"window", F.value("by", std::string("a fixed similarity"))}};
+            report["fixed"] = F;
+            stats["anchor_frame"] = frame;
+            stats["anchor_warnings"] = 0;
+        } else if (C["anchor"].value("enabled", false)) {
             const json& A = C["anchor"];
             Camera bc = camera_from(A.at("camera"));
             auto blist = read_list(A.at("board_frames"));

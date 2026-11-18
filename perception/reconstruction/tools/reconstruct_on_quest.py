@@ -64,6 +64,8 @@ def main():
     ap.add_argument("--recording"); ap.add_argument("--board-frames")
     ap.add_argument("--board-spans", help="board windows found by video_tools.py board-spans (instead of --recording)")
     ap.add_argument("--map", type=int, help="with --tracking-run: reconstruct this map of a multi-map tracking run")
+    ap.add_argument("--fixed-anchor", help="a JSON file {frame, sim3: {s, R, t}, by}: put the cloud into that frame with this "
+                                           "similarity instead of fitting a board (tools/place_maps.py writes these)")
     ap.add_argument("--tracking-run"); ap.add_argument("--max-keyframes", type=int); ap.add_argument("--threads", type=int, default=2)
     ap.add_argument("--no-loop", action="store_true"); ap.add_argument("--purpose", default="reconstruction on the headset")
     ap.add_argument("--anchor-only", action="store_true",
@@ -77,6 +79,8 @@ def main():
             sys.exit("runtime not built: run python tools/build_tracking.py first")
     if a.recording and a.board_spans:
         sys.exit("give --recording or --board-spans, not both")
+    if a.fixed_anchor and (a.recording or a.board_spans or a.board_frames):
+        sys.exit("--fixed-anchor replaces --recording, --board-spans and --board-frames")
     if bool(a.recording or a.board_spans) != bool(a.board_frames):
         sys.exit("--board-frames goes with --recording or --board-spans")
     if a.map is not None and not a.tracking_run:
@@ -120,7 +124,7 @@ def main():
                                 "model": Path(a.model).name, "model_sha256": msha, "runtime_build": build["files"],
                                 "tracking_run": a.tracking_run, "max_keyframes": a.max_keyframes, "threads": a.threads,
                                 "anchor_mode": a.anchor, "anchor_only": a.anchor_only, "map": a.map,
-                                "board_spans": a.board_spans})
+                                "board_spans": a.board_spans, "fixed_anchor": a.fixed_anchor})
     path = Path(path)
     rout = f"{REMOTE}/out/{run_id}"
     adb("shell", f"mkdir -p {rout}/tracking {rout}/recon")
@@ -154,7 +158,9 @@ def main():
 
     # reconstruction
     anchor = None
-    if a.recording or a.board_spans:
+    if a.fixed_anchor:
+        anchor = {"fixed": json.load(open(a.fixed_anchor))}
+    elif a.recording or a.board_spans:
         anchor = {"board_frames": f"{REMOTE}/frames/{a.name}_boards/rgb.txt", "camera": QC.camera_block(calib, 1.0),
                   "mode": "best_effort" if a.anchor == "best-effort" else "strict"}
         if a.board_spans:

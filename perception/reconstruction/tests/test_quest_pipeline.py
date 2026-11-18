@@ -285,3 +285,17 @@ def test_best_effort_takes_a_boards_windows_together_when_each_is_too_short(tmp_
     assert ("ref01", "ref01 all windows", True) in tried and not any(ok for b, w, ok in tried[:2])
     assert rep["frame"] == "ref01" and rep["anchored_by"]["window"] == "ref01 all windows" and "closure_ref01" not in rep
     assert "ref02" in rep["links"] and np.allclose(rep["links"]["ref02"]["sim3_board_in_frame"]["t"], T_wB[:3, 3], atol=0.03)
+
+
+def test_a_fixed_similarity_puts_the_cloud_in_that_frame_without_a_board(tmp_path):
+    T_wB, poses, trajectory, config, ref = _two_board_walk(tmp_path)
+    trajectory(tmp_path / "all.txt", range(80))
+    cfg = config(tmp_path / "all.txt", "best_effort")
+    from scipy.spatial.transform import Rotation
+    R = Rotation.from_euler("zyx", [20, -10, 5], degrees=True).as_matrix(); t = [0.4, -1.2, 2.0]; s = 1.7
+    cfg["anchor"] = {"enabled": True, "fixed": {"frame": "ref02", "sim3": {"s": s, "R": R.tolist(), "t": t}, "by": "shared views"}}
+    r, stats, rep = _run(cfg, str(tmp_path / "fixed"))
+    assert r.returncode == 0, r.stderr
+    assert rep["frame"] == "ref02" and rep["anchored_by"]["window"] == "shared views" and stats["anchor_frame"] == "ref02"
+    raw = np.loadtxt(tmp_path / "all.txt"); out = np.loadtxt(tmp_path / "fixed" / "anchored_trajectory.txt")
+    assert np.allclose(out[:, 1:4], s * raw[:, 1:4] @ R.T + np.array(t), atol=1e-5)

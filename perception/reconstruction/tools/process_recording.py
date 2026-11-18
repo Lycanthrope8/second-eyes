@@ -13,7 +13,9 @@ Steps (each reuses earlier output when it is there):
   6. Each saved map that tracked at least --min-map-s seconds and saw a board is reconstructed on the headset and
      anchored by whichever board it saw (best effort); maps that saw no board are listed as unplaced
   7. runs/<name>_recording.json: coverage, every map and what happened to it, the reconstruction runs
-Then join recordings with: python tools/merge_clouds.py --recordings runs/<name>_recording.json [...] --out NAME
+Then place the maps that saw no board, through the views they share with placed maps of any recording, and join:
+  python tools/place_maps.py --recordings runs/<name>_recording.json [...]
+  python tools/merge_clouds.py --recordings runs/<name>_recording.json [...] --out NAME
 
 --focal-px replaces the calibration's focal length in both the tracker and the reconstruction: a diagnostic for how
 sensitive the results are to it (it cannot tell which component causes an error)."""
@@ -120,7 +122,8 @@ def main():
     maps = json.loads((tdir / "maps.json").read_text()) if (tdir / "maps.json").is_file() else []
     coverage = json.loads((tdir / "coverage.json").read_text()) if (tdir / "coverage.json").is_file() else None
     summary = {"video": video.name, "name": a.name, "calib": str(calib_used), "tracking_run": trk, "coverage": coverage,
-               "board_windows_s": windows, "maps": [], "recon_runs": []}
+               "board_windows_s": windows, "frames": str(frames), "frame_scale": a.scale, "fps": round(fps, 3),
+               "model": a.model, "max_keyframes": a.max_keyframes, "maps": [], "recon_runs": []}
     for m, seen, why in plan_maps(maps, windows, a.min_map_s):
         entry = {"map": m["map"], "first_t": m["first_t"], "last_t": m["last_t"], "tracked_frames": m["tracked_frames"],
                  "boards_seen": seen}

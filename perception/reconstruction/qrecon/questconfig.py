@@ -40,7 +40,10 @@ def build(frames, trajectory, camera, depth, anchor=None, max_keyframes=None, ma
            "keyframes": q["keyframes"], "landmarks": q["landmarks"], "calibration": q["calibration"],
            "consistency": q["consistency"], "fusion": q["fusion"], "max_keyframes": max_keyframes,
            "anchor": {"enabled": False}}
-    if anchor:
+    if anchor and anchor.get("fixed") is not None:
+        # a similarity found outside (shared views with a placed map): {"frame", "sim3": {"s", "R", "t"}, "by"}
+        cfg["anchor"] = {"enabled": True, "fixed": anchor["fixed"]}
+    elif anchor:
         ref = C.load(os.path.join(REPO, "configs", "references.yaml"))
         cfg["anchor"] = {"enabled": True, "board_frames": anchor["board_frames"], "camera": anchor["camera"],
                          "boards": ref["boards"], "params": ref["anchor"], "mode": anchor.get("mode", "strict")}
