@@ -2,6 +2,7 @@
 """Run the tracker on the Quest over adb and bring the results back.
 
     python tools/track_on_quest.py --frames DIR --camera CAM.yaml --name NAME [--no-loop] [--first N --last M] [--fast]
+                                   [--restart-after S]
 
 DIR holds rgb.txt and the images it lists (scripts/video_tools.py frames, or a TUM sequence folder). The runtime from
 tools/build_tracking.py, the frames and the camera file are pushed to /data/local/tmp/qtrack/ (only what changed), qtrack
@@ -11,13 +12,19 @@ normal load; the app in the foreground is recorded.
 
 Frames are fed at the rate they were captured at (from rgb.txt), as a live camera would deliver them. Fed faster, the
 tracker outruns stella's mapping thread: fewer map points are made in new areas, poses get noisier and tracking is lost
-more easily. --fast feeds them as fast as possible, for timing tests only."""
+more easily. --fast feeds them as fast as possible, for timing tests only.
+
+When tracking has been lost for --restart-after seconds of video time (default 2; 0 = never), the map is saved and a new
+one started; each map's trajectory lands in tracking/maps/map_NN/. The coverage report (D135, tools/coverage.py) is
+written to tracking/coverage.json and printed."""
 import argparse, json, os, subprocess, sys, time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HERE))
 from qrecon import framelist as FL, registry as REG  # noqa: E402
+sys.path.insert(0, str(HERE / "tools"))
+import coverage as CV  # noqa: E402
 
 REMOTE = "/data/local/tmp/qtrack"
 RUNTIME = HERE / "tracking" / "out" / "android-arm64"
@@ -51,6 +58,8 @@ def main():
     ap.add_argument("--no-loop", action="store_true"); ap.add_argument("--first", type=int); ap.add_argument("--last", type=int)
     ap.add_argument("--purpose", default="tracking on the headset")
     ap.add_argument("--fast", action="store_true", help="feed frames as fast as possible instead of at the capture rate")
+    ap.add_argument("--restart-after", type=float, default=2.0,
+                    help="seconds of lost tracking (video time) before the map is saved and a new one started; 0 = never")
     a = ap.parse_args()
     frames = Path(a.frames)
     if not (frames / "rgb.txt").is_file():
@@ -82,12 +91,13 @@ def main():
     run_id, path = REG.new_run(str(HERE / "runs"), "tracking", {"purpose": a.purpose, "frames": str(frames), "name": a.name,
                                                                "camera": Path(a.camera).name, "runtime_build": build["files"],
                                                                "loop_detector": not a.no_loop,
-                                                               "realtime_fps": round(fps, 3)})
+                                                               "realtime_fps": round(fps, 3), "restart_after_s": a.restart_after})
     top = adb("shell", "dumpsys activity activities | grep -m1 -E 'mResumedActivity|topResumedActivity'", capture=True).strip()
     thermal0 = adb("shell", "dumpsys thermalservice | grep -m3 -E 'Thermal Status|mStatus|Status'", check=False, capture=True).strip()
     out_remote = f"{REMOTE}/out/{run_id}"
     opts = (" --no-loop" if a.no_loop else "") + (f" --first {a.first}" if a.first is not None else "") + \
-           (f" --last {a.last}" if a.last is not None else "") + (f" --realtime-fps {fps:.4f}" if fps > 0 else "")
+           (f" --last {a.last}" if a.last is not None else "") + (f" --realtime-fps {fps:.4f}" if fps > 0 else "") + \
+           f" --restart-after {a.restart_after}"
     cmd = (f"cd {REMOTE} && mkdir -p {out_remote} && LD_LIBRARY_PATH={REMOTE}/lib ./bin/qtrack --config configs/{a.name}.yaml "
            f"--vocab share/orb_vocab.fbow --frames frames/{a.name}/rgb.txt --out {out_remote}{opts} > {out_remote}/stdout.txt 2>&1; "
            f"echo exit=$?")
@@ -105,7 +115,15 @@ def main():
     stats = local / "stats.json"
     if res.endswith("exit=0") and stats.is_file():
         print(stats.read_text())
-        print(f"trajectory: {local / 'frame_trajectory.txt'}")
+        try:
+            c = CV.for_run(run_id, str(frames))
+            print(CV.summary_line(c))
+            for m in c["maps"]:
+                if m["status"] == "saved":
+                    print(f"  map {m['map']}: {m['tracked_s']:.1f} s tracked, {m['first_t']:.2f}-{m['last_t']:.2f} s")
+        except Exception as e:                                   # the run is still good; only the report failed
+            print(f"coverage report failed: {e}")
+        print(f"trajectories: {local / 'maps'}")
     else:
         print((local / "stdout.txt").read_text() if (local / "stdout.txt").is_file() else res)
         sys.exit("qtrack did not finish; send me runs/<run ID>/tracking/stdout.txt")

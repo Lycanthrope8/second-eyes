@@ -62,6 +62,8 @@ def main():
     ap.add_argument("--calib"); ap.add_argument("--frame-scale", type=float, default=1.0); ap.add_argument("--fps", type=float, default=30.0)
     ap.add_argument("--seq", help="a public sequence from configs/sequences.yaml (its intrinsics; no anchor)")
     ap.add_argument("--recording"); ap.add_argument("--board-frames")
+    ap.add_argument("--board-spans", help="board windows found by video_tools.py board-spans (instead of --recording)")
+    ap.add_argument("--map", type=int, help="with --tracking-run: reconstruct this map of a multi-map tracking run")
     ap.add_argument("--tracking-run"); ap.add_argument("--max-keyframes", type=int); ap.add_argument("--threads", type=int, default=2)
     ap.add_argument("--no-loop", action="store_true"); ap.add_argument("--purpose", default="reconstruction on the headset")
     ap.add_argument("--anchor-only", action="store_true",
@@ -73,8 +75,12 @@ def main():
     for b in ("qtrack", "qrecon_quest"):
         if not (RUNTIME / "bin" / b).is_file():
             sys.exit("runtime not built: run python tools/build_tracking.py first")
-    if bool(a.recording) != bool(a.board_frames):
-        sys.exit("--recording and --board-frames go together")
+    if a.recording and a.board_spans:
+        sys.exit("give --recording or --board-spans, not both")
+    if bool(a.recording or a.board_spans) != bool(a.board_frames):
+        sys.exit("--board-frames goes with --recording or --board-spans")
+    if a.map is not None and not a.tracking_run:
+        sys.exit("--map needs --tracking-run")
     if a.seq:
         cam = C.load(str(HERE / "configs" / "sequences.yaml"))["sequences"][a.seq]["camera"]
         calib = {"K": [[cam["fx"], 0, cam["cx"]], [0, cam["fy"], cam["cy"]], [0, 0, 1]], "dist": cam["dist"], "size": [cam["width"], cam["height"]]}
@@ -113,7 +119,8 @@ def main():
                                 "recording": a.recording, "sequence": a.seq, "calib": a.calib, "frame_scale": a.frame_scale,
                                 "model": Path(a.model).name, "model_sha256": msha, "runtime_build": build["files"],
                                 "tracking_run": a.tracking_run, "max_keyframes": a.max_keyframes, "threads": a.threads,
-                                "anchor_mode": a.anchor, "anchor_only": a.anchor_only})
+                                "anchor_mode": a.anchor, "anchor_only": a.anchor_only, "map": a.map,
+                                "board_spans": a.board_spans})
     path = Path(path)
     rout = f"{REMOTE}/out/{run_id}"
     adb("shell", f"mkdir -p {rout}/tracking {rout}/recon")
@@ -123,11 +130,12 @@ def main():
     # tracking
     t0 = time.time()
     if a.tracking_run:
-        traj = HERE / "runs" / a.tracking_run / "tracking" / "frame_trajectory.txt"
+        traj = HERE / "runs" / a.tracking_run / "tracking" / (f"maps/map_{a.map:02d}/frame_trajectory.txt" if a.map is not None
+                                                                else "frame_trajectory.txt")
         if not traj.is_file():
             sys.exit(f"{traj} not found")
         adb("push", str(traj), f"{rout}/tracking/frame_trajectory.txt", capture=False)
-        device["tracking"] = f"reused from {a.tracking_run}"
+        device["tracking"] = f"reused from {a.tracking_run}" + (f", map {a.map}" if a.map is not None else "")
     else:
         cam_yaml = path / "camera.yaml"
         cam_yaml.write_text(QC.stella_camera_yaml(calib, a.frame_scale, a.fps, a.name))
@@ -146,15 +154,19 @@ def main():
 
     # reconstruction
     anchor = None
-    if a.recording:
+    if a.recording or a.board_spans:
         anchor = {"board_frames": f"{REMOTE}/frames/{a.name}_boards/rgb.txt", "camera": QC.camera_block(calib, 1.0),
-                  "recording": a.recording, "mode": "best_effort" if a.anchor == "best-effort" else "strict"}
+                  "mode": "best_effort" if a.anchor == "best-effort" else "strict"}
+        if a.board_spans:
+            anchor["board_windows"] = json.load(open(a.board_spans))["windows_s"]
+        else:
+            anchor["recording"] = a.recording
     cfg = QC.build(f"{REMOTE}/frames/{a.name}/rgb.txt", f"{rout}/tracking/frame_trajectory.txt",
                    QC.camera_block(calib, a.frame_scale), {"source": "onnx", "model": rmodel, "threads": a.threads},
                    anchor=anchor, max_keyframes=a.max_keyframes)
     if a.anchor_only:
         if not anchor:
-            sys.exit("--anchor-only needs --recording and --board-frames")
+            sys.exit("--anchor-only needs board frames and --recording or --board-spans")
         cfg["anchor_only"] = True                    # anchor.json only: no depth, no cloud
     (path / "recon.json").write_text(json.dumps(cfg, indent=1))
     adb("push", str(path / "recon.json"), f"{rout}/recon/recon.json", capture=False)
@@ -182,6 +194,11 @@ def main():
     an = summary.get("anchor") or {}
     if an.get("frame"):
         print(f"anchor: cloud in {an['frame']}'s frame" + (f", by {an['anchored_by']['window']}" if an.get("anchored_by", {}).get("window") else ""))
+        for b, L in (an.get("links") or {}).items():
+            if "sim3_board_in_frame" in L:
+                q = (f"single views, spread {1000 * L['position_spread_m']:.1f} mm" if "position_spread_m" in L
+                     else f"board fit {1000 * L.get('corner_fit_rms_m', float('nan')):.1f} mm")
+                print(f"link: {b} seen at {L['position_m']:.2f} m from {an['frame']} ({q})")
     for wmsg in an.get("warnings", []):
         print(f"warning: {wmsg}")
     if not res.endswith("exit=0"):

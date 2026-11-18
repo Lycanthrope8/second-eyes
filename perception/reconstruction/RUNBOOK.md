@@ -172,3 +172,16 @@ python scripts\qrecon.py dense --seq fr3_long_office --arm dav2s --reference <A>
 | `runtime not built` | Step 5 hasn't finished |
 | `expected exactly one headset over adb` | Check `adb devices` |
 | Few keyframes calibrated | Read the `reason` fields in `recon\keyframes.json` before changing any threshold |
+
+## Whole recordings (R3.14)
+
+One command per recording; nothing recording-specific to enter (D138):
+
+    python tools/process_recording.py --video 20261111_121118.mp4 --calib calib_s26_lines.json --name h121118
+    python tools/merge_clouds.py --recordings runs/h121118_recording.json runs/h120450_recording.json --out house
+
+It finds the boards, extracts frames (with the video's own timestamps), tracks on the headset with a new map after
+2 s of lost tracking, prints the coverage report (D135), reconstructs every map that saw a board, and lists the maps
+that saw none as unplaced. The merge joins all boards' frames through the best links and reports each room's Level 5
+status separately (D137). `python tools/coverage.py --run RUN` reports coverage for any tracking run, old or new;
+`video_tools.py source-times` adds source timestamps to a frame folder extracted before R3.14.

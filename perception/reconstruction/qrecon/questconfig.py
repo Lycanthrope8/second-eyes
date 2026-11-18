@@ -17,9 +17,10 @@ def camera_block(calib, scale=1.0):
 def build(frames, trajectory, camera, depth, anchor=None, max_keyframes=None, max_pose_dt_s=0.05):
     """frames, trajectory: paths as the program will see them. camera: camera_block of the tracking frames.
     depth: {"source": "onnx", "model": path, "threads": n} or {"source": "oracle", "oracle": {...}}.
-    anchor: None, or {"board_frames": path, "camera": camera_block at full resolution, "recording": name,
-    "mode": "strict" (refuse when a check fails) or "best_effort" (anchor by whichever board can be fitted; failed checks
-    become warnings)}."""
+    anchor: None, or {"board_frames": path, "camera": camera_block at full resolution, and either "recording": name
+    (its windows in references.yaml) or "board_windows": {board: [[start_s, end_s], ...]} (found by video_tools.py
+    board-spans), "mode": "strict" (refuse when a check fails) or "best_effort" (anchor by whichever board can be
+    fitted; failed checks become warnings)}."""
     q = C.load(os.path.join(REPO, "configs", "qrecon.yaml"))
     cfg = {"frames": frames, "trajectory": trajectory, "camera": camera, "depth": depth, "max_pose_dt_s": max_pose_dt_s,
            "keyframes": q["keyframes"], "landmarks": q["landmarks"], "calibration": q["calibration"],
@@ -28,8 +29,12 @@ def build(frames, trajectory, camera, depth, anchor=None, max_keyframes=None, ma
     if anchor:
         ref = C.load(os.path.join(REPO, "configs", "references.yaml"))
         cfg["anchor"] = {"enabled": True, "board_frames": anchor["board_frames"], "camera": anchor["camera"],
-                         "boards": ref["boards"], "windows": ref["recordings"][anchor["recording"]]["windows_s"],
-                         "params": ref["anchor"], "mode": anchor.get("mode", "strict")}
+                         "boards": ref["boards"], "params": ref["anchor"], "mode": anchor.get("mode", "strict")}
+        if anchor.get("board_windows") is not None:
+            cfg["anchor"]["board_windows"] = {k: v for k, v in anchor["board_windows"].items() if k in ref["boards"]}
+            cfg["anchor"]["board_order"] = list(ref["boards"])
+        else:
+            cfg["anchor"]["windows"] = ref["recordings"][anchor["recording"]]["windows_s"]
     return cfg
 
 

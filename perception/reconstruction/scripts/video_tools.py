@@ -16,10 +16,16 @@
   check-frames      whether extracted frames are the video frames their names say
   focal-from-lines  the focal length from the room's straight lines, to check a board calibration
   charuco-survey    calibrations from every board window of a recording, one by one and together
+  board-spans       where each board is seen in a video, found automatically (no per-recording windows)
+  source-times      the source video's own timestamps for an existing frame folder (source_times.csv)
 """
-import argparse, json, os, sys
-import numpy as np
-import cv2
+import argparse, csv, json, os, re, sys
+try:
+    import numpy as np
+    import cv2
+except ModuleNotFoundError as e:
+    sys.exit(f"{e.name} is not installed in this Python. Activate the project's environment first:\n"
+             "  Windows:       .venv-qrecon\\Scripts\\Activate.ps1\n  Linux / macOS: source .venv-qrecon/bin/activate")
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
 from qrecon import anchor as A, config as C  # noqa: E402
@@ -88,7 +94,7 @@ def cmd_anchor(a):
             f.write(f"{t:.6f} {T[0,3]:.6f} {T[1,3]:.6f} {T[2,3]:.6f} {q[0]:.8f} {q[1]:.8f} {q[2]:.8f} {q[3]:.8f}\n")
     print(f"scale {out['scale']:.4f}, corner fit {out['corner_fit_rms_m']*1000:.1f} mm, {out['views']} views -> {a.out}")
 
-def _spans(video, spans, every):
+def _spans(video, spans, every, with_pts=False):
     """Frames whose time lies inside any of the spans, as (index, time, image), in one pass. The video is decoded in
     order from its first frame, so every index is the frame's true position and time = index / fps, exactly as for
     the tracker's frames. It does not seek: on variable-rate video (phones in dim light) OpenCV's seek can land a
@@ -108,7 +114,10 @@ def _spans(video, spans, every):
             ok, bgr = cap.read()
             if not ok:
                 break
-            yield i, t, bgr
+            if with_pts:          # the frame's own presentation time; equals index / fps only on constant-rate video
+                yield i, t, cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0, bgr
+            else:
+                yield i, t, bgr
         elif not cap.grab():
             break
         i += 1
@@ -128,19 +137,34 @@ def _windows_of(recording):
     return sorted(out)
 
 
+def _board_spans_windows(path):
+    """All board windows of a board-spans file (from `video_tools.py board-spans`), as one list."""
+    data = json.load(open(path))
+    out = []
+    for v in data["windows_s"].values():
+        out += v
+    return sorted(out)
+
+
 def cmd_frames(a):
-    """Frames and a timestamp list (TUM rgb.txt layout: 'time relative_path'). With --recording, only the frames
-    inside that recording's board windows, at full resolution unless --scale says otherwise."""
+    """Frames and a timestamp list (TUM rgb.txt layout: 'time relative_path'). With --recording, or --board-spans, only
+    the frames inside the board windows, at full resolution unless --scale says otherwise. source_times.csv beside
+    rgb.txt gives each frame's own timestamp in the video (for coverage in elapsed video time)."""
     os.makedirs(os.path.join(a.out, "rgb"), exist_ok=True)
-    lines, size = [], None
-    spans = _windows_of(a.recording) if a.recording else [[a.start, a.end]]
-    for i, t, bgr in _spans(a.video, spans, a.every):
+    lines, size, src = [], None, []
+    if a.recording and a.board_spans:
+        sys.exit("give --recording or --board-spans, not both")
+    spans = _windows_of(a.recording) if a.recording else _board_spans_windows(a.board_spans) if a.board_spans else [[a.start, a.end]]
+    if not spans:
+        sys.exit("no board windows: the board-spans file found no boards")
+    for i, t, pts, bgr in _spans(a.video, spans, a.every, with_pts=True):
         if a.scale != 1.0:
             bgr = cv2.resize(bgr, None, fx=a.scale, fy=a.scale, interpolation=cv2.INTER_AREA)
         size = (bgr.shape[1], bgr.shape[0])
         name = f"rgb/{i:06d}.jpg"
         cv2.imwrite(os.path.join(a.out, name), bgr, [cv2.IMWRITE_JPEG_QUALITY, a.quality])
         lines.append(f"{t:.6f} {name}")
+        src.append((i, t, pts, name))
     if not lines:
         sys.exit("no frames in that time range: check --start and --end against the video's length")
     import datetime
@@ -148,7 +172,91 @@ def cmd_frames(a):
     with open(os.path.join(a.out, "rgb.txt"), "w") as f:
         f.write(f"# {os.path.basename(a.video)} every={a.every} scale={a.scale} size={size} decoded=in-order "
                 f"extracted={stamp}\n" + "\n".join(lines) + "\n")
+    _write_source_times(a.out, src)
     print(f"{len(lines)} frames at {size} -> {a.out}")
+
+
+def _write_source_times(folder, rows):
+    with open(os.path.join(folder, "source_times.csv"), "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["index", "nominal_s", "source_s", "file"])
+        for i, t, pts, name in rows:
+            w.writerow([i, f"{t:.6f}", f"{pts:.6f}", name])
+
+
+def cmd_source_times(a):
+    """source_times.csv for a frame folder extracted before R3.14: decodes the video in order (no seeking) and records
+    the presentation time of every listed frame, from the frame number in its file name."""
+    items = [l.split() for l in open(os.path.join(a.frames, "rgb.txt")) if l.strip() and not l.startswith("#")]
+    want = {}
+    for t, name in items:
+        m = re.search(r"(\d+)\.\w+$", name)
+        if not m:
+            sys.exit(f"cannot read a frame number from {name}")
+        want[int(m.group(1))] = (float(t), name)
+    cap = cv2.VideoCapture(a.video)
+    if not cap.isOpened():
+        sys.exit(f"OpenCV cannot open {a.video}")
+    rows, i, last = [], 0, max(want)
+    while i <= last and cap.grab():
+        if i in want:
+            rows.append((i, want[i][0], cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0, want[i][1]))
+        i += 1
+    cap.release()
+    if len(rows) != len(want):
+        sys.exit(f"the video ended before frame {last}: is this the frame folder of {os.path.basename(a.video)}?")
+    _write_source_times(a.frames, rows)
+    drift = max(abs(p - t) for _, t, p, _ in rows)
+    print(f"{len(rows)} source times -> {os.path.join(a.frames, 'source_times.csv')} (largest difference from index/fps: {drift:.3f} s)")
+
+
+def cmd_board_spans(a):
+    """Where each configured board is seen in a video, found by scanning it, so no recording needs hand-entered
+    windows. Boards are detected at full resolution every --every frames; detections less than 1.5 steps apart join
+    one span; windows add --pad seconds either side. Writes a JSON file that `frames --board-spans` and the
+    reconstruction tools read."""
+    CH, ref = _boards()
+    boards = {k: CH.make_board(b) for k, b in ref["boards"].items()}
+    min_c = ref["anchor"]["min_corners"]
+    if not os.path.isfile(a.video):
+        sys.exit(f"video not found: {os.path.abspath(a.video)}")
+    cap = cv2.VideoCapture(a.video)
+    if not cap.isOpened():
+        sys.exit(f"OpenCV cannot open {a.video}")
+    fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+    hits, i = {k: [] for k in boards}, 0
+    while True:
+        if i % a.every == 0:
+            ok, bgr = cap.read()
+            if not ok:
+                break
+            for name, board in boards.items():
+                d = CH.detect(bgr, board, min_c)
+                if d is not None:
+                    hits[name].append((i / fps, len(d[0])))
+        elif not cap.grab():
+            break
+        i += 1
+    cap.release()
+    duration = i / fps
+    spans, windows = {}, {}
+    for name, h in hits.items():
+        out_s, cur = [], None
+        for t, n in h:
+            if cur and t - cur["end_s"] <= 1.5 * a.every / fps + 1e-6:
+                cur["end_s"] = round(t, 3); cur["samples"] += 1; cur["max_corners"] = max(cur["max_corners"], n)
+            else:
+                cur = {"start_s": round(t, 3), "end_s": round(t, 3), "samples": 1, "max_corners": n}
+                out_s.append(cur)
+        spans[name] = out_s
+        windows[name] = [[round(max(0.0, x["start_s"] - a.pad), 2), round(min(duration, x["end_s"] + a.pad), 2)] for x in out_s]
+    out = {"video": os.path.basename(a.video), "fps": fps, "duration_s": round(duration, 3), "every": a.every,
+           "pad_s": a.pad, "min_corners": min_c, "spans": spans, "windows_s": windows}
+    with open(a.out, "w") as f:
+        json.dump(out, f, indent=1)
+    for name in boards:
+        print(f"  {name}: " + (", ".join(f"{w[0]:.1f}-{w[1]:.1f} s" for w in windows[name]) or "not seen"))
+    print(f"-> {a.out}")
 
 
 def cmd_charuco_inspect(a):
@@ -603,7 +711,15 @@ def main():
     p.add_argument("--every", type=int, default=1); p.add_argument("--scale", type=float, default=1.0)
     p.add_argument("--start", type=float, default=0.0); p.add_argument("--end", type=float); p.add_argument("--quality", type=int, default=95)
     p.add_argument("--recording", help="only the board windows of this recording (configs/references.yaml)")
+    p.add_argument("--board-spans", help="only the board windows found by `board-spans` (a JSON file)")
     p.set_defaults(fn=cmd_frames)
+    p = sub.add_parser("board-spans", help="where each board is seen in a video, found automatically")
+    p.add_argument("--video", required=True); p.add_argument("--out", required=True)
+    p.add_argument("--every", type=int, default=15); p.add_argument("--pad", type=float, default=1.0)
+    p.set_defaults(fn=cmd_board_spans)
+    p = sub.add_parser("source-times", help="source_times.csv for an existing frame folder")
+    p.add_argument("--video", required=True); p.add_argument("--frames", required=True)
+    p.set_defaults(fn=cmd_source_times)
     p = sub.add_parser("charuco-inspect"); p.add_argument("--video", required=True); p.add_argument("--start", type=float, default=0.0)
     p.add_argument("--end", type=float, default=20.0); p.add_argument("--every", type=int, default=15); p.set_defaults(fn=cmd_charuco_inspect)
     p = sub.add_parser("charuco-calibrate"); p.add_argument("--video", required=True); p.add_argument("--board", default="ref01")

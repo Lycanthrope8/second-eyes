@@ -62,3 +62,32 @@ def test_merge_takes_the_link_from_an_anchor_only_run(tmp_path, monkeypatch):
     assert len(P) == 200 and np.allclose(np.sort(P[100:], axis=0), np.sort(world[100:], axis=0), atol=1e-4)
     rep = json.load(open(tmp_path / "runs" / "ab.json"))
     assert rep["link"]["from_run"] == "link" and rep["link_only_runs"] == ["link"]
+
+
+def test_merge_chains_links_across_three_boards_and_reports_rooms(tmp_path, monkeypatch):
+    monkeypatch.setattr(MC, "HERE", tmp_path)
+    world = np.random.default_rng(3).uniform(-1, 1, (300, 3))
+    g12 = (1.0, Rotation.from_euler("z", 20, degrees=True).as_matrix(), np.array([3.0, 0.5, 0.0]))    # board 02 in board 01's frame
+    g23 = (1.0, Rotation.from_euler("x", 10, degrees=True).as_matrix(), np.array([0.0, 2.0, 1.0]))    # board 03 in board 02's frame
+    inv = lambda g: (1.0 / g[0], g[1].T, -g[1].T @ g[2] / g[0])
+    app = lambda g, P: g[0] * P @ g[1].T + g[2]
+    p1, p2, p3 = world[:100], world[100:200], world[200:]
+    _run(tmp_path, "a", p1, {"frame": "ref01", "ref01": {"ok": True}})
+    s2, R2, t2 = inv(g12)
+    _run(tmp_path, "b", app(inv(g12), p2), {"frame": "ref02", "ref02": {"ok": False}, "links": {"ref03": {"position_spread_m": 0.004,
+         "position_m": 2.2, "sim3_board_in_frame": {"s": 1.0, "R": g23[1].tolist(), "t": g23[2].tolist()}}}})
+    _run(tmp_path, "c", app(inv(g23), app(inv(g12), p3)), {"frame": "ref03", "ref03": {"ok": True}})
+    rec = tmp_path / "runs" / "l" / "recon"; rec.mkdir(parents=True)                # link-only: board 02 seen from board 01
+    (rec / "anchor.json").write_text(json.dumps({"frame": "ref01", "links": {"ref02": {"corner_fit_rms_m": 0.003, "position_m": 3.0,
+                                     "sim3_board_in_frame": {"s": 1.0, "R": g12[1].tolist(), "t": g12[2].tolist()}}}}))
+    for run, kf, valid in (("a", 100, 85), ("b", 90, 60)):
+        (tmp_path / "runs" / run / "recon" / "stats.json").write_text(json.dumps({"keyframes": kf, "valid_keyframes": valid}))
+    sys.argv = ["merge_clouds.py", "--runs", "a", "b", "c", "l", "--out", "abc"]
+    MC.main()
+    P, _ = MC.read_ply(tmp_path / "runs" / "abc.ply")
+    assert len(P) == 300 and np.allclose(np.sort(P, axis=0), np.sort(world, axis=0), atol=1e-4)
+    rep = json.load(open(tmp_path / "runs" / "abc.json"))
+    assert len(rep["links_used"]["ref03"]) == 2 and "single views" in " ".join(rep["links_used"]["ref03"])
+    rooms = rep["rooms"]
+    assert rooms["ref01"]["keyframe_criterion"] == "met" and rooms["ref01"]["level5"].startswith("pending")
+    assert rooms["ref02"]["level5"].startswith("not passed") and rooms["ref02"]["metric_assessment"].endswith("no valid anchor")

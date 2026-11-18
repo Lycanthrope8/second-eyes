@@ -1,3 +1,4 @@
+import csv
 """End-to-end check of the video tools on a synthetic recording: a board segment, then a later second board."""
 import json, os, shutil, subprocess, sys
 import numpy as np
@@ -231,3 +232,64 @@ def test_charuco_survey_calibrates_each_window_and_all_together(tmp_path):
     for key in ("ref01 0-2.9", "ref02 3-5.9", "all boards"):
         assert abs(res[key]["free_k1"]["K"][0][0] - 900) / 900 < 0.03, (key, res[key]["free_k1"])
     assert "all boards" in out.stdout
+
+
+def _board_video(tmp_path, fps=30.0):
+    ref = yaml.safe_load(open(os.path.join(REPO, "configs", "references.yaml")))
+    board = CH.make_board(ref["boards"]["ref01"])
+    rng = np.random.default_rng(0)
+    tex = cv2.cvtColor(cv2.normalize(cv2.GaussianBlur((rng.random((900, 3000)) * 255).astype(np.uint8), (0, 0), 3), None, 0, 255,
+                                     cv2.NORM_MINMAX), cv2.COLOR_GRAY2BGR)
+    btex = cv2.cvtColor(board.generateImage((500, 300), marginSize=20), cv2.COLOR_GRAY2BGR)
+    video = str(tmp_path / "walk.avi")
+    vw = cv2.VideoWriter(video, cv2.VideoWriter_fourcc(*"MJPG"), fps, (1280, 720))
+    for k in range(240):
+        f = tex[90:810, 4 * k:4 * k + 1280].copy()
+        if k / fps < 3.0 or k / fps >= 6.0:
+            f[200:500, 390:890] = btex
+        vw.write(f)
+    vw.release()
+    return video
+
+
+def test_board_spans_are_found_and_frames_follow_them(tmp_path):
+    video = _board_video(tmp_path)
+    tool = os.path.join(REPO, "scripts", "video_tools.py")
+    out = subprocess.run([sys.executable, tool, "board-spans", "--video", video, "--out", str(tmp_path / "b.json"), "--every", "15"],
+                         capture_output=True, text=True)
+    assert out.returncode == 0, out.stdout + out.stderr
+    b = json.load(open(tmp_path / "b.json"))
+    s = b["spans"]["ref01"]
+    assert len(s) == 2 and s[0]["start_s"] == 0.0 and 2.4 <= s[0]["end_s"] < 3.0 and 6.0 <= s[1]["start_s"] < 6.6
+    assert not b["windows_s"]["ref02"] and b["windows_s"]["ref01"][1][0] == round(s[1]["start_s"] - 1.0, 2)
+    out = subprocess.run([sys.executable, tool, "frames", "--video", video, "--every", "10", "--board-spans", str(tmp_path / "b.json"),
+                          "--out", str(tmp_path / "bf")], capture_output=True, text=True)
+    assert out.returncode == 0, out.stderr
+    ts = [float(l.split()[0]) for l in open(tmp_path / "bf" / "rgb.txt") if not l.startswith("#")]
+    assert ts and all(t <= 3.6 or t >= 5.0 for t in ts)                       # nothing from the stretch without the board
+    rows = list(csv.DictReader(open(tmp_path / "bf" / "source_times.csv")))
+    assert len(rows) == len(ts) and all(abs(float(r["source_s"]) - float(r["nominal_s"])) < 1e-3 for r in rows)
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None, reason="needs ffmpeg and ffprobe")
+def test_source_times_are_the_videos_own_timestamps(tmp_path):
+    for k, f in enumerate(_barcode_frames(200)):
+        cv2.imwrite(str(tmp_path / f"f{k:05d}.png"), f)
+    cfr, vfr = str(tmp_path / "cfr.mp4"), str(tmp_path / "vfr.mp4")
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-framerate", "30", "-i", str(tmp_path / "f%05d.png"),
+                    "-c:v", "libx264", "-pix_fmt", "yuv420p", "-g", "30", cfr], check=True)
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", cfr, "-vf", "setpts=(N/30+0.08*sin(2*PI*N/200))/TB",
+                    "-fps_mode", "passthrough", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-g", "30", vfr], check=True)
+    pts = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "frame=pts_time", "-of", "csv=p=0", vfr],
+                         capture_output=True, text=True).stdout
+    truth = [float(x.strip().strip(",")) for x in pts.splitlines() if x.strip().strip(",")]
+    tool = os.path.join(REPO, "scripts", "video_tools.py")
+    out_dir = tmp_path / "fr"
+    assert subprocess.run([sys.executable, tool, "frames", "--video", vfr, "--every", "2", "--out", str(out_dir)]).returncode == 0
+    (out_dir / "source_times.csv").unlink()                                  # an extraction from before R3.14
+    out = subprocess.run([sys.executable, tool, "source-times", "--video", vfr, "--frames", str(out_dir)], capture_output=True, text=True)
+    assert out.returncode == 0, out.stderr
+    rows = list(csv.DictReader(open(out_dir / "source_times.csv")))
+    assert len(rows) == 100
+    assert max(abs(float(r["source_s"]) - (truth[int(r["index"])] - truth[0])) for r in rows) < 1e-3
+    assert max(abs(float(r["source_s"]) - float(r["nominal_s"])) for r in rows) > 0.03     # nominal times differ here

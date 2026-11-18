@@ -1,14 +1,19 @@
 // qtrack: stella_vslam monocular tracking over a frame list, for the Quest (run over adb) or a desktop.
-// Writes the camera trajectory (TUM format, camera-to-world), the keyframe trajectory, per-frame timing and
-// tracking state, and the process's CPU time and peak memory.
+// Writes, per map, the camera trajectory (TUM format, camera-to-world) and the keyframe trajectory under maps/map_NN/;
+// maps.json; per-frame timing, tracking state and map (frames.csv); and the process's CPU time and peak memory.
+// When tracking has been lost for --restart-after seconds of video time (default 2; 0 = never), the map is saved and a
+// new one is started, instead of waiting for the camera to return to a place the old map covers. The top-level
+// frame_trajectory.txt and keyframe_trajectory.txt are the map with the most tracked frames, for single-map tools.
 //
 //   qtrack --config cam.yaml --vocab orb_vocab.fbow --frames dir/rgb.txt --out outdir
-//          [--root dir] [--first N] [--last M] [--no-loop] [--realtime-fps F]
+//          [--root dir] [--first N] [--last M] [--no-loop] [--realtime-fps F] [--restart-after S]
 #include <stella_vslam/system.h>
 #include <stella_vslam/config.h>
 #include <stella_vslam/publish/frame_publisher.h>
 #include <opencv2/imgcodecs.hpp>
 #include <yaml-cpp/yaml.h>
+
+#include "map_segments.h"
 
 #include <algorithm>
 #include <chrono>
@@ -21,6 +26,7 @@
 #include <thread>
 #include <vector>
 #include <sys/resource.h>
+#include <sys/stat.h>
 
 namespace {
 struct Item {
@@ -54,6 +60,11 @@ double cpu_seconds() {
     getrusage(RUSAGE_SELF, &u);
     return u.ru_utime.tv_sec + u.ru_stime.tv_sec + 1e-6 * (u.ru_utime.tv_usec + u.ru_stime.tv_usec);
 }
+void copy_file(const std::string& from, const std::string& to) {
+    std::ifstream in(from, std::ios::binary);
+    std::ofstream o(to, std::ios::binary);
+    o << in.rdbuf();
+}
 double percentile(std::vector<double> v, double q) {
     if (v.empty()) return 0.0;
     std::sort(v.begin(), v.end());
@@ -66,13 +77,14 @@ int main(int argc, char** argv) {
                       list = arg(argc, argv, "--frames"), out = arg(argc, argv, "--out");
     if (cfg_path.empty() || vocab.empty() || list.empty() || out.empty()) {
         std::cerr << "usage: qtrack --config cam.yaml --vocab orb_vocab.fbow --frames rgb.txt --out dir "
-                     "[--root dir] [--first N] [--last M] [--no-loop] [--realtime-fps F]\n";
+                     "[--root dir] [--first N] [--last M] [--no-loop] [--realtime-fps F] [--restart-after S]\n";
         return 2;
     }
     const std::string root = arg(argc, argv, "--root", dirname_of(list));
     const long first = std::stol(arg(argc, argv, "--first", "0"));
     const long last = std::stol(arg(argc, argv, "--last", "-1"));
     const double realtime_fps = std::stod(arg(argc, argv, "--realtime-fps", "0"));
+    const double restart_after = std::stod(arg(argc, argv, "--restart-after", "2.0"));
 
     std::vector<Item> items;
     {
@@ -96,8 +108,24 @@ int main(int argc, char** argv) {
     slam.startup();
     if (flag(argc, argv, "--no-loop")) slam.disable_loop_detector();
 
+    qtrack::MapSegmenter seg(restart_after);
+    int restarts = 0;
+    ::mkdir((out + "/maps").c_str(), 0755);
+    auto map_dir = [&](int id) {
+        char d[32];
+        std::snprintf(d, sizeof d, "/maps/map_%02d", id);
+        return out + d;
+    };
+    auto save_map = [&](int id) {   // the live map's trajectories, before stella forgets them
+        while (slam.loop_BA_is_running()) std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        const std::string dir = map_dir(id);
+        ::mkdir(dir.c_str(), 0755);
+        slam.save_frame_trajectory(dir + "/frame_trajectory.txt", "TUM");
+        slam.save_keyframe_trajectory(dir + "/keyframe_trajectory.txt", "TUM");
+    };
+
     std::ofstream log(out + "/frames.csv");
-    log << "index,t,load_ms,track_ms,state,pose\n";
+    log << "index,t,load_ms,track_ms,state,pose,map\n";
     std::vector<double> track_ms;
     int n_tracking = 0, n_lost = 0, n_init = 0, lost_events = 0;
     std::string prev_state = "Initializing";
@@ -124,7 +152,16 @@ int main(int argc, char** argv) {
         else ++n_init;
         if (state == "Lost" && prev_state != "Lost") ++lost_events;
         prev_state = state;
-        log << i << "," << std::fixed << items[i].t << "," << load << "," << trk << "," << state << "," << (pose ? 1 : 0) << "\n";
+        const int map_now = seg.current_id();
+        const bool restart = seg.step(items[i].t, state);
+        log << i << "," << std::fixed << items[i].t << "," << load << "," << trk << "," << state << "," << (pose ? 1 : 0) << ","
+            << (state == "Tracking" ? map_now : -1) << "\n";
+        if (restart) {   // lost for --restart-after seconds: keep this map, start a new one at the next frame
+            save_map(seg.current_id());
+            slam.request_reset();
+            seg.on_restart();
+            ++restarts;
+        }
         if (realtime_fps > 0) {  // optional: pace input like a live camera
             const double budget = 1000.0 / realtime_fps - (load + trk);
             if (budget > 0) std::this_thread::sleep_for(std::chrono::duration<double, std::milli>(budget));
@@ -134,9 +171,37 @@ int main(int argc, char** argv) {
     const double wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - wall0).count();
     const double cpu = cpu_seconds() - cpu0;
 
-    slam.save_frame_trajectory(out + "/frame_trajectory.txt", "TUM");
-    slam.save_keyframe_trajectory(out + "/keyframe_trajectory.txt", "TUM");
+    const bool save_last = seg.last_needs_saving();
+    if (save_last) save_map(seg.current_id());
+    seg.finish(save_last);
     slam.shutdown();
+
+    // maps.json, and the largest saved map under the old file names
+    int best = -1;
+    long best_n = 0, saved = 0, discarded = 0;
+    {
+        std::ofstream mj(out + "/maps.json");
+        mj << "[\n";
+        const auto& M = seg.maps();
+        for (size_t k = 0; k < M.size(); ++k) {
+            const auto& m = M[k];
+            if (m.status == "saved") {
+                ++saved;
+                if (m.tracked_frames > best_n) best_n = m.tracked_frames, best = m.id;
+            }
+            if (m.status == "discarded") ++discarded;
+            char d[32];
+            std::snprintf(d, sizeof d, "maps/map_%02d", m.id);
+            mj << "  {\"map\": " << m.id << ", \"status\": \"" << m.status << "\", \"first_t\": " << m.first_t
+               << ", \"last_t\": " << m.last_t << ", \"tracked_frames\": " << m.tracked_frames << ", \"dir\": \""
+               << (m.status == "saved" ? std::string(d) : std::string()) << "\"}" << (k + 1 < M.size() ? "," : "") << "\n";
+        }
+        mj << "]\n";
+    }
+    if (best >= 0) {
+        copy_file(map_dir(best) + "/frame_trajectory.txt", out + "/frame_trajectory.txt");
+        copy_file(map_dir(best) + "/keyframe_trajectory.txt", out + "/keyframe_trajectory.txt");
+    }
 
     const int n = n_tracking + n_lost + n_init;
     std::ofstream js(out + "/stats.json");
@@ -145,8 +210,11 @@ int main(int argc, char** argv) {
        << ",\n  \"tracked_share\": " << (n ? static_cast<double>(n_tracking) / n : 0.0)
        << ",\n  \"track_ms_median\": " << percentile(track_ms, 0.5) << ",\n  \"track_ms_p95\": " << percentile(track_ms, 0.95)
        << ",\n  \"wall_s\": " << wall << ",\n  \"cpu_s\": " << cpu << ",\n  \"peak_rss_mb\": " << peak_rss_kb() / 1024.0
-       << ",\n  \"loop_detector\": " << (flag(argc, argv, "--no-loop") ? "false" : "true") << "\n}\n";
+       << ",\n  \"loop_detector\": " << (flag(argc, argv, "--no-loop") ? "false" : "true")
+       << ",\n  \"restart_after_s\": " << restart_after << ",\n  \"map_restarts\": " << restarts
+       << ",\n  \"maps_saved\": " << saved << ",\n  \"maps_discarded\": " << discarded << ",\n  \"largest_map\": " << best << "\n}\n";
     std::cout << "frames " << n << ", tracking " << n_tracking << ", lost " << n_lost << " (" << lost_events
-              << " events), median " << percentile(track_ms, 0.5) << " ms, peak " << peak_rss_kb() / 1024.0 << " MB\n";
+              << " events), " << saved << " map(s) saved, " << restarts << " restart(s), median " << percentile(track_ms, 0.5)
+              << " ms, peak " << peak_rss_kb() / 1024.0 << " MB\n";
     return 0;
 }

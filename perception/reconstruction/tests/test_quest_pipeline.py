@@ -254,3 +254,17 @@ def test_best_effort_links_a_board_seen_only_from_a_still_camera(tmp_path):
     L = rep["ref02"]["sim3_board_in_frame"]
     assert L["s"] == 1.0 and np.allclose(np.array(L["R"]), T_wB[:3, :3], atol=0.02) and np.allclose(L["t"], T_wB[:3, 3], atol=0.02)
     assert any("single views" in w for w in rep["warnings"])
+
+
+def test_board_windows_found_automatically_anchor_and_link_any_board(tmp_path):
+    T_wB, poses, trajectory, config, ref = _two_board_walk(tmp_path)
+    trajectory(tmp_path / "late.txt", range(40, 80))                    # this map only saw board 02
+    cfg = config(tmp_path / "late.txt", "best_effort")
+    del cfg["anchor"]["windows"]
+    cfg["anchor"]["board_windows"] = {"ref01": [[0.0, 3.95]], "ref02": [[4.0, 7.95]]}
+    cfg["anchor"]["board_order"] = ["ref01", "ref02"]
+    r, stats, rep = _run(cfg, str(tmp_path / "auto"))
+    assert r.returncode == 0, r.stderr
+    assert rep["frame"] == "ref02" and rep["anchored_by"]["window"].startswith("ref02 4.0-")
+    assert [x["board"] for x in rep["anchor_attempts"]] == ["ref01", "ref02"]
+    assert "ref01" in rep["links"] and rep["links"]["ref01"]["ok"] is False

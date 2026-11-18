@@ -122,6 +122,30 @@ def git_fetch(name):
     return dst
 
 
+def json_licence(st):
+    """stella bundles nlohmann/json's headers without its licence file: fetch LICENSE.MIT for the bundled version."""
+    hdr = st / "3rd" / "json" / "include" / "nlohmann" / "json.hpp"
+    dest = BUILD / "licences" / "nlohmann_json_LICENSE.MIT"
+    if dest.is_file():
+        return dest
+    try:
+        text = hdr.read_text(encoding="utf-8", errors="replace")
+        v = [re.search(rf"#define NLOHMANN_JSON_VERSION_{k} (\d+)", text).group(1) for k in ("MAJOR", "MINOR", "PATCH")]
+        url = f"https://raw.githubusercontent.com/nlohmann/json/v{'.'.join(v)}/LICENSE.MIT"
+        try:
+            import ssl, certifi
+            ctx = ssl.create_default_context(cafile=certifi.where())
+        except ImportError:
+            ctx = None
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        with urllib.request.urlopen(url, context=ctx, timeout=30) as r:
+            dest.write_bytes(r.read())
+        print(f"  nlohmann_json {'.'.join(v)}: licence fetched from {url}")
+    except Exception as e:                          # offline, or the header has no version: report it, don't fail the build
+        print(f"  note: could not fetch nlohmann_json's licence ({e})")
+    return dest
+
+
 def download(name, record):
     pin = PINS[name]
     TP.mkdir(parents=True, exist_ok=True)
@@ -284,6 +308,8 @@ def build(args):
            "nlohmann_json": st / "3rd" / "json" / "LICENSE.MIT"}
     record["licences_without_file"] = {"onnxruntime": "MIT (Microsoft); the Android package carries no licence file",
                                        "opencv_android_sdk": "Apache-2.0", "sqlite": "public domain"}
+    if not lic["nlohmann_json"].is_file():
+        lic["nlohmann_json"] = json_licence(st)
     for name, p in lic.items():
         if p.is_file():
             shutil.copy2(p, OUT / "licenses" / f"{name}.txt")

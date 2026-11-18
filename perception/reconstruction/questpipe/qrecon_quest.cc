@@ -735,47 +735,80 @@ int main(int argc, char** argv) {
                 }
                 return obs;
             };
-            auto w = A.at("windows");
-            auto wins_of = [&](const std::string& key) {        // one window [a, b] or a list of them
+            // Board windows per board: {"ref01": [[a, b], ...], ...} with "board_order" (found by video_tools.py
+            // board-spans); older configs name them ref01_start, ref01_end and ref02 under "windows".
+            using Span = std::pair<std::string, std::vector<double>>;      // label, [start, end] in seconds
+            std::vector<std::string> order;
+            std::map<std::string, std::vector<Span>> bw;
+            auto fmt1 = [](double x) { std::ostringstream o; o.setf(std::ios::fixed); o.precision(1); o << x; return o.str(); };
+            if (A.contains("board_windows")) {
+                for (auto& [k, v] : A.at("board_windows").items())
+                    for (auto& x : v) {
+                        auto sp = x.get<std::vector<double>>();
+                        bw[k].push_back({k + " " + fmt1(sp[0]) + "-" + fmt1(sp[1]) + " s", sp});
+                    }
+                if (A.contains("board_order"))
+                    for (auto& k : A.at("board_order")) order.push_back(k.get<std::string>());
+            } else {
+                const json& w = A.at("windows");
+                auto legacy = [&](const std::string& board, const std::string& key) {
+                    if (!w.contains(key) || w[key].empty()) return;
+                    if (w[key][0].is_array())
+                        for (auto& x : w[key]) bw[board].push_back({key, x.get<std::vector<double>>()});
+                    else
+                        bw[board].push_back({key, w[key].get<std::vector<double>>()});
+                };
+                legacy("ref01", "ref01_start");
+                legacy("ref01", "ref01_end");
+                legacy("ref02", "ref02");
+            }
+            for (auto& [k, v] : A.at("boards").items())
+                if (std::find(order.begin(), order.end(), k) == order.end()) order.push_back(k);
+            auto usable_board = [&](const std::string& b) { return bw.count(b) && !bw[b].empty() && A.at("boards").contains(b); };
+            auto spans_of = [&](const std::string& b, int skip) {
                 std::vector<std::vector<double>> v;
-                if (!w.contains(key) || w[key].empty()) return v;
-                if (w[key][0].is_array()) return w[key].get<std::vector<std::vector<double>>>();
-                v.push_back(w[key].get<std::vector<double>>());
+                if (bw.count(b))
+                    for (int i = 0; i < static_cast<int>(bw[b].size()); ++i)
+                        if (i != skip) v.push_back(bw[b][i].second);
                 return v;
             };
             const bool best_effort = A.value("mode", std::string("strict")) == "best_effort";
             json warnings = json::array();
-            std::string frame = "ref01", anchored_window = "ref01_start";
-            Board b1 = make_board(A.at("boards")["ref01"]);
+            std::string frame = "tracker", anchored_window;
+            int anchored_index = -1;
             if (!best_effort) {
-                auto o1 = collect(b1, wins_of("ref01_start"), nullptr);
-                report["ref01"] = fit_board(o1, b1, bc.K, A.at("params"), &S, true);
-                if (!report["ref01"]["ok"].get<bool>()) throw std::runtime_error("anchor refused: " + report["ref01"]["reason"].get<std::string>());
+                // Strict: the first window of the preferred board must pass every check
+                std::string b0;
+                for (auto& k : order)
+                    if (usable_board(k)) { b0 = k; break; }
+                if (b0.empty()) throw std::runtime_error("anchor refused: no board window");
+                Board B = make_board(A.at("boards")[b0]);
+                report[b0] = fit_board(collect(B, {bw[b0][0].second}, nullptr), B, bc.K, A.at("params"), &S, true);
+                if (!report[b0]["ok"].get<bool>()) throw std::runtime_error("anchor refused: " + report[b0]["reason"].get<std::string>());
+                frame = b0, anchored_window = bw[b0][0].first, anchored_index = 0;
             } else {
-                // Best effort: the first board window that can be fitted at all gives the frame (board 01 at the start, then
-                // board 01 at the end, then board 02); a failed quality check is recorded as a warning, not a refusal.
-                const std::vector<std::pair<std::string, std::string>> cands = {{"ref01", "ref01_start"}, {"ref01", "ref01_end"}, {"ref02", "ref02"}};
+                // Best effort: the first board window (boards in preference order, windows in time order) that can be
+                // fitted at all gives the frame; a failed quality check is recorded as a warning, not a refusal.
                 json attempts = json::array();
-                frame = "tracker", anchored_window = "";
-                for (auto& [board, key] : cands) {
-                    if (!w.contains(key) || !A.at("boards").contains(board)) continue;
-                    Board B = make_board(A.at("boards")[board]);
-                    Sim3 Q;
-                    json r = fit_board(collect(B, wins_of(key), nullptr), B, bc.K, A.at("params"), &Q, true);
-                    attempts.push_back({{"board", board}, {"window", key}, {"ok", r["ok"]}, {"reason", r.value("reason", std::string())}});
-                    if (!r.contains("scale")) continue;                 // too few views, or not enough motion to triangulate
-                    S = Q, frame = board, anchored_window = key;
-                    report[board] = r;
-                    if (!r["ok"].get<bool>()) warnings.push_back("anchored by " + board + " (" + key + ") although " + r["reason"].get<std::string>());
-                    break;
+                for (auto& b : order) {
+                    if (!usable_board(b)) continue;
+                    Board B = make_board(A.at("boards")[b]);
+                    for (int i = 0; i < static_cast<int>(bw[b].size()) && frame == "tracker"; ++i) {
+                        Sim3 Q;
+                        json r = fit_board(collect(B, {bw[b][i].second}, nullptr), B, bc.K, A.at("params"), &Q, true);
+                        attempts.push_back({{"board", b}, {"window", bw[b][i].first}, {"ok", r["ok"]}, {"reason", r.value("reason", std::string())}});
+                        if (!r.contains("scale")) continue;                 // too few views, or not enough motion to triangulate
+                        S = Q, frame = b, anchored_window = bw[b][i].first, anchored_index = i;
+                        report[b] = r;
+                        if (!r["ok"].get<bool>()) warnings.push_back("anchored by " + b + " (" + bw[b][i].first + ") although " + r["reason"].get<std::string>());
+                    }
+                    if (frame != "tracker") break;
                 }
                 report["anchor_attempts"] = attempts;
                 if (frame == "tracker") warnings.push_back("no board could be fitted: the cloud is in the tracker's own units, unscaled");
             }
             report["frame"] = frame;
             report["anchored_by"] = {{"board", frame}, {"window", anchored_window}};
-            // Another board seen in the anchored path: its pose in the frame, as a similarity (the scale also absorbs a
-            // difference between its assumed and its real print size). This is what joins clouds anchored by different boards.
             auto second = [&](const Board& B, const std::vector<std::vector<double>>& wins, const std::string& what) {
                 auto o = collect(B, wins, &S);
                 Sim3 Q;
@@ -854,17 +887,21 @@ int main(int argc, char** argv) {
                 }
                 return r;
             };
-            if (frame == "ref01") {
-                if (w.contains("ref02") && A.at("boards").contains("ref02")) {
-                    report["ref02"] = second(make_board(A.at("boards")["ref02"]), wins_of("ref02"), "board 02's pose");
-                    report["ref02"]["note"] = "assumes board 02 printed at the same scale as board 01 (not measured)";
+            if (frame != "tracker") {
+                // The anchoring board's other windows check closure; every other board seen gives a link
+                const auto others = spans_of(frame, anchored_index);
+                if (!others.empty()) report["closure_" + frame] = second(make_board(A.at("boards")[frame]), others, "the closure check");
+                json links = json::object();
+                for (auto& b : order) {
+                    if (b == frame || !usable_board(b)) continue;
+                    json r = second(make_board(A.at("boards")[b]), spans_of(b, -1), b + "'s pose");
+                    r["note"] = "the relative scale assumes both boards are printed at their configured sizes";
+                    links[b] = r;
                 }
-                if (anchored_window == "ref01_start" && w.contains("ref01_end")) report["closure_ref01"] = second(b1, wins_of("ref01_end"), "the closure check");
-            } else if (frame == "ref02") {
-                auto both = wins_of("ref01_start");
-                for (auto& x : wins_of("ref01_end")) both.push_back(x);
-                report["ref01_link"] = second(b1, both, "board 01's pose");
-                report["frame_note"] = "board 02's frame, at its assumed print scale (not measured)";
+                report["links"] = links;
+                if (frame == "ref01" && links.contains("ref02")) report["ref02"] = links["ref02"];        // older readers
+                if (frame == "ref02" && links.contains("ref01")) report["ref01_link"] = links["ref01"];
+                if (frame != "ref01") report["frame_note"] = frame + "'s frame, at its configured print scale";
             }
             if (!warnings.empty()) {
                 report["warnings"] = warnings;
@@ -872,7 +909,7 @@ int main(int argc, char** argv) {
             }
             stats["anchor_frame"] = frame;
             stats["anchor_warnings"] = warnings.size();
-            if (frame == "ref01" && A.at("boards")["ref01"].value("mounting", "unknown") == "upright_level") Rup << 1, 0, 0, 0, 0, 1, 0, -1, 0;
+            if (frame != "tracker" && A.at("boards")[frame].value("mounting", "unknown") == "upright_level") Rup << 1, 0, 0, 0, 0, 1, 0, -1, 0;
         }
         stage_ms["anchor"].push_back(1000 * (now_s() - t0));
         {   // the anchored camera path, in the same TUM format as the tracker's
