@@ -196,3 +196,9 @@ R3.16: `tools/place_maps.py --recordings runs/<name>_recording.json [...]` place
 they share with maps that a board placed, in any of the given recordings (D139), reconstructs them on the headset in
 that board's frame, and updates the summaries; then merge as before. `--dry-run` only locates and fits.
 `--include-failed-anchors` also locates against maps whose anchor failed its check but kept half their keyframes.
+
+R3.17: a placement is checked against the camera speed it implies (`--max-speed`, 2 m/s): if the whole map would move
+implausibly fast, only the stretch around the frames that placed it is kept (`--trim-pad-s`, 10 s), or the map is not
+placed. `--redo` places again the maps placed by shared views before, by the current rules; `--replace-failed` also
+places, by shared views, maps whose board anchor failed and that kept under half their keyframes.
+`merge_clouds.py --color-by-run` also writes runs/NAME_by_run.ply with one colour per run.

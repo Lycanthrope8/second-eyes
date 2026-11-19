@@ -271,4 +271,36 @@ def place(u_frames, pdb, K, vocab=None, step_s=0.5, top=5, n=1500, min_inliers=2
         return None, dict(report, reason=why)
     res["frame"] = F
     res["with_maps"] = sorted(set(Ls[k]["map"] for k in res["inliers"]))
+    res["inlier_times"] = sorted(float(Ls[k]["t"]) for k in res["inliers"])
     return res, report
+
+
+def implied_speed(times, centers, s, step_s=0.5):
+    """95th percentile of the camera speed (m/s) that a placement implies: the map's own centre speeds times its scale.
+    A placement whose scale is wrong, or a map whose scale drifted, shows up as an impossible walking speed."""
+    times, centers = np.asarray(times, float), np.asarray(centers, float)
+    if len(times) < 2:
+        return 0.0
+    v, j = [], 0
+    for i in range(len(times)):
+        while j < len(times) and times[j] - times[i] < step_s:
+            j += 1
+        if j >= len(times):
+            break
+        v.append(np.linalg.norm(centers[j] - centers[i]) / (times[j] - times[i]))
+    return float(s * np.percentile(v, 95)) if v else 0.0
+
+
+def choose_span(times, centers, s, inlier_times, max_speed=2.0, pad_s=10.0):
+    """Which part of a placed map to keep: all of it if the implied speeds are plausible, else only the stretch around
+    the frames that placed it (pad_s either side), else none. Returns (kind, (t0, t1) or None, speed of what is kept)."""
+    times, centers = np.asarray(times, float), np.asarray(centers, float)
+    full = implied_speed(times, centers, s)
+    if full <= max_speed:
+        return "full", (float(times[0]), float(times[-1])), full
+    a, b = min(inlier_times) - pad_s, max(inlier_times) + pad_s
+    keep = (times >= a) & (times <= b)
+    part = implied_speed(times[keep], centers[keep], s)
+    if keep.sum() >= 2 and part <= max_speed:
+        return "trimmed", (float(times[keep][0]), float(times[keep][-1])), part
+    return "rejected", None, min(full, part) if keep.sum() >= 2 else full

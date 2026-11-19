@@ -174,6 +174,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--runs", nargs="*", default=[]); ap.add_argument("--recordings", nargs="*", default=[])
     ap.add_argument("--out", required=True); ap.add_argument("--frame", default="ref01", help="target board frame")
+    ap.add_argument("--color-by-run", action="store_true",
+                    help="also write runs/NAME_by_run.ply with one colour per run, to see which run a part comes from")
     a = ap.parse_args()
     names = list(a.runs)
     for rec in a.recordings:
@@ -216,6 +218,7 @@ def main():
                                       "corner_fit_rms_m": e["quality_m"] if e["how"] == "board fit" else None,
                                       "scale": e["s"], "R": e["R"].tolist(), "t": e["t"].tolist()}
             parts.append((P, Cc))
+            entry["part"] = len(parts) - 1
         report["runs"].append(entry)
     report["rooms"] = room_status(report["runs"])
     report["link_checks"] = link_checks(edges)
@@ -236,6 +239,19 @@ def main():
     report["points"] = int(len(P))
     report["extent_m"] = [round(float(x), 2) for x in (P.max(0) - P.min(0))] if len(P) else [0, 0, 0]
     write_ply(HERE / "runs" / f"{a.out}.ply", P, Cc)
+    if a.color_by_run:
+        pal = [(230, 25, 75), (60, 180, 75), (255, 225, 25), (0, 130, 200), (245, 130, 48), (145, 30, 180), (70, 240, 240),
+               (240, 50, 230), (210, 245, 60), (250, 190, 190), (0, 128, 128), (170, 110, 40), (128, 0, 0), (0, 0, 128),
+               (128, 128, 0), (255, 255, 255)]
+        cols, report["run_colors"] = [], {}
+        for e in report["runs"]:
+            if "part" in e:
+                c = pal[e["part"] % len(pal)]
+                report["run_colors"][e["run"]] = list(c)
+                cols.append(np.tile(np.array(c, np.uint8), (len(parts[e["part"]][0]), 1)))
+        write_ply(HERE / "runs" / f"{a.out}_by_run.ply", P, np.concatenate(cols))
+        for run, c in report["run_colors"].items():
+            print(f"  colour {tuple(c)}: {run}")
     (HERE / "runs" / f"{a.out}.json").write_text(json.dumps(report, indent=1, default=str))
     print(f"{len(P)} points, extent {report['extent_m']} m -> {HERE / 'runs' / (a.out + '.ply')}")
 

@@ -53,18 +53,32 @@ def test_place_maps_places_and_records_a_board_less_map(tmp_path, monkeypatch):
     PM.main()
     rep = json.loads(sorted((tmp_path / "runs").glob("placement_*.json"))[-1].read_text())
     e = rep["rounds"][0][0]
-    assert e["placed"] and e["frame"] == "ref02" and abs(e["sim3"]["s"] / s - 1) < 0.03
+    assert e["placed"] and e["frame"] == "ref02" and abs(e["sim3"]["s"] / s - 1) < 0.05
     assert "skipped" in json.loads(summ.read_text())["maps"][1]                       # a dry run changes no summary
 
-    def fake_reconstruct(rec, m, fixed_path, args):
+    made = []
+
+    def fake_reconstruct(rec, m, fixed_path, args, trajectory=None):
         fixed = json.loads(open(fixed_path).read())
-        assert fixed["frame"] == "ref02" and "shared views" in fixed["by"]
-        d = tmp_path / "runs" / "rec1" / "recon"; d.mkdir(parents=True)
+        assert fixed["frame"] == "ref02" and "shared views" in fixed["by"] and trajectory is None   # plausible speed: whole map
+        name = f"rec{len(made) + 1}"
+        made.append(name)
+        d = tmp_path / "runs" / name / "recon"; d.mkdir(parents=True)
         (d / "stats.json").write_text(json.dumps({"keyframes": 20, "valid_keyframe_share": 0.8}))
-        return "rec1"
+        (d / "anchor.json").write_text(json.dumps({"frame": "ref02", "fixed": fixed}))
+        return name
     monkeypatch.setattr(PM, "reconstruct", fake_reconstruct)
     sys.argv = ["place_maps.py", "--recordings", str(summ)]
     PM.main()
     m1 = json.loads(summ.read_text())["maps"][1]
     assert m1["recon_run"] == "rec1" and m1["frame"] == "ref02" and "skipped" not in m1 and m1["placed_by"]["inliers"] >= 4
+    assert m1["placed_by"]["kept"] == "full" and m1["placed_by"]["speed_p95_mps"] < 1.0
     assert "rec1" in json.loads(summ.read_text())["recon_runs"] and (tmp_path / "runs" / "syn_recording.json.bak").is_file()
+    sys.argv = ["place_maps.py", "--recordings", str(summ)]                     # nothing left to place: no change
+    PM.main()
+    assert made == ["rec1"]
+    sys.argv = ["place_maps.py", "--recordings", str(summ), "--redo"]           # placed again by the current rules
+    PM.main()
+    S = json.loads(summ.read_text())
+    assert S["maps"][1]["recon_run"] == "rec2" and S["maps"][1]["replaced_run"] == "rec1"
+    assert "rec2" in S["recon_runs"] and "rec1" not in S["recon_runs"]

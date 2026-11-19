@@ -67,3 +67,13 @@ use nominal timestamps (frame index / frame rate); R3.14 recomputes them from th
 | 5 | Anchor, 12:04:50 map 0 (r011) | board 01, all windows together: held-out views disagree; valid keyframes 5 of 49 (0.10), as with R3.14 | failed check; cause not found | 18 Nov |
 | 5 | Links between board 01 and board 02 | r010 (18 Nov): 2.72 m; r007 (17 Nov): 5.19 m. They differ by 2.90 m and 5.6°. Both come from one map tracked from board 02 to board 01 (about 26 s of walking), so tracker scale drift on the way is the likely cause; the merge used r007's | failed check (the links disagree) | 18 Nov |
 | 5 | Merged cloud `house_all2` | 257,381 points; extent 7.86 × 3.86 × 9.64 m; valid keyframes 0.53 (board 01's room) and 0.62 (board 02's room) | failed check (0.8) for both rooms; metric assessment pending (D137) | 18 Nov |
+
+## Placement by shared views, R3.16 (D139)
+
+| Level | Check | Value | Status | Source |
+|---|---|---|---|---|
+| 1 | Tests (laptop, R3.16) | 46 passed, 13 skipped, 1 failed: the synthetic placement's scale came out 3.0% off against a 3% limit, because ORB keypoints differ slightly between OpenCV builds (under 3% in Claude's sandbox). The limit is 5% from R3.17 | failed check, test corrected | 18 Nov |
+| 5 | Board-less maps placed | 5 of 9 in three rounds: h121118 maps 5, 7 and 10, h120450 maps 2 and 5, all in board 02's frame; located frames agree within 5.7–8.5 cm rms and 0.8–3.4° rms. Not placed: h121118 maps 1, 4 and 8, h120450 map 1 (none of their frames matched a reference) | recorded | 18 Nov |
+| 5 | h121118 map 5 (r015) | scale 24.3; 18 of 60 keyframes usable; part of it lands about 12 m east and 7.5 m north of the rest, so the tracker's scale drifted inside that map. R3.17 checks the camera speed a placement implies and trims or refuses such maps | failed check | 18 Nov |
+| 5 | Usable keyframes of placed maps | r015 0.30, r016 0.57, r017 0.54, r018 0.92, r019 0.77 | recorded | 18 Nov |
+| 5 | Merged cloud `house_all3` | 381,742 points; extent 13.83 × 3.86 × 16.56 m, the misplaced part included; the placements mostly add the living/dining area | provisional measurement | 18 Nov |

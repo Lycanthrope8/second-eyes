@@ -64,6 +64,8 @@ def main():
     ap.add_argument("--recording"); ap.add_argument("--board-frames")
     ap.add_argument("--board-spans", help="board windows found by video_tools.py board-spans (instead of --recording)")
     ap.add_argument("--map", type=int, help="with --tracking-run: reconstruct this map of a multi-map tracking run")
+    ap.add_argument("--trajectory", help="with --tracking-run: use this trajectory file (for instance part of a map) instead "
+                                         "of the run's own")
     ap.add_argument("--fixed-anchor", help="a JSON file {frame, sim3: {s, R, t}, by}: put the cloud into that frame with this "
                                            "similarity instead of fitting a board (tools/place_maps.py writes these)")
     ap.add_argument("--tracking-run"); ap.add_argument("--max-keyframes", type=int); ap.add_argument("--threads", type=int, default=2)
@@ -124,7 +126,7 @@ def main():
                                 "model": Path(a.model).name, "model_sha256": msha, "runtime_build": build["files"],
                                 "tracking_run": a.tracking_run, "max_keyframes": a.max_keyframes, "threads": a.threads,
                                 "anchor_mode": a.anchor, "anchor_only": a.anchor_only, "map": a.map,
-                                "board_spans": a.board_spans, "fixed_anchor": a.fixed_anchor})
+                                "board_spans": a.board_spans, "fixed_anchor": a.fixed_anchor, "trajectory": a.trajectory})
     path = Path(path)
     rout = f"{REMOTE}/out/{run_id}"
     adb("shell", f"mkdir -p {rout}/tracking {rout}/recon")
@@ -136,6 +138,8 @@ def main():
     if a.tracking_run:
         traj = HERE / "runs" / a.tracking_run / "tracking" / (f"maps/map_{a.map:02d}/frame_trajectory.txt" if a.map is not None
                                                                 else "frame_trajectory.txt")
+        if a.trajectory:
+            traj = Path(a.trajectory)
         if not traj.is_file():
             sys.exit(f"{traj} not found")
         adb("push", str(traj), f"{rout}/tracking/frame_trajectory.txt", capture=False)

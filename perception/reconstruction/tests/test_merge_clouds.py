@@ -82,8 +82,10 @@ def test_merge_chains_links_across_three_boards_and_reports_rooms(tmp_path, monk
                                      "sim3_board_in_frame": {"s": 1.0, "R": g12[1].tolist(), "t": g12[2].tolist()}}}}))
     for run, kf, valid in (("a", 100, 85), ("b", 90, 60)):
         (tmp_path / "runs" / run / "recon" / "stats.json").write_text(json.dumps({"keyframes": kf, "valid_keyframes": valid}))
-    sys.argv = ["merge_clouds.py", "--runs", "a", "b", "c", "l", "--out", "abc"]
+    sys.argv = ["merge_clouds.py", "--runs", "a", "b", "c", "l", "--out", "abc", "--color-by-run"]
     MC.main()
+    _, Cr = MC.read_ply(tmp_path / "runs" / "abc_by_run.ply")
+    assert len(np.unique(Cr, axis=0)) == 3 and len(json.load(open(tmp_path / "runs" / "abc.json"))["run_colors"]) == 3
     P, _ = MC.read_ply(tmp_path / "runs" / "abc.ply")
     assert len(P) == 300 and np.allclose(np.sort(P, axis=0), np.sort(world, axis=0), atol=1e-4)
     rep = json.load(open(tmp_path / "runs" / "abc.json"))
