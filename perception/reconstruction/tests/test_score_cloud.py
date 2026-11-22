@@ -38,3 +38,4 @@ def test_scores_reward_points_on_the_reference_and_alignment_recovers_a_small_sh
     assert abs(r["alignment_correction"]["translation_m"] - 0.04) < 0.01
     assert r["runs"]["good"]["within_5cm"] > 0.95 and r["runs"]["bad"]["within_10cm"] < 0.2
     assert 0.6 < r["whole"]["precision_10cm"] < 0.95 and r["whole"]["recall_10cm"] > 0.9
+    assert r["inside_reference_extent"]["outside_share"] < 0.05                      # everything here lies within the room

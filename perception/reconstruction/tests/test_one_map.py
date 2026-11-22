@@ -68,6 +68,8 @@ def test_capped_keyframes_are_spread_over_the_whole_path(tmp_path):
     n_all, n_kept = RQ.spread_keyframes(tmp_path / "path.txt", tmp_path / "kf.txt", 200)
     tk, _ = MA.read_tum(tmp_path / "kf.txt")
     assert n_all > 400 and n_kept == 200 and tk[0] == 0.0 and tk[-1] > 299.0       # the end of the path is kept
+    gaps = np.diff(tk)
+    assert np.mean(gaps < 0.6) >= 0.74                                              # three of every four steps are to a close neighbour
 
 
 def test_a_piece_nothing_else_can_place_joins_by_its_own_failed_anchor_flagged(tmp_path, monkeypatch):

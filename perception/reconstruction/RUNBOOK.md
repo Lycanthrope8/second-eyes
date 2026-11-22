@@ -230,3 +230,7 @@ get their keyframes spread over the whole path instead of stopping at the cap.
 R3.22: tracking no longer stops when no app is in the foreground on the headset (idle or display off). In one_map.py a
 piece that shared views cannot place but that has a board anchor of its own, though a check failed, joins by that anchor
 as a flagged last resort; such a piece never places another.
+
+R3.23: capped keyframes are kept in groups of four consecutive keyframes, spread over the path, so each keyframe keeps
+close neighbours for its depth calibration. The merge counts one-map runs as anchored and notes that their figures span
+whole videos. score_cloud.py also reports the result inside the reference's own extent and the share of points outside it.

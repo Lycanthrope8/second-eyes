@@ -144,3 +144,16 @@ use nominal timestamps (frame index / frame rate); R3.14 recomputes them from th
 | 5 | Against the MASt3R-SLAM reference | the 12:11:18 one map: median 13.5 cm, 42% within 10 cm; `house_one` (with the other two recordings' earlier maps): median 11.7 cm, F-score 0.38 at 10 cm | provisional measurement (comparison, not ground truth) | 22 Nov |
 | 5 | A third board link | map 6's anchor-only run saw board 01 at 4.19 m from board 02 (single views, from an anchor whose corner fit failed); not used (D140) | recorded | 22 Nov |
 | — | House video and 12:04:50 | tracking stopped before it started: the foreground-app probe failed because no app was resumed on the headset; fixed in R3.22 (the probe no longer stops a run) | failed check, fixed | 22 Nov |
+
+## One map per video for all three recordings (R3.22), 22 November
+
+| Level | Check | Value | Status | Source |
+|---|---|---|---|---|
+| 4b | Tracking with fps30_features | house video: 0.843 of the recording (0.859 from initialisation), 7 maps; 12:04:50: 0.882 (0.890), 7 maps; 12:11:18 (sweep run): 0.892 (0.909), 7 maps | provisional measurement | 22 Nov |
+| 5 | One map per video | house video: 4 pieces, all anchored by boards whose checks passed, 173 s (57%); 12:11:18: 4 pieces (board 02, and three by shared views), 279 s (76%); 12:04:50: 5 pieces (three boards, two by shared views), 284 s (82%) | recorded | 22 Nov |
+| 5 | Left out | house video maps 1, 4, 6 (82 s); 12:11:18 maps 1–3 (50 s); 12:04:50 maps 1–2 (26 s): no frame matched a placed piece (O44) | recorded | 22 Nov |
+| 5 | One reconstruction per video | 200, 192 and 192 keyframes; usable 0.60, 0.43 and 0.46 (the keyframes, spread evenly over twice as many candidates, were too far from their neighbours for depth calibration; grouped from R3.23); about 17 min each on the headset; peak 873–918 MB | recorded | 22 Nov |
+| 5 | Against the MASt3R-SLAM reference, inside its own extent | `house_one2`: median 6.9 cm, precision 0.60, recall 0.26, F-score 0.36 at 10 cm, with 23% of its points outside the reference's extent; `house_all6`, the 14-map merge, on the same terms: median 11.6 cm, precision 0.47, recall 0.34, F-score 0.39, 5% outside | provisional measurement (comparison, not ground truth) | Claude, 22 Nov |
+| 5 | Points outside the reference's extent | mostly beyond its far end (x 7–10 m, z −7 to −11 m in board 01's frame), at heights from the floor up; 45% of 12:04:50's outside points lie within 15 cm of the house video's; part may be space the reference does not cover, part drift in long pieces | provisional measurement | Claude, 22 Nov |
+| 5 | Aligning the three videos to each other by their overlap | median 15.0 → 13.9 cm (5 cm cells): the remaining error is mostly inside each video | provisional measurement | Claude, 22 Nov |
+| 5 | A fourth board link | 12:04:50 map 9 saw board 02 at 6.08 m from board 01 (board fit 1.5 mm); the links now read 2.72, 4.19, 5.18 and 6.08 m; D140 stands | recorded | 22 Nov |

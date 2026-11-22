@@ -184,7 +184,8 @@ def room_status(runs_info):
         F = e["frame"]
         if F == "tracker" or e.get("keyframes") is None:
             continue
-        r = rooms.setdefault(F, {"runs": [], "keyframes": 0, "valid_keyframes": 0, "anchors_ok": 0, "anchors": 0})
+        r = rooms.setdefault(F, {"runs": [], "keyframes": 0, "valid_keyframes": 0, "anchors_ok": 0, "anchors": 0, "one_map_runs": 0})
+        r["one_map_runs"] += int(bool(e.get("one_map")))
         r["runs"].append(e["run"]); r["keyframes"] += e["keyframes"]; r["valid_keyframes"] += e["valid_keyframes"]
         r["anchors"] += 1; r["anchors_ok"] += int(bool(e.get("anchor_ok")))
     for F, r in rooms.items():
@@ -197,6 +198,9 @@ def room_status(runs_info):
         r["metric_assessment"] = "pending" + ("" if r["anchors_ok"] else ": no valid anchor")
         failing = [f"valid keyframe share {share:.2f} < {MIN_VALID_SHARE}"] if share < MIN_VALID_SHARE else []
         r["level5"] = ("not passed: " + "; ".join(failing) + "; " if failing else "") + "pending (reference measurements and procedure)"
+        if r["one_map_runs"]:
+            r["note"] = (f"{r['one_map_runs']} of these runs are one map of a whole video (D142), which spans several rooms: the "
+                         "figures are for those videos as a whole, not for this board's room alone")
     return rooms
 
 
@@ -233,7 +237,9 @@ def main():
         st = HERE / "runs" / run / "recon" / "stats.json"
         stats = json.loads(st.read_text()) if st.is_file() else {}
         entry = {"run": run, "frame": F, "points": len(P), "warnings": anchor.get("warnings", []),
-                 "anchor_ok": bool(anchor.get(F, {}).get("ok")) if F != "tracker" else False,
+                 "anchor_ok": (bool(anchor.get(F, {}).get("ok")) or str(anchor.get("fixed", {}).get("by", "")).startswith("one map"))
+                              if F != "tracker" else False,
+                 **({"one_map": True} if str(anchor.get("fixed", {}).get("by", "")).startswith("one map") else {}),
                  "keyframes": stats.get("keyframes"), "valid_keyframes": stats.get("valid_keyframes")}
         if F == "tracker":
             entry.update(placed=False, why="no board anchored it (tracker units)")

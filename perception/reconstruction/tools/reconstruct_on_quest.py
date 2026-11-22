@@ -20,10 +20,11 @@ sys.path.insert(0, str(HERE))
 from qrecon import framelist as FL, registry as REG, questconfig as QC, config as C  # noqa: E402
 
 
-def spread_keyframes(src, dst, max_n):
+def spread_keyframes(src, dst, max_n, group=4):
     """The headset program takes keyframes in time order and stops at max_keyframes, which would leave the end of a long
     path out. For a path placed by a fixed similarity (no board fit needs its dense poses), keep only the poses the
-    keyframe rule picks (configs/qrecon.yaml), thinned evenly over the whole path to max_n. Returns (candidates, kept)."""
+    keyframe rule picks (configs/qrecon.yaml), thinned to max_n in groups of consecutive keyframes spread evenly over the
+    whole path. Returns (candidates, kept)."""
     import numpy as np
     from qrecon import keyframes as KFS
     from qrecon.mapalign import read_tum
@@ -31,10 +32,16 @@ def spread_keyframes(src, dst, max_n):
     t, T = read_tum(src)
     kc = C.load(os.path.join(str(HERE), "configs", "qrecon.yaml"))["keyframes"]
     idx = KFS.select(T, t, kc["min_trans_m"], kc["min_rot_deg"], kc["min_dt_s"])
-    if len(idx) > max_n:
-        idx = [idx[i] for i in sorted(set(np.round(np.linspace(0, len(idx) - 1, max_n)).astype(int).tolist()))]
+    n_all = len(idx)
+    if n_all > max_n:
+        # in groups of consecutive keyframes: each keyframe's depth calibration triangulates against its neighbours
+        # (configs/qrecon.yaml, landmarks.neighbour_offsets -2..2), so neighbours must stay close; the groups are spread
+        # evenly over the whole path, the last group ending at the path's end
+        g = max(1, min(group, max_n))
+        starts = np.round(np.linspace(0, n_all - g, max(1, max_n // g))).astype(int)
+        idx = [idx[c] for c in sorted({int(s0) + k for s0 in starts for k in range(g)})]
     Path(dst).write_text("".join(lines[i] for i in idx))
-    return len(KFS.select(T, t, kc["min_trans_m"], kc["min_rot_deg"], kc["min_dt_s"])), len(idx)
+    return n_all, len(idx)
 
 REMOTE = "/data/local/tmp/qtrack"
 RUNTIME = HERE / "tracking" / "out" / "android-arm64"
@@ -162,7 +169,7 @@ def main():
         if a.fixed_anchor and a.max_keyframes:
             n_all, n_kept = spread_keyframes(traj, path / "keyframe_poses.txt", a.max_keyframes)
             device["keyframes_spread"] = {"candidates": n_all, "kept": n_kept}
-            print(f"keyframes: {n_kept} of {n_all} candidates, spread over the whole path")
+            print(f"keyframes: {n_kept} of {n_all} candidates, in groups spread over the whole path")
             traj = path / "keyframe_poses.txt"
         adb("push", str(traj), f"{rout}/tracking/frame_trajectory.txt", capture=False)
         device["tracking"] = f"reused from {a.tracking_run}" + (f", map {a.map}" if a.map is not None else "")

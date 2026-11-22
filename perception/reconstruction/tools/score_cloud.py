@@ -69,11 +69,18 @@ def icp(src, tree, ref, iters=40):
     return R, t
 
 
-def score(ours, tree2, ref5):
+def score(ours, tree2, ref5, region=None):
+    """Distances and F-scores; with region (lo, hi), only our points inside the reference's own extent count, and the
+    share of our points outside it is reported (parts the reference does not cover cannot be judged against it)."""
     from scipy.spatial import cKDTree
+    out = {}
+    if region is not None:
+        inside = np.all((ours >= region[0]) & (ours <= region[1]), axis=1)
+        out["outside_share"] = round(float(1 - inside.mean()), 3)
+        ours = ours[inside]
     d, _ = tree2.query(ours, k=1)
     dc, _ = cKDTree(ours).query(ref5, k=1)
-    out = {"points_2cm": int(len(ours)), "median_m": round(float(np.median(d)), 4)}
+    out.update({"points_2cm": int(len(ours)), "median_m": round(float(np.median(d)), 4)})
     for th in (0.05, 0.10):
         p, r = float((d < th).mean()), float((dc < th).mean())
         out[f"precision_{int(th * 100)}cm"], out[f"recall_{int(th * 100)}cm"] = round(p, 3), round(r, 3)
@@ -110,6 +117,12 @@ def main():
     report["whole"] = w = score(ours, tree2, ref5)
     print(f"{name}: median {100 * w['median_m']:.1f} cm; F-score {w['f_5cm']:.2f} at 5 cm, {w['f_10cm']:.2f} at 10 cm "
           f"(precision {w['precision_10cm']:.2f}, recall {w['recall_10cm']:.2f} at 10 cm)")
+    region = (np.percentile(ref2, 0.5, axis=0) - 0.3, np.percentile(ref2, 99.5, axis=0) + 0.3)
+    report["inside_reference_extent"] = wi = score(ours, tree2, ref5, region)
+    report["reference_extent_m"] = [region[0].round(2).tolist(), region[1].round(2).tolist()]
+    print(f"  inside the reference's extent ({100 * wi['outside_share']:.0f}% of our points lie outside it): median "
+          f"{100 * wi['median_m']:.1f} cm; F-score {wi['f_5cm']:.2f} at 5 cm, {wi['f_10cm']:.2f} at 10 cm "
+          f"(precision {wi['precision_10cm']:.2f}, recall {wi['recall_10cm']:.2f} at 10 cm)")
     if a.by_run:
         meta = json.loads((cloud.parent / f"{name}.json").read_text())
         _, C = read_ply(cloud.parent / f"{name}_by_run.ply")
