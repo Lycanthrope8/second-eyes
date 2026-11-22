@@ -323,7 +323,8 @@ def main():
         kept = f", kept {e['span_s'][0]:.1f}-{e['span_s'][1]:.1f} s only" if e.get("kept") == "trimmed" else ""
         what = (f"skipped: {e['skipped']}" if "skipped" in e else
                 f"{e['recon_run']}, frame {e['frame']}, valid keyframes {e['valid_keyframe_share']}{kept}" if e.get("recon_run") else
-                f"anchored by {e['frame']} ({'checks passed' if e.get('anchor_ok') else 'failed its checks'}, {e['anchor_run']}){kept}"
+                (f"anchored by {e['frame']} ({'checks passed' if e.get('anchor_ok') else 'failed its checks'}, {e['anchor_run']}){kept}"
+                 if e.get("frame") not in (None, "tracker") else f"no board could be fitted ({e['anchor_run']}): to be joined by shared views")
                 if e.get("anchor_run") else "no board: to be joined by shared views")
         print(f"  map {e['map']} ({e['first_t']:.1f}-{e['last_t']:.1f} s, boards {', '.join(e['boards_seen']) or 'none'}): {what}")
     om = summary.get("one_map")

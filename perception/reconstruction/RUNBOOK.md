@@ -226,3 +226,7 @@ R3.21, one map per video (D142, D143): `process_recording.py --profile fps30_fea
 `tools/one_map.py` and reconstructs the joined map in one run; `tools/one_map.py --recording ... --helpers ...` joins a
 processed recording again (for instance once other recordings can help). Reconstructions placed by a fixed similarity
 get their keyframes spread over the whole path instead of stopping at the cap.
+
+R3.22: tracking no longer stops when no app is in the foreground on the headset (idle or display off). In one_map.py a
+piece that shared views cannot place but that has a board anchor of its own, though a check failed, joins by that anchor
+as a flagged last resort; such a piece never places another.

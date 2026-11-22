@@ -7,7 +7,9 @@
 The tracker breaks wherever the images give it nothing to follow, so a video's tracking comes in pieces (map restarts,
 D136). This joins the pieces. Pieces anchored by a board whose checks passed are the starting points. Every other piece,
 including one whose board anchor failed its checks, is placed by the views it shares with pieces already placed, in this
-video or, with --helpers, in other processed recordings, with the same agreement and speed checks as place_maps.py.
+video or, with --helpers, in other processed recordings, with the same agreement and speed checks as place_maps.py. A
+piece that shared views cannot place but that has a board anchor of its own, though a check failed, is joined by that
+anchor as a last resort and flagged; it never serves to place other pieces.
 Pieces in another board's frame are carried into the target board's frame by a board link (--use-link names the runs
 whose links to use, D140). The joined camera path, one trajectory in one metric frame, is then reconstructed on the
 headset in a single run, giving one cloud for the video. Pieces that cannot be joined are listed with the reason;
@@ -137,11 +139,12 @@ def join(rec, helpers, args):
             cands.remove(p["map"])
             joined.append(p)
             refs.append(p)
-    if not joined and failed:                          # no passing anchor and nothing placed: best failed anchor, flagged
-        best = max(failed.values(), key=lambda p: len(p["times"]))
-        best["how"] = "board, failed its checks"
-        joined.append(best)
-        cands = [m for m in cands if m != best["map"]]
+    for m in [m for m in cands if m in failed and len(failed[m]["times"])]:
+        p = failed[m]                                   # last resort, flagged: its own board anchor although a check failed
+        p["how"] = "board, failed its checks"
+        p["fallback_reason"] = why.get(m, "no frame matched a placed piece")
+        joined.append(p)
+        cands.remove(m)
     left = [{"map": m, "seconds": round(span[m][1] - span[m][0], 1),
              "reason": why.get(m, "no frame matched a placed piece") + ("; its board anchor failed its checks" if m in failed else "")}
             for m in cands]

@@ -133,3 +133,14 @@ use nominal timestamps (frame index / frame rate); R3.14 recomputes them from th
 | 4b | 12:11:18, four presets (maps saved, discarded, breaks, tracked share whole and from initialisation, longest map) | baseline 9, 2, 8, 0.744, 0.764, 65.4 s; fps30 9, 1, 8, 0.787, 0.806, 65.0 s; fps30_features 7, 0, 6, 0.892, 0.909, 109.9 s; fps30_features_keep 9, 0, 8, 0.849, 0.864, 107.6 s | provisional measurement (one run each; runs vary) | 21 Nov |
 | 4b | Tracking cost, fps30_features | 22.6 ms per frame median, 37.4 ms at the 95th percentile (33.3 ms between frames); 386 s for the 367.5 s video; peak 230 MB | recorded | 21 Nov |
 | 5 | Keyframe cap | the headset program takes keyframes in time order and stops at the cap, so a reconstruction capped at 60 keyframes (at most two a second) covered only the first part of a map longer than about 40 s; four runs in `house_all6` stopped at 60 (r005, r010, r012, r022). From R3.21, paths placed by a fixed similarity, including every one-map run, get their keyframes spread over the whole path | failed check, fixed for fixed-similarity paths | Claude, 21 Nov, from the program's code |
+
+## First one-map run, 12:11:18 (R3.21), 22 November
+
+| Level | Check | Value | Status | Source |
+|---|---|---|---|---|
+| 5 | Pieces (fps30_features tracking, r012) | 7. Map 5 anchored by board 02 (188.6–197.1 s, checks passed); map 0: no board fit; map 6 (110 s): board 02 at 276.1–280.6 s, corner fit failed, its path implying 2.95 m/s (kept 266.1–348.1 s); maps 1–4: no board | recorded | 22 Nov |
+| 5 | Join | 3 pieces in one map, 134 s of the 367 s video (37%): map 5 (board), map 0 by shared views with the house video's map 0 (14 of 17 located frames, 4.2 cm rms), map 4 by shared views with the house video's map 4 (trimmed to 159.6–176.2 s). Left out: map 6 (located frames spanned only 0.28 m, under the 0.3 m that fixes scale, and its anchor failed), maps 1–3 (no frame matched a placed piece) | failed check against one map for the whole video (D142) | 22 Nov |
+| 5 | One reconstruction (r005) | 200 keyframes spread over 205 candidates, 113 usable (0.565); 162,889 points; 1,016 s on the headset; peak 898 MB | recorded | 22 Nov |
+| 5 | Against the MASt3R-SLAM reference | the 12:11:18 one map: median 13.5 cm, 42% within 10 cm; `house_one` (with the other two recordings' earlier maps): median 11.7 cm, F-score 0.38 at 10 cm | provisional measurement (comparison, not ground truth) | 22 Nov |
+| 5 | A third board link | map 6's anchor-only run saw board 01 at 4.19 m from board 02 (single views, from an anchor whose corner fit failed); not used (D140) | recorded | 22 Nov |
+| — | House video and 12:04:50 | tracking stopped before it started: the foreground-app probe failed because no app was resumed on the headset; fixed in R3.22 (the probe no longer stops a run) | failed check, fixed | 22 Nov |

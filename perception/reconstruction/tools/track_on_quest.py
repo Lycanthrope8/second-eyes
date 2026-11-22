@@ -92,7 +92,11 @@ def main():
                                                                "camera": Path(a.camera).name, "runtime_build": build["files"],
                                                                "loop_detector": not a.no_loop,
                                                                "realtime_fps": round(fps, 3), "restart_after_s": a.restart_after})
-    top = adb("shell", "dumpsys activity activities | grep -m1 -E 'mResumedActivity|topResumedActivity'", capture=True).strip()
+    top = adb("shell", "dumpsys activity activities | grep -m1 -E 'mResumedActivity|topResumedActivity'", check=False,
+              capture=True).strip()
+    if not top:                    # no app resumed: the headset is idle or its display is off; tracking still runs
+        top = "none (headset idle or display off)"
+        print("note: no app is in the foreground on the headset (idle or display off); tracking continues")
     thermal0 = adb("shell", "dumpsys thermalservice | grep -m3 -E 'Thermal Status|mStatus|Status'", check=False, capture=True).strip()
     out_remote = f"{REMOTE}/out/{run_id}"
     opts = (" --no-loop" if a.no_loop else "") + (f" --first {a.first}" if a.first is not None else "") + \
