@@ -44,3 +44,18 @@ def test_located_frames_along_the_piece_correct_it_and_a_piece_without_evidence_
     assert np.median(np.linalg.norm(W[:, :3, 3] - cw, axis=1)) < 0.3 * np.median(np.linalg.norm(one - cw, axis=1))
     W0, info0 = RF.refine_piece(t, Tu, A)
     assert np.allclose(W0[:, :3, 3], one) and info0["windows"] == 0
+
+
+def test_a_piece_held_by_its_board_stays_put_there_when_located_frames_are_biased():
+    t, Tu, cw = _drifting_piece()
+    ia, A = _fit(t, Tu, cw, 0.0, 5.0)
+    start = RF.apply(RF._params(*A), Tu)
+    loc = []
+    for i in range(150, len(t), 20):                                  # frames located 0.5 m off, far from the board
+        Tw = start[i].copy(); Tw[0, 3] += 0.5
+        loc.append((i, Tw))
+    W, info = RF.refine_piece(t, Tu, A, windows=[(ia, A)], located=loc, max_len_s=10.0)
+    near = np.linalg.norm(W[ia, :3, 3] - start[ia, :3, 3], axis=1)
+    assert near.max() < 0.05                                          # where the board was seen, the piece does not move
+    assert 1 / 1.6 - 1e-6 <= info["scale_change"][0] and info["scale_change"][1] <= 1.6 + 1e-6
+    assert info["evidence_rms_after_m"] < info["evidence_rms_before_m"]

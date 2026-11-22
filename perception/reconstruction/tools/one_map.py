@@ -125,8 +125,9 @@ def join(rec, helpers, args):
                     why[m] = f"implied camera speed {speed:.1f} m/s: a wrong placement or scale drift"
                 else:
                     keep = in_span(t, kspan if kind == "trimmed" else None)
+                    agreed = [L for L in rep["located"] if L["frame"] == res["frame"]]
                     piece = {"key": f"{S['name']} map {m}", "frame": res["frame"], "ok": True, "how": "shared views",
-                             "located": rep["located"],
+                             "located": [agreed[k] for k in res["inliers"]],
                              "times": t[keep], "poses": apply_sim3(T[keep], res["s"], res["R"], res["t"]), "map": m,
                              "with": res["with_maps"], "inliers": len(res["inliers"]), "center_rms_m": round(res["center_rms_m"], 3),
                              "speed_p95_mps": round(speed, 2), "kept": kind, "span_s": [round(x, 3) for x in kspan] if kspan else None}
@@ -155,9 +156,10 @@ def join(rec, helpers, args):
             vocab_h = MA.Vocab([q["d"] for q in pdb_h])
             for p in joined:
                 if p["how"] == "board" and len(p["times"]):
-                    _, rep = MA.place(PM.frames_of(rec, PM.map_trajectory(rec, p["map"]), span=(p["times"][0], p["times"][-1])),
-                                      pdb_h, rec["K"], vocab=vocab_h, step_s=1.0, max_center_m=args.max_center_m, min_frames=args.min_frames)
-                    p["located"] = rep["located"]
+                    res_h, rep = MA.place(PM.frames_of(rec, PM.map_trajectory(rec, p["map"]), span=(p["times"][0], p["times"][-1])),
+                                          pdb_h, rec["K"], vocab=vocab_h, step_s=1.0, max_center_m=args.max_center_m, min_frames=args.min_frames)
+                    agreed = [L for L in rep["located"] if res_h and L["frame"] == res_h["frame"]]
+                    p["located"] = [agreed[k] for k in res_h["inliers"]] if res_h else []     # only frames that agree
     for m in [m for m in cands if m in failed and len(failed[m]["times"])]:
         p = failed[m]                                   # last resort, flagged: its own board anchor although a check failed
         p["how"] = "board, failed its checks"
@@ -238,6 +240,22 @@ def refine_pieces(rec, joined, transforms, target, args, cache):
         good = (i < len(tu)) & (np.abs(tu[np.clip(i, 0, len(tu) - 1)] - p["times"]) < 1e-3)
         sim0 = RF.umeyama(Tu[i[good], :3, 3], cur[good, :3, 3])
         wins, used = [], []
+        if p["how"] == "board" and p.get("run"):            # the piece's own anchor holds where its board was seen
+            an, F, ok = anchor_info(p["run"])
+            label = str(an.get("anchored_by", {}).get("window", ""))
+            ws = (rec["summary"].get("board_windows_s") or {}).get(F, [])
+            if label.endswith("all windows"):
+                spans = [w for w in ws if w[1] >= tu[0] and w[0] <= tu[-1]]
+            else:
+                try:
+                    a0, a1 = label.split()[-2].split("-")
+                    spans = [[float(a0), float(a1)]]
+                except (IndexError, ValueError):
+                    spans = []
+            ix = np.flatnonzero(np.any([(tu >= w0) & (tu <= w1) for w0, w1 in spans], axis=0)) if spans else np.zeros(0, int)
+            if len(ix):
+                wins.append((ix[::max(1, len(ix) // 12)], sim0))
+                used.append({"board": F, "window": label, "run": p["run"], "ok": True, "own_anchor": True})
         for wf in window_fits(rec, p, tu, Tu, args, cache):
             used.append({k: wf[k] for k in ("board", "window", "run", "ok")})
             if not wf["ok"] or wf["board"] not in transforms:
@@ -253,20 +271,31 @@ def refine_pieces(rec, joined, transforms, target, args, cache):
             j = int(np.argmin(np.abs(tu - L["t"])))
             if abs(tu[j] - L["t"]) < 1e-3:
                 locs.append((j, apply_sim3(np.asarray(L["T_p"])[None], *transforms[L["frame"]])[0]))
-        W, info = RF.refine_piece(tu, Tu, sim0, wins, locs, max_len_s=args.refine_stretch_s)
+        W, info = RF.refine_piece(tu, Tu, sim0, wins, locs, max_len_s=args.refine_stretch_s, scale_bound=args.refine_scale_bound)
         before = RF.apply(RF._params(*sim0), Tu)[:, :3, 3]
         moved = np.linalg.norm(W[:, :3, 3] - before, axis=1)
         speed = MA.implied_speed(tu, W[:, :3, 3], 1.0)
         info.update(board_windows=used, speed_p95_mps=round(speed, 2), moved_median_m=round(float(np.median(moved)), 3),
                     moved_max_m=round(float(moved.max()), 3))
-        if speed > args.max_speed:
+        gain = info["evidence_rms_before_m"] - info["evidence_rms_after_m"]
+        boards = sum(1 for u in used if u["ok"])
+        if not (info["windows"] or info["located"]):
+            info["kept"] = "unrefined: nothing beyond its own placement to refine it by"
+        elif speed > args.max_speed:
             info["kept"] = f"unrefined: the refined path implies {speed:.1f} m/s"
+        elif gain < max(0.02, 0.1 * info["evidence_rms_before_m"]):
+            info["kept"] = (f"unrefined: the evidence fits it hardly better ({100 * info['evidence_rms_before_m']:.0f} -> "
+                            f"{100 * info['evidence_rms_after_m']:.0f} cm)")
+        elif np.median(moved) > args.refine_max_move and boards < 2:
+            info["kept"] = (f"unrefined: it would move {np.median(moved):.2f} m (median) on located frames alone, more than "
+                            f"--refine-max-move {args.refine_max_move}")
         else:
             p["times"], p["poses"], p["frame"] = tu, W, target
         p["refine"] = info
-        print(f"  map {p['map']} refined: {info['stretches']} stretch(es), {info['windows']} board window(s), {info['located']} located "
-              f"frame(s); scale along it x{info['scale_change'][0]}-{info['scale_change'][1]}; moved {100 * info['moved_median_m']:.0f} cm "
-              f"median, {100 * info['moved_max_m']:.0f} cm at most" + (f"; {info['kept']}" if "kept" in info else ""), flush=True)
+        print(f"  map {p['map']}: {info['stretches']} stretch(es), {info['windows']} board window(s), {info['located']} located "
+              f"frame(s); evidence {100 * info['evidence_rms_before_m']:.0f} -> {100 * info['evidence_rms_after_m']:.0f} cm rms; scale along it "
+              f"x{info['scale_change'][0]}-{info['scale_change'][1]}; would move {100 * info['moved_median_m']:.0f} cm median, "
+              f"{100 * info['moved_max_m']:.0f} cm at most: " + (info["kept"] if "kept" in info else "refined"), flush=True)
 
 
 def combine(joined, transforms, target):
@@ -332,6 +361,9 @@ def main(argv=None):
     ap.add_argument("--no-refine", dest="refine", action="store_false",
                     help="one similarity per piece, without the drift-aware refinement (qrecon/refine.py)")
     ap.add_argument("--refine-stretch-s", type=float, default=15.0, help="longest stretch of a piece with its own similarity")
+    ap.add_argument("--refine-scale-bound", type=float, default=1.6, help="a stretch's scale stays within this factor of the piece's")
+    ap.add_argument("--refine-max-move", type=float, default=1.0,
+                    help="m; a piece held by fewer than two board fits is not moved further than this (median) by located frames")
     a = ap.parse_args(argv)
     rec = PM.load_recording(a.recording)
     helpers = [PM.load_recording(h) for h in a.helpers]

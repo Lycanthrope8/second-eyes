@@ -239,3 +239,8 @@ R3.24 (D144): one_map.py refines every piece for scale drift before reconstructi
 (`--refine-stretch-s`) with their own similarity, from an anchor-only fit of every board window inside the piece
 (cached in the summary, so a second run does not repeat them), frames located by shared views and continuity between
 stretches. `--no-refine` keeps one similarity per piece. view_maps.py understands one-map runs.
+
+R3.25 (D144 revised): the refinement holds a board-anchored piece to its own anchor, counts only located frames that agreed
+with one placement, keeps continuity strict and bounds each stretch's scale (`--refine-scale-bound`, 1.6), and refines a
+piece only if the evidence fits it clearly better and, held by fewer than two board fits, it moves no more than
+`--refine-max-move` (1 m). Each piece's line says whether it was refined, and if not, why.

@@ -166,3 +166,12 @@ use nominal timestamps (frame index / frame rate); R3.14 recomputes them from th
 | 5 | Usable keyframes with keyframe groups | 0.535, 0.59 and 0.50 (R3.22: 0.60, 0.43 and 0.46) | recorded | 22 Nov |
 | 5 | Against the MASt3R-SLAM reference, inside its extent | `house_one3`: median 8.9 cm, precision 0.53, recall 0.32, F-score 0.40 at 10 cm, 8% of points outside the extent (R3.22: 6.9 cm, 0.60, 0.26, 0.36, 23%); whole-cloud medians per video: house 12.7 cm, 12:11:18 10.3 cm, 12:04:50 8.1 cm | provisional measurement (comparison, not ground truth) | 22 Nov |
 | 5 | Joining depends on the helpers | pieces joined in R3.22 through another video's drifting piece were not joined in R3.23, and the share of points outside the reference fell from 23% to 8% | recorded | Claude, 22 Nov |
+
+## First drift refinement (R3.24, D144), 22 November
+
+| Level | Check | Value | Status | Source |
+|---|---|---|---|---|
+| 5 | Joined (helpers: the R3.23 one maps) | house video 5 pieces, 212 s (70%); 12:11:18 5 pieces, 237 s (65%); 12:04:50 6 pieces, 287 s (82%) | recorded | 22 Nov |
+| 5 | Board windows fitted on their own | 16 anchor-only runs; 6 passed. Short windows inside long pieces mostly could not be fitted on their own (house map 0, 12:11:18 maps 0 and 6, 12:04:50 map 0) | recorded | 22 Nov |
+| 5 | What the refinement did | it moved 7 pieces by more than 40 cm (median) and changed some stretch scales by a factor of up to 3.8 (12:04:50 map 6: x0.40–3.84, moved 2.6 m; house map 4: x0.41, moved 3.4 m), driven by every located frame, including those that had disagreed with the placement, and with no hold on the pieces' own passing board anchors | failed check | Claude, 22 Nov |
+| 5 | Against the MASt3R-SLAM reference, inside its extent | `house_one4`: median 7.5 cm, precision 0.56, recall 0.28, F-score 0.38 at 10 cm, 18% of points outside (R3.23: 8.9 cm, 0.53, 0.32, 0.40, 8%); whole-cloud medians per video: house 13.4 cm (R3.23 12.7), 12:11:18 6.2 cm (10.3), 12:04:50 21.2 cm (8.1) | provisional measurement; worse overall than R3.23 | 22 Nov |

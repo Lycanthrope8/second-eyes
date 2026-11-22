@@ -3,9 +3,9 @@
 A camera-only tracker's scale drifts along a long piece, so a single similarity, fitted where the piece was anchored
 (at a board, or by the frames that shared views located), places the rest of the piece too far or too near. Here the
 piece is cut into stretches of at most max_len_s seconds, each with its own similarity (log scale, rotation, offset),
-and all are solved together by robust least squares from:
+and all are solved together by least squares from:
   - board windows inside the piece, each with its own local fit (strong);
-  - frames located by shared views, each a camera pose in the target frame (weaker, robust to outliers);
+  - frames located by shared views that agreed with one placement, each a camera pose in the target frame (weaker);
   - continuity: neighbouring stretches must place the frame at their boundary alike, and their scales may change
     only gradually (the drift model);
   - a weak pull towards the starting similarity, so a stretch with no evidence follows its neighbours.
@@ -58,10 +58,12 @@ def apply(x, T):
     return out
 
 
-def refine_piece(times, T_u, sim3_0, windows=(), located=(), max_len_s=15.0, blend_s=1.0):
+def refine_piece(times, T_u, sim3_0, windows=(), located=(), max_len_s=15.0, blend_s=1.0, scale_bound=1.6):
     """times (N,), T_u (N, 4, 4) the piece's camera poses in tracker units, sim3_0 = (s, R, t) its starting similarity;
-    windows: [(frame indices, (s, R, t))] local board fits; located: [(frame index, T_world (4, 4))].
-    Returns (world poses (N, 4, 4), info)."""
+    windows: [(frame indices, (s, R, t))] board fits (the piece's own anchor among them); located: [(frame index,
+    T_world (4, 4))] frames located by shared views, only those that agreed with one placement. Plain least squares, so
+    continuity is never traded away; each stretch's scale stays within scale_bound of the starting scale.
+    Returns (world poses (N, 4, 4), info with the evidence's rms position error before and after)."""
     st = stretches(times, max_len_s)
     K = len(st)
     seg = np.zeros(len(times), int)
@@ -94,8 +96,17 @@ def refine_piece(times, T_u, sim3_0, windows=(), located=(), max_len_s=15.0, ble
         out.append(((X - x0.reshape(K, 7)) / PRIOR).ravel())
         return np.concatenate([np.ravel(o) for o in out])
 
+    def evidence_rms(x):
+        X = x.reshape(K, 7)
+        S = [_sim3(X[k]) for k in range(K)]
+        e = [np.linalg.norm(S[seg[i]][0] * S[seg[i]][1] @ C[i] + S[seg[i]][2] - (sw * Rw @ C[i] + tw)) for ix, (sw, Rw, tw) in win for i in ix]
+        e += [np.linalg.norm(S[seg[i]][0] * S[seg[i]][1] @ C[i] + S[seg[i]][2] - Tw[:3, 3]) for i, Tw in loc]
+        return float(np.sqrt(np.mean(np.square(e)))) if e else 0.0
+
     if win or loc:
-        X = least_squares(residuals, x0, loss="soft_l1", f_scale=2.0, max_nfev=200 * 7 * K).x.reshape(K, 7)
+        lb, ub = np.full(7 * K, -np.inf), np.full(7 * K, np.inf)
+        lb[0::7], ub[0::7] = x0[0] - np.log(scale_bound), x0[0] + np.log(scale_bound)
+        X = least_squares(residuals, x0, bounds=(lb, ub), max_nfev=100 * 7 * K).x.reshape(K, 7)
     else:
         X = x0.reshape(K, 7)
     W = np.empty((len(times), 4, 4))
@@ -112,5 +123,6 @@ def refine_piece(times, T_u, sim3_0, windows=(), located=(), max_len_s=15.0, ble
         W[i] = apply(x, T_u[i])
     scales = np.exp(X[:, 0]) / sim3_0[0]
     info = {"stretches": K, "windows": len(win), "located": len(loc),
-            "scale_change": [round(float(scales.min()), 3), round(float(scales.max()), 3)]}
+            "scale_change": [round(float(scales.min()), 3), round(float(scales.max()), 3)],
+            "evidence_rms_before_m": round(evidence_rms(x0), 3), "evidence_rms_after_m": round(evidence_rms(X.ravel()), 3)}
     return W, info
