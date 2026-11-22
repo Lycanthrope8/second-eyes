@@ -132,3 +132,20 @@ def test_a_chosen_link_places_the_boards_and_every_link_is_compared(tmp_path, mo
     assert np.allclose(np.sort(P[5:], axis=0), np.sort(world + [5.0, 0, 0], axis=0), atol=1e-5)   # placed with "far" although "near" is tighter
     c = json.load(open(tmp_path / "runs" / "m.json"))["link_checks"][0]
     assert c["distance_m"] == {"near": 2.0, "far": 5.0} and c["pairs"][0]["position_difference_m"] == 3.0
+
+
+def test_each_link_reports_how_much_one_room_would_stand_on_the_other(tmp_path, monkeypatch):
+    monkeypatch.setattr(MC, "HERE", tmp_path)
+    rng = np.random.default_rng(7)
+    room1 = np.c_[rng.uniform(0, 3, 400), rng.uniform(-1, 1, 400), rng.uniform(0, 3, 400)]
+    room2 = np.c_[rng.uniform(0, 3, 400), rng.uniform(-1, 1, 400), rng.uniform(0, 3, 400)]       # in its own frame
+    _run(tmp_path, "one", room1, {"frame": "ref01", "ref01": {"ok": True}})
+    _run(tmp_path, "two", room2, {"frame": "ref02", "ref02": {"ok": True}})
+    for name, tt, spread in (("apart", [0.0, 0.0, 4.0], 0.001), ("inside", [0.0, 0.0, 0.5], 0.004)):
+        rec = tmp_path / "runs" / name / "recon"; rec.mkdir(parents=True)
+        rec.joinpath("anchor.json").write_text(json.dumps({"frame": "ref01", "ref01": {"ok": True}, "links": {"ref02": {
+            "position_spread_m": spread, "position_m": tt[2], "sim3_board_in_frame": {"s": 1.0, "R": np.eye(3).tolist(), "t": tt}}}}))
+    sys.argv = ["merge_clouds.py", "--runs", "one", "two", "apart", "inside", "--out", "m"]
+    MC.main()
+    ov = json.load(open(tmp_path / "runs" / "m.json"))["link_checks"][0]["floor_overlap"]
+    assert ov["apart"] < 0.05 and ov["inside"] > 0.6

@@ -91,3 +91,16 @@ use nominal timestamps (frame index / frame rate); R3.14 recomputes them from th
 | 5 | Agreement where runs overlap, `house_all4` | bedroom: r014 vs r009 6.5 cm median (76% of points within 30 cm), r014 vs r022 6.1 cm, r022 vs r009 14.7 cm (89%); living/dining: r020 vs r012 17.4 cm (65%), r021 vs r012 21.1 cm (64%), r013 vs r012 16.7 cm (39%); floor heights differ by up to about 30 cm between runs | provisional measurement (consistency between runs, not accuracy) | Claude, 18 Nov |
 | 5 | Merged cloud `house_all4` | 476,824 points; extent 8.78 × 3.89 × 10.43 m; nothing far outside the house | provisional measurement | 18 Nov |
 | 5 | Board links | still 2.72 m (r010) against 5.19 m (r007, used); r010's own reconstruction lies mostly between the rooms | failed check (the links disagree) | 18 Nov |
+
+## The 10 Nov house video and the three-recording merge (R3.18), 21 November
+
+| Level | Check | Value | Status | Source |
+|---|---|---|---|---|
+| 4b/5 | Coverage, house video h191353 (r001) | whole recording 0.771 (232.5 of 301.5 s); initialisation 7.74 s; from initialisation 0.792; longest gap 162.81–182.68 s (19.9 s); 8 gaps; 4.0 s tracked in discarded maps; 9 maps saved, 2 discarded | failed check against 0.9 (D135) | 21 Nov |
+| 5 | House video, maps with a board | map 0 (bedroom): r002, board 01, no failed check, 50 of 52 keyframes usable. Map 9 (living/dining): r004, board 02, no failed check, 20 of 30. Map 10: r005, board 01 seen only at the end of a 56 s map; 2,540 points that land 11–21 m from the house (scale drift inside the map). Map 5: no board fit, left out | confirmed result for r002 and r004; failed check for r005 and map 5 | 21 Nov |
+| 5 | Placement across the three recordings | 3 more maps placed by shared views: house video maps 3 and 4, 12:04:50 map 2; 9 maps remain unplaced | recorded | 21 Nov |
+| 5 | A third board link | none: no house-video map saw both boards (maps 9 and 10 are separated by a 2.4 s loss) | recorded | 21 Nov |
+| 5 | Which board link | with the 17 Nov link (5.18 m) about 19% of the living/dining points stand on the bedroom's floor; with the 18 Nov link (2.72 m) 41%, and living-room walls run through the bedroom in a top view | provisional measurement; the project lead's check by eye is awaited | Claude, 21 Nov |
+| 5 | Rooms, `house_all5` | bedroom 204 of 247 keyframes usable (0.83); living/dining 204 of 321 (0.64) | bedroom meets 0.8, living/dining fails; metric assessment pending (D137) | 21 Nov |
+| 5 | Merged cloud `house_all5` | 619,732 points; extent 13.96 × 4.92 × 23.63 m, stretched by r005 | provisional measurement | 21 Nov |
+| 5 | Time | house video (5 min 1 s): 23 min to process; placement across three recordings about 10 min | recorded | 21 Nov |

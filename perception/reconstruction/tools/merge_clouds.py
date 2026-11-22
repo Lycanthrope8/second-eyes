@@ -152,6 +152,31 @@ def _desc(e):
             + ("" if e.get("anchor_ok", True) else ", its run's own anchor failed its check") + ")")
 
 
+def floor_overlaps(raw, edges, target, cell=0.3):
+    """For each frame joined to the target by more than one direct link: the share of that frame's points that stand on
+    the target frame's floor area (30 cm cells in the board frame's x-z plane, the boards hanging on walls), with each
+    link. A link that puts much of one room inside another is suspect; some overlap is normal where one room's map sees
+    into the other."""
+    tgt = [P for P, F in raw if F == target]
+    if not tgt:
+        return {}
+    def keys(Q):
+        c = np.floor(Q[:, [0, 2]] / cell).astype(np.int64)
+        return c[:, 0] * 1000003 + c[:, 1]
+    tkeys = np.unique(keys(np.concatenate(tgt)))
+    out = {}
+    for F in sorted(set(f for _, f in raw) - {target, "tracker"}):
+        direct = [e for e in edges if {e["frm"], e["to"]} == {F, target}]
+        if len(direct) < 2:
+            continue
+        pts = np.concatenate([P for P, f in raw if f == F])
+        for e in direct:
+            g = (e["s"], e["R"], e["t"]) if e["frm"] == F else _invert((e["s"], e["R"], e["t"]))
+            Q = g[0] * pts @ g[1].T + g[2]
+            out.setdefault(f"{min(F, target)}-{max(F, target)}", {})[e["run"]] = round(float(np.isin(keys(Q), tkeys).mean()), 3)
+    return out
+
+
 def room_status(runs_info):
     """Per room (the board that anchors a run): Level 5 as far as it can be judged now (D137)."""
     rooms = {}
@@ -199,11 +224,12 @@ def main():
     edges = [e for run, anchor in runs + link_only for e in run_links(run, anchor)]
     target = a.frame
     paths = best_paths([e for e in edges if not a.use_link or e["run"] in a.use_link], target)
-    parts, report = [], {"target_frame": target, "runs": [], "links_used": {}, "link": None,
-                         "link_only_runs": [run for run, _ in link_only]}
+    parts, raw, report = [], [], {"target_frame": target, "runs": [], "links_used": {}, "link": None,
+                                  "link_only_runs": [run for run, _ in link_only]}
     for run, anchor in runs:
         F = frame_of(anchor)
         P, Cc = read_ply(HERE / "runs" / run / "recon" / "cloud.ply")
+        raw.append((P, F))
         st = HERE / "runs" / run / "recon" / "stats.json"
         stats = json.loads(st.read_text()) if st.is_file() else {}
         entry = {"run": run, "frame": F, "points": len(P), "warnings": anchor.get("warnings", []),
@@ -229,6 +255,10 @@ def main():
         report["runs"].append(entry)
     report["rooms"] = room_status(report["runs"])
     report["link_checks"] = link_checks(edges)
+    overlaps = floor_overlaps(raw, edges, target)
+    for c in report["link_checks"]:
+        if c["boards"] in overlaps:
+            c["floor_overlap"] = overlaps[c["boards"]]
     for e in report["runs"]:
         print(f"  {e['run']}: {e['points']} points in {e['frame']}'s frame" + ("" if e["placed"] else f" - left out: {e['why']}"))
     for F, used in report["links_used"].items():
@@ -238,7 +268,9 @@ def main():
         print(f"  {'' if c['agree'] else 'WARNING: '}{c['links']} links between {c['boards']} differ by up to "
               f"{c['max_position_difference_m']:.2f} m and {c['max_rotation_difference_deg']:.1f} deg")
         for run, d in c["distance_m"].items():
-            print(f"    {run}: boards {d:.2f} m apart")
+            ov = c.get("floor_overlap", {}).get(run)
+            print(f"    {run}: boards {d:.2f} m apart" + (f"; {100 * ov:.0f}% of the other board's room then stands on "
+                                                            f"{target}'s floor" if ov is not None else ""))
         for q in c["pairs"]:
             print(f"    {q['runs'][0]} vs {q['runs'][1]}: {q['position_difference_m']:.2f} m, {q['rotation_difference_deg']:.1f} deg")
     for F, r in report["rooms"].items():

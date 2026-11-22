@@ -22,3 +22,9 @@ def test_overlapping_board_windows_become_one():
     from qrecon import questconfig as QC
     w = QC.merge_windows({"ref02": [[330.13, 332.63], [276.11, 280.61], [331.63, 338.13]], "ref01": [[46.0, 48.0], [49.0, 54.0]]})
     assert w["ref02"] == [[276.11, 280.61], [330.13, 338.13]] and w["ref01"] == [[46.0, 48.0], [49.0, 54.0]]
+
+
+def test_a_board_anchor_is_trimmed_to_the_stretch_around_its_board():
+    assert PR.board_span(244.9, 301.4, [[297.5, 301.5], [10.0, 20.0]], 10.0) == (287.5, 301.4)
+    assert PR.board_span(10.0, 40.0, [[0.0, 5.0]], 10.0) is None
+    assert PR.board_span(100.0, 200.0, [[120.0, 125.0], [150.0, 155.0]], 10.0) == (110.0, 165.0)

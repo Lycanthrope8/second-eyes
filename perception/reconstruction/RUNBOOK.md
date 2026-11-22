@@ -206,3 +206,9 @@ places, by shared views, maps whose board anchor failed and that kept under half
 R3.18: the merge prints each board link's distance and the difference between every pair of links, and
 `--use-link RUN [RUN ...]` joins the boards only through the links of those runs, so the layout each link gives can be
 looked at side by side.
+
+R3.19: a board-anchored map whose anchored trajectory implies an impossible camera speed is reconstructed again for the
+stretch around its board only (`--max-speed`, `--trim-pad-s`); `process_recording.py --recheck runs/<name>_recording.json
+...` applies this to reconstructions made before. The merge reports, for each link between two boards, how much of one
+room would stand on the other's floor. `tools/view_maps.py NAME [--one-by-one] [--context]` opens a merge in Open3D
+(viewer environment) and prints which map is which.
