@@ -110,3 +110,24 @@ def test_each_board_window_inside_a_piece_is_fitted_on_its_own_and_cached(tmp_pa
     assert cache == {"1:ref02:10.00-14.00": "fw1"}
     OM.window_fits(rec, {"map": 1}, tu, Tu, args, cache)                         # cached: no second headset run
     assert len(calls) == 1
+
+
+def test_a_stretch_whose_board_check_failed_is_taken_from_another_tracking_run_that_passed(tmp_path, monkeypatch):
+    import shutil
+    monkeypatch.setattr(OM, "HERE", tmp_path); monkeypatch.setattr(PM, "HERE", tmp_path)
+    summ, _ = TP._setup(tmp_path)
+    runs = tmp_path / "runs"
+    shutil.copytree(runs / "rec0", runs / "rec0b")                                  # the other run's anchor, which passed
+    (runs / "rec0" / "recon" / "anchor.json").write_text(json.dumps({"frame": "ref02", "ref02": {"ok": False}}))
+    S = json.loads(summ.read_text())
+    alt = dict(S, tracking_run=S["tracking_run"], maps=[dict(S["maps"][0], recon_run="rec0b")] + S["maps"][1:])
+    alt_path = runs / "syn_alt_recording.json"
+    alt_path.write_text(json.dumps(alt))
+    with __import__("pytest").raises(SystemExit):                                   # the same tracking run is not "another"
+        OM.main(["--recording", str(summ), "--alternatives", str(alt_path), "--dry-run"])
+    S["tracking_run"] = "trk_other"; summ.write_text(json.dumps(S))
+    shutil.copytree(runs / "trk", runs / "trk_other")
+    info = OM.main(["--recording", str(summ), "--alternatives", str(alt_path), "--dry-run", "--target", "ref02", "--no-refine"])
+    pieces = {(p["map"], p.get("source")): p["how"] for p in info["pieces"]}
+    assert pieces[(0, "trk")] == "board" and (0, None) not in pieces                # the failed piece gave way to the passing one
+    assert pieces[(1, None)] == "shared views" and not info["left_out"]

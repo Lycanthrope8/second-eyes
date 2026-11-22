@@ -88,16 +88,38 @@ def frames_from(rec, times, poses, frame, key):
     return out
 
 
-def join(rec, helpers, args):
-    """Places the recording's pieces. Returns (joined pieces, left-out list, attempts)."""
+def overlap_s(a0, a1, b0, b1):
+    return max(0.0, min(a1, b1) - max(a0, b0))
+
+
+def join(rec, helpers, args, alternatives=()):
+    """Places the recording's pieces. Returns (joined pieces, left-out list, attempts). alternatives: other tracking runs
+    of the same video; a piece of theirs anchored by a board that passed its checks takes the place of this run's piece
+    over the same stretch when that piece's anchor failed or it has none, so each stretch comes from whichever tracking
+    held it better."""
     S = rec["summary"]
     own = pieces_of(rec, own=True)
     joined = [p for p in own if p["ok"]]
     failed = {p["map"]: p for p in own if not p["ok"]}
-    refs = joined + [p for h in helpers for p in pieces_of(h, own=False) if p["ok"]]
     span = {e["map"]: (e.get("first_t", 0), e.get("last_t", 0)) for e in S.get("maps", [])}
     cands = [m for m, (a, b) in span.items() if m not in {p["map"] for p in joined} and b - a >= args.min_map_s
              and rec["maps"].get(m, {}).get("dir")]
+    for alt in alternatives:
+        trk = alt["summary"]["tracking_run"]
+        for p in pieces_of(alt, own=True):
+            if not p["ok"] or not len(p["times"]):
+                continue
+            a0, a1 = float(p["times"][0]), float(p["times"][-1])
+            if any(overlap_s(a0, a1, q["times"][0], q["times"][-1]) > 0.2 * (a1 - a0) for q in joined):
+                continue                                    # this run already holds the stretch with a passing anchor
+            p.update(key=f"{S['name']} map {p['map']} of {trk}", rec=alt, source=trk)
+            joined.append(p)
+            for m in list(failed):
+                if overlap_s(a0, a1, *span[m]) > 0.5 * (span[m][1] - span[m][0]):
+                    failed.pop(m)
+            cands = [m for m in cands if overlap_s(a0, a1, *span[m]) <= 0.5 * (span[m][1] - span[m][0])]
+            print(f"  {S['name']}: {a0:.0f}-{a1:.0f} s taken from tracking run {trk} (map {p['map']}, board anchor passed)", flush=True)
+    refs = joined + [p for h in helpers for p in pieces_of(h, own=False) if p["ok"]]
     attempts, why, pdb_cache = [], {}, {}
     for rnd in range(args.max_rounds):
         if not cands or not refs:
@@ -105,7 +127,8 @@ def join(rec, helpers, args):
         pdb = []
         for p in refs:
             if p["key"] not in pdb_cache:
-                src = rec if p["key"].startswith(S["name"] + " ") else next(h for h in helpers if p["key"].startswith(h["summary"]["name"] + " "))
+                src = p.get("rec") or (rec if p["key"].startswith(S["name"] + " ") else
+                                       next(h for h in helpers if p["key"].startswith(h["summary"]["name"] + " ")))
                 pdb_cache[p["key"]] = MA.p_database(frames_from(src, p["times"], p["poses"], p["frame"], p["key"]), src["K"], step_s=1.0)
             pdb += pdb_cache[p["key"]]
         if not pdb:
@@ -189,7 +212,7 @@ def anchor_window(rec, m, board, window, args):
     return made[-1] if r.returncode == 0 and made else None
 
 
-def window_fits(rec, p, tu, Tu, args, cache):
+def window_fits(rec, p, tu, Tu, args, cache, prefix=""):
     """Each board window inside a piece, fitted on its own (cached by piece, board and window):
     [{board, window, run, ok, sim3 from tracker units into the board's frame}]."""
     out = []
@@ -198,7 +221,7 @@ def window_fits(rec, p, tu, Tu, args, cache):
         for w in ws:
             if w[1] < lo or w[0] > hi:
                 continue
-            key = f"{p['map']}:{board}:{w[0]:.2f}-{w[1]:.2f}"
+            key = f"{prefix}{p['map']}:{board}:{w[0]:.2f}-{w[1]:.2f}"
             run = cache.get(key)
             if not run or not (HERE / "runs" / run / "recon" / "anchor.json").is_file():
                 if args.dry_run:
@@ -227,7 +250,8 @@ def refine_pieces(rec, joined, transforms, target, args, cache):
     for p in joined:
         if p.get("map") is None or p["frame"] not in transforms or not len(p["times"]):
             continue
-        traj = PM.map_trajectory(rec, p["map"])
+        prec = p.get("rec") or rec                           # the tracking run this piece came from
+        traj = PM.map_trajectory(prec, p["map"])
         if not Path(traj).is_file():
             continue
         tu, Tu = MA.read_tum(traj)
@@ -243,7 +267,7 @@ def refine_pieces(rec, joined, transforms, target, args, cache):
         if p["how"] == "board" and p.get("run"):            # the piece's own anchor holds where its board was seen
             an, F, ok = anchor_info(p["run"])
             label = str(an.get("anchored_by", {}).get("window", ""))
-            ws = (rec["summary"].get("board_windows_s") or {}).get(F, [])
+            ws = (prec["summary"].get("board_windows_s") or {}).get(F, [])
             if label.endswith("all windows"):
                 spans = [w for w in ws if w[1] >= tu[0] and w[0] <= tu[-1]]
             else:
@@ -258,7 +282,7 @@ def refine_pieces(rec, joined, transforms, target, args, cache):
                 used.append({"board": F, "window": label, "run": p["run"], "ok": True, "own_anchor": True,
                              "spans": [[float(w0), float(w1)] for w0, w1 in spans]})
         own_spans = [(u["board"], w) for u in used for w in u.get("spans", [])]
-        for wf in window_fits(rec, p, tu, Tu, args, cache):
+        for wf in window_fits(prec, p, tu, Tu, args, cache, "" if prec is rec else f"{prec['summary']['tracking_run']}/"):
             repeat = any(b == wf["board"] and min(w[1], wf["window"][1]) - max(w[0], wf["window"][0]) > 0 for b, w in own_spans)
             used.append({k: wf[k] for k in ("board", "window", "run", "ok")} | ({"repeats_own_anchor": True} if repeat else {}))
             if not wf["ok"] or wf["board"] not in transforms or repeat:
@@ -364,6 +388,9 @@ def main(argv=None):
     ap.add_argument("--min-frames", type=int, default=4)
     ap.add_argument("--max-speed", type=float, default=2.0)
     ap.add_argument("--trim-pad-s", type=float, default=10.0)
+    ap.add_argument("--alternatives", nargs="*", default=[], metavar="SUMMARY",
+                    help="summaries of other tracking runs of the same video: a stretch whose piece here failed its board check, "
+                         "or has none, is taken from them where their piece passed")
     ap.add_argument("--dry-run", action="store_true", help="join and write the trajectory, no reconstruction")
     ap.add_argument("--no-refine", dest="refine", action="store_false",
                     help="one similarity per piece, without the drift-aware refinement (qrecon/refine.py)")
@@ -378,7 +405,11 @@ def main(argv=None):
     helpers = [PM.load_recording(h) for h in a.helpers]
     S = rec["summary"]
     print(f"{S['name']}: joining its maps into one")
-    joined, left, attempts = join(rec, helpers, a)
+    alts = [PM.load_recording(x) for x in a.alternatives]
+    for x in alts:
+        if x["summary"].get("video") != S.get("video") or x["summary"].get("tracking_run") == S.get("tracking_run"):
+            sys.exit(f"{x['path']} is not another tracking run of {S.get('video')}")
+    joined, left, attempts = join(rec, helpers, a, alts)
     link_runs = list(a.use_link) or sorted({p["run"] for p in joined if p.get("run")})
     edges = []
     for run in link_runs:
@@ -404,7 +435,8 @@ def main(argv=None):
     print(f"{S['name']}: {len(used)} piece(s) joined into one map in {frame}'s frame, {joined_s:.0f} s of the video"
           + (f" ({100 * joined_s / span:.0f}%)" if span else ""))
     for p in used:
-        print(f"  map {p['map']}: {p['how']}" + (f" ({', '.join(p.get('warnings', []))})" if p.get("warnings") else ""))
+        print(f"  map {p['map']}" + (f" of {p['source']}" if p.get("source") else "") + f": {p['how']}"
+              + (f" ({', '.join(p.get('warnings', []))})" if p.get("warnings") else ""))
     for e in left:
         print(f"  map {e['map']} ({e['seconds']} s) left out: {e['reason']}")
     out_dir = HERE / "runs" / "one_map"
@@ -416,7 +448,8 @@ def main(argv=None):
     info = {"frame": frame, "trajectory": str(traj), "joined_s": round(joined_s, 1),
             "share_of_video": round(joined_s / span, 3) if span else None, "links_from": link_runs if len(frames) > 1 else [],
             "refined": bool(a.refine), "window_fits": cache,
-            "pieces": [{k: (v if not isinstance(v, np.ndarray) else None) for k, v in p.items() if k not in ("times", "poses", "located")}
+            "alternatives": [str(x["path"]) for x in alts],
+            "pieces": [{k: (v if not isinstance(v, np.ndarray) else None) for k, v in p.items() if k not in ("times", "poses", "located", "rec")}
                        | {"first_t": round(float(p["times"][0]), 3), "last_t": round(float(p["times"][-1]), 3)} for p in used],
             "left_out": left, "attempts": attempts}
     if a.dry_run:

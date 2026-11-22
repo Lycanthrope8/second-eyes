@@ -250,3 +250,7 @@ blurred stretches still match; `video_tools.py frames --sharpen A` and the prese
 `fps30_sharpen` are for tracking through fast motion (compare them with `tracking_sweep.py`); the refinement no longer
 counts a window fit that repeats a piece's own anchor and leaves a piece unrefined if its evidence still disagrees by more
 than `--refine-max-disagreement` (15 cm rms).
+
+R3.27 (D147): `one_map.py --alternatives SUMMARY ...` takes a stretch from another tracking run of the same video where
+this run's piece failed its board check or is missing and the other run's piece passed; for 12:04:50 the earlier tracking's
+summary is runs/h120450_recording_r326.json.

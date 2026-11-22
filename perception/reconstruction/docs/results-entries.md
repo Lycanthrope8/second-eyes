@@ -183,3 +183,20 @@ use nominal timestamps (frame index / frame rate); R3.14 recomputes them from th
 | 5 | Pieces refined | 4 of 15: house map 0 (moved 9 cm), house map 8 (66 cm), 12:04:50 map 6 (139 cm) and map 9 (101 cm, its evidence still 40 cm rms). House map 8 and 12:04:50 map 6 passed the 1 m limit only because the fit of their own board window was counted twice (fixed in R3.26) | failed check | Claude, 22 Nov |
 | 5 | Against the MASt3R-SLAM reference, inside its extent | `house_one5`: median 8.1 cm, precision 0.55, recall 0.32, F-score 0.40 at 10 cm, 17% of points outside; whole-cloud medians per video: house 11.3 cm, 12:11:18 9.7 cm, 12:04:50 16.1 cm (R3.23: 12.7, 10.3, 8.1) | provisional measurement | 22 Nov |
 | — | Stretches never placed | in the project lead's viewing, they are where the camera moves fast | recorded | project lead, 22 Nov |
+
+## 12:04:50 on its own (R3.26, D145), 22 November
+
+| Level | Check | Value | Status | Source |
+|---|---|---|---|---|
+| 4b | Tracking presets for fast motion, 12:04:50 (maps, discarded, breaks, tracked share whole and from initialisation, longest map) | fps30_features (r014): 7, 3, 6, 0.882, 0.890, 99.1 s; fps30_features_more (r060): 8, 1, 7, 0.922, 0.924, 134.1 s, longest gap 5.8 s; fps30_sharpen (r061): 9, 0, 8, 0.891, 0.906, 134.1 s | provisional measurement (one run each) | 22 Nov |
+| 5 | One map, on its own, r014 tracking | 3 board pieces, 204 s (59%); maps 1, 2, 5 and 8 found nothing of this video's own placed pieces to match, sharpest frames or not; map 9 refined by its two board windows (evidence 104 → 7 cm rms, moved 108 cm median) | recorded | 22 Nov |
+| 5 | Against the MASt3R-SLAM reference | median 7.9 cm, 39% of points within 5 cm and 56% within 10 cm, precision 0.56, recall 0.15 (one video), 0.3% outside the extent (R3.23, same pieces unrefined: 8.1 cm) | provisional measurement | 22 Nov |
+
+## 12:04:50 with the fast-motion tracking (r060, D146), 22 November
+
+| Level | Check | Value | Status | Source |
+|---|---|---|---|---|
+| 5 | Pieces | map 0 (0.7–75.6 s): board 01 anchor failed its checks (corner fit; closure from single views), joined by it as a last resort; map 4 (115.2–249.3 s, 134 s) and map 5 (253.0–261.7 s): board 02, passed; map 8 (317.1–347.4 s): board 01, passed, refined by both boards (moved 95 cm median); maps 1, 2, 6 and 7 (74 s) matched nothing | recorded | 22 Nov |
+| 5 | One map | 249 s of the video (72%), 200 keyframes, 0.455 usable | recorded | 22 Nov |
+| 5 | Against the MASt3R-SLAM reference | whole: median 13.3 cm; inside the extent: 7.5 cm, precision 0.58, recall 0.17, F-score 0.27 at 10 cm, with 24% of points outside the extent (previous map: 7.9 cm, 0.56, 0.15, 0.3%) | provisional measurement | 22 Nov |
+| 5 | Where the error is | bedroom: the part shared with the previous map 10 cm median, the new part 53 cm with 63% outside the extent (the failed board 01 anchor); living/dining: the shared part 5 cm, the new part 19 cm; the previous map's living/dining room was 23 cm | provisional measurement | Claude, 22 Nov |
