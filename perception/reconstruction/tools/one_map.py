@@ -255,10 +255,13 @@ def refine_pieces(rec, joined, transforms, target, args, cache):
             ix = np.flatnonzero(np.any([(tu >= w0) & (tu <= w1) for w0, w1 in spans], axis=0)) if spans else np.zeros(0, int)
             if len(ix):
                 wins.append((ix[::max(1, len(ix) // 12)], sim0))
-                used.append({"board": F, "window": label, "run": p["run"], "ok": True, "own_anchor": True})
+                used.append({"board": F, "window": label, "run": p["run"], "ok": True, "own_anchor": True,
+                             "spans": [[float(w0), float(w1)] for w0, w1 in spans]})
+        own_spans = [(u["board"], w) for u in used for w in u.get("spans", [])]
         for wf in window_fits(rec, p, tu, Tu, args, cache):
-            used.append({k: wf[k] for k in ("board", "window", "run", "ok")})
-            if not wf["ok"] or wf["board"] not in transforms:
+            repeat = any(b == wf["board"] and min(w[1], wf["window"][1]) - max(w[0], wf["window"][0]) > 0 for b, w in own_spans)
+            used.append({k: wf[k] for k in ("board", "window", "run", "ok")} | ({"repeats_own_anchor": True} if repeat else {}))
+            if not wf["ok"] or wf["board"] not in transforms or repeat:
                 continue
             sb, Rb, tb = transforms[wf["board"]]
             sw, Rw, tw = wf["sim3"]
@@ -278,7 +281,8 @@ def refine_pieces(rec, joined, transforms, target, args, cache):
         info.update(board_windows=used, speed_p95_mps=round(speed, 2), moved_median_m=round(float(np.median(moved)), 3),
                     moved_max_m=round(float(moved.max()), 3))
         gain = info["evidence_rms_before_m"] - info["evidence_rms_after_m"]
-        boards = sum(1 for u in used if u["ok"])
+        boards = len({(u["board"], tuple(w)) for u in used if u["ok"] and not u.get("repeats_own_anchor")
+                      for w in (u.get("spans") or [u["window"]])})            # distinct board windows that held it
         if not (info["windows"] or info["located"]):
             info["kept"] = "unrefined: nothing beyond its own placement to refine it by"
         elif speed > args.max_speed:
@@ -286,6 +290,9 @@ def refine_pieces(rec, joined, transforms, target, args, cache):
         elif gain < max(0.02, 0.1 * info["evidence_rms_before_m"]):
             info["kept"] = (f"unrefined: the evidence fits it hardly better ({100 * info['evidence_rms_before_m']:.0f} -> "
                             f"{100 * info['evidence_rms_after_m']:.0f} cm)")
+        elif info["evidence_rms_after_m"] > args.refine_max_disagreement:
+            info["kept"] = (f"unrefined: its evidence disagrees with itself ({100 * info['evidence_rms_after_m']:.0f} cm rms even "
+                            f"refined), so one of the board fits or the board link is off")
         elif np.median(moved) > args.refine_max_move and boards < 2:
             info["kept"] = (f"unrefined: it would move {np.median(moved):.2f} m (median) on located frames alone, more than "
                             f"--refine-max-move {args.refine_max_move}")
@@ -362,6 +369,8 @@ def main(argv=None):
                     help="one similarity per piece, without the drift-aware refinement (qrecon/refine.py)")
     ap.add_argument("--refine-stretch-s", type=float, default=15.0, help="longest stretch of a piece with its own similarity")
     ap.add_argument("--refine-scale-bound", type=float, default=1.6, help="a stretch's scale stays within this factor of the piece's")
+    ap.add_argument("--refine-max-disagreement", type=float, default=0.15,
+                    help="m rms; a piece whose evidence still disagrees by more than this once refined is left unrefined")
     ap.add_argument("--refine-max-move", type=float, default=1.0,
                     help="m; a piece held by fewer than two board fits is not moved further than this (median) by located frames")
     a = ap.parse_args(argv)

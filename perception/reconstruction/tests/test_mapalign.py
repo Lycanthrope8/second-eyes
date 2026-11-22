@@ -90,3 +90,14 @@ def test_a_placement_implying_impossible_speed_is_trimmed_or_refused():
     assert kind == "trimmed" and span == (0.0, 18.0) and abs(speed - 0.5) < 1e-6
     assert MA.choose_span(t[:40], c[:40], 2.0, [2.0, 8.0])[0] == "full"
     assert MA.choose_span(t, c, 20.0, [2.0, 8.0])[0] == "rejected"
+
+
+def test_the_sharpest_frame_of_each_window_is_the_one_matched():
+    import cv2
+    rng = np.random.default_rng(4)
+    sharp = (rng.random((240, 320)) * 255).astype(np.uint8)
+    blurred = cv2.GaussianBlur(sharp, (0, 0), 6)
+    frames = [{"t": k / 30.0, "image": (lambda im=(sharp if k in (7, 22) else blurred): im)} for k in range(30)]
+    picks = MA.sharp_picks(frames, 0.5, stride=1)
+    assert picks == [7, 22]                                             # one per half second, the sharp one in each
+    assert MA.sharpness(sharp) > 10 * MA.sharpness(blurred)

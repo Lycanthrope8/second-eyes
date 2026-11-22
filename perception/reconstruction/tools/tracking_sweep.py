@@ -75,10 +75,11 @@ def main():
     for name in sorted(a.profiles, key=lambda n: PROFILES[n]["every"], reverse=True):     # 15 fps first, then 30 fps
         prof = PROFILES[name]
         fps = video_fps / prof["every"]
-        frames = data / f"{a.name}_{int(round(fps))}fps"
+        sharp = prof.get("sharpen", 0.0)
+        frames = data / (f"{a.name}_{int(round(fps))}fps" + ("_sharp" if sharp else ""))
         if not (frames / "rgb.txt").is_file():
             subprocess.run([py, vt, "frames", "--video", a.video, "--every", str(prof["every"]), "--scale", str(a.scale),
-                            "--out", str(frames)], cwd=HERE, check=True)
+                            "--out", str(frames)] + (["--sharpen", str(sharp)] if sharp else []), cwd=HERE, check=True)
         elif not (frames / "source_times.csv").is_file():
             subprocess.run([py, vt, "source-times", "--video", a.video, "--frames", str(frames)], cwd=HERE, check=True)
         cam = data / f"{a.name}_camera_{name}.yaml"
@@ -86,7 +87,7 @@ def main():
         print(f"\n== {name}: {prof['about']}", flush=True)
         before = runs_now()
         r = subprocess.run([py, str(HERE / "tools" / "track_on_quest.py"), "--frames", str(frames), "--camera", str(cam),
-                            "--name", f"{a.name}_{int(round(fps))}fps", "--restart-after", str(prof["restart_after"])], cwd=HERE)
+                            "--name", frames.name, "--restart-after", str(prof["restart_after"])], cwd=HERE)
         made = sorted(runs_now() - before)
         if r.returncode != 0 or not made:
             print(f"  {name}: tracking failed (exit {r.returncode})")

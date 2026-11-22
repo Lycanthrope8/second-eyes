@@ -160,6 +160,8 @@ def cmd_frames(a):
     for i, t, pts, bgr in _spans(a.video, spans, a.every, with_pts=True):
         if a.scale != 1.0:
             bgr = cv2.resize(bgr, None, fx=a.scale, fy=a.scale, interpolation=cv2.INTER_AREA)
+        if getattr(a, "sharpen", 0.0):                    # unsharp mask: brings back corners that motion blur softened
+            bgr = cv2.addWeighted(bgr, 1.0 + a.sharpen, cv2.GaussianBlur(bgr, (0, 0), 2.0), -a.sharpen, 0)
         size = (bgr.shape[1], bgr.shape[0])
         name = f"rgb/{i:06d}.jpg"
         cv2.imwrite(os.path.join(a.out, name), bgr, [cv2.IMWRITE_JPEG_QUALITY, a.quality])
@@ -170,7 +172,7 @@ def cmd_frames(a):
     import datetime
     stamp = datetime.datetime.now().isoformat(timespec="seconds")      # lets the headset tools see a re-extraction
     with open(os.path.join(a.out, "rgb.txt"), "w") as f:
-        f.write(f"# {os.path.basename(a.video)} every={a.every} scale={a.scale} size={size} decoded=in-order "
+        f.write(f"# {os.path.basename(a.video)} every={a.every} scale={a.scale} sharpen={getattr(a, 'sharpen', 0.0)} size={size} decoded=in-order "
                 f"extracted={stamp}\n" + "\n".join(lines) + "\n")
     _write_source_times(a.out, src)
     print(f"{len(lines)} frames at {size} -> {a.out}")
@@ -712,6 +714,7 @@ def main():
     p = sub.add_parser("frames"); p.add_argument("--video", required=True); p.add_argument("--out", required=True)
     p.add_argument("--every", type=int, default=1); p.add_argument("--scale", type=float, default=1.0)
     p.add_argument("--start", type=float, default=0.0); p.add_argument("--end", type=float); p.add_argument("--quality", type=int, default=95)
+    p.add_argument("--sharpen", type=float, default=0.0, help="unsharp-mask strength (0 = off), against motion blur")
     p.add_argument("--recording", help="only the board windows of this recording (configs/references.yaml)")
     p.add_argument("--board-spans", help="only the board windows found by `board-spans` (a JSON file)")
     p.set_defaults(fn=cmd_frames)

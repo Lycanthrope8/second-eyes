@@ -17,6 +17,14 @@ PROFILES = {
         "about": "30 frames a second, more and weaker corners kept, for plain walls",
         "every": 1, "restart_after": 2.0,
         "stella": {"Preprocessing": {"min_size": 400}, "Feature": {"ini_fast_threshold": 12, "min_fast_threshold": 4}}},
+    "fps30_features_more": {
+        "about": "30 frames a second, still more and weaker corners kept, for fast motion (blurred frames keep fewer)",
+        "every": 1, "restart_after": 2.0,
+        "stella": {"Preprocessing": {"min_size": 250}, "Feature": {"ini_fast_threshold": 8, "min_fast_threshold": 3}}},
+    "fps30_sharpen": {
+        "about": "as fps30_features, on frames sharpened against motion blur (unsharp mask, strength 1.0)",
+        "every": 1, "restart_after": 2.0, "sharpen": 1.0,
+        "stella": {"Preprocessing": {"min_size": 400}, "Feature": {"ini_fast_threshold": 12, "min_fast_threshold": 4}}},
     "fps30_features_keep": {
         "about": "as fps30_features, young maps kept (stella resets a map lost within 0.5 s of starting, not 5 s) and "
                  "4 s allowed for relocalising before a new map",

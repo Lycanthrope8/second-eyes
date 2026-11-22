@@ -244,3 +244,9 @@ R3.25 (D144 revised): the refinement holds a board-anchored piece to its own anc
 with one placement, keeps continuity strict and bounds each stretch's scale (`--refine-scale-bound`, 1.6), and refines a
 piece only if the evidence fits it clearly better and, held by fewer than two board fits, it moves no more than
 `--refine-max-move` (1 m). Each piece's line says whether it was refined, and if not, why.
+
+R3.26 (D145: 12:04:50 only, on its own): shared-view matching takes the sharpest frame of each sampling window, so fast,
+blurred stretches still match; `video_tools.py frames --sharpen A` and the presets `fps30_features_more` and
+`fps30_sharpen` are for tracking through fast motion (compare them with `tracking_sweep.py`); the refinement no longer
+counts a window fit that repeats a piece's own anchor and leaves a piece unrefined if its evidence still disagrees by more
+than `--refine-max-disagreement` (15 cm rms).

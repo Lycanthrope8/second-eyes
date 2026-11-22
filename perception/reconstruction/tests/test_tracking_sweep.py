@@ -13,7 +13,7 @@ def test_profiles_change_only_known_stella_settings():
     known = {"Preprocessing": {"min_size"}, "Feature": {"ini_fast_threshold", "min_fast_threshold"},
              "Tracking": {"init_retry_threshold_time"}}
     for name, p in PROFILES.items():
-        assert p["every"] in (1, 2) and p["restart_after"] > 0 and p["about"]
+        assert p["every"] in (1, 2) and p["restart_after"] > 0 and p["about"] and p.get("sharpen", 0.0) >= 0.0
         for section, values in p["stella"].items():
             assert set(values) <= known[section], (name, section)
 

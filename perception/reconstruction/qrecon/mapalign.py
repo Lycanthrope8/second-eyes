@@ -183,6 +183,32 @@ def fit_sim3(Tu, Tp, max_center_m=0.15, max_rot_deg=6.0, min_frames=4, min_basel
             "baseline_m": float(base)}, None
 
 
+def sharpness(img):
+    """Variance of the Laplacian on a quarter-size copy: low when the camera moved fast and the frame is blurred."""
+    small = cv2.resize(img, None, fx=0.25, fy=0.25, interpolation=cv2.INTER_AREA)
+    return float(cv2.Laplacian(small, cv2.CV_32F).var())
+
+
+def sharp_picks(frames, step_s, stride=3):
+    """Indices of one frame per step_s window: the sharpest of every stride-th frame in it. In a fast turn most frames
+    are blurred and match nothing; the few sharp ones still do."""
+    out, i, n = [], 0, len(frames)
+    while i < n:
+        t0, j, best, best_s = frames[i]["t"], i, None, -1.0
+        while j < n and frames[j]["t"] - t0 < step_s:
+            if (j - i) % stride == 0:
+                img = frames[j]["image"]()
+                if img is not None:
+                    sv = sharpness(img)
+                    if sv > best_s:
+                        best, best_s = j, sv
+            j += 1
+        if best is not None:
+            out.append(best)
+        i = max(j, i + 1)
+    return out
+
+
 def p_database(frames, K, step_s=1.0, n=1500, offsets_s=(3.0, 2.4, 1.8, 1.2, 0.9), min_baseline_m=0.25,
                min_points=30, agree_m=0.05, agree_rel=0.02):
     """Placed-map frames with 3-D points. frames: dicts {t, T (camera-to-world, metric), image (callable -> gray),
@@ -197,9 +223,8 @@ def p_database(frames, K, step_s=1.0, n=1500, offsets_s=(3.0, 2.4, 1.8, 1.2, 0.9
         if k not in cache:
             cache[k] = features(frames[k]["image"](), n)
         return cache[k]
-    for i, f in enumerate(frames):
-        if f["t"] - last < step_s:
-            continue
+    for i in sharp_picks(frames, step_s):
+        f = frames[i]
         kp, d = feat(i)
         sets = []
         for off in order:
@@ -240,11 +265,8 @@ def place(u_frames, pdb, K, vocab=None, step_s=0.5, top=5, n=1500, min_inliers=2
     if vocab is None:
         vocab = Vocab([p["d"] for p in pdb])
     pv = np.array([vocab.vector(p["d"]) for p in pdb])
-    last = -1e9
-    for f in u_frames:
-        if f["t"] - last < step_s:
-            continue
-        last = f["t"]
+    for k in sharp_picks(u_frames, step_s):
+        f = u_frames[k]
         report["sampled"] += 1
         kp, d = features(f["image"](), n)
         if len(d) < min_inliers:

@@ -259,9 +259,11 @@ def main():
     cap = cv2.VideoCapture(str(video))
     fps = (cap.get(cv2.CAP_PROP_FPS) or 30.0) / a.every
     cap.release()
-    frames = data / f"{a.name}_{int(round(fps))}fps"
+    sharp = PROFILES[a.profile].get("sharpen", 0.0) if a.profile else 0.0
+    frames = data / (f"{a.name}_{int(round(fps))}fps" + ("_sharp" if sharp else ""))
     if not (frames / "rgb.txt").is_file():
-        run([py, vt, "frames", "--video", video, "--every", a.every, "--scale", a.scale, "--out", frames])
+        run([py, vt, "frames", "--video", video, "--every", a.every, "--scale", a.scale, "--out", frames]
+            + (["--sharpen", sharp] if sharp else []))
     elif not (frames / "source_times.csv").is_file():
         run([py, vt, "source-times", "--video", video, "--frames", frames])
     boards = data / f"{a.name}_autoboards"

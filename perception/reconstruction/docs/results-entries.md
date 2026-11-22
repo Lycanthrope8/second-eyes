@@ -175,3 +175,11 @@ use nominal timestamps (frame index / frame rate); R3.14 recomputes them from th
 | 5 | Board windows fitted on their own | 16 anchor-only runs; 6 passed. Short windows inside long pieces mostly could not be fitted on their own (house map 0, 12:11:18 maps 0 and 6, 12:04:50 map 0) | recorded | 22 Nov |
 | 5 | What the refinement did | it moved 7 pieces by more than 40 cm (median) and changed some stretch scales by a factor of up to 3.8 (12:04:50 map 6: x0.40–3.84, moved 2.6 m; house map 4: x0.41, moved 3.4 m), driven by every located frame, including those that had disagreed with the placement, and with no hold on the pieces' own passing board anchors | failed check | Claude, 22 Nov |
 | 5 | Against the MASt3R-SLAM reference, inside its extent | `house_one4`: median 7.5 cm, precision 0.56, recall 0.28, F-score 0.38 at 10 cm, 18% of points outside (R3.23: 8.9 cm, 0.53, 0.32, 0.40, 8%); whole-cloud medians per video: house 13.4 cm (R3.23 12.7), 12:11:18 6.2 cm (10.3), 12:04:50 21.2 cm (8.1) | provisional measurement; worse overall than R3.23 | 22 Nov |
+
+## Revised drift refinement (R3.25), 22 November
+
+| Level | Check | Value | Status | Source |
+|---|---|---|---|---|
+| 5 | Pieces refined | 4 of 15: house map 0 (moved 9 cm), house map 8 (66 cm), 12:04:50 map 6 (139 cm) and map 9 (101 cm, its evidence still 40 cm rms). House map 8 and 12:04:50 map 6 passed the 1 m limit only because the fit of their own board window was counted twice (fixed in R3.26) | failed check | Claude, 22 Nov |
+| 5 | Against the MASt3R-SLAM reference, inside its extent | `house_one5`: median 8.1 cm, precision 0.55, recall 0.32, F-score 0.40 at 10 cm, 17% of points outside; whole-cloud medians per video: house 11.3 cm, 12:11:18 9.7 cm, 12:04:50 16.1 cm (R3.23: 12.7, 10.3, 8.1) | provisional measurement | 22 Nov |
+| — | Stretches never placed | in the project lead's viewing, they are where the camera moves fast | recorded | project lead, 22 Nov |
