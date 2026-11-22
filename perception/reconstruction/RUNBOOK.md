@@ -212,3 +212,8 @@ stretch around its board only (`--max-speed`, `--trim-pad-s`); `process_recordin
 ...` applies this to reconstructions made before. The merge reports, for each link between two boards, how much of one
 room would stand on the other's floor. `tools/view_maps.py NAME [--one-by-one] [--context]` opens a merge in Open3D
 (viewer environment) and prints which map is which.
+
+R3.20: tracking presets (qrecon/tracking_profiles.py) and `tools/tracking_sweep.py --video V --calib C --name N`, which
+tracks one recording with each preset (about the video's length each, no reconstruction) and tabulates maps, breaks,
+coverage and the longest map. `process_recording.py --profile NAME` processes a recording with a chosen preset; with
+`--tracking-run` it reuses that preset's sweep run.

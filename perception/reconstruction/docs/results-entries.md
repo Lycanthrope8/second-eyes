@@ -104,3 +104,14 @@ use nominal timestamps (frame index / frame rate); R3.14 recomputes them from th
 | 5 | Rooms, `house_all5` | bedroom 204 of 247 keyframes usable (0.83); living/dining 204 of 321 (0.64) | bedroom meets 0.8, living/dining fails; metric assessment pending (D137) | 21 Nov |
 | 5 | Merged cloud `house_all5` | 619,732 points; extent 13.96 × 4.92 × 23.63 m, stretched by r005 | provisional measurement | 21 Nov |
 | 5 | Time | house video (5 min 1 s): 23 min to process; placement across three recordings about 10 min | recorded | 21 Nov |
+
+## Speed check on board-anchored maps, R3.19, 21 November
+
+| Level | Check | Value | Status | Source |
+|---|---|---|---|---|
+| 5 | House video map 10 | its board anchor implied 2.4 m/s over the whole map; rebuilt for 287.5–301.4 s (r009): 0.65 m/s, 20 of 25 keyframes usable, 70,663 points (r005 had 2,540 points 11–21 m away) | recorded | 21 Nov |
+| 5 | Other board-anchored maps | implied speeds 0.29–1.34 m/s; none trimmed | recorded | 21 Nov |
+| 5 | Bedroom agreement across recordings, `house_all6` | house video map 0 against 12:11:18 map 0, 12:04:50 maps 0 and 8: 4.6, 6.6 and 7.7 cm median (60–85% of points within 30 cm); trimmed map 10 against map 0: 5.2 cm | provisional measurement (consistency between runs, not accuracy) | Claude, 21 Nov |
+| 5 | Living/dining agreement, `house_all6` | house video map 9 against 12:04:50 map 3, both anchored by board 02: 21.1 cm median, 27% of points within 30 cm | provisional measurement | Claude, 21 Nov |
+| 5 | Rooms, `house_all6` | bedroom 184 of 212 keyframes usable (0.87); living/dining 204 of 321 (0.64) | bedroom meets 0.8, living/dining fails; metric assessment pending (D137) | 21 Nov |
+| 5 | Merged cloud `house_all6` | 687,855 points; extent 8.78 × 3.89 × 10.43 m; floor overlap with the 17 Nov link 19%, with the 18 Nov link 42% | provisional measurement | 21 Nov |

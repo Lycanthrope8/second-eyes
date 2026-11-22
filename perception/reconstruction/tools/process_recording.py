@@ -32,6 +32,7 @@ except ModuleNotFoundError as e:
     sys.exit(f"{e.name} is not installed in this Python. Activate the project's environment first:\n"
              "  Windows:       .venv-qrecon\\Scripts\\Activate.ps1\n  Linux / macOS: source .venv-qrecon/bin/activate")
 from qrecon import questconfig as QC, mapalign as MA  # noqa: E402
+from qrecon.tracking_profiles import PROFILES  # noqa: E402
 
 
 def run(cmd):
@@ -187,6 +188,8 @@ def plan_maps(maps, windows, min_map_s):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--video"); ap.add_argument("--calib"); ap.add_argument("--name")
+    ap.add_argument("--profile", choices=sorted(PROFILES),
+                    help="tracking preset (qrecon/tracking_profiles.py); sets --every, --restart-after and tracker settings")
     ap.add_argument("--recheck", nargs="+", metavar="SUMMARY",
                     help="only apply the speed check to the board-anchored reconstructions in these recording summaries")
     ap.add_argument("--max-speed", type=float, default=2.0, help="m/s; a board anchor implying faster camera motion is trimmed")
@@ -205,6 +208,11 @@ def main():
         return recheck(a.recheck, a.max_speed, a.trim_pad_s, a.model, a.max_keyframes)
     if not (a.video and a.calib and a.name):
         sys.exit("give --video, --calib and --name (or --recheck SUMMARY ...)")
+    overrides = {}
+    if a.profile:
+        prof = PROFILES[a.profile]
+        a.every, a.restart_after, overrides = prof["every"], prof["restart_after"], prof["stella"]
+        print(f"tracking profile {a.profile}: {prof['about']}")
     py, vt = sys.executable, HERE / "scripts" / "video_tools.py"
     video, data = Path(a.video), HERE / "data"
     data.mkdir(exist_ok=True)
@@ -234,7 +242,7 @@ def main():
     if any(windows.values()) and not (boards / "rgb.txt").is_file():
         run([py, vt, "frames", "--video", video, "--every", 2, "--board-spans", spans, "--out", boards])
     cam = data / (f"{a.name}_camera.yaml" if not a.focal_px else f"{a.name}_camera_f{int(a.focal_px)}.yaml")
-    cam.write_text(QC.stella_camera_yaml(calib, a.scale, round(fps, 3), name=a.name))
+    cam.write_text(QC.stella_camera_yaml(calib, a.scale, round(fps, 3), name=a.name, overrides=overrides))
 
     trk = a.tracking_run
     if not trk:
@@ -247,7 +255,8 @@ def main():
     coverage = json.loads((tdir / "coverage.json").read_text()) if (tdir / "coverage.json").is_file() else None
     summary = {"video": video.name, "name": a.name, "calib": str(calib_used), "tracking_run": trk, "coverage": coverage,
                "board_windows_s": windows, "frames": str(frames), "frame_scale": a.scale, "fps": round(fps, 3),
-               "model": a.model, "max_keyframes": a.max_keyframes, "maps": [], "recon_runs": []}
+               "model": a.model, "max_keyframes": a.max_keyframes, "profile": a.profile or "custom",
+               "maps": [], "recon_runs": []}
     for m, seen, why in plan_maps(maps, windows, a.min_map_s):
         entry = {"map": m["map"], "first_t": m["first_t"], "last_t": m["last_t"], "tracked_frames": m["tracked_frames"],
                  "boards_seen": seen}

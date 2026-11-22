@@ -55,8 +55,20 @@ def build(frames, trajectory, camera, depth, anchor=None, max_keyframes=None, ma
     return cfg
 
 
-def stella_camera_yaml(calib, scale=1.0, fps=30.0, name="replayed video"):
-    """stella_vslam camera file for frames resized by `scale` (OpenCV pixel-centre convention)."""
+def stella_camera_yaml(calib, scale=1.0, fps=30.0, name="replayed video", overrides=None):
+    """stella_vslam camera file for frames resized by `scale` (OpenCV pixel-centre convention). `overrides` changes or
+    adds settings by section, for instance {"Feature": {"ini_fast_threshold": 12}} (qrecon/tracking_profiles.py)."""
+    text = _stella_camera_yaml(calib, scale, fps, name)
+    if not overrides:
+        return text
+    import yaml
+    cfg = yaml.safe_load(text)
+    for section, values in overrides.items():
+        cfg.setdefault(section, {}).update(values)
+    return f"# generated from a calibration, scale {scale}, with tracking overrides\n" + yaml.safe_dump(cfg, sort_keys=False)
+
+
+def _stella_camera_yaml(calib, scale=1.0, fps=30.0, name="replayed video"):
     K = calib["K"]
     d = list(calib.get("dist", [])) + [0.0] * 5
     w, h = calib["size"]
