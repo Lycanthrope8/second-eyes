@@ -21,6 +21,11 @@ def test_a_video_s_pieces_become_one_trajectory_and_one_reconstruction(tmp_path,
     assert len(t) == 42 and np.all(np.diff(t) > 0)
     truth = np.array([T._pose(-1.0 + 0.1 * k, 0.6, 1.75 * k)[:3, 3] for k in range(21)])
     assert np.median(np.linalg.norm(Tj[21:, :3, 3] - truth, axis=1)) < 0.10          # the joined piece lands where it was
+    info2 = OM.main(["--recording", str(summ), "--dry-run", "--target", "ref02"])    # refined in ref02, by its located frames
+    r = info2["pieces"][1]["refine"]
+    assert r["located"] >= 4 and r["moved_median_m"] < 0.05
+    t2, T2 = MA.read_tum(tmp_path / "runs" / "one_map" / "syn_trajectory.txt")
+    assert np.median(np.linalg.norm(T2[21:, :3, 3] - truth, axis=1)) < 0.10
     def fake(rec, traj, fixed, args):
         assert json.loads(open(fixed).read())["frame"] == "ref02"
         d = tmp_path / "runs" / "one1" / "recon"; d.mkdir(parents=True)
@@ -79,3 +84,29 @@ def test_a_piece_nothing_else_can_place_joins_by_its_own_failed_anchor_flagged(t
     info = OM.main(["--recording", str(summ), "--dry-run"])
     assert [(p["map"], p["how"]) for p in info["pieces"]] == [(0, "board, failed its checks")]
     assert [e["map"] for e in info["left_out"]] == [1]                    # a failed anchor never places another piece
+
+
+def test_each_board_window_inside_a_piece_is_fitted_on_its_own_and_cached(tmp_path, monkeypatch):
+    import argparse
+    from qrecon import refine as RF
+    monkeypatch.setattr(OM, "HERE", tmp_path); monkeypatch.setattr(PM, "HERE", tmp_path)
+    summ, _ = TP._setup(tmp_path)
+    S = json.loads(summ.read_text()); S["board_windows_s"] = {"ref02": [[10.0, 14.0]], "ref01": [[500.0, 510.0]]}
+    summ.write_text(json.dumps(S))
+    rec = PM.load_recording(summ)
+    tu, Tu = MA.read_tum(PM.map_trajectory(rec, 1))
+    known = (1.7, RF._sim3(np.r_[0.0, 0.1, -0.2, 0.05, 0, 0, 0])[1], np.array([0.5, -1.0, 2.0]))
+    calls = []
+    def fake(rec_, m, board, window, args):
+        calls.append((m, board, tuple(window)))
+        d = tmp_path / "runs" / "fw1" / "recon"; d.mkdir(parents=True, exist_ok=True)
+        (d / "anchor.json").write_text(json.dumps({"frame": board, board: {"ok": True}}))
+        TP._tum(d / "anchored_trajectory.txt", tu, RF.apply(RF._params(*known), Tu))
+        return "fw1"
+    monkeypatch.setattr(OM, "anchor_window", fake)
+    args, cache = argparse.Namespace(dry_run=False, model="m"), {}
+    out = OM.window_fits(rec, {"map": 1}, tu, Tu, args, cache)
+    assert calls == [(1, "ref02", (10.0, 14.0))] and out[0]["ok"] and abs(out[0]["sim3"][0] - 1.7) < 1e-6
+    assert cache == {"1:ref02:10.00-14.00": "fw1"}
+    OM.window_fits(rec, {"map": 1}, tu, Tu, args, cache)                         # cached: no second headset run
+    assert len(calls) == 1

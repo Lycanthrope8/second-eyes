@@ -157,3 +157,12 @@ use nominal timestamps (frame index / frame rate); R3.14 recomputes them from th
 | 5 | Points outside the reference's extent | mostly beyond its far end (x 7–10 m, z −7 to −11 m in board 01's frame), at heights from the floor up; 45% of 12:04:50's outside points lie within 15 cm of the house video's; part may be space the reference does not cover, part drift in long pieces | provisional measurement | Claude, 22 Nov |
 | 5 | Aligning the three videos to each other by their overlap | median 15.0 → 13.9 cm (5 cm cells): the remaining error is mostly inside each video | provisional measurement | Claude, 22 Nov |
 | 5 | A fourth board link | 12:04:50 map 9 saw board 02 at 6.08 m from board 01 (board fit 1.5 mm); the links now read 2.72, 4.19, 5.18 and 6.08 m; D140 stands | recorded | 22 Nov |
+
+## One map per video with keyframe groups (R3.23), 22 November
+
+| Level | Check | Value | Status | Source |
+|---|---|---|---|---|
+| 5 | Joined again with both other videos as helpers | house video: 5 pieces, 212 s (70%; map 4 now by shared views); 12:11:18: 3 pieces, 152 s (41%; map 4 refused at 3.4 m/s, map 6 trimmed to 332.8–367.4 s); 12:04:50: 3 pieces, 204 s (59%; maps 5 and 8 found no consistent placement) | recorded | 22 Nov |
+| 5 | Usable keyframes with keyframe groups | 0.535, 0.59 and 0.50 (R3.22: 0.60, 0.43 and 0.46) | recorded | 22 Nov |
+| 5 | Against the MASt3R-SLAM reference, inside its extent | `house_one3`: median 8.9 cm, precision 0.53, recall 0.32, F-score 0.40 at 10 cm, 8% of points outside the extent (R3.22: 6.9 cm, 0.60, 0.26, 0.36, 23%); whole-cloud medians per video: house 12.7 cm, 12:11:18 10.3 cm, 12:04:50 8.1 cm | provisional measurement (comparison, not ground truth) | 22 Nov |
+| 5 | Joining depends on the helpers | pieces joined in R3.22 through another video's drifting piece were not joined in R3.23, and the share of points outside the reference fell from 23% to 8% | recorded | Claude, 22 Nov |

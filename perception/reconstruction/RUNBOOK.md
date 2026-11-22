@@ -234,3 +234,8 @@ as a flagged last resort; such a piece never places another.
 R3.23: capped keyframes are kept in groups of four consecutive keyframes, spread over the path, so each keyframe keeps
 close neighbours for its depth calibration. The merge counts one-map runs as anchored and notes that their figures span
 whole videos. score_cloud.py also reports the result inside the reference's own extent and the share of points outside it.
+
+R3.24 (D144): one_map.py refines every piece for scale drift before reconstructing: stretches of at most 15 s
+(`--refine-stretch-s`) with their own similarity, from an anchor-only fit of every board window inside the piece
+(cached in the summary, so a second run does not repeat them), frames located by shared views and continuity between
+stretches. `--no-refine` keeps one similarity per piece. view_maps.py understands one-map runs.

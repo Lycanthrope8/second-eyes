@@ -13,8 +13,11 @@ anchor as a last resort and flagged; it never serves to place other pieces.
 Pieces in another board's frame are carried into the target board's frame by a board link (--use-link names the runs
 whose links to use, D140). The joined camera path, one trajectory in one metric frame, is then reconstructed on the
 headset in a single run, giving one cloud for the video. Pieces that cannot be joined are listed with the reason;
-nothing is split silently. The recording summary records the join and its run, which merge_clouds.py and
-score_cloud.py then use (a copy of the summary is kept as .bak).
+nothing is split silently. Before the reconstruction every piece is refined for scale drift (qrecon/refine.py): each
+stretch of it gets its own similarity, from the fits of the board windows inside it (an anchor-only run per window), the
+frames located by shared views (for pieces anchored by a board, against the other recordings) and continuity between
+stretches; --no-refine keeps one similarity per piece. The recording summary records the join and its run, which
+merge_clouds.py and score_cloud.py then use (a copy of the summary is kept as .bak).
 """
 import argparse, json, shutil, subprocess, sys, time
 from pathlib import Path
@@ -28,7 +31,7 @@ try:
 except ModuleNotFoundError as e:
     sys.exit(f"{e.name} is not installed in this Python. Activate the project's environment first:\n"
              "  Windows:       .venv-qrecon\\Scripts\\Activate.ps1\n  Linux / macOS: source .venv-qrecon/bin/activate")
-from qrecon import mapalign as MA  # noqa: E402
+from qrecon import mapalign as MA, refine as RF  # noqa: E402
 import place_maps as PM  # noqa: E402
 import merge_clouds as MC  # noqa: E402
 
@@ -123,6 +126,7 @@ def join(rec, helpers, args):
                 else:
                     keep = in_span(t, kspan if kind == "trimmed" else None)
                     piece = {"key": f"{S['name']} map {m}", "frame": res["frame"], "ok": True, "how": "shared views",
+                             "located": rep["located"],
                              "times": t[keep], "poses": apply_sim3(T[keep], res["s"], res["R"], res["t"]), "map": m,
                              "with": res["with_maps"], "inliers": len(res["inliers"]), "center_rms_m": round(res["center_rms_m"], 3),
                              "speed_p95_mps": round(speed, 2), "kept": kind, "span_s": [round(x, 3) for x in kspan] if kspan else None}
@@ -139,6 +143,21 @@ def join(rec, helpers, args):
             cands.remove(p["map"])
             joined.append(p)
             refs.append(p)
+    helper_refs = [p for h in helpers for p in pieces_of(h, own=False) if p["ok"]]
+    if getattr(args, "refine", False) and helper_refs:
+        pdb_h = []
+        for p in helper_refs:
+            if p["key"] not in pdb_cache:
+                src = next(h for h in helpers if p["key"].startswith(h["summary"]["name"] + " "))
+                pdb_cache[p["key"]] = MA.p_database(frames_from(src, p["times"], p["poses"], p["frame"], p["key"]), src["K"], step_s=1.0)
+            pdb_h += pdb_cache[p["key"]]
+        if pdb_h:
+            vocab_h = MA.Vocab([q["d"] for q in pdb_h])
+            for p in joined:
+                if p["how"] == "board" and len(p["times"]):
+                    _, rep = MA.place(PM.frames_of(rec, PM.map_trajectory(rec, p["map"]), span=(p["times"][0], p["times"][-1])),
+                                      pdb_h, rec["K"], vocab=vocab_h, step_s=1.0, max_center_m=args.max_center_m, min_frames=args.min_frames)
+                    p["located"] = rep["located"]
     for m in [m for m in cands if m in failed and len(failed[m]["times"])]:
         p = failed[m]                                   # last resort, flagged: its own board anchor although a check failed
         p["how"] = "board, failed its checks"
@@ -149,6 +168,105 @@ def join(rec, helpers, args):
              "reason": why.get(m, "no frame matched a placed piece") + ("; its board anchor failed its checks" if m in failed else "")}
             for m in cands]
     return joined, left, attempts
+
+
+def anchor_window(rec, m, board, window, args):
+    """An anchor-only run on the headset for one board window of one piece: that window's own fit."""
+    S = rec["summary"]
+    spans = HERE / "runs" / "one_map" / f"{S['name']}_map{m:02d}_{board}_{window[0]:.1f}.json"
+    spans.parent.mkdir(parents=True, exist_ok=True)
+    spans.write_text(json.dumps({"windows_s": {board: [list(window)]}}))
+    before = PM.runs_now()
+    cmd = [sys.executable, str(HERE / "tools" / "reconstruct_on_quest.py"), "--name", S["name"], "--frames", str(rec["frames"]),
+           "--board-frames", str(HERE / "data" / f"{S['name']}_autoboards"), "--board-spans", str(spans), "--calib", S["calib"],
+           "--frame-scale", str(rec["scale"]), "--fps", str(rec["fps"]), "--model", args.model, "--tracking-run", S["tracking_run"],
+           "--map", str(m), "--anchor", "best-effort", "--anchor-only"]
+    print("$ " + " ".join(cmd), flush=True)
+    r = subprocess.run(cmd, cwd=HERE)
+    made = sorted(PM.runs_now() - before)
+    return made[-1] if r.returncode == 0 and made else None
+
+
+def window_fits(rec, p, tu, Tu, args, cache):
+    """Each board window inside a piece, fitted on its own (cached by piece, board and window):
+    [{board, window, run, ok, sim3 from tracker units into the board's frame}]."""
+    out = []
+    lo, hi = float(tu[0]), float(tu[-1])
+    for board, ws in (rec["summary"].get("board_windows_s") or {}).items():
+        for w in ws:
+            if w[1] < lo or w[0] > hi:
+                continue
+            key = f"{p['map']}:{board}:{w[0]:.2f}-{w[1]:.2f}"
+            run = cache.get(key)
+            if not run or not (HERE / "runs" / run / "recon" / "anchor.json").is_file():
+                if args.dry_run:
+                    continue
+                run = anchor_window(rec, p["map"], board, w, args)
+                if not run:
+                    continue
+                cache[key] = run
+            _, F, ok = anchor_info(run)
+            path = HERE / "runs" / run / "recon" / "anchored_trajectory.txt"
+            entry = {"board": board, "window": [float(w[0]), float(w[1])], "run": run, "ok": bool(ok and F == board)}
+            if entry["ok"] and path.is_file():
+                ta, Ta = MA.read_tum(path)
+                i = np.searchsorted(tu, ta)
+                good = (i < len(tu)) & (np.abs(tu[np.clip(i, 0, len(tu) - 1)] - ta) < 1e-3)
+                if good.sum() >= 3:
+                    entry["sim3"] = RF.umeyama(Tu[i[good], :3, 3], Ta[good, :3, 3])
+            if "sim3" not in entry:
+                entry["ok"] = False
+            out.append(entry)
+    return out
+
+
+def refine_pieces(rec, joined, transforms, target, args, cache):
+    """Drift-aware refinement (qrecon/refine.py) of every joined piece, in the target frame."""
+    for p in joined:
+        if p.get("map") is None or p["frame"] not in transforms or not len(p["times"]):
+            continue
+        traj = PM.map_trajectory(rec, p["map"])
+        if not Path(traj).is_file():
+            continue
+        tu, Tu = MA.read_tum(traj)
+        keep = in_span(tu, (p["times"][0], p["times"][-1]))
+        tu, Tu = tu[keep], Tu[keep]
+        if len(tu) < 10:
+            continue
+        cur = apply_sim3(p["poses"], *transforms[p["frame"]])
+        i = np.searchsorted(tu, p["times"])
+        good = (i < len(tu)) & (np.abs(tu[np.clip(i, 0, len(tu) - 1)] - p["times"]) < 1e-3)
+        sim0 = RF.umeyama(Tu[i[good], :3, 3], cur[good, :3, 3])
+        wins, used = [], []
+        for wf in window_fits(rec, p, tu, Tu, args, cache):
+            used.append({k: wf[k] for k in ("board", "window", "run", "ok")})
+            if not wf["ok"] or wf["board"] not in transforms:
+                continue
+            sb, Rb, tb = transforms[wf["board"]]
+            sw, Rw, tw = wf["sim3"]
+            ix = np.flatnonzero((tu >= wf["window"][0]) & (tu <= wf["window"][1]))
+            wins.append((ix[::max(1, len(ix) // 12)], (sb * sw, Rb @ Rw, sb * Rb @ tw + tb)))
+        locs = []
+        for L in p.get("located", []):
+            if L["frame"] not in transforms:
+                continue
+            j = int(np.argmin(np.abs(tu - L["t"])))
+            if abs(tu[j] - L["t"]) < 1e-3:
+                locs.append((j, apply_sim3(np.asarray(L["T_p"])[None], *transforms[L["frame"]])[0]))
+        W, info = RF.refine_piece(tu, Tu, sim0, wins, locs, max_len_s=args.refine_stretch_s)
+        before = RF.apply(RF._params(*sim0), Tu)[:, :3, 3]
+        moved = np.linalg.norm(W[:, :3, 3] - before, axis=1)
+        speed = MA.implied_speed(tu, W[:, :3, 3], 1.0)
+        info.update(board_windows=used, speed_p95_mps=round(speed, 2), moved_median_m=round(float(np.median(moved)), 3),
+                    moved_max_m=round(float(moved.max()), 3))
+        if speed > args.max_speed:
+            info["kept"] = f"unrefined: the refined path implies {speed:.1f} m/s"
+        else:
+            p["times"], p["poses"], p["frame"] = tu, W, target
+        p["refine"] = info
+        print(f"  map {p['map']} refined: {info['stretches']} stretch(es), {info['windows']} board window(s), {info['located']} located "
+              f"frame(s); scale along it x{info['scale_change'][0]}-{info['scale_change'][1]}; moved {100 * info['moved_median_m']:.0f} cm "
+              f"median, {100 * info['moved_max_m']:.0f} cm at most" + (f"; {info['kept']}" if "kept" in info else ""), flush=True)
 
 
 def combine(joined, transforms, target):
@@ -211,6 +329,9 @@ def main(argv=None):
     ap.add_argument("--max-speed", type=float, default=2.0)
     ap.add_argument("--trim-pad-s", type=float, default=10.0)
     ap.add_argument("--dry-run", action="store_true", help="join and write the trajectory, no reconstruction")
+    ap.add_argument("--no-refine", dest="refine", action="store_false",
+                    help="one similarity per piece, without the drift-aware refinement (qrecon/refine.py)")
+    ap.add_argument("--refine-stretch-s", type=float, default=15.0, help="longest stretch of a piece with its own similarity")
     a = ap.parse_args(argv)
     rec = PM.load_recording(a.recording)
     helpers = [PM.load_recording(h) for h in a.helpers]
@@ -229,6 +350,10 @@ def main(argv=None):
     for F in frames - {a.target}:
         if F in paths:
             transforms[F] = paths[F][1]
+    cache = dict((S.get("one_map") or {}).get("window_fits", {}))
+    if a.refine:
+        print(f"{S['name']}: refining the pieces for drift")
+        refine_pieces(rec, joined, transforms, a.target, a, cache)
     frame, t, T, used, dropped = combine(joined, transforms, a.target)
     for p in dropped:
         left.append({"map": p["map"], "seconds": round(float(p["times"][-1] - p["times"][0]), 1),
@@ -249,7 +374,8 @@ def main(argv=None):
                                  "by": f"one map of {len(used)} piece(s)"}, indent=1))
     info = {"frame": frame, "trajectory": str(traj), "joined_s": round(joined_s, 1),
             "share_of_video": round(joined_s / span, 3) if span else None, "links_from": link_runs if len(frames) > 1 else [],
-            "pieces": [{k: (v if not isinstance(v, np.ndarray) else None) for k, v in p.items() if k not in ("times", "poses")}
+            "refined": bool(a.refine), "window_fits": cache,
+            "pieces": [{k: (v if not isinstance(v, np.ndarray) else None) for k, v in p.items() if k not in ("times", "poses", "located")}
                        | {"first_t": round(float(p["times"][0]), 3), "last_t": round(float(p["times"][-1]), 3)} for p in used],
             "left_out": left, "attempts": attempts}
     if a.dry_run:
