@@ -217,3 +217,12 @@ R3.20: tracking presets (qrecon/tracking_profiles.py) and `tools/tracking_sweep.
 tracks one recording with each preset (about the video's length each, no reconstruction) and tabulates maps, breaks,
 coverage and the longest map. `process_recording.py --profile NAME` processes a recording with a chosen preset; with
 `--tracking-run` it reuses that preset's sweep run.
+
+Scoring (D141): `python tools/score_cloud.py --reference PATH\registered.ply --cloud NAME --align --by-run` scores a merge
+against the MASt3R-SLAM reference, whole and per map (about two minutes on 18.6 million reference points).
+
+R3.21, one map per video (D142, D143): `process_recording.py --profile fps30_features --one-map [--helpers ...]
+[--use-link RUN]` tracks the video, anchors the pieces that see a board (anchor only), joins all pieces with
+`tools/one_map.py` and reconstructs the joined map in one run; `tools/one_map.py --recording ... --helpers ...` joins a
+processed recording again (for instance once other recordings can help). Reconstructions placed by a fixed similarity
+get their keyframes spread over the whole path instead of stopping at the cap.

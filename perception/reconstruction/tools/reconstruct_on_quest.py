@@ -19,6 +19,23 @@ HERE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HERE))
 from qrecon import framelist as FL, registry as REG, questconfig as QC, config as C  # noqa: E402
 
+
+def spread_keyframes(src, dst, max_n):
+    """The headset program takes keyframes in time order and stops at max_keyframes, which would leave the end of a long
+    path out. For a path placed by a fixed similarity (no board fit needs its dense poses), keep only the poses the
+    keyframe rule picks (configs/qrecon.yaml), thinned evenly over the whole path to max_n. Returns (candidates, kept)."""
+    import numpy as np
+    from qrecon import keyframes as KFS
+    from qrecon.mapalign import read_tum
+    lines = [l for l in open(src) if l.strip() and not l.startswith("#")]
+    t, T = read_tum(src)
+    kc = C.load(os.path.join(str(HERE), "configs", "qrecon.yaml"))["keyframes"]
+    idx = KFS.select(T, t, kc["min_trans_m"], kc["min_rot_deg"], kc["min_dt_s"])
+    if len(idx) > max_n:
+        idx = [idx[i] for i in sorted(set(np.round(np.linspace(0, len(idx) - 1, max_n)).astype(int).tolist()))]
+    Path(dst).write_text("".join(lines[i] for i in idx))
+    return len(KFS.select(T, t, kc["min_trans_m"], kc["min_rot_deg"], kc["min_dt_s"])), len(idx)
+
 REMOTE = "/data/local/tmp/qtrack"
 RUNTIME = HERE / "tracking" / "out" / "android-arm64"
 
@@ -142,6 +159,11 @@ def main():
             traj = Path(a.trajectory)
         if not traj.is_file():
             sys.exit(f"{traj} not found")
+        if a.fixed_anchor and a.max_keyframes:
+            n_all, n_kept = spread_keyframes(traj, path / "keyframe_poses.txt", a.max_keyframes)
+            device["keyframes_spread"] = {"candidates": n_all, "kept": n_kept}
+            print(f"keyframes: {n_kept} of {n_all} candidates, spread over the whole path")
+            traj = path / "keyframe_poses.txt"
         adb("push", str(traj), f"{rout}/tracking/frame_trajectory.txt", capture=False)
         device["tracking"] = f"reused from {a.tracking_run}" + (f", map {a.map}" if a.map is not None else "")
     else:

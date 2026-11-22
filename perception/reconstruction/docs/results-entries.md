@@ -115,3 +115,21 @@ use nominal timestamps (frame index / frame rate); R3.14 recomputes them from th
 | 5 | Living/dining agreement, `house_all6` | house video map 9 against 12:04:50 map 3, both anchored by board 02: 21.1 cm median, 27% of points within 30 cm | provisional measurement | Claude, 21 Nov |
 | 5 | Rooms, `house_all6` | bedroom 184 of 212 keyframes usable (0.87); living/dining 204 of 321 (0.64) | bedroom meets 0.8, living/dining fails; metric assessment pending (D137) | 21 Nov |
 | 5 | Merged cloud `house_all6` | 687,855 points; extent 8.78 × 3.89 × 10.43 m; floor overlap with the 17 Nov link 19%, with the 18 Nov link 42% | provisional measurement | 21 Nov |
+
+## Comparison with the MASt3R-SLAM reference (D141), 21 November
+
+| Level | Check | Value | Status | Source |
+|---|---|---|---|---|
+| 5 | Reference | `registered.ply`, 18,590,183 points; thinned to 2 cm cells 1,699,837 points and to 5 cm cells 219,464, both keeping all of its surfaces within 5 cm; already in board 01's frame (refinement 0.76°, 4.6 cm) | recorded | Claude, 21 Nov |
+| 5 | `house_all6` against the reference | median 12.9 cm; precision 0.32 and 0.45, recall 0.21 and 0.34, F-score 0.25 and 0.39 at 5 and 10 cm | provisional measurement (comparison, not ground truth) | Claude, 21 Nov |
+| 5 | Per map | best: house video map 0 and 12:04:50 map 8, 2.9 cm median (83–84% within 10 cm); house video map 10 4.5 cm; 12:11:18 map 5 5.8 cm; house video map 9 7.8 cm. Worst: 12:11:18 map 7 37.9 cm, 12:11:18 map 0 36.5 cm (its anchor failed the corner-fit check), 12:04:50 map 0 25.7 cm (placed against 12:11:18 map 0 with `--include-failed-anchors`) | provisional measurement | Claude, 21 Nov |
+| 5 | Without the failed-anchor map and the map placed through it | median 5.7 cm; precision 0.64, recall 0.33, F-score 0.44 at 10 cm | provisional measurement | Claude, 21 Nov |
+| 5 | Placement of the two rooms | fitted room by room to the reference, the bedroom maps move 16 cm and 4.0°, the living/dining maps 7 cm and 2.5° | provisional measurement; supports D140 | Claude, 21 Nov |
+
+## Tracking presets (R3.20 sweep) and the keyframe cap, 21 November
+
+| Level | Check | Value | Status | Source |
+|---|---|---|---|---|
+| 4b | 12:11:18, four presets (maps saved, discarded, breaks, tracked share whole and from initialisation, longest map) | baseline 9, 2, 8, 0.744, 0.764, 65.4 s; fps30 9, 1, 8, 0.787, 0.806, 65.0 s; fps30_features 7, 0, 6, 0.892, 0.909, 109.9 s; fps30_features_keep 9, 0, 8, 0.849, 0.864, 107.6 s | provisional measurement (one run each; runs vary) | 21 Nov |
+| 4b | Tracking cost, fps30_features | 22.6 ms per frame median, 37.4 ms at the 95th percentile (33.3 ms between frames); 386 s for the 367.5 s video; peak 230 MB | recorded | 21 Nov |
+| 5 | Keyframe cap | the headset program takes keyframes in time order and stops at the cap, so a reconstruction capped at 60 keyframes (at most two a second) covered only the first part of a map longer than about 40 s; four runs in `house_all6` stopped at 60 (r005, r010, r012, r022). From R3.21, paths placed by a fixed similarity, including every one-map run, get their keyframes spread over the whole path | failed check, fixed for fixed-similarity paths | Claude, 21 Nov, from the program's code |

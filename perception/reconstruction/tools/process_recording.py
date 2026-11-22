@@ -13,7 +13,8 @@ Steps (each reuses earlier output when it is there):
   6. Each saved map that tracked at least --min-map-s seconds and saw a board is reconstructed on the headset and
      anchored by whichever board it saw (best effort); maps that saw no board are listed as unplaced
   7. runs/<name>_recording.json: coverage, every map and what happened to it, the reconstruction runs
-A board anchor whose trajectory implies an impossible camera speed (--max-speed) is redone for the stretch around the
+With --one-map (D142) the pieces that see a board are only anchored, then tools/one_map.py joins all the pieces into one
+map and reconstructs it once. A board anchor whose trajectory implies an impossible camera speed (--max-speed) is redone for the stretch around the
 board only. --recheck SUMMARY ... applies that check to reconstructions made before it existed.
 Then place the maps that saw no board, through the views they share with placed maps of any recording, and join:
   python tools/place_maps.py --recordings runs/<name>_recording.json [...]
@@ -168,6 +169,25 @@ def recheck(summary_paths, max_speed, pad_s, model, max_keyframes):
             print(f"-> {sp} (previous version kept as .bak)")
 
 
+def anchor_entry(rid, first_t, last_t, windows, max_speed, pad_s):
+    """Summary fields for a map anchored by an anchor-only run (one-map mode): the frame, whether the anchor passed its
+    checks, and the stretch kept if the anchored path implies an impossible camera speed."""
+    an = json.loads((HERE / "runs" / rid / "recon" / "anchor.json").read_text())
+    F = an.get("frame")
+    ok = F not in (None, "tracker") and bool(an.get(F, {}).get("ok"))
+    fields = {"anchor_run": rid, "frame": F, "anchor_ok": ok, "warnings": an.get("warnings", [])}
+    speed = anchored_speed(rid) if F not in (None, "tracker") else None
+    fields["speed_p95_mps"] = None if speed is None else round(speed, 2)
+    if speed is not None and speed > max_speed:
+        span = board_span(first_t, last_t, windows.get(F, []), pad_s)
+        fields.update(kept="trimmed", span_s=[round(span[0], 3), round(span[1], 3)]) if span else fields.update(anchor_ok=False)
+        if not span:
+            fields["warnings"] = fields["warnings"] + [f"anchor implies {speed:.1f} m/s and no stretch around the board to keep"]
+    else:
+        fields["kept"] = "full"
+    return fields
+
+
 def plan_maps(maps, windows, min_map_s):
     """Which saved maps to reconstruct: (map record, boards seen while it tracked, reason it is skipped or None)."""
     out = []
@@ -190,6 +210,12 @@ def main():
     ap.add_argument("--video"); ap.add_argument("--calib"); ap.add_argument("--name")
     ap.add_argument("--profile", choices=sorted(PROFILES),
                     help="tracking preset (qrecon/tracking_profiles.py); sets --every, --restart-after and tracker settings")
+    ap.add_argument("--one-map", action="store_true",
+                    help="one map for the video (D142): anchor the pieces that see a board (anchor only), join all pieces "
+                         "with tools/one_map.py and reconstruct the joined map once")
+    ap.add_argument("--helpers", nargs="*", default=[], help="with --one-map: other processed recordings to match against")
+    ap.add_argument("--use-link", nargs="*", default=[], metavar="RUN", help="with --one-map: runs whose board links to use (D140)")
+    ap.add_argument("--one-map-keyframes", type=int, default=200, help="with --one-map: keyframes for the one reconstruction")
     ap.add_argument("--recheck", nargs="+", metavar="SUMMARY",
                     help="only apply the speed check to the board-anchored reconstructions in these recording summaries")
     ap.add_argument("--max-speed", type=float, default=2.0, help="m/s; a board anchor implying faster camera motion is trimmed")
@@ -260,7 +286,16 @@ def main():
     for m, seen, why in plan_maps(maps, windows, a.min_map_s):
         entry = {"map": m["map"], "first_t": m["first_t"], "last_t": m["last_t"], "tracked_frames": m["tracked_frames"],
                  "boards_seen": seen}
-        if why or a.skip_reconstruction:
+        if a.one_map:
+            if seen and m["last_t"] - m["first_t"] >= a.min_map_s:
+                before = runs_now()
+                run([py, HERE / "tools" / "reconstruct_on_quest.py", "--name", a.name, "--frames", frames, "--board-frames", boards,
+                     "--board-spans", spans, "--calib", calib_used, "--frame-scale", a.scale, "--fps", round(fps, 3),
+                     "--model", a.model, "--tracking-run", trk, "--map", m["map"], "--anchor", "best-effort", "--anchor-only"])
+                entry.update(anchor_entry(new_run(before), m["first_t"], m["last_t"], windows, a.max_speed, a.trim_pad_s))
+            elif m["last_t"] - m["first_t"] < a.min_map_s:
+                entry["skipped"] = f"tracked for {m['last_t'] - m['first_t']:.1f} s, under --min-map-s {a.min_map_s}"
+        elif why or a.skip_reconstruction:
             entry["skipped"] = why or "--skip-reconstruction"
         else:
             ctx = {"name": a.name, "frames": frames, "boards": boards, "spans": spans, "calib": calib_used, "scale": a.scale,
@@ -278,13 +313,24 @@ def main():
         summary["maps"].append(entry)
     out = HERE / "runs" / f"{a.name}_recording.json"
     out.write_text(json.dumps(summary, indent=1))
+    if a.one_map:
+        run([py, HERE / "tools" / "one_map.py", "--recording", out, "--max-keyframes", a.one_map_keyframes, "--model", a.model]
+            + (["--helpers", *a.helpers] if a.helpers else []) + (["--use-link", *a.use_link] if a.use_link else []))
+        summary = json.loads(out.read_text())
     print(f"\n{a.name}: tracking {trk}, {len(summary['maps'])} saved map(s), {len(summary['recon_runs'])} reconstructed, "
           f"{(time.time() - t0) / 60:.0f} min")
     for e in summary["maps"]:
+        kept = f", kept {e['span_s'][0]:.1f}-{e['span_s'][1]:.1f} s only" if e.get("kept") == "trimmed" else ""
         what = (f"skipped: {e['skipped']}" if "skipped" in e else
-                f"{e['recon_run']}, frame {e['frame']}, valid keyframes {e['valid_keyframe_share']}"
-                + (f", kept {e['span_s'][0]:.1f}-{e['span_s'][1]:.1f} s only" if e.get("kept") == "trimmed" else ""))
+                f"{e['recon_run']}, frame {e['frame']}, valid keyframes {e['valid_keyframe_share']}{kept}" if e.get("recon_run") else
+                f"anchored by {e['frame']} ({'checks passed' if e.get('anchor_ok') else 'failed its checks'}, {e['anchor_run']}){kept}"
+                if e.get("anchor_run") else "no board: to be joined by shared views")
         print(f"  map {e['map']} ({e['first_t']:.1f}-{e['last_t']:.1f} s, boards {', '.join(e['boards_seen']) or 'none'}): {what}")
+    om = summary.get("one_map")
+    if om:
+        share = f" ({100 * om['share_of_video']:.0f}% of the video)" if om.get("share_of_video") else ""
+        print(f"one map: {om.get('recon_run')}, {len(om['pieces'])} piece(s) joined in {om['frame']}'s frame, {om['joined_s']} s{share}; "
+              f"{len(om['left_out'])} left out; valid keyframes {om.get('valid_keyframe_share')}")
     print(f"-> {out}")
 
 
