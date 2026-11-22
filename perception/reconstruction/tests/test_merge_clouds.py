@@ -114,3 +114,21 @@ def test_links_from_failed_anchors_lose_and_disagreeing_links_are_reported(tmp_p
     rep = json.load(open(tmp_path / "runs" / "m.json"))
     c = rep["link_checks"][0]
     assert c["boards"] == "ref01-ref02" and c["links"] == 2 and not c["agree"] and abs(c["max_position_difference_m"] - 2.915) < 0.01
+
+
+def test_a_chosen_link_places_the_boards_and_every_link_is_compared(tmp_path, monkeypatch):
+    monkeypatch.setattr(MC, "HERE", tmp_path)
+    world = np.random.default_rng(6).uniform(-1, 1, (50, 3))
+    R = np.eye(3)
+    _run(tmp_path, "b", world, {"frame": "ref02", "ref02": {"ok": True}})
+    _run(tmp_path, "a", world[:5], {"frame": "ref01", "ref01": {"ok": True}})
+    for name, tt, spread in (("near", [2.0, 0.0, 0.0], 0.001), ("far", [5.0, 0.0, 0.0], 0.004)):
+        rec = tmp_path / "runs" / name / "recon"; rec.mkdir(parents=True)
+        rec.joinpath("anchor.json").write_text(json.dumps({"frame": "ref01", "ref01": {"ok": True}, "links": {"ref02": {
+            "position_spread_m": spread, "position_m": tt[0], "sim3_board_in_frame": {"s": 1.0, "R": R.tolist(), "t": tt}}}}))
+    sys.argv = ["merge_clouds.py", "--runs", "a", "b", "near", "far", "--out", "m", "--use-link", "far"]
+    MC.main()
+    P, _ = MC.read_ply(tmp_path / "runs" / "m.ply")
+    assert np.allclose(np.sort(P[5:], axis=0), np.sort(world + [5.0, 0, 0], axis=0), atol=1e-5)   # placed with "far" although "near" is tighter
+    c = json.load(open(tmp_path / "runs" / "m.json"))["link_checks"][0]
+    assert c["distance_m"] == {"near": 2.0, "far": 5.0} and c["pairs"][0]["position_difference_m"] == 3.0

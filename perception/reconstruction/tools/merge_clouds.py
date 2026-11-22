@@ -11,7 +11,7 @@ how far apart their answers are. Because the boards are fixed to
 the walls, a link measured in one recording holds for every recording of the same place.
 
     python tools/merge_clouds.py --runs RUN [RUN ...] --out NAME [--frame ref01]
-    python tools/merge_clouds.py --recordings runs/<name>_recording.json [...] --out NAME
+    python tools/merge_clouds.py --recordings runs/<name>_recording.json [...] --out NAME [--use-link RUN] [--color-by-run]
 
 A run without a cloud (made with --anchor-only) is used only for the links it reports.
 Writes runs/<NAME>.ply and runs/<NAME>.json: the runs, their frames, points, the links used, and per room (the board
@@ -100,9 +100,14 @@ def link_checks(edges, max_m=0.10, max_deg=5.0):
         dpos = max(np.linalg.norm(g1[2] - g2[2]) for (g1, _), (g2, _) in __import__("itertools").combinations(items, 2))
         drot = max(np.degrees(np.arccos(np.clip((np.trace(g1[1].T @ g2[1]) - 1) / 2, -1, 1)))
                    for (g1, _), (g2, _) in __import__("itertools").combinations(items, 2))
+        pairs = []
+        for (g1, e1), (g2, e2) in __import__("itertools").combinations(items, 2):
+            pairs.append({"runs": [e1["run"], e2["run"]], "position_difference_m": round(float(np.linalg.norm(g1[2] - g2[2])), 3),
+                          "rotation_difference_deg": round(float(np.degrees(np.arccos(np.clip((np.trace(g1[1].T @ g2[1]) - 1) / 2, -1, 1)))), 2)})
         out.append({"boards": f"{a}-{b}", "links": len(items), "runs": [e["run"] for _, e in items],
+                    "distance_m": {e["run"]: round(float(np.linalg.norm(g[2])), 3) for g, e in items},
                     "max_position_difference_m": round(float(dpos), 3), "max_rotation_difference_deg": round(float(drot), 2),
-                    "agree": bool(dpos <= max_m and drot <= max_deg)})
+                    "agree": bool(dpos <= max_m and drot <= max_deg), "pairs": pairs})
     return out
 
 
@@ -174,6 +179,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--runs", nargs="*", default=[]); ap.add_argument("--recordings", nargs="*", default=[])
     ap.add_argument("--out", required=True); ap.add_argument("--frame", default="ref01", help="target board frame")
+    ap.add_argument("--use-link", nargs="+", metavar="RUN",
+                    help="join boards only through links reported by these runs (to compare layouts); all links are still checked")
     ap.add_argument("--color-by-run", action="store_true",
                     help="also write runs/NAME_by_run.ply with one colour per run, to see which run a part comes from")
     a = ap.parse_args()
@@ -191,7 +198,7 @@ def main():
         (runs if (rec / "cloud.ply").is_file() else link_only).append((run, anchor))
     edges = [e for run, anchor in runs + link_only for e in run_links(run, anchor)]
     target = a.frame
-    paths = best_paths(edges, target)
+    paths = best_paths([e for e in edges if not a.use_link or e["run"] in a.use_link], target)
     parts, report = [], {"target_frame": target, "runs": [], "links_used": {}, "link": None,
                          "link_only_runs": [run for run, _ in link_only]}
     for run, anchor in runs:
@@ -229,7 +236,11 @@ def main():
             print(f"  link: {d}")
     for c in report["link_checks"]:
         print(f"  {'' if c['agree'] else 'WARNING: '}{c['links']} links between {c['boards']} differ by up to "
-              f"{c['max_position_difference_m']:.2f} m and {c['max_rotation_difference_deg']:.1f} deg ({', '.join(c['runs'])})")
+              f"{c['max_position_difference_m']:.2f} m and {c['max_rotation_difference_deg']:.1f} deg")
+        for run, d in c["distance_m"].items():
+            print(f"    {run}: boards {d:.2f} m apart")
+        for q in c["pairs"]:
+            print(f"    {q['runs'][0]} vs {q['runs'][1]}: {q['position_difference_m']:.2f} m, {q['rotation_difference_deg']:.1f} deg")
     for F, r in report["rooms"].items():
         print(f"  room of {F}: valid keyframes {r['valid_keyframe_share']:.2f} ({r['keyframe_criterion']}), anchor {r['anchor']}; "
               f"Level 5 {r['level5']}")

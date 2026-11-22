@@ -77,3 +77,17 @@ use nominal timestamps (frame index / frame rate); R3.14 recomputes them from th
 | 5 | h121118 map 5 (r015) | scale 24.3; 18 of 60 keyframes usable; part of it lands about 12 m east and 7.5 m north of the rest, so the tracker's scale drifted inside that map. R3.17 checks the camera speed a placement implies and trims or refuses such maps | failed check | 18 Nov |
 | 5 | Usable keyframes of placed maps | r015 0.30, r016 0.57, r017 0.54, r018 0.92, r019 0.77 | recorded | 18 Nov |
 | 5 | Merged cloud `house_all3` | 381,742 points; extent 13.83 × 3.86 × 16.56 m, the misplaced part included; the placements mostly add the living/dining area | provisional measurement | 18 Nov |
+
+## Placement with the speed check, R3.17 (`--redo --include-failed-anchors --replace-failed`)
+
+| Level | Check | Value | Status | Source |
+|---|---|---|---|---|
+| 5 | h121118 map 5 | same fit (scale 24.3); the whole map would imply impossible speeds, so only 159.3–176.1 s were kept (0.9 m/s); r020: 25 of 30 keyframes usable (r015 had 18 of 60); the far-off part is gone | recorded | 18 Nov |
+| 5 | h121118 map 7 | whole map kept (0.16 m/s); r021: 25 of 42 keyframes usable | recorded | 18 Nov |
+| 5 | h120450 map 0 (bedroom) | its failed board anchor replaced by shared views with h121118 map 0: 41 of 60 located frames agree within 8.6 cm rms and 3.6° rms; r022: 53 of 60 keyframes usable, 172,764 points (r011 had 5 of 49) | recorded | 18 Nov |
+| 5 | No longer placed | h121118 map 10 and h120450 map 5 (their R3.16 placements went through map 5's drifted part); h120450 map 2 (located frames span 0.25–0.29 m, under the 0.3 m that fixes the scale). Seven maps unplaced in all | recorded | 18 Nov |
+| 5 | Bedroom (board 01), `house_all4` | usable keyframes 114 of 135 (0.84) | meets the 0.8 criterion; metric assessment pending (D137, O43) | 18 Nov |
+| 5 | Living/dining (board 02), `house_all4` | usable keyframes 138 of 213 (0.65) | failed check (0.8) | 18 Nov |
+| 5 | Agreement where runs overlap, `house_all4` | bedroom: r014 vs r009 6.5 cm median (76% of points within 30 cm), r014 vs r022 6.1 cm, r022 vs r009 14.7 cm (89%); living/dining: r020 vs r012 17.4 cm (65%), r021 vs r012 21.1 cm (64%), r013 vs r012 16.7 cm (39%); floor heights differ by up to about 30 cm between runs | provisional measurement (consistency between runs, not accuracy) | Claude, 18 Nov |
+| 5 | Merged cloud `house_all4` | 476,824 points; extent 8.78 × 3.89 × 10.43 m; nothing far outside the house | provisional measurement | 18 Nov |
+| 5 | Board links | still 2.72 m (r010) against 5.19 m (r007, used); r010's own reconstruction lies mostly between the rooms | failed check (the links disagree) | 18 Nov |

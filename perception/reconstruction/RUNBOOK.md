@@ -202,3 +202,7 @@ implausibly fast, only the stretch around the frames that placed it is kept (`--
 placed. `--redo` places again the maps placed by shared views before, by the current rules; `--replace-failed` also
 places, by shared views, maps whose board anchor failed and that kept under half their keyframes.
 `merge_clouds.py --color-by-run` also writes runs/NAME_by_run.ply with one colour per run.
+
+R3.18: the merge prints each board link's distance and the difference between every pair of links, and
+`--use-link RUN [RUN ...]` joins the boards only through the links of those runs, so the layout each link gives can be
+looked at side by side.
