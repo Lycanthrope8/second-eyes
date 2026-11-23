@@ -332,3 +332,26 @@ def test_the_trackers_points_calibrate_keyframes_that_have_nothing_to_triangulat
     kfs = json.load(open(tmp_path / "with" / "keyframes.json"))
     assert stats["valid_keyframes"] >= 0.8 * stats["keyframes"] and stats["map_points_loaded"] > 0
     assert all(k["triangulated"] == 0 and k["map_points"] > 0 for k in kfs)
+
+
+def test_a_depth_correction_that_varies_across_the_image_calibrates_a_tilted_depth_map(tmp_path):
+    s = synthetic.write_tum(str(tmp_path / "seq"))
+    cfg_y = C.load(os.path.join(REPO, "configs", "qrecon.yaml"))
+    oracle = dict(cfg_y["arms"]["oracle"], noise=0.0)
+    src = TumSource(s["dir"], s)
+    cam = QC.camera_block({"K": src.K.tolist(), "dist": [0] * 5, "size": [s["camera"]["width"], s["camera"]["height"]]})
+    depth = {"source": "oracle", "oracle": {"depth_list": os.path.join(s["dir"], "depth.txt"), "depth_factor": s["depth_factor"],
+                                         "a": oracle["a"], "b": oracle["b"], "tilt": 0.3}}   # an error that tilts across the image
+    cfg = QC.build(os.path.join(s["dir"], "rgb.txt"), os.path.join(s["dir"], "groundtruth.txt"), cam, depth)
+    r, affine, _ = _run(cfg, str(tmp_path / "affine"))
+    assert r.returncode == 0, r.stderr
+    cfg["calibration"]["model"] = "affine_tilt"
+    r, tilt, _ = _run(cfg, str(tmp_path / "tilt"))
+    assert r.returncode == 0, r.stderr
+    def held_out(name):
+        v = sorted(k["calibration"].get("holdout_median_rel_err", 9.0) for k in json.load(open(tmp_path / name / "keyframes.json")))
+        return v[len(v) // 2]
+    kfs = json.load(open(tmp_path / "tilt" / "keyframes.json"))
+    assert all(k["calibration"].get("model") == "affine_tilt" for k in kfs if k.get("calibration", {}).get("inliers"))
+    assert tilt["valid_keyframes"] >= affine["valid_keyframes"] and tilt["valid_keyframes"] >= 0.8 * tilt["keyframes"]
+    assert held_out("tilt") < 0.8 * held_out("affine")              # the tilt the plain fit cannot follow is taken out

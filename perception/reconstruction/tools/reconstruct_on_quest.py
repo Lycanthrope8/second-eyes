@@ -237,6 +237,7 @@ def main():
         adb("push", a.map_points, rmp, capture=False)
         cfg["map_points"] = {"file": rmp, "window_s": 1.0, "max_per_keyframe": 3000}
         device["map_points"] = a.map_points
+    cfg.setdefault("calibration", {}).setdefault("model", "affine")      # older configs/qrecon.yaml lack it
     if a.set:
         device["settings_changed"] = apply_settings(cfg, a.set)
         print("settings changed: " + ", ".join(f"{k}={v}" for k, v in device["settings_changed"].items()))

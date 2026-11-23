@@ -225,3 +225,21 @@ use nominal timestamps (frame index / frame rate); R3.14 recomputes them from th
 | 5 | Keyframes calibrated | 111 of 200 (56%) against 80 (40%); refused: too few landmarks 45 (28 with none), not spread 18, held-out 16, no consistent fit 6, non-positive depth 4; 120–140 s 4 of 23, 220–240 s 0 of 12 | provisional measurement | 22 Nov |
 | 5 | Cloud | 146,590 points against 94,917 | recorded | 22 Nov |
 | 5 | Against the MASt3R-SLAM reference | median 5.7 cm (4.7), 47% within 5 cm (51%), 64% within 10 cm (68%), recall 0.21 (0.16), F-score 0.32 (0.26) at 10 cm, 1% outside | provisional measurement | 22 Nov |
+
+## 12:04:50 with the tracker's points (R3.29, D148), 22 November
+
+| Level | Check | Value | Status | Source |
+|---|---|---|---|---|
+| 4b | Tracking again with point export (r080, fps30_features_more) | 9 maps, none discarded, 8 breaks, 0.909 tracked; this time 121–147 s is its own piece (r060 had joined it to the living-room piece) | provisional measurement | 22 Nov |
+| 5 | One map | 4 board pieces (all anchors passed, the bedroom too), 211 s (61%); 5 pieces (109 s) matched nothing; last piece refined by both boards (moved 119 cm median) | recorded | 22 Nov |
+| 5 | Keyframes calibrated (r092) | 155 of 198 (78%); refused: held-out 21, too few landmarks 12 (5 with none), not spread 7, other 3; living-room piece 49 of 87; tracker points 25,266 | provisional measurement | 22 Nov |
+| 5 | Against the MASt3R-SLAM reference | 281,394 points; median 7.9 cm, precision 0.55, recall 0.23, F-score 0.33 at 10 cm, 0.4% outside | provisional measurement | 22 Nov |
+| 5 | Where the accuracy went | on surfaces r078's map also had: bedroom 6.8 cm (6.1 there), living/dining 4.3 cm (4.1); surfaces new in this map: bedroom 17.2 cm and living/dining 16.3 cm median (32% and 39% within 10 cm). Calibrated keyframes' held-out error: median 6.3%, 90th percentile 12.5% (r078: 5.1%, 8.7%) | provisional measurement | Claude, 22 Nov |
+
+## Strict calibration and views per surface (r093, r094; same keyframes and tracker points as r092), 22 November
+
+| Level | Check | Value | Status | Source |
+|---|---|---|---|---|
+| 5 | Keyframes calibrated, strict limits | 121 of 198 (61%); refused: held-out 48, not spread 14, too few landmarks 12 (5 with none), other 3; living/dining piece 33 of 87 | provisional measurement | 22 Nov |
+| 5 | Strict limits, 2 views per surface (r093) | 232,857 points; median 6.5 cm, precision 0.59, recall 0.22, F-score 0.32 at 10 cm | provisional measurement | 22 Nov |
+| 5 | Strict limits, 3 views per surface (r094) | 97,239 points; median 3.7 cm, 57% within 5 cm, precision 0.71, recall 0.14, F-score 0.23 at 10 cm; bedroom 5.8 cm and 25% of its reference covered, living/dining 4.9 cm and 7% | provisional measurement; most accurate so far | 22 Nov |

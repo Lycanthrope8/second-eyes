@@ -25,6 +25,7 @@
 #endif
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -471,8 +472,20 @@ float sample(const cv::Mat& img, const Eigen::Vector2d& p) {
     int v = std::min(std::max(static_cast<int>(std::lround(p.y())), 0), img.rows - 1);
     return img.at<float>(v, u);
 }
+// Inverse depth from the network's relative value x at image position (u, v) in [-1, 1]:
+//   model "affine" (default):  1/z = c0 x + c1
+//   model "affine_tilt":       1/z = (c0 + c2 u + c3 v) x + c1 + c4 u + c5 v
+// The second lets the scale and offset vary linearly across the image, for depth maps whose error is a tilt rather
+// than one scale; it starts from the affine RANSAC fit and is refitted on its inliers by least squares.
+inline std::array<double, 6> depth_features(double x, double u, double v) { return {x, 1.0, x * u, x * v, u, v}; }
+inline double depth_model(const std::vector<double>& c, double x, double u, double v) {
+    const auto f = depth_features(x, u, v);
+    double s = 0;
+    for (size_t k = 0; k < c.size(); ++k) s += c[k] * f[k];
+    return s;
+}
 json fit_inverse_depth(const cv::Mat& rel, const std::vector<Eigen::Vector2d>& px, const std::vector<double>& z, const json& cfg,
-                       unsigned seed, double& a_out, double& b_out) {
+                       unsigned seed, std::vector<double>& coef_out) {
     json st;
     const int n = static_cast<int>(z.size());
     st["landmarks"] = n;
@@ -521,30 +534,66 @@ json fit_inverse_depth(const cv::Mat& rel, const std::vector<Eigen::Vector2d>& p
         }
     double den = m * sxx - sx * sx;
     double a = std::abs(den) < 1e-18 ? 0 : (m * sxy - sx * sy) / den, b = (sy - a * sx) / m;
+    std::vector<double> coef = {a, b, 0, 0, 0, 0};
+    std::vector<double> U(n), V(n);
+    for (int i = 0; i < n; ++i) U[i] = 2.0 * px[i].x() / rel.cols - 1.0, V[i] = 2.0 * px[i].y() / rel.rows - 1.0;
+    const std::string model = cfg.value("model", std::string("affine"));
+    st["model"] = model;
+    if (model == "affine_tilt") {
+        std::vector<char> inl(fit.size(), 0);          // start wide enough to reach across the image
+        for (size_t k = 0; k < fit.size(); ++k) {
+            const double ip = depth_model(coef, x[fit[k]], U[fit[k]], V[fit[k]]);
+            inl[k] = ip > 1e-6 && std::abs(1.0 / ip - z[fit[k]]) / z[fit[k]] < 3 * inl_err;
+        }
+        for (int iter = 0; iter < 4; ++iter) {
+            Eigen::Matrix<double, 6, 6> AtA = Eigen::Matrix<double, 6, 6>::Zero();
+            Eigen::Matrix<double, 6, 1> Aty = Eigen::Matrix<double, 6, 1>::Zero();
+            int m6 = 0;
+            for (size_t k = 0; k < fit.size(); ++k)
+                if (inl[k]) {
+                    const auto f = depth_features(x[fit[k]], U[fit[k]], V[fit[k]]);
+                    Eigen::Matrix<double, 6, 1> fv;
+                    for (int d = 0; d < 6; ++d) fv(d) = f[d];
+                    AtA += fv * fv.transpose(), Aty += fv * y[fit[k]], ++m6;
+                }
+            if (m6 < 24) break;
+            for (int d = 2; d < 6; ++d) AtA(d, d) += 1e-6 * m6;      // keeps a tilt the points cannot see small
+            const Eigen::Matrix<double, 6, 1> c6 = AtA.ldlt().solve(Aty);
+            for (int d = 0; d < 6; ++d) coef[d] = c6(d);
+            int cnt = 0;
+            for (size_t k = 0; k < fit.size(); ++k) {
+                const double ip = depth_model(coef, x[fit[k]], U[fit[k]], V[fit[k]]);
+                inl[k] = ip > 1e-6 && std::abs(1.0 / ip - z[fit[k]]) / z[fit[k]] < inl_err;
+                cnt += inl[k];
+            }
+            st["inliers"] = cnt;
+        }
+    }
     std::vector<double> herr;
     bool bad = false;
     for (int i : hold) {
-        double ip = a * x[i] + b;
+        double ip = depth_model(coef, x[i], U[i], V[i]);
         if (ip <= 1e-6) bad = true;
         else herr.push_back(std::abs(1.0 / ip - z[i]) / z[i]);
     }
     double hold_err = bad ? 1e9 : pct(herr, 0.5);
     double pos = 0;
     for (int r = 0; r < rel.rows; ++r)
-        for (int c = 0; c < rel.cols; ++c) pos += (a * rel.at<float>(r, c) + b > 1e-6);
+        for (int c = 0; c < rel.cols; ++c)
+            pos += (depth_model(coef, rel.at<float>(r, c), 2.0 * c / rel.cols - 1.0, 2.0 * r / rel.rows - 1.0) > 1e-6);
     pos /= static_cast<double>(rel.total());
     st["holdout_median_rel_err"] = hold_err;
     st["positive_share"] = pos;
-    a_out = a, b_out = b;
+    coef_out = coef;
     if (pos < cfg.at("min_positive_share").get<double>()) return json{{"ok", false}, {"reason", "fit gives non-positive depth over part of the image"}, {"stats", st}};
     if (hold_err > cfg.at("max_holdout_rel_err").get<double>()) return json{{"ok", false}, {"reason", "fit fails on held-out landmarks"}, {"stats", st}};
-    return json{{"ok", true}, {"reason", ""}, {"a", a}, {"b", b}, {"stats", st}};
+    return json{{"ok", true}, {"reason", ""}, {"a", coef[0]}, {"b", coef[1]}, {"coef", coef}, {"stats", st}};
 }
-cv::Mat apply_inverse_depth(const cv::Mat& rel, double a, double b, double max_depth) {
+cv::Mat apply_inverse_depth(const cv::Mat& rel, const std::vector<double>& coef, double max_depth) {
     cv::Mat d(rel.size(), CV_32F, cv::Scalar(0));
     for (int r = 0; r < rel.rows; ++r)
         for (int c = 0; c < rel.cols; ++c) {
-            double iv = a * rel.at<float>(r, c) + b;
+            double iv = depth_model(coef, rel.at<float>(r, c), 2.0 * c / rel.cols - 1.0, 2.0 * r / rel.rows - 1.0);
             if (iv > 1.0 / max_depth) d.at<float>(r, c) = static_cast<float>(1.0 / iv);
         }
     return d;
@@ -658,7 +707,9 @@ struct Oracle : DepthProvider {  // tests only: reference depth turned into an a
         root = dir_of(c.at("depth_list").get<std::string>());
         for (auto& it : list) times.push_back(it.t);
         factor = c.at("depth_factor"), a = c.at("a"), b = c.at("b");
+        tilt = c.value("tilt", 0.0);
     }
+    double tilt = 0.0;  // tests only: relative values scaled by (1 + tilt u) across the image, u in [-1, 1]
     cv::Mat predict(const KF& kf) override {
         int j = nearest(times, kf.t, 0.02);
         if (j < 0) throw std::runtime_error("oracle: no depth near a keyframe");
@@ -667,6 +718,7 @@ struct Oracle : DepthProvider {  // tests only: reference depth turned into an a
             for (int c = 0; c < d16.cols; ++c) {
                 double z = d16.at<uint16_t>(r, c) / factor;
                 rel.at<float>(r, c) = z > 0 ? static_cast<float>((1.0 / z - b) / a) : static_cast<float>((0.0 - b) / a);
+                if (tilt != 0.0) rel.at<float>(r, c) *= static_cast<float>(1.0 + tilt * (2.0 * c / d16.cols - 1.0));
             }
         return rel;
     }
@@ -1081,12 +1133,12 @@ int main(int argc, char** argv) {
             a = now_s();
             k.rel = dp->predict(k);
             stage_ms["depth"].push_back(1000 * (now_s() - a));
-            double ca = 0, cb = 0;
-            json r = fit_inverse_depth(k.rel, px, z, C["calibration"], static_cast<unsigned>(k.frame), ca, cb);
+            std::vector<double> coef;
+            json r = fit_inverse_depth(k.rel, px, z, C["calibration"], static_cast<unsigned>(k.frame), coef);
             k.rec = {{"frame", k.frame}, {"t", k.t}, {"landmarks", z.size()}, {"triangulated", n_tri}, {"map_points", n_map},
                      {"calibrated", r["ok"]}, {"reason", r["reason"]}, {"calibration", r["stats"]}};
             if (r["ok"].get<bool>()) {
-                k.depth = apply_inverse_depth(k.rel, ca, cb, FU.at("max_depth_m").get<double>());
+                k.depth = apply_inverse_depth(k.rel, coef, FU.at("max_depth_m").get<double>());
                 k.calibrated = true;
                 calibrated[i] = &k;
             }

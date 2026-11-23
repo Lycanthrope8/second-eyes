@@ -351,11 +351,12 @@ def combine(joined, transforms, target):
     return frame, t[keep], T[keep], used, dropped
 
 
-# Reconstruction settings for one-map runs, from the R3.28 experiment on 12:04:50 (r079 against r078): 111 of 200
-# keyframes calibrated instead of 80, 54% more points, 31% more of the reference's surfaces covered, median 5.7 cm
-# against 4.7 cm. Change them with --recon-set; --recon-set with nothing after it keeps configs/qrecon.yaml as it is.
-RECON_SETTINGS = ["landmarks.neighbour_offsets=[-4,-3,-2,-1,1,2,3,4]", "calibration.max_holdout_rel_err=0.15",
-                  "calibration.min_cells=5", "calibration.min_depth_spread=1.15"]
+# Reconstruction settings for one-map runs (D149, accuracy first): the strict calibration limits of
+# configs/qrecon.yaml, 4 neighbouring keyframes on each side, and every surface seen by at least 3 calibrated keyframes.
+# On 12:04:50 with the tracker's points (r094): median 3.7 cm, 71% of points within 10 cm, 14% of the reference covered;
+# with 2 views (r093) 6.5 cm, 59%, 22%; with the R3.28 limits (r092) 7.9 cm, 55%, 23%. Change them with --recon-set;
+# --recon-set with nothing after it keeps configs/qrecon.yaml as it is.
+RECON_SETTINGS = ["landmarks.neighbour_offsets=[-4,-3,-2,-1,1,2,3,4]", "fusion.min_observations=3"]
 
 
 def sim_from_poses(Tu, W, s_default=None):

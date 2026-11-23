@@ -264,3 +264,7 @@ writes each map's 3-D points (landmarks.txt), and qrecon_quest calibrates keyfra
 points. Tracking runs made before R3.29 have no landmarks.txt, so a video must be tracked again to use them. One-map runs
 use the R3.28 calibration settings by default (`one_map.py --recon-set` changes them) and the tracker's points
 (`--no-map-points` leaves them out); process_recording.py passes --alternatives to one_map.py.
+
+R3.30 (D149, O45): one-map runs default to the strict limits with surfaces seen by 3 keyframes. The headset program can fit a
+depth calibration whose scale and offset vary linearly across the image (`--set calibration.model=affine_tilt`; the
+default stays `affine`). Rebuild the headset programs after this delivery.
