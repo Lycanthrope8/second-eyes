@@ -268,3 +268,7 @@ use the R3.28 calibration settings by default (`one_map.py --recon-set` changes 
 R3.30 (D149, O45): one-map runs default to the strict limits with surfaces seen by 3 keyframes. The headset program can fit a
 depth calibration whose scale and offset vary linearly across the image (`--set calibration.model=affine_tilt`; the
 default stays `affine`). Rebuild the headset programs after this delivery.
+
+R3.31 (O45): `keyframe_report.py RUN --summary ... --sheet [--between T0 T1]` writes keyframe_sheet[_T0-T1s].jpg beside
+keyframes.json: the refused keyframes of that stretch (red, with the reason and held-out error) and a few calibrated ones
+(green). The tilting calibration (R3.30) did not help on 12:04:50 and stays off.

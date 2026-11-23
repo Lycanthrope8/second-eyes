@@ -23,3 +23,20 @@ def test_settings_can_be_changed_for_one_run_and_unknown_ones_are_refused():
     import pytest
     with pytest.raises(SystemExit):
         RQ.apply_settings(cfg, ["calibration.no_such_setting=1"])
+
+
+def test_a_contact_sheet_shows_refused_keyframes_first(tmp_path):
+    import cv2
+    import numpy as np
+    (tmp_path / "rgb").mkdir()
+    with open(tmp_path / "rgb.txt", "w") as f:
+        f.write("# frames\n")
+        for i in range(8):
+            cv2.imwrite(str(tmp_path / "rgb" / f"{i:06d}.jpg"), np.full((90, 160, 3), 30 * i, np.uint8))
+            f.write(f"{i * 0.5:.3f} rgb/{i:06d}.jpg\n")
+    kfs = [{"t": i * 0.5, "frame": i, "calibrated": i % 2 == 0, "reason": "" if i % 2 == 0 else "fit fails on held-out landmarks",
+            "calibration": {"holdout_median_rel_err": 0.14}} for i in range(8)]
+    out = KR.contact_sheet(kfs, tmp_path, tmp_path / "sheet.jpg", between=(0.0, 2.6), thumb_w=160, cols=3)
+    img = cv2.imread(str(out))
+    assert img is not None and img.shape[1] == 3 * 160 and img.shape[0] == 2 * 90     # 3 refused + 3 calibrated in 0-2.6 s
+    assert KR.contact_sheet(kfs, tmp_path, tmp_path / "none.jpg", between=(50, 60)) is None

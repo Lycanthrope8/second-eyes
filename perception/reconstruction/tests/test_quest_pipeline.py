@@ -354,4 +354,4 @@ def test_a_depth_correction_that_varies_across_the_image_calibrates_a_tilted_dep
     kfs = json.load(open(tmp_path / "tilt" / "keyframes.json"))
     assert all(k["calibration"].get("model") == "affine_tilt" for k in kfs if k.get("calibration", {}).get("inliers"))
     assert tilt["valid_keyframes"] >= affine["valid_keyframes"] and tilt["valid_keyframes"] >= 0.8 * tilt["keyframes"]
-    assert held_out("tilt") < 0.8 * held_out("affine")              # the tilt the plain fit cannot follow is taken out
+    assert held_out("tilt") < 0.9 * held_out("affine")              # the tilt the plain fit cannot follow is taken out

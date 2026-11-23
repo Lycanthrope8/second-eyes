@@ -243,3 +243,11 @@ use nominal timestamps (frame index / frame rate); R3.14 recomputes them from th
 | 5 | Keyframes calibrated, strict limits | 121 of 198 (61%); refused: held-out 48, not spread 14, too few landmarks 12 (5 with none), other 3; living/dining piece 33 of 87 | provisional measurement | 22 Nov |
 | 5 | Strict limits, 2 views per surface (r093) | 232,857 points; median 6.5 cm, precision 0.59, recall 0.22, F-score 0.32 at 10 cm | provisional measurement | 22 Nov |
 | 5 | Strict limits, 3 views per surface (r094) | 97,239 points; median 3.7 cm, 57% within 5 cm, precision 0.71, recall 0.14, F-score 0.23 at 10 cm; bedroom 5.8 cm and 25% of its reference covered, living/dining 4.9 cm and 7% | provisional measurement; most accurate so far | 22 Nov |
+
+## Depth calibration that tilts across the image (R3.30, r095 and r096; same keyframes and tracker points as r093/r094), 22 November
+
+| Level | Check | Value | Status | Source |
+|---|---|---|---|---|
+| 5 | Keyframes calibrated | 123 of 198 (affine: 121); living/dining piece 33 of 87 (unchanged); refused: held-out 41 (48), non-positive depth 6 (1); held-out error of calibrated keyframes median 5.1% (5.7%) | provisional measurement | 22 Nov |
+| 5 | 3 views per surface (r095) | 103,579 points; median 5.0 cm, precision 0.63, recall 0.13 (affine r094: 3.7 cm, 0.71, 0.14) | failed check: less accurate than affine | 22 Nov |
+| 5 | 2 views per surface (r096) | 241,592 points; median 7.8 cm, precision 0.55, recall 0.21 (affine r093: 6.5 cm, 0.59, 0.22) | failed check: less accurate than affine | 22 Nov |

@@ -51,10 +51,58 @@ def report(kfs, pieces=()):
     return out
 
 
+SHORT = {"too few landmarks": "too few points", "landmarks not spread over image and depth": "not spread",
+         "fit fails on held-out landmarks": "held-out off", "fit gives non-positive depth over part of the image": "negative depth",
+         "no consistent fit": "no fit"}
+
+
+def contact_sheet(kfs, frames_dir, out, between=None, max_failed=25, max_ok=5, thumb_w=320, cols=5):
+    """A picture grid of keyframes, the refused ones first (red, with the reason and the held-out error) and a few
+    calibrated ones from the same stretch for contrast (green), to see what the refused views show."""
+    import cv2
+    import numpy as np
+    rows = [ln.split() for ln in Path(frames_dir, "rgb.txt").read_text().splitlines() if ln.strip() and not ln.startswith("#")]
+    paths = [Path(frames_dir) / r[1] for r in rows]
+    sel = [k for k in kfs if between is None or between[0] <= k["t"] <= between[1]]
+    def spread(ks, n):
+        return [ks[int(round(i))] for i in np.linspace(0, len(ks) - 1, min(n, len(ks)))] if ks else []
+    chosen = spread([k for k in sel if not k.get("calibrated")], max_failed) + spread([k for k in sel if k.get("calibrated")], max_ok)
+    tiles = []
+    for k in chosen:
+        if k["frame"] >= len(paths):
+            continue
+        img = cv2.imread(str(paths[k["frame"]]))
+        if img is None:
+            continue
+        img = cv2.resize(img, (thumb_w, int(img.shape[0] * thumb_w / img.shape[1])), interpolation=cv2.INTER_AREA)
+        ok = bool(k.get("calibrated"))
+        ho = (k.get("calibration") or {}).get("holdout_median_rel_err")
+        text = f"{k['t']:.1f}s " + ("calibrated" if ok else SHORT.get(k.get("reason"), k.get("reason") or "refused"))
+        if ho is not None and ho < 9:
+            text += f" {100 * ho:.0f}%"
+        colour = (60, 170, 60) if ok else (40, 40, 220)
+        cv2.rectangle(img, (0, 0), (img.shape[1] - 1, img.shape[0] - 1), colour, 4)
+        cv2.rectangle(img, (0, 0), (img.shape[1], 24), (0, 0, 0), -1)
+        cv2.putText(img, text, (6, 17), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
+        tiles.append(img)
+    if not tiles:
+        return None
+    h = max(t.shape[0] for t in tiles)
+    tiles = [cv2.copyMakeBorder(t, 0, h - t.shape[0], 0, 0, cv2.BORDER_CONSTANT) for t in tiles]
+    while len(tiles) % cols:
+        tiles.append(np.zeros_like(tiles[0]))
+    sheet = np.vstack([np.hstack(tiles[i:i + cols]) for i in range(0, len(tiles), cols)])
+    cv2.imwrite(str(out), sheet, [cv2.IMWRITE_JPEG_QUALITY, 85])
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("run", help="a reconstruction run id, or a keyframes.json path")
     ap.add_argument("--summary", help="the recording summary, to name the pieces of its one map")
+    ap.add_argument("--sheet", action="store_true", help="also write keyframe_sheet.jpg: a picture grid of refused keyframes")
+    ap.add_argument("--between", nargs=2, type=float, metavar=("T0", "T1"), help="with --sheet: only keyframes in this stretch (s)")
+    ap.add_argument("--frames", help="with --sheet: the frames folder (default: the summary's)")
     a = ap.parse_args()
     path = Path(a.run) if a.run.endswith(".json") else HERE / "runs" / a.run / "recon" / "keyframes.json"
     kfs = json.loads(path.read_text())
@@ -73,6 +121,13 @@ def main():
     print("by 20 s of video: " + "  ".join(f"{b} {c}/{n}" for b, (c, n) in r["by_20s"].items()))
     for label, st in r["stats"].items():
         print(f"{label}: " + "; ".join(f"{k} {v[0]:.3g} ({v[1]:.3g}-{v[2]:.3g})" for k, v in st.items()))
+    if a.sheet:
+        frames = a.frames or (json.loads(Path(a.summary).read_text()).get("frames") if a.summary else None)
+        if not frames:
+            raise SystemExit("--sheet needs --frames or a --summary that names the frames folder")
+        name = "keyframe_sheet" + (f"_{a.between[0]:.0f}-{a.between[1]:.0f}s" if a.between else "") + ".jpg"
+        sheet = contact_sheet(kfs, frames, path.parent / name, a.between)
+        print(f"-> {sheet}" if sheet else "no keyframes to show in that stretch")
     out = path.parent / "keyframe_report.json"
     try:
         out.write_text(json.dumps(r, indent=1))
