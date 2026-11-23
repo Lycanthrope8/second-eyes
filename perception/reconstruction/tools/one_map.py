@@ -351,6 +351,71 @@ def combine(joined, transforms, target):
     return frame, t[keep], T[keep], used, dropped
 
 
+# Reconstruction settings for one-map runs, from the R3.28 experiment on 12:04:50 (r079 against r078): 111 of 200
+# keyframes calibrated instead of 80, 54% more points, 31% more of the reference's surfaces covered, median 5.7 cm
+# against 4.7 cm. Change them with --recon-set; --recon-set with nothing after it keeps configs/qrecon.yaml as it is.
+RECON_SETTINGS = ["landmarks.neighbour_offsets=[-4,-3,-2,-1,1,2,3,4]", "calibration.max_holdout_rel_err=0.15",
+                  "calibration.min_cells=5", "calibration.min_depth_spread=1.15"]
+
+
+def sim_from_poses(Tu, W, s_default=None):
+    """Similarity (s, R, t) with W ~ S(Tu) from paired camera poses: the rotation from the cameras' orientations (so a
+    straight walk, whose centres lie on a line, still fixes it), then scale and offset from the centres."""
+    M = (W[:, :3, :3] @ np.transpose(Tu[:, :3, :3], (0, 2, 1))).sum(0)
+    U, _, Vt = np.linalg.svd(M)
+    R = U @ np.diag([1.0, 1.0, np.sign(np.linalg.det(U @ Vt))]) @ Vt
+    A, B = Tu[:, :3, 3], W[:, :3, 3]
+    A0, B0 = A - A.mean(0), B - B.mean(0)
+    den = float((A0 ** 2).sum())
+    s = float(((A0 @ R.T) * B0).sum() / den) if den > 1e-8 else (s_default if s_default is not None else 1.0)
+    return s, R, B.mean(0) - s * R @ A.mean(0)
+
+
+def map_points(used, tf, rec, stretch_s=15.0, pad_s=2.0):
+    """The tracker's 3-D points of the used pieces (landmarks.txt beside each map's trajectory, written by qtrack), in
+    the one map's frame. Each point is carried by the similarity between its piece's tracker poses and final poses over
+    the stretch holding its median observation time, so a refined piece's points follow the refinement. Points of a
+    trimmed piece observed outside its kept span are dropped. Returns lines 'x y z t1 t2 ...' and a count per piece."""
+    lines, counts = [], {}
+    for p in used:
+        prec = p.get("rec") or rec
+        traj = Path(PM.map_trajectory(prec, p["map"]))
+        lm = traj.parent / "landmarks.txt"
+        if not lm.is_file() or not traj.is_file() or len(p["times"]) < 10:
+            continue
+        tu, Tu = MA.read_tum(traj)
+        W = apply_sim3(p["poses"], *tf[p["frame"]])
+        i = np.searchsorted(tu, p["times"])
+        good = (i < len(tu)) & (np.abs(tu[np.clip(i, 0, len(tu) - 1)] - p["times"]) < 1e-3)
+        if good.sum() < 10:
+            continue
+        times, Ta, Wb = p["times"][good], Tu[i[good]], W[good]
+        whole = sim_from_poses(Ta, Wb)
+        sims = []
+        for i0, i1 in RF.stretches(times, stretch_s):
+            moved = np.linalg.norm(Ta[i0:i1, :3, 3] - Ta[i0:i1, :3, 3].mean(0), axis=1).max() if i1 > i0 else 0.0
+            sims.append((times[i0], times[i1 - 1], sim_from_poses(Ta[i0:i1], Wb[i0:i1], whole[0])
+                         if i1 - i0 >= 10 and moved > 1e-3 else whole))
+        n = 0
+        for line in lm.read_text().splitlines():
+            if not line or line.startswith("#"):
+                continue
+            v = line.split()
+            if len(v) < 5:
+                continue
+            X, ts = np.array(v[:3], float), [float(x) for x in v[3:]]
+            tm = float(np.median(ts))
+            if tm < times[0] - pad_s or tm > times[-1] + pad_s:
+                continue
+            k = min(range(len(sims)), key=lambda j: 0 if sims[j][0] <= tm <= sims[j][1] else min(abs(tm - sims[j][0]), abs(tm - sims[j][1])))
+            sc, R, t = sims[k][2]
+            Y = sc * R @ X + t
+            lines.append(f"{Y[0]:.4f} {Y[1]:.4f} {Y[2]:.4f} " + " ".join(f"{x:.3f}" for x in ts))
+            n += 1
+        counts[p["key"]] = n
+    return lines, counts
+
+
 def write_tum(path, times, poses):
     from scipy.spatial.transform import Rotation
     q = Rotation.from_matrix(poses[:, :3, :3]).as_quat() if len(poses) else np.zeros((0, 4))
@@ -360,13 +425,17 @@ def write_tum(path, times, poses):
             f.write(f"{ti:.6f} {P[0, 3]:.6f} {P[1, 3]:.6f} {P[2, 3]:.6f} {qi[0]:.9f} {qi[1]:.9f} {qi[2]:.9f} {qi[3]:.9f}\n")
 
 
-def reconstruct(rec, traj, fixed, args):
+def reconstruct(rec, traj, fixed, args, points=None):
     S = rec["summary"]
     before = PM.runs_now()
     cmd = [sys.executable, str(HERE / "tools" / "reconstruct_on_quest.py"), "--name", S["name"], "--frames", str(rec["frames"]),
            "--calib", S["calib"], "--frame-scale", str(rec["scale"]), "--fps", str(rec["fps"]), "--model", args.model,
            "--tracking-run", S["tracking_run"], "--trajectory", str(traj), "--fixed-anchor", str(fixed),
            "--max-keyframes", str(args.max_keyframes)]
+    for item in args.recon_set:
+        cmd += ["--set", item]
+    if points:
+        cmd += ["--map-points", str(points)]
     print("$ " + " ".join(cmd), flush=True)
     if subprocess.run(cmd, cwd=HERE).returncode != 0:
         return None
@@ -391,6 +460,11 @@ def main(argv=None):
     ap.add_argument("--alternatives", nargs="*", default=[], metavar="SUMMARY",
                     help="summaries of other tracking runs of the same video: a stretch whose piece here failed its board check, "
                          "or has none, is taken from them where their piece passed")
+    ap.add_argument("--recon-set", nargs="*", default=RECON_SETTINGS, metavar="SECTION.KEY=VALUE",
+                    help="reconstruction settings for the one map (default: the R3.28 experiment's); give the option with "
+                         "nothing after it to keep configs/qrecon.yaml as it is")
+    ap.add_argument("--no-map-points", dest="map_points", action="store_false",
+                    help="do not give the tracker's 3-D points to the depth calibration")
     ap.add_argument("--dry-run", action="store_true", help="join and write the trajectory, no reconstruction")
     ap.add_argument("--no-refine", dest="refine", action="store_false",
                     help="one similarity per piece, without the drift-aware refinement (qrecon/refine.py)")
@@ -442,6 +516,14 @@ def main(argv=None):
     out_dir = HERE / "runs" / "one_map"
     traj = out_dir / f"{S['name']}_trajectory.txt"
     write_tum(traj, t, T)
+    tf = transforms if frame == a.target else {frame: (1.0, np.eye(3), np.zeros(3))}
+    lines, counts = map_points(used, tf, rec) if a.map_points else ([], {})
+    points = out_dir / f"{S['name']}_map_points.txt" if lines else None
+    if points:
+        points.write_text("# x y z (the one map's frame), then the times of the tracker keyframes that observed the point\n"
+                          + "\n".join(lines) + "\n")
+    print(f"{S['name']}: tracker points for depth calibration: " + (", ".join(f"{k} {v}" for k, v in counts.items()) if counts else
+          "none (the tracking runs predate R3.29, or --no-map-points)"))
     fixed = out_dir / f"{S['name']}_fixed.json"
     fixed.write_text(json.dumps({"frame": frame, "sim3": {"s": 1.0, "R": np.eye(3).tolist(), "t": [0.0, 0.0, 0.0]},
                                  "by": f"one map of {len(used)} piece(s)"}, indent=1))
@@ -449,13 +531,14 @@ def main(argv=None):
             "share_of_video": round(joined_s / span, 3) if span else None, "links_from": link_runs if len(frames) > 1 else [],
             "refined": bool(a.refine), "window_fits": cache,
             "alternatives": [str(x["path"]) for x in alts],
+            "recon_settings": list(a.recon_set), "map_points": counts,
             "pieces": [{k: (v if not isinstance(v, np.ndarray) else None) for k, v in p.items() if k not in ("times", "poses", "located", "rec")}
                        | {"first_t": round(float(p["times"][0]), 3), "last_t": round(float(p["times"][-1]), 3)} for p in used],
             "left_out": left, "attempts": attempts}
     if a.dry_run:
         print(f"dry run: trajectory {traj}; nothing reconstructed, summary unchanged")
         return info
-    rid = reconstruct(rec, traj, fixed, a)
+    rid = reconstruct(rec, traj, fixed, a, points)
     if not rid:
         sys.exit("the reconstruction failed; the summary is unchanged")
     st = HERE / "runs" / rid / "recon" / "stats.json"

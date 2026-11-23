@@ -217,3 +217,11 @@ use nominal timestamps (frame index / frame rate); R3.14 recomputes them from th
 | 5 | Where | bedroom piece 36/52; living/dining piece (115–249 s) 31/108, with 43 of the 47 "too few landmarks"; 120–140 s 1/23 and 220–240 s 0/12; the walk back 10/32, 17 of its failures "not spread" | recorded | Claude, 22 Nov |
 | 5 | Neighbours | the failing keyframes have neighbours 0.5 s away like the calibrated ones: in fast turns the camera rotates without moving, so neighbouring keyframes see the scene from almost the same place and nothing can be triangulated | recorded | Claude, 22 Nov |
 | 5 | Pixel filter on calibrated keyframes | consistency with neighbouring keyframes keeps 43% of pixels (median) | recorded | Claude, 22 Nov |
+
+## Calibration settings experiment (R3.28, r079 against r078, same 200 keyframes), 22 November
+
+| Level | Check | Value | Status | Source |
+|---|---|---|---|---|
+| 5 | Keyframes calibrated | 111 of 200 (56%) against 80 (40%); refused: too few landmarks 45 (28 with none), not spread 18, held-out 16, no consistent fit 6, non-positive depth 4; 120–140 s 4 of 23, 220–240 s 0 of 12 | provisional measurement | 22 Nov |
+| 5 | Cloud | 146,590 points against 94,917 | recorded | 22 Nov |
+| 5 | Against the MASt3R-SLAM reference | median 5.7 cm (4.7), 47% within 5 cm (51%), 64% within 10 cm (68%), recall 0.21 (0.16), F-score 0.32 (0.26) at 10 cm, 1% outside | provisional measurement | 22 Nov |

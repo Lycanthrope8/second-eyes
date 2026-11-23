@@ -299,3 +299,36 @@ def test_a_fixed_similarity_puts_the_cloud_in_that_frame_without_a_board(tmp_pat
     assert rep["frame"] == "ref02" and rep["anchored_by"]["window"] == "shared views" and stats["anchor_frame"] == "ref02"
     raw = np.loadtxt(tmp_path / "all.txt"); out = np.loadtxt(tmp_path / "fixed" / "anchored_trajectory.txt")
     assert np.allclose(out[:, 1:4], s * raw[:, 1:4] @ R.T + np.array(t), atol=1e-5)
+
+
+def test_the_trackers_points_calibrate_keyframes_that_have_nothing_to_triangulate(tmp_path):
+    s = synthetic.write_tum(str(tmp_path / "seq"))
+    cfg_y = C.load(os.path.join(REPO, "configs", "qrecon.yaml"))
+    oracle = dict(cfg_y["arms"]["oracle"], noise=0.0)
+    src = TumSource(s["dir"], s)
+    cam = QC.camera_block({"K": src.K.tolist(), "dist": [0] * 5, "size": [s["camera"]["width"], s["camera"]["height"]]})
+    depth = {"source": "oracle", "oracle": {"depth_list": os.path.join(s["dir"], "depth.txt"), "depth_factor": s["depth_factor"],
+                                         "a": oracle["a"], "b": oracle["b"]}}
+    cfg = QC.build(os.path.join(s["dir"], "rgb.txt"), os.path.join(s["dir"], "groundtruth.txt"), cam, depth)
+    cfg["landmarks"]["neighbour_offsets"] = []                   # as in a turn on the spot: nothing to triangulate
+    r, stats, _ = _run(cfg, str(tmp_path / "none"))
+    assert r.returncode == 0, r.stderr
+    assert stats["valid_keyframes"] == 0
+    rng = np.random.default_rng(0)
+    with open(tmp_path / "map_points.txt", "w") as f:            # points the tracker would hold, seen from every frame
+        f.write("# x y z t...\n")
+        for i in range(0, len(src), 3):
+            fr = src.frame(i)
+            v, u = np.nonzero(fr.depth > 0)
+            pick = rng.choice(len(u), size=min(150, len(u)), replace=False)
+            d = fr.depth[v[pick], u[pick]]
+            Xc = np.c_[(u[pick] - src.K[0, 2]) * d / src.K[0, 0], (v[pick] - src.K[1, 2]) * d / src.K[1, 1], d]
+            Xw = Xc @ fr.T_wc[:3, :3].T + fr.T_wc[:3, 3]
+            for X in Xw:
+                f.write(f"{X[0]:.5f} {X[1]:.5f} {X[2]:.5f} {fr.t:.4f} {fr.t + 0.001:.4f}\n")
+    cfg["map_points"] = {"file": str(tmp_path / "map_points.txt"), "window_s": 0.5, "max_per_keyframe": 2000}
+    r, stats, _ = _run(cfg, str(tmp_path / "with"))
+    assert r.returncode == 0, r.stderr
+    kfs = json.load(open(tmp_path / "with" / "keyframes.json"))
+    assert stats["valid_keyframes"] >= 0.8 * stats["keyframes"] and stats["map_points_loaded"] > 0
+    assert all(k["triangulated"] == 0 and k["map_points"] > 0 for k in kfs)

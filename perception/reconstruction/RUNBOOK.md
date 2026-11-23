@@ -258,3 +258,9 @@ summary is runs/h120450_recording_r326.json.
 R3.28: `tools/keyframe_report.py RUN [--summary ...]` says why keyframes were not calibrated (by reason, piece and stretch
 of video). `reconstruct_on_quest.py --set SECTION.KEY=VALUE` changes a reconstruction setting for one run (recorded in the
 run's device.json), for experiments without touching configs/qrecon.yaml.
+
+R3.29 (D148): rebuild the headset programs (`python tools\build_tracking.py --ndk "$HOME\android-ndk-unity"`): qtrack now
+writes each map's 3-D points (landmarks.txt), and qrecon_quest calibrates keyframes with them as well as with triangulated
+points. Tracking runs made before R3.29 have no landmarks.txt, so a video must be tracked again to use them. One-map runs
+use the R3.28 calibration settings by default (`one_map.py --recon-set` changes them) and the tracker's points
+(`--no-map-points` leaves them out); process_recording.py passes --alternatives to one_map.py.

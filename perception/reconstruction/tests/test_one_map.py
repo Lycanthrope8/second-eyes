@@ -4,6 +4,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tools"))
 sys.path.insert(0, os.path.dirname(__file__))
 import one_map as OM  # noqa: E402
+from qrecon import mapalign as MA, refine as RF  # noqa: E402
+from pathlib import Path  # noqa: E402
 import place_maps as PM  # noqa: E402
 import merge_clouds as MC  # noqa: E402
 import process_recording as PR  # noqa: E402
@@ -26,7 +28,7 @@ def test_a_video_s_pieces_become_one_trajectory_and_one_reconstruction(tmp_path,
     assert r["located"] >= 4 and r["moved_median_m"] < 0.05
     t2, T2 = MA.read_tum(tmp_path / "runs" / "one_map" / "syn_trajectory.txt")
     assert np.median(np.linalg.norm(T2[21:, :3, 3] - truth, axis=1)) < 0.10
-    def fake(rec, traj, fixed, args):
+    def fake(rec, traj, fixed, args, points=None):
         assert json.loads(open(fixed).read())["frame"] == "ref02"
         d = tmp_path / "runs" / "one1" / "recon"; d.mkdir(parents=True)
         (d / "stats.json").write_text(json.dumps({"keyframes": 30, "valid_keyframe_share": 0.9}))
@@ -97,7 +99,7 @@ def test_each_board_window_inside_a_piece_is_fitted_on_its_own_and_cached(tmp_pa
     tu, Tu = MA.read_tum(PM.map_trajectory(rec, 1))
     known = (1.7, RF._sim3(np.r_[0.0, 0.1, -0.2, 0.05, 0, 0, 0])[1], np.array([0.5, -1.0, 2.0]))
     calls = []
-    def fake(rec_, m, board, window, args):
+    def fake(rec_, m, board, window, args, points=None):
         calls.append((m, board, tuple(window)))
         d = tmp_path / "runs" / "fw1" / "recon"; d.mkdir(parents=True, exist_ok=True)
         (d / "anchor.json").write_text(json.dumps({"frame": board, board: {"ok": True}}))
@@ -131,3 +133,29 @@ def test_a_stretch_whose_board_check_failed_is_taken_from_another_tracking_run_t
     pieces = {(p["map"], p.get("source")): p["how"] for p in info["pieces"]}
     assert pieces[(0, "trk")] == "board" and (0, None) not in pieces                # the failed piece gave way to the passing one
     assert pieces[(1, None)] == "shared views" and not info["left_out"]
+
+
+def test_the_trackers_points_follow_their_piece_into_the_one_maps_frame(tmp_path, monkeypatch):
+    from scipy.spatial.transform import Rotation
+    monkeypatch.setattr(OM, "HERE", tmp_path); monkeypatch.setattr(PM, "HERE", tmp_path)
+    summ, _ = TP._setup(tmp_path)
+    rec = PM.load_recording(summ)
+    p = [q for q in OM.pieces_of(rec, own=True) if q["ok"]][0]
+    s0, R0, t0 = 0.4, Rotation.from_euler("xyz", [10, -25, 40], degrees=True).as_matrix(), np.array([1.0, -2.0, 0.5])
+    Tu = p["poses"].copy()                                                       # the tracker's own frame and units
+    Tu[:, :3, 3] = (p["poses"][:, :3, 3] - t0) @ R0 / s0
+    Tu[:, :3, :3] = R0.T @ p["poses"][:, :3, :3]
+    traj = Path(PM.map_trajectory(rec, p["map"]))
+    OM.write_tum(traj, p["times"], Tu)
+    rng = np.random.default_rng(1)
+    X = rng.uniform(-1, 1, (50, 3)) + Tu[len(Tu) // 2, :3, 3]
+    tm = float(p["times"][len(p["times"]) // 2])
+    (traj.parent / "landmarks.txt").write_text("# x y z t...\n" + "".join(f"{x:.6f} {y:.6f} {z:.6f} {tm - 0.1:.3f} {tm + 0.1:.3f}\n"
+                                                                         for x, y, z in X))
+    tf = {p["frame"]: (1.0, np.eye(3), np.zeros(3))}
+    lines, counts = OM.map_points([p], tf, rec)
+    assert counts[p["key"]] == 50
+    Y = np.array([[float(v) for v in ln.split()[:3]] for ln in lines])
+    assert np.abs(Y - (s0 * X @ R0.T + t0)).max() < 2e-3                         # carried by the piece's similarity
+    (traj.parent / "landmarks.txt").write_text("# x y z t\n0 0 0 9999.0 9999.5\n")   # observed outside the piece: dropped
+    assert OM.map_points([p], tf, rec)[1][p["key"]] == 0

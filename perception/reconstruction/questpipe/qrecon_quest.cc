@@ -376,6 +376,57 @@ struct KF {
     bool calibrated = false;
     json rec;
 };
+// The tracker's own 3-D points (one line each: x y z, then the times of the keyframes that observed it), already in the
+// reconstruction's frame. Where the camera turned without moving, neighbouring keyframes give nothing to triangulate,
+// but the tracker still held points there; those observed within window_s of a keyframe are projected into it and
+// used, with any triangulated points, to calibrate its depth.
+struct MapPoint {
+    Vec3 X;
+    std::vector<double> ts;
+};
+std::vector<MapPoint> load_map_points(const std::string& path) {
+    std::vector<MapPoint> out;
+    std::ifstream f(path);
+    std::string line;
+    while (std::getline(f, line)) {
+        if (line.empty() || line[0] == '#') continue;
+        std::istringstream ss(line);
+        MapPoint m;
+        if (!(ss >> m.X(0) >> m.X(1) >> m.X(2))) continue;
+        double t;
+        while (ss >> t) m.ts.push_back(t);
+        if (m.ts.empty()) continue;
+        std::sort(m.ts.begin(), m.ts.end());
+        out.push_back(std::move(m));
+    }
+    return out;
+}
+size_t map_points_for(double t, const Mat4& T, int w, int h, const Mat3& K, const std::vector<MapPoint>& mps, const json& cfg,
+                      const json& lcfg, std::vector<Eigen::Vector2d>& px, std::vector<double>& z) {
+    const double win = cfg.value("window_s", 1.0);
+    const size_t cap = cfg.value("max_per_keyframe", 3000);
+    const double zmin = lcfg.at("min_depth_m").get<double>(), zmax = lcfg.at("max_depth_m").get<double>();
+    const Mat3 R = T.block<3, 3>(0, 0);
+    const Vec3 C = T.block<3, 1>(0, 3);
+    std::vector<std::pair<Eigen::Vector2d, double>> found;
+    for (const auto& m : mps) {
+        auto it = std::lower_bound(m.ts.begin(), m.ts.end(), t - win);
+        if (it == m.ts.end() || *it > t + win) continue;
+        const Vec3 Xc = R.transpose() * (m.X - C);
+        if (Xc(2) < zmin || Xc(2) > zmax) continue;
+        const double u = K(0, 0) * Xc(0) / Xc(2) + K(0, 2), v = K(1, 1) * Xc(1) / Xc(2) + K(1, 2);
+        if (u < 0 || v < 0 || u > w - 1 || v > h - 1) continue;
+        found.push_back({Eigen::Vector2d(u, v), Xc(2)});
+    }
+    const size_t step = found.size() > cap ? (found.size() + cap - 1) / cap : 1;
+    size_t added = 0;
+    for (size_t i = 0; i < found.size(); i += step, ++added) {
+        px.push_back(found[i].first);
+        z.push_back(found[i].second);
+    }
+    return added;
+}
+
 void landmarks_for(int i, std::vector<KF>& kfs, const Mat3& K, const json& cfg, std::vector<Eigen::Vector2d>& px, std::vector<double>& z) {
     cv::BFMatcher bf(cv::NORM_HAMMING);
     for (int off : cfg.at("neighbour_offsets").get<std::vector<int>>()) {
@@ -1004,6 +1055,11 @@ int main(int argc, char** argv) {
         VoxelMap vm{FU.at("voxel_m").get<double>(), FU.at("max_voxels").get<size_t>(), FU.at("min_observations").get<int>()};
         auto orb = cv::ORB::create(C["landmarks"]["orb_features"].get<int>());
         std::map<int, KF*> calibrated;
+        std::vector<MapPoint> mps;
+        if (C.contains("map_points")) {
+            mps = load_map_points(C["map_points"].at("file").get<std::string>());
+            stats["map_points_loaded"] = mps.size();
+        }
         const int n = static_cast<int>(kfs.size());
         auto load = [&](int i) {
             double a = now_s();
@@ -1018,13 +1074,17 @@ int main(int argc, char** argv) {
             std::vector<double> z;
             double a = now_s();
             landmarks_for(i, kfs, cam.K, C["landmarks"], px, z);
+            const size_t n_tri = z.size();
+            const size_t n_map = mps.empty() ? 0 : map_points_for(k.t, k.T, k.gray.cols, k.gray.rows, cam.K, mps, C["map_points"],
+                                                                  C["landmarks"], px, z);
             stage_ms["landmarks"].push_back(1000 * (now_s() - a));
             a = now_s();
             k.rel = dp->predict(k);
             stage_ms["depth"].push_back(1000 * (now_s() - a));
             double ca = 0, cb = 0;
             json r = fit_inverse_depth(k.rel, px, z, C["calibration"], static_cast<unsigned>(k.frame), ca, cb);
-            k.rec = {{"frame", k.frame}, {"t", k.t}, {"landmarks", z.size()}, {"calibrated", r["ok"]}, {"reason", r["reason"]}, {"calibration", r["stats"]}};
+            k.rec = {{"frame", k.frame}, {"t", k.t}, {"landmarks", z.size()}, {"triangulated", n_tri}, {"map_points", n_map},
+                     {"calibrated", r["ok"]}, {"reason", r["reason"]}, {"calibration", r["stats"]}};
             if (r["ok"].get<bool>()) {
                 k.depth = apply_inverse_depth(k.rel, ca, cb, FU.at("max_depth_m").get<double>());
                 k.calibrated = true;

@@ -215,6 +215,8 @@ def main():
                          "with tools/one_map.py and reconstruct the joined map once")
     ap.add_argument("--helpers", nargs="*", default=[], help="with --one-map: other processed recordings to match against")
     ap.add_argument("--use-link", nargs="*", default=[], metavar="RUN", help="with --one-map: runs whose board links to use (D140)")
+    ap.add_argument("--alternatives", nargs="*", default=[], metavar="SUMMARY",
+                    help="with --one-map: summaries of other tracking runs of this video (D147)")
     ap.add_argument("--one-map-keyframes", type=int, default=200, help="with --one-map: keyframes for the one reconstruction")
     ap.add_argument("--recheck", nargs="+", metavar="SUMMARY",
                     help="only apply the speed check to the board-anchored reconstructions in these recording summaries")
@@ -317,7 +319,8 @@ def main():
     out.write_text(json.dumps(summary, indent=1))
     if a.one_map:
         run([py, HERE / "tools" / "one_map.py", "--recording", out, "--max-keyframes", a.one_map_keyframes, "--model", a.model]
-            + (["--helpers", *a.helpers] if a.helpers else []) + (["--use-link", *a.use_link] if a.use_link else []))
+            + (["--helpers", *a.helpers] if a.helpers else []) + (["--use-link", *a.use_link] if a.use_link else [])
+            + (["--alternatives", *a.alternatives] if a.alternatives else []))
         summary = json.loads(out.read_text())
     print(f"\n{a.name}: tracking {trk}, {len(summary['maps'])} saved map(s), {len(summary['recon_runs'])} reconstructed, "
           f"{(time.time() - t0) / 60:.0f} min")

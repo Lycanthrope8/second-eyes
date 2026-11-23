@@ -114,6 +114,8 @@ def main():
     ap.add_argument("--fixed-anchor", help="a JSON file {frame, sim3: {s, R, t}, by}: put the cloud into that frame with this "
                                            "similarity instead of fitting a board (tools/place_maps.py writes these)")
     ap.add_argument("--tracking-run"); ap.add_argument("--max-keyframes", type=int); ap.add_argument("--threads", type=int, default=2)
+    ap.add_argument("--map-points", help="the tracker's 3-D points in the trajectory's frame (one_map writes them), for "
+                                         "calibrating keyframes that have nothing to triangulate")
     ap.add_argument("--set", action="append", metavar="SECTION.KEY=VALUE",
                     help="change a reconstruction setting for this run (repeatable), e.g. calibration.max_holdout_rel_err=0.15")
     ap.add_argument("--no-loop", action="store_true"); ap.add_argument("--purpose", default="reconstruction on the headset")
@@ -230,6 +232,11 @@ def main():
         if not anchor:
             sys.exit("--anchor-only needs board frames and --recording or --board-spans")
         cfg["anchor_only"] = True                    # anchor.json only: no depth, no cloud
+    if a.map_points:
+        rmp = f"{rout}/recon/map_points.txt"
+        adb("push", a.map_points, rmp, capture=False)
+        cfg["map_points"] = {"file": rmp, "window_s": 1.0, "max_per_keyframe": 3000}
+        device["map_points"] = a.map_points
     if a.set:
         device["settings_changed"] = apply_settings(cfg, a.set)
         print("settings changed: " + ", ".join(f"{k}={v}" for k, v in device["settings_changed"].items()))

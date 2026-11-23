@@ -7,6 +7,11 @@
 //
 //   qtrack --config cam.yaml --vocab orb_vocab.fbow --frames dir/rgb.txt --out outdir
 //          [--root dir] [--first N] [--last M] [--no-loop] [--realtime-fps F] [--restart-after S]
+#include <iomanip>
+#include <set>
+#include <stella_vslam/data/keyframe.h>
+#include <stella_vslam/data/landmark.h>
+#include <stella_vslam/publish/map_publisher.h>
 #include <stella_vslam/system.h>
 #include <stella_vslam/config.h>
 #include <stella_vslam/publish/frame_publisher.h>
@@ -122,6 +127,28 @@ int main(int argc, char** argv) {
         ::mkdir(dir.c_str(), 0755);
         slam.save_frame_trajectory(dir + "/frame_trajectory.txt", "TUM");
         slam.save_keyframe_trajectory(dir + "/keyframe_trajectory.txt", "TUM");
+        // The map's 3-D points, each with the times of the keyframes that observed it: the reconstruction uses them to
+        // calibrate a keyframe's depth where too little camera motion lets nothing be triangulated (a turn on the spot).
+        std::vector<std::shared_ptr<stella_vslam::data::landmark>> lms;
+        std::set<std::shared_ptr<stella_vslam::data::landmark>> local_lms;
+        slam.get_map_publisher()->get_landmarks(lms, local_lms);
+        std::ofstream lf(dir + "/landmarks.txt");
+        lf << "# x y z (the map's own frame and units), then the times of the keyframes that observed the point\n";
+        lf << std::fixed;
+        for (const auto& lm : lms) {
+            if (!lm || lm->will_be_erased()) continue;
+            std::vector<double> ts;
+            for (const auto& ob : lm->get_observations()) {
+                const auto kf = ob.first.lock();
+                if (kf) ts.push_back(kf->timestamp_);
+            }
+            if (ts.size() < 2) continue;
+            std::sort(ts.begin(), ts.end());
+            const auto p = lm->get_pos_in_world();
+            lf << std::setprecision(5) << p(0) << ' ' << p(1) << ' ' << p(2) << std::setprecision(4);
+            for (double t : ts) lf << ' ' << t;
+            lf << '\n';
+        }
     };
 
     std::ofstream log(out + "/frames.csv");
