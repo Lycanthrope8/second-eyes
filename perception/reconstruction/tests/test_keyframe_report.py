@@ -40,3 +40,15 @@ def test_a_contact_sheet_shows_refused_keyframes_first(tmp_path):
     img = cv2.imread(str(out))
     assert img is not None and img.shape[1] == 3 * 160 and img.shape[0] == 2 * 90     # 3 refused + 3 calibrated in 0-2.6 s
     assert KR.contact_sheet(kfs, tmp_path, tmp_path / "none.jpg", between=(50, 60)) is None
+
+
+def test_left_out_parts_of_a_view_are_darkened_on_the_sheet(tmp_path):
+    import cv2
+    import numpy as np
+    (tmp_path / "rgb").mkdir()
+    cv2.imwrite(str(tmp_path / "rgb" / "000000.jpg"), np.full((100, 100, 3), 200, np.uint8))
+    (tmp_path / "rgb.txt").write_text("0.000 rgb/000000.jpg\n")
+    kfs = [{"t": 0.0, "frame": 0, "calibrated": True, "reason": "",
+            "calibration": {"holdout_median_rel_err": 0.05, "region_mask": "0111"}}]     # top-left quarter left out
+    img = cv2.imread(str(KR.contact_sheet(kfs, tmp_path, tmp_path / "s.jpg", thumb_w=100, cols=1)))
+    assert img[40, 30].mean() < 100 and img[80, 80].mean() > 150

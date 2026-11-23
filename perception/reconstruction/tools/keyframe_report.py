@@ -14,7 +14,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent.parent
-STATS = ["landmarks", "cells", "spread", "inliers", "holdout_median_rel_err", "positive_share"]
+STATS = ["landmarks", "cells", "spread", "inliers", "holdout_median_rel_err", "positive_share", "regions_left_out"]
 
 
 def pct(v, q):
@@ -53,7 +53,7 @@ def report(kfs, pieces=()):
 
 SHORT = {"too few landmarks": "too few points", "landmarks not spread over image and depth": "not spread",
          "fit fails on held-out landmarks": "held-out off", "fit gives non-positive depth over part of the image": "negative depth",
-         "no consistent fit": "no fit"}
+         "no consistent fit": "no fit", "most of the view disagrees with its landmarks": "mostly disagrees"}
 
 
 def contact_sheet(kfs, frames_dir, out, between=None, max_failed=25, max_ok=5, thumb_w=320, cols=5):
@@ -80,6 +80,18 @@ def contact_sheet(kfs, frames_dir, out, between=None, max_failed=25, max_ok=5, t
         text = f"{k['t']:.1f}s " + ("calibrated" if ok else SHORT.get(k.get("reason"), k.get("reason") or "refused"))
         if ho is not None and ho < 9:
             text += f" {100 * ho:.0f}%"
+        mask = (k.get("calibration") or {}).get("region_mask") if ok else None
+        if mask:                                    # the parts of the view left out of its depth, darkened
+            g = int(round(len(mask) ** 0.5))
+            for c, keep in enumerate(mask):
+                if keep == "0":
+                    y0, x0 = (c // g) * img.shape[0] // g, (c % g) * img.shape[1] // g
+                    y1, x1 = (c // g + 1) * img.shape[0] // g, (c % g + 1) * img.shape[1] // g
+                    img[y0:y1, x0:x1] = (img[y0:y1, x0:x1] * 0.3).astype(img.dtype)
+            text_extra = f" {mask.count('0')} parts out"
+        else:
+            text_extra = ""
+        text += text_extra
         colour = (60, 170, 60) if ok else (40, 40, 220)
         cv2.rectangle(img, (0, 0), (img.shape[1] - 1, img.shape[0] - 1), colour, 4)
         cv2.rectangle(img, (0, 0), (img.shape[1], 24), (0, 0, 0), -1)

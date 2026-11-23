@@ -485,7 +485,7 @@ inline double depth_model(const std::vector<double>& c, double x, double u, doub
     return s;
 }
 json fit_inverse_depth(const cv::Mat& rel, const std::vector<Eigen::Vector2d>& px, const std::vector<double>& z, const json& cfg,
-                       unsigned seed, std::vector<double>& coef_out) {
+                       unsigned seed, std::vector<double>& coef_out, std::vector<char>& region_out) {
     json st;
     const int n = static_cast<int>(z.size());
     st["landmarks"] = n;
@@ -569,19 +569,70 @@ json fit_inverse_depth(const cv::Mat& rel, const std::vector<Eigen::Vector2d>& p
             st["inliers"] = cnt;
         }
     }
+    // Parts of the view that disagree (R3.32): with region_grid > 0 the view is cut into region_grid x region_grid
+    // cells, and a cell whose landmarks the fit misses by more than region_max_err (median, with at least
+    // region_min_points landmarks) is left out of this keyframe's depth; the fit is then redone on the cells kept. A
+    // glossy screen, a window or thin chair backs in one part of the view then no longer cost the whole keyframe.
+    const int rg = cfg.value("region_grid", 0);
+    std::vector<char> keep_cell(rg > 0 ? rg * rg : 1, 1);
+    std::vector<int> cell_of(n, 0);
+    auto cell_at = [&](double u, double v) {
+        const int cx = std::min(rg - 1, std::max(0, static_cast<int>(u * rg / rel.cols)));
+        const int cy = std::min(rg - 1, std::max(0, static_cast<int>(v * rg / rel.rows)));
+        return cy * rg + cx;
+    };
+    auto rel_err = [&](int i) {
+        const double ip = depth_model(coef, x[i], U[i], V[i]);
+        return ip > 1e-6 ? std::abs(1.0 / ip - z[i]) / z[i] : 1.0;
+    };
+    if (rg > 0) {
+        for (int i = 0; i < n; ++i) cell_of[i] = cell_at(px[i].x(), px[i].y());
+        const double rmax = cfg.value("region_max_err", 0.10);
+        const int rmin = cfg.value("region_min_points", 5);
+        for (int pass = 0; pass < 3; ++pass) {
+            std::vector<std::vector<double>> res(rg * rg);
+            for (int i : fit) res[cell_of[i]].push_back(rel_err(i));
+            bool changed = false;
+            for (int c = 0; c < rg * rg; ++c)
+                if (keep_cell[c] && static_cast<int>(res[c].size()) >= rmin && pct(res[c], 0.5) > rmax) keep_cell[c] = 0, changed = true;
+            if (!changed) break;
+            double qx = 0, qy = 0, qxx = 0, qxy = 0;
+            int qm = 0;
+            for (int i : fit)
+                if (keep_cell[cell_of[i]] && rel_err(i) < 2 * inl_err) {
+                    qx += x[i], qy += y[i], qxx += x[i] * x[i], qxy += x[i] * y[i], ++qm;
+                }
+            const double qden = qm * qxx - qx * qx;
+            if (qm >= cfg.at("min_inliers").get<int>() && std::abs(qden) > 1e-18) {
+                coef[0] = (qm * qxy - qx * qy) / qden, coef[1] = (qy - coef[0] * qx) / qm;
+                for (size_t d = 2; d < coef.size(); ++d) coef[d] = 0;   // refitted as affine on the cells kept
+            }
+        }
+        int kept = 0;
+        std::string mask;
+        for (int c = 0; c < rg * rg; ++c) kept += keep_cell[c], mask += keep_cell[c] ? '1' : '0';
+        st["regions_left_out"] = rg * rg - kept;
+        st["region_mask"] = mask;
+        if (kept < cfg.value("region_min_kept", 0.4) * rg * rg)
+            return json{{"ok", false}, {"reason", "most of the view disagrees with its landmarks"}, {"stats", st}};
+    }
     std::vector<double> herr;
     bool bad = false;
     for (int i : hold) {
+        if (rg > 0 && !keep_cell[cell_of[i]]) continue;
         double ip = depth_model(coef, x[i], U[i], V[i]);
         if (ip <= 1e-6) bad = true;
         else herr.push_back(std::abs(1.0 / ip - z[i]) / z[i]);
     }
-    double hold_err = bad ? 1e9 : pct(herr, 0.5);
-    double pos = 0;
+    double hold_err = bad || herr.empty() ? 1e9 : pct(herr, 0.5);
+    double pos = 0, npix = 0;
     for (int r = 0; r < rel.rows; ++r)
-        for (int c = 0; c < rel.cols; ++c)
-            pos += (depth_model(coef, rel.at<float>(r, c), 2.0 * c / rel.cols - 1.0, 2.0 * r / rel.rows - 1.0) > 1e-6);
-    pos /= static_cast<double>(rel.total());
+        for (int c = 0; c < rel.cols; ++c) {
+            if (rg > 0 && !keep_cell[cell_at(c, r)]) continue;
+            pos += (depth_model(coef, rel.at<float>(r, c), 2.0 * c / rel.cols - 1.0, 2.0 * r / rel.rows - 1.0) > 1e-6), ++npix;
+        }
+    pos /= std::max(1.0, npix);
+    region_out = rg > 0 ? keep_cell : std::vector<char>();
     st["holdout_median_rel_err"] = hold_err;
     st["positive_share"] = pos;
     coef_out = coef;
@@ -589,10 +640,13 @@ json fit_inverse_depth(const cv::Mat& rel, const std::vector<Eigen::Vector2d>& p
     if (hold_err > cfg.at("max_holdout_rel_err").get<double>()) return json{{"ok", false}, {"reason", "fit fails on held-out landmarks"}, {"stats", st}};
     return json{{"ok", true}, {"reason", ""}, {"a", coef[0]}, {"b", coef[1]}, {"coef", coef}, {"stats", st}};
 }
-cv::Mat apply_inverse_depth(const cv::Mat& rel, const std::vector<double>& coef, double max_depth) {
+cv::Mat apply_inverse_depth(const cv::Mat& rel, const std::vector<double>& coef, double max_depth,
+                            const std::vector<char>& region = {}) {
     cv::Mat d(rel.size(), CV_32F, cv::Scalar(0));
+    const int rg = static_cast<int>(std::lround(std::sqrt(static_cast<double>(region.size()))));
     for (int r = 0; r < rel.rows; ++r)
         for (int c = 0; c < rel.cols; ++c) {
+            if (rg > 0 && !region[std::min(rg - 1, r * rg / rel.rows) * rg + std::min(rg - 1, c * rg / rel.cols)]) continue;
             double iv = depth_model(coef, rel.at<float>(r, c), 2.0 * c / rel.cols - 1.0, 2.0 * r / rel.rows - 1.0);
             if (iv > 1.0 / max_depth) d.at<float>(r, c) = static_cast<float>(1.0 / iv);
         }
@@ -708,7 +762,9 @@ struct Oracle : DepthProvider {  // tests only: reference depth turned into an a
         for (auto& it : list) times.push_back(it.t);
         factor = c.at("depth_factor"), a = c.at("a"), b = c.at("b");
         tilt = c.value("tilt", 0.0);
+        wrong_left = c.value("wrong_left", 0.0);
     }
+    double wrong_left = 0.0;  // tests only: relative values in the left 40% of the view scaled by (1 + wrong_left)
     double tilt = 0.0;  // tests only: relative values scaled by (1 + tilt u) across the image, u in [-1, 1]
     cv::Mat predict(const KF& kf) override {
         int j = nearest(times, kf.t, 0.02);
@@ -719,6 +775,7 @@ struct Oracle : DepthProvider {  // tests only: reference depth turned into an a
                 double z = d16.at<uint16_t>(r, c) / factor;
                 rel.at<float>(r, c) = z > 0 ? static_cast<float>((1.0 / z - b) / a) : static_cast<float>((0.0 - b) / a);
                 if (tilt != 0.0) rel.at<float>(r, c) *= static_cast<float>(1.0 + tilt * (2.0 * c / d16.cols - 1.0));
+                if (wrong_left != 0.0 && c < 0.4 * d16.cols) rel.at<float>(r, c) *= static_cast<float>(1.0 + wrong_left);
             }
         return rel;
     }
@@ -1134,11 +1191,12 @@ int main(int argc, char** argv) {
             k.rel = dp->predict(k);
             stage_ms["depth"].push_back(1000 * (now_s() - a));
             std::vector<double> coef;
-            json r = fit_inverse_depth(k.rel, px, z, C["calibration"], static_cast<unsigned>(k.frame), coef);
+            std::vector<char> region;
+            json r = fit_inverse_depth(k.rel, px, z, C["calibration"], static_cast<unsigned>(k.frame), coef, region);
             k.rec = {{"frame", k.frame}, {"t", k.t}, {"landmarks", z.size()}, {"triangulated", n_tri}, {"map_points", n_map},
                      {"calibrated", r["ok"]}, {"reason", r["reason"]}, {"calibration", r["stats"]}};
             if (r["ok"].get<bool>()) {
-                k.depth = apply_inverse_depth(k.rel, coef, FU.at("max_depth_m").get<double>());
+                k.depth = apply_inverse_depth(k.rel, coef, FU.at("max_depth_m").get<double>(), region);
                 k.calibrated = true;
                 calibrated[i] = &k;
             }

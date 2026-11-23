@@ -355,3 +355,30 @@ def test_a_depth_correction_that_varies_across_the_image_calibrates_a_tilted_dep
     assert all(k["calibration"].get("model") == "affine_tilt" for k in kfs if k.get("calibration", {}).get("inliers"))
     assert tilt["valid_keyframes"] >= affine["valid_keyframes"] and tilt["valid_keyframes"] >= 0.8 * tilt["keyframes"]
     assert held_out("tilt") < 0.9 * held_out("affine")              # the tilt the plain fit cannot follow is taken out
+
+
+def test_a_part_of_the_view_with_wrong_depth_is_left_out_and_the_rest_kept(tmp_path):
+    s = synthetic.write_tum(str(tmp_path / "seq"))
+    cfg_y = C.load(os.path.join(REPO, "configs", "qrecon.yaml"))
+    oracle = dict(cfg_y["arms"]["oracle"], noise=0.0)
+    src = TumSource(s["dir"], s)
+    cam = QC.camera_block({"K": src.K.tolist(), "dist": [0] * 5, "size": [s["camera"]["width"], s["camera"]["height"]]})
+    depth = {"source": "oracle", "oracle": {"depth_list": os.path.join(s["dir"], "depth.txt"), "depth_factor": s["depth_factor"],
+                                         "a": oracle["a"], "b": oracle["b"], "wrong_left": 0.4}}   # left 40% of every view wrong
+    kf = P.choose_keyframes(src, cfg_y)
+    os.makedirs(tmp_path / "ref"); P.run_reference(src, kf, cfg_y, str(tmp_path / "ref"))
+    ref = read_ply_xyz(str(tmp_path / "ref" / "reference.ply"))
+    acc = {}
+    for grid in (0, 5):
+        cfg = QC.build(os.path.join(s["dir"], "rgb.txt"), os.path.join(s["dir"], "groundtruth.txt"), cam, depth)
+        cfg["calibration"]["region_grid"] = grid
+        r, st, _ = _run(cfg, str(tmp_path / f"g{grid}"))
+        assert r.returncode == 0, r.stderr
+        acc[grid] = (st, M.cloud_metrics(read_ply_xyz(str(tmp_path / f"g{grid}" / "cloud.ply")), ref, [0.05], 0.02))
+        if grid:
+            masks = [k["calibration"]["region_mask"] for k in json.load(open(tmp_path / f"g{grid}" / "keyframes.json")) if k["calibrated"]]
+            left = sum(m[c] == "0" for m in masks for c in range(25) if c % 5 < 2)
+            right = sum(m[c] == "0" for m in masks for c in range(25) if c % 5 >= 2)
+            assert left > 5 * max(1, right)                              # the wrong part is what is left out
+    assert acc[5][0]["valid_keyframes"] >= acc[0][0]["valid_keyframes"]
+    assert acc[5][1]["accuracy_median_m"] < acc[0][1]["accuracy_median_m"]      # and the cloud is more accurate for it

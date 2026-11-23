@@ -272,3 +272,7 @@ default stays `affine`). Rebuild the headset programs after this delivery.
 R3.31 (O45): `keyframe_report.py RUN --summary ... --sheet [--between T0 T1]` writes keyframe_sheet[_T0-T1s].jpg beside
 keyframes.json: the refused keyframes of that stretch (red, with the reason and held-out error) and a few calibrated ones
 (green). The tilting calibration (R3.30) did not help on 12:04:50 and stays off.
+
+R3.32 (D150): `--set calibration.region_grid=5` leaves out the parts of a keyframe's view whose depth disagrees with its
+landmarks instead of refusing the whole keyframe (off by default until measured). Rebuild the headset programs after this
+delivery. The keyframe sheet darkens the parts left out.
