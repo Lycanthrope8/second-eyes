@@ -254,3 +254,7 @@ than `--refine-max-disagreement` (15 cm rms).
 R3.27 (D147): `one_map.py --alternatives SUMMARY ...` takes a stretch from another tracking run of the same video where
 this run's piece failed its board check or is missing and the other run's piece passed; for 12:04:50 the earlier tracking's
 summary is runs/h120450_recording_r326.json.
+
+R3.28: `tools/keyframe_report.py RUN [--summary ...]` says why keyframes were not calibrated (by reason, piece and stretch
+of video). `reconstruct_on_quest.py --set SECTION.KEY=VALUE` changes a reconstruction setting for one run (recorded in the
+run's device.json), for experiments without touching configs/qrecon.yaml.

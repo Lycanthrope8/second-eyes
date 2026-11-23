@@ -20,6 +20,27 @@ sys.path.insert(0, str(HERE))
 from qrecon import framelist as FL, registry as REG, questconfig as QC, config as C  # noqa: E402
 
 
+def apply_settings(cfg, settings):
+    """Overrides of the reconstruction settings, as SECTION.KEY=VALUE (VALUE read as JSON when it can be: numbers,
+    lists, true/false), for instance calibration.max_holdout_rel_err=0.15. Returns the overrides applied."""
+    done = {}
+    for item in settings or []:
+        key, _, raw = item.partition("=")
+        section, _, name = key.strip().partition(".")
+        if not raw or not name or section not in cfg or not isinstance(cfg[section], dict):
+            sys.exit(f"--set {item}: expected SECTION.KEY=VALUE with SECTION one of "
+                     f"{', '.join(k for k, v in cfg.items() if isinstance(v, dict))}")
+        if name not in cfg[section]:
+            sys.exit(f"--set {item}: {section} has no setting {name} (it has {', '.join(cfg[section])})")
+        try:
+            value = json.loads(raw)
+        except ValueError:
+            value = raw
+        cfg[section][name] = value
+        done[f"{section}.{name}"] = value
+    return done
+
+
 def spread_keyframes(src, dst, max_n, group=4):
     """The headset program takes keyframes in time order and stops at max_keyframes, which would leave the end of a long
     path out. For a path placed by a fixed similarity (no board fit needs its dense poses), keep only the poses the
@@ -93,6 +114,8 @@ def main():
     ap.add_argument("--fixed-anchor", help="a JSON file {frame, sim3: {s, R, t}, by}: put the cloud into that frame with this "
                                            "similarity instead of fitting a board (tools/place_maps.py writes these)")
     ap.add_argument("--tracking-run"); ap.add_argument("--max-keyframes", type=int); ap.add_argument("--threads", type=int, default=2)
+    ap.add_argument("--set", action="append", metavar="SECTION.KEY=VALUE",
+                    help="change a reconstruction setting for this run (repeatable), e.g. calibration.max_holdout_rel_err=0.15")
     ap.add_argument("--no-loop", action="store_true"); ap.add_argument("--purpose", default="reconstruction on the headset")
     ap.add_argument("--anchor-only", action="store_true",
                     help="compute anchor.json only (seconds): for instance a board link from a run whose cloud already exists")
@@ -207,6 +230,9 @@ def main():
         if not anchor:
             sys.exit("--anchor-only needs board frames and --recording or --board-spans")
         cfg["anchor_only"] = True                    # anchor.json only: no depth, no cloud
+    if a.set:
+        device["settings_changed"] = apply_settings(cfg, a.set)
+        print("settings changed: " + ", ".join(f"{k}={v}" for k, v in device["settings_changed"].items()))
     (path / "recon.json").write_text(json.dumps(cfg, indent=1))
     adb("push", str(path / "recon.json"), f"{rout}/recon/recon.json", capture=False)
     print(f"{run_id}: reconstructing on the headset")

@@ -200,3 +200,20 @@ use nominal timestamps (frame index / frame rate); R3.14 recomputes them from th
 | 5 | One map | 249 s of the video (72%), 200 keyframes, 0.455 usable | recorded | 22 Nov |
 | 5 | Against the MASt3R-SLAM reference | whole: median 13.3 cm; inside the extent: 7.5 cm, precision 0.58, recall 0.17, F-score 0.27 at 10 cm, with 24% of points outside the extent (previous map: 7.9 cm, 0.56, 0.15, 0.3%) | provisional measurement | 22 Nov |
 | 5 | Where the error is | bedroom: the part shared with the previous map 10 cm median, the new part 53 cm with 63% outside the extent (the failed board 01 anchor); living/dining: the shared part 5 cm, the new part 19 cm; the previous map's living/dining room was 23 cm | provisional measurement | Claude, 22 Nov |
+
+## 12:04:50 from two tracking runs (R3.27, D147), 22 November
+
+| Level | Check | Value | Status | Source |
+|---|---|---|---|---|
+| 5 | Pieces | bedroom 2–76 s from the earlier tracking (r014, board 01 anchor passed); living/dining 115–249 s and 253–262 s and the walk back 317–347 s (refined by both boards) from the fast-motion tracking (r060); 248 s of the video (71%); 74 s left out (r060 maps 1, 2, 6 and 7 matched nothing) | recorded | 22 Nov |
+| 5 | One reconstruction (r078) | 200 keyframes, 80 usable (0.40); 94,917 points | recorded | 22 Nov |
+| 5 | Against the MASt3R-SLAM reference | median 4.7 cm; 51% of points within 5 cm and 68% within 10 cm (precision); recall 0.16 (one video); 0.2% outside the extent; alignment refined by 3.96° and 19 cm before scoring. Earlier tracking alone: 7.9 cm, 56%, 0.15; fast-motion tracking alone: 13.3 cm, 44%, 0.17, 24% outside | provisional measurement (comparison, not ground truth); best result so far | 22 Nov |
+
+## Why keyframes are not calibrated (r078, 12:04:50 one map), 22 November
+
+| Level | Check | Value | Status | Source |
+|---|---|---|---|---|
+| 5 | Keyframes calibrated | 80 of 200 (40%). Refused: too few landmarks 47 (29 with none at all), landmarks not spread 33 (25 cover under 6 of 16 image cells, 8 too little depth range), held-out error over 10% 33 (20 of them between 10 and 15%), non-positive depth 4, no consistent fit 3 | failed check | Claude, 22 Nov, from keyframes.json |
+| 5 | Where | bedroom piece 36/52; living/dining piece (115–249 s) 31/108, with 43 of the 47 "too few landmarks"; 120–140 s 1/23 and 220–240 s 0/12; the walk back 10/32, 17 of its failures "not spread" | recorded | Claude, 22 Nov |
+| 5 | Neighbours | the failing keyframes have neighbours 0.5 s away like the calibrated ones: in fast turns the camera rotates without moving, so neighbouring keyframes see the scene from almost the same place and nothing can be triangulated | recorded | Claude, 22 Nov |
+| 5 | Pixel filter on calibrated keyframes | consistency with neighbouring keyframes keeps 43% of pixels (median) | recorded | Claude, 22 Nov |
