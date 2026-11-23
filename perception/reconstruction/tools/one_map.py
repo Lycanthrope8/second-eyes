@@ -2,7 +2,7 @@
 """Joins the maps of one video into one map (D142) and reconstructs it on the headset in one run.
 
     python tools/one_map.py --recording runs/h121118_recording.json [--helpers runs/h191353_recording.json ...]
-                            [--use-link qrecon_20261117_r007] [--target ref01] [--max-keyframes 200] [--dry-run]
+                            [--use-link qrecon_20261117_r007] [--target ref01] [--max-keyframes 300] [--dry-run]
 
 The tracker breaks wherever the images give it nothing to follow, so a video's tracking comes in pieces (map restarts,
 D136). This joins the pieces. Pieces anchored by a board whose checks passed are the starting points. Every other piece,
@@ -450,7 +450,8 @@ def main(argv=None):
     ap.add_argument("--helpers", nargs="*", default=[], help="other processed recordings whose metric maps may be matched")
     ap.add_argument("--use-link", nargs="*", default=[], metavar="RUN", help="runs whose board links join the frames (D140)")
     ap.add_argument("--target", default="ref01", help="board frame of the joined map")
-    ap.add_argument("--max-keyframes", type=int, default=200, help="keyframes for the one reconstruction")
+    ap.add_argument("--max-keyframes", type=int, default=300,
+                    help="keyframes for the one reconstruction (D151: every candidate of the keyframe rule, up to this many)")
     ap.add_argument("--model", default=str(Path("models") / "dav2s_960x540.onnx"))
     ap.add_argument("--min-map-s", type=float, default=5.0)
     ap.add_argument("--max-rounds", type=int, default=4)

@@ -217,7 +217,8 @@ def main():
     ap.add_argument("--use-link", nargs="*", default=[], metavar="RUN", help="with --one-map: runs whose board links to use (D140)")
     ap.add_argument("--alternatives", nargs="*", default=[], metavar="SUMMARY",
                     help="with --one-map: summaries of other tracking runs of this video (D147)")
-    ap.add_argument("--one-map-keyframes", type=int, default=200, help="with --one-map: keyframes for the one reconstruction")
+    ap.add_argument("--one-map-keyframes", type=int, default=300,
+                    help="with --one-map: keyframes for the one reconstruction (D151: every candidate, up to this many)")
     ap.add_argument("--recheck", nargs="+", metavar="SUMMARY",
                     help="only apply the speed check to the board-anchored reconstructions in these recording summaries")
     ap.add_argument("--max-speed", type=float, default=2.0, help="m/s; a board anchor implying faster camera motion is trimmed")

@@ -276,3 +276,7 @@ keyframes.json: the refused keyframes of that stretch (red, with the reason and 
 R3.32 (D150): `--set calibration.region_grid=5` leaves out the parts of a keyframe's view whose depth disagrees with its
 landmarks instead of refusing the whole keyframe (off by default until measured). Rebuild the headset programs after this
 delivery. The keyframe sheet darkens the parts left out.
+
+R3.33 (D151): one-map runs reconstruct every keyframe candidate up to 300 (26 minutes on the headset for 12:04:50's 289).
+D150 (region masking) not adopted. Check `adb devices` before a headset step: with no headset the step stops, and a command
+that takes the newest run folder would then pick up an older run.

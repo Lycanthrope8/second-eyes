@@ -251,3 +251,20 @@ use nominal timestamps (frame index / frame rate); R3.14 recomputes them from th
 | 5 | Keyframes calibrated | 123 of 198 (affine: 121); living/dining piece 33 of 87 (unchanged); refused: held-out 41 (48), non-positive depth 6 (1); held-out error of calibrated keyframes median 5.1% (5.7%) | provisional measurement | 22 Nov |
 | 5 | 3 views per surface (r095) | 103,579 points; median 5.0 cm, precision 0.63, recall 0.13 (affine r094: 3.7 cm, 0.71, 0.14) | failed check: less accurate than affine | 22 Nov |
 | 5 | 2 views per surface (r096) | 241,592 points; median 7.8 cm, precision 0.55, recall 0.21 (affine r093: 6.5 cm, 0.59, 0.22) | failed check: less accurate than affine | 22 Nov |
+
+## Leaving out the parts of a view that disagree (R3.32, r001 and r002; same keyframes as r093/r094), 23 November
+
+| Level | Check | Value | Status | Source |
+|---|---|---|---|---|
+| 5 | Keyframes calibrated | 161 of 198 (81%; 121 without); living/dining piece 58 of 87 (33); held-out refusals 7 (48); 4 of 25 parts left out per calibrated keyframe (median) | provisional measurement | 23 Nov |
+| 5 | 3 views per surface (r001) | 93,783 points; median 4.9 cm, precision 0.63, recall 0.12 (r094: 3.7 cm, 0.71, 0.14); against r094 it dropped surfaces 6.8 cm off and added surfaces 23.2 cm off, three quarters of them in the bedroom | failed check: less accurate and less complete | 23 Nov |
+| 5 | 2 views per surface (r002) | 216,017 points; median 7.5 cm, precision 0.55, recall 0.18 (r093: 6.5 cm, 0.59, 0.22) | failed check | 23 Nov |
+
+## Every keyframe candidate (r003; D149 settings), 23 November
+
+| Level | Check | Value | Status | Source |
+|---|---|---|---|---|
+| 5 | Keyframes | 289 (all candidates), 172 calibrated (60%); refused: held-out 80, not spread 16, too few landmarks 15, other 6 | provisional measurement | 23 Nov |
+| 5 | Against the MASt3R-SLAM reference | 152,852 points; median 4.3 cm, 54% within 5 cm, precision 0.69, recall 0.18, F-score 0.28 at 10 cm; bedroom 6.0 cm and 31% of its reference covered, living/dining 4.6 cm and 11% | provisional measurement | 23 Nov |
+| 5 | Against r094 (200 keyframes) | surfaces added 3,490 cells (13.1 cm off), dropped 951 cells (17.9 cm off) | provisional measurement | Claude, 23 Nov |
+| 5 | Time on the headset | 1,568 s (26 min) for 289 keyframes; peak 923 MB | recorded | 23 Nov |
